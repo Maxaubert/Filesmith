@@ -1,0 +1,3 @@
+# Bundled core CLI tools (ffmpeg.exe, magick.exe, mutool.exe, caesiumclt.exe)
+# are placed here by scripts/fetch-tools (added in a later task). This folder is
+# gitignored except for this marker so the tree exists.

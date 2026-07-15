@@ -1,0 +1,13 @@
+node_modules/
+out/
+dist/
+*.log
+.DS_Store
+.eslintcache
+
+# Bundled tool binaries are fetched by a script, not committed (they're large).
+resources/bin/*
+!resources/bin/.gitkeep
+
+# Local Claude settings overrides
+.claude/settings.local.json
