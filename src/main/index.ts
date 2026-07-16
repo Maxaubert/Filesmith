@@ -69,13 +69,22 @@ function serveMedia(request: Request): Response {
         'Content-Type': type,
         'Content-Length': String(end - start + 1),
         'Content-Range': `bytes ${start}-${end}/${size}`,
-        'Accept-Ranges': 'bytes'
+        'Accept-Ranges': 'bytes',
+        // CORS so the renderer's Web Audio analyser can read audio samples.
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges'
       }
     })
   }
   return new Response(asBody(createReadStream(filePath)), {
     status: 200,
-    headers: { 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes' }
+    headers: {
+      'Content-Type': type,
+      'Content-Length': String(size),
+      'Accept-Ranges': 'bytes',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges'
+    }
   })
 }
 

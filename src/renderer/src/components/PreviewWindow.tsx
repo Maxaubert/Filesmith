@@ -3,6 +3,7 @@ import type { PreviewItem, PreviewPayload } from '@shared/types'
 import { formatBytes } from '../state'
 import { Icon } from './Icon'
 import { MediaBar } from './MediaBar'
+import { AudioVisualizer } from './AudioVisualizer'
 
 const extOf = (name: string): string => {
   const i = name.lastIndexOf('.')
@@ -255,12 +256,8 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         )}
         {f.kind === 'audio' && (
           <>
-            <div className="fs-art grid h-[220px] w-[220px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#8a7bff] to-[#ff9a8b] shadow-[0_12px_40px_rgba(0,0,0,.18)]">
-              {f.thumb ? (
-                <img src={f.thumb} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <Icon name="music" className="h-16 w-16 text-white/90" strokeWidth={1.5} />
-              )}
+            <div className="fs-art relative h-[340px] w-[340px]">
+              <AudioVisualizer media={mediaEl} />
             </div>
             {!playing && (
               <button
@@ -330,6 +327,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               key={url}
               ref={setMedia}
               src={url}
+              crossOrigin="anonymous"
               preload="metadata"
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
