@@ -215,7 +215,9 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
       <div
         ref={stageRef}
         onWheel={onWheel}
-        className="preview-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f1f1f4] p-5"
+        className={`preview-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-5 ${
+          f.kind === 'audio' ? 'bg-[#0e0e14]' : 'bg-[#f1f1f4]'
+        }`}
       >
         {f.kind === 'image' && (
           <img

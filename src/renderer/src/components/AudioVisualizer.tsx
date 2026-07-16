@@ -73,6 +73,7 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
     const data = new Uint8Array(128)
     let raf = 0
     let boomHold = 0
+    let t = 0
 
     const fit = (): void => {
       const r = canvas.getBoundingClientRect()
@@ -100,53 +101,51 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
       if (an && audioCtx?.state === 'running') an.getByteFrequencyData(data)
       else data.fill(0)
 
-      // React mainly to big bass hits: threshold + compress so normal audio is
-      // calm and a real boom/drop swells it hard. Fast attack, slow release.
       const bass = band(1, 5)
-      const boomRaw = Math.pow(Math.max(0, (bass - 0.35) / 0.65), 1.6)
-      boomHold = Math.max(boomRaw, boomHold * 0.92)
+      const overall = band(2, 50)
+      // Big-hit response: threshold + compress, fast attack / slow release.
+      const boomRaw = Math.pow(Math.max(0, (bass - 0.3) / 0.7), 1.5)
+      boomHold = Math.max(boomRaw, boomHold * 0.93)
       const boom = boomHold
+      // Gentle flow at rest, quicker with audio.
+      t += 0.003 + overall * 0.014
 
       const cx = W / 2
       const cy = H / 2
-      const R = Math.min(W, H) * 0.2 * (1 + boom * 0.4)
+      const minD = Math.min(W, H)
+      const R = minD * 0.3
+      // Wave depth: a base ribbon that deepens with audio and swells on a boom.
+      const ampFrac = 0.2 + overall * 0.1 + boom * 0.14
 
-      // Glow fades within the canvas (fixed outer radius) so there's no square haze.
-      const glow = g.createRadialGradient(cx, cy, R * 0.3, cx, cy, Math.min(W, H) * 0.45)
-      glow.addColorStop(0, `rgba(91,91,214,${0.1 + boom * 0.5})`)
-      glow.addColorStop(1, 'rgba(91,91,214,0)')
-      g.fillStyle = glow
-      g.fillRect(0, 0, W, H)
+      const grad = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R)
+      grad.addColorStop(0, '#5b5bd6')
+      grad.addColorStop(0.55, '#9a6cff')
+      grad.addColorStop(1, '#ff9a8b')
+      g.strokeStyle = grad
+      g.lineWidth = DPR
+      g.globalAlpha = 0.1
 
-      // A few rounded lobes whose size grows with the boom — calm at rest, big
-      // spikes only when the track hits hard.
-      const pts = 160
-      const bins = 9
-      const lobeAmp = 0.12 + boom * 0.45
-      g.beginPath()
-      for (let i = 0; i <= pts; i++) {
-        const a = (i / pts) * Math.PI * 2
-        const m = Math.abs((((i / pts) * 2) % 2) - 1)
-        const idx = 2 + m * (bins - 1)
-        const b0 = Math.floor(idx)
-        const frac = idx - b0
-        const raw = (data[b0] * (1 - frac) + data[b0 + 1] * frac) / 255
-        const spike = Math.pow(raw, 1.5)
-        const rr = R * (1 + spike * lobeAmp)
-        const x = cx + Math.cos(a) * rr
-        const y = cy + Math.sin(a) * rr
-        if (i === 0) g.moveTo(x, y)
-        else g.lineTo(x, y)
+      // Many phase-shifted wavy loops form a flowing silk ribbon (guilloche).
+      const lines = 90
+      const pts = 260
+      const petals = 8
+      const petals2 = 3
+      for (let l = 0; l < lines; l++) {
+        const ph = (l / lines) * Math.PI * 2 * 1.3 + t
+        g.beginPath()
+        for (let i = 0; i <= pts; i++) {
+          const a = (i / pts) * Math.PI * 2
+          const env = 0.75 + 0.25 * (0.5 + 0.5 * Math.sin(a * 3 + ph * 0.4))
+          const w = (Math.sin(a * petals + ph) + 0.2 * Math.sin(a * petals2 - ph * 0.6)) * env
+          const r = R * (1 + ampFrac * w)
+          const x = cx + Math.cos(a) * r
+          const y = cy + Math.sin(a) * r
+          if (i === 0) g.moveTo(x, y)
+          else g.lineTo(x, y)
+        }
+        g.stroke()
       }
-      g.closePath()
-      const fill = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R)
-      fill.addColorStop(0, '#7c6cff')
-      fill.addColorStop(1, '#ff9a8b')
-      g.fillStyle = fill
-      g.shadowColor = 'rgba(91,91,214,.45)'
-      g.shadowBlur = 40 * DPR
-      g.fill()
-      g.shadowBlur = 0
+      g.globalAlpha = 1
 
       raf = requestAnimationFrame(draw)
     }
