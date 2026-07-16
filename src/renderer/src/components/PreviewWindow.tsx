@@ -223,7 +223,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               <button
                 onClick={() => void mediaRef.current?.play()}
                 title="Play"
-                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/45 backdrop-blur transition hover:scale-105 hover:bg-black/60"
+                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-[#4a4a53]/85 backdrop-blur transition hover:scale-105 hover:bg-[#4a4a53]"
               >
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
@@ -243,7 +243,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               <button
                 onClick={() => void mediaRef.current?.play()}
                 title="Play"
-                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/45 backdrop-blur transition hover:scale-105 hover:bg-black/60"
+                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-[#4a4a53]/85 backdrop-blur transition hover:scale-105 hover:bg-[#4a4a53]"
               >
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
