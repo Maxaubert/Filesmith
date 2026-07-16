@@ -154,10 +154,32 @@ export default function App(): JSX.Element {
     setPreview({ files, index: Math.max(0, list.findIndex((it) => it.id === item.id)) })
   }
 
-  // Build the right-click / ⋯ menu for a queue item. Input acts on the source
-  // file (remove = drop from list); Output acts on the produced file (delete =
-  // recycle bin, then the item returns to the Input list as re-runnable).
+  // Dismiss a set of items from a column. For Output we also recycle-bin the
+  // produced file before dropping the card.
+  function dismiss(ids: string[], column: 'input' | 'output'): void {
+    for (const id of ids) {
+      if (column === 'output') {
+        const it = cur.items.find((x) => x.id === id)
+        if (it?.outputPath) void window.filesmith.trashFile(it.outputPath)
+      }
+      dispatch({ type: 'dismiss', id, column })
+    }
+  }
+
+  // Build the right-click / ⋯ menu for a queue item. Destructive actions apply
+  // to the whole selection when the clicked item is part of a multi-selection;
+  // otherwise just to that one item.
   function openMenu(side: 'input' | 'output', item: QueueItem, x: number, y: number): void {
+    const inSel = cur.selected.includes(item.id) && cur.selected.length > 1
+    const visible = side === 'input' ? inInput : inOutput
+    const targets = inSel
+      ? cur.selected.filter((id) => {
+          const it = cur.items.find((x) => x.id === id)
+          return it != null && visible(it)
+        })
+      : [item.id]
+    const n = targets.length
+
     if (side === 'input') {
       setMenu({
         x,
@@ -171,10 +193,10 @@ export default function App(): JSX.Element {
           },
           { sep: true },
           {
-            label: 'Remove from list',
+            label: n > 1 ? `Remove ${n} from list` : 'Remove from list',
             icon: 'trash',
             danger: true,
-            onClick: () => dispatch({ type: 'dismiss', id: item.id, column: 'input' })
+            onClick: () => dismiss(targets, 'input')
           }
         ]
       })
@@ -190,13 +212,10 @@ export default function App(): JSX.Element {
         { label: 'Reveal in Explorer', icon: 'folder', onClick: () => window.filesmith.reveal(out) },
         { sep: true },
         {
-          label: 'Delete file',
+          label: n > 1 ? `Delete ${n} files` : 'Delete file',
           icon: 'trash',
           danger: true,
-          onClick: () => {
-            void window.filesmith.trashFile(out)
-            dispatch({ type: 'dismiss', id: item.id, column: 'output' })
-          }
+          onClick: () => dismiss(targets, 'output')
         }
       ]
     })
@@ -268,7 +287,7 @@ export default function App(): JSX.Element {
             activeKind={activeKind}
             outThumbs={outThumbs}
             onItemClick={onItemClick}
-            onReveal={(p) => window.filesmith.reveal(p)}
+            onOpen={openPreview}
             onMenu={openMenu}
           />
         </section>

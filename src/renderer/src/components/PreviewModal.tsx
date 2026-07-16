@@ -96,14 +96,10 @@ export function PreviewModal({
           </button>
         </div>
 
-        {/* media */}
-        <div
-          className={`relative flex min-h-[340px] flex-1 items-center justify-center overflow-hidden p-5 ${
-            f.kind === 'image' ? 'checker' : f.kind === 'video' ? 'bg-[#101014]' : 'bg-[#fafafb]'
-          }`}
-        >
+        {/* media — one light, opaque backdrop for every kind */}
+        <div className="relative flex min-h-[360px] flex-1 items-center justify-center overflow-hidden bg-[#f1f1f4] p-5">
           {f.kind === 'image' && (
-            <img src={url} alt={f.name} className="max-h-[52vh] max-w-full object-contain" />
+            <img src={url} alt={f.name} className="max-h-full max-w-full object-contain" />
           )}
           {f.kind === 'video' && (
             <video
@@ -112,7 +108,7 @@ export function PreviewModal({
               src={url}
               poster={f.thumb ?? undefined}
               controls
-              className="max-h-[52vh] max-w-full rounded-lg"
+              className="h-full w-full rounded-lg object-contain"
             />
           )}
           {f.kind === 'audio' && (

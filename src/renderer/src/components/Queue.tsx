@@ -102,6 +102,7 @@ function InputCard({
   selected,
   compatible,
   onClick,
+  onOpen,
   onMenu
 }: {
   item: QueueItem
@@ -110,12 +111,14 @@ function InputCard({
   selected: boolean
   compatible: boolean
   onClick: (e: MouseEvent) => void
+  onOpen: () => void
   onMenu: (x: number, y: number) => void
 }): JSX.Element {
   const indeterminate = item.status === 'running' && !item.percent
   return (
     <div
       onClick={onClick}
+      onDoubleClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault()
         onMenu(e.clientX, e.clientY)
@@ -162,24 +165,30 @@ function InputCard({
 function OutputCard({
   item,
   thumb,
-  onReveal,
+  selected,
+  onClick,
+  onOpen,
   onMenu
 }: {
   item: QueueItem
   thumb: string | null
-  onReveal: () => void
+  selected: boolean
+  onClick: (e: MouseEvent) => void
+  onOpen: () => void
   onMenu: (x: number, y: number) => void
 }): JSX.Element {
   const out = item.outputPath ?? ''
   return (
     <div
-      onClick={onReveal}
+      onClick={onClick}
+      onDoubleClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault()
         onMenu(e.clientX, e.clientY)
       }}
-      title="Reveal in folder"
-      className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-black/[.07] bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition hover:border-accent"
+      className={`group flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition ${
+        selected ? 'border-accent ring-2 ring-accent/60' : 'border-black/[.07] hover:border-black/[.14]'
+      }`}
     >
       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[9px] bg-[#ececf1] shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">
         {thumb ? (
@@ -209,7 +218,7 @@ export function Queues({
   activeKind,
   outThumbs,
   onItemClick,
-  onReveal,
+  onOpen,
   onMenu
 }: {
   items: QueueItem[]
@@ -219,7 +228,7 @@ export function Queues({
   activeKind: FileKind | null
   outThumbs: Record<string, string | null>
   onItemClick: (id: string, e: MouseEvent) => void
-  onReveal: (path: string) => void
+  onOpen: (side: 'input' | 'output', item: QueueItem) => void
   onMenu: (side: 'input' | 'output', item: QueueItem, x: number, y: number) => void
 }): JSX.Element {
   const inputs = items.filter(inInput)
@@ -236,6 +245,7 @@ export function Queues({
             selected={selected.includes(i.id)}
             compatible={activeKind === null || i.file.kind === activeKind}
             onClick={(e) => onItemClick(i.id, e)}
+            onOpen={() => onOpen('input', i)}
             onMenu={(x, y) => onMenu('input', i, x, y)}
           />
         ))}
@@ -246,7 +256,9 @@ export function Queues({
             key={i.id}
             item={i}
             thumb={i.outputPath ? (outThumbs[i.outputPath] ?? null) : null}
-            onReveal={() => i.outputPath && onReveal(i.outputPath)}
+            selected={selected.includes(i.id)}
+            onClick={(e) => onItemClick(i.id, e)}
+            onOpen={() => onOpen('output', i)}
             onMenu={(x, y) => onMenu('output', i, x, y)}
           />
         ))}

@@ -102,12 +102,6 @@ img {
   }
 }
 
-/* Transparency checkerboard behind previewed images with alpha */
-.checker {
-  background:
-    repeating-conic-gradient(#ececef 0 25%, #f7f7f9 0 50%) 0 0 / 22px 22px;
-}
-
 /* Slim, unobtrusive scrollbar for the queue */
 .scroll-thin::-webkit-scrollbar {
   width: 9px;
