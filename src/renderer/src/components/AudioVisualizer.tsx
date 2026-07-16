@@ -38,7 +38,7 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
     }
     const analyser = ctx.createAnalyser()
     analyser.fftSize = 256
-    analyser.smoothingTimeConstant = 0.82
+    analyser.smoothingTimeConstant = 0.7
     // Route audio THROUGH the analyser so it always sees the live signal.
     source.connect(analyser)
     analyser.connect(ctx.destination)
@@ -72,7 +72,6 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
     const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1))
     const data = new Uint8Array(128)
     let raf = 0
-    let t = 0
 
     const fit = (): void => {
       const r = canvas.getBoundingClientRect()
@@ -90,44 +89,41 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
     }
 
     const draw = (): void => {
-      t += 0.016
       fit()
       const W = canvas.width
       const H = canvas.height
       g.clearRect(0, 0, W, H)
 
-      let lo: number
-      let mid: number
-      let hi: number
+      // Silent/paused -> zeros -> a still circle. Deformation is purely the audio.
       const an = analyserRef.current
-      if (an && audioCtx?.state === 'running') {
-        an.getByteFrequencyData(data)
-        lo = band(0, 6)
-        mid = band(6, 24)
-        hi = band(24, 64)
-      } else {
-        lo = 0.12 + 0.05 * Math.sin(t * 1.1)
-        mid = 0.1 + 0.04 * Math.sin(t * 0.8 + 1)
-        hi = 0.06 + 0.03 * Math.sin(t * 1.4 + 2)
-      }
+      if (an && audioCtx?.state === 'running') an.getByteFrequencyData(data)
+      else data.fill(0)
 
+      const bass = band(1, 6)
+      const overall = band(1, 40)
       const cx = W / 2
       const cy = H / 2
-      const R = Math.min(W, H) * 0.26
+      const R = Math.min(W, H) * 0.22 * (1 + bass * 0.55)
 
       const glow = g.createRadialGradient(cx, cy, R * 0.4, cx, cy, R * 2.4)
-      glow.addColorStop(0, `rgba(91,91,214,${0.28 + lo * 0.45})`)
+      glow.addColorStop(0, `rgba(91,91,214,${0.1 + overall * 0.55})`)
       glow.addColorStop(1, 'rgba(91,91,214,0)')
       g.fillStyle = glow
       g.fillRect(0, 0, W, H)
 
+      // Map the spectrum around the circumference; a triangle-wave index keeps
+      // the shape symmetric and closed.
+      const pts = 140
+      const bins = 40
       g.beginPath()
-      const pts = 96
       for (let i = 0; i <= pts; i++) {
         const a = (i / pts) * Math.PI * 2
-        const wob =
-          Math.sin(a * 3 + t * 2) * mid + Math.sin(a * 6 - t * 3) * hi + Math.sin(a * 2 + t) * lo
-        const rr = R * (1 + 0.34 * wob)
+        const m = Math.abs((((i / pts) * 2) % 2) - 1)
+        const idx = 2 + m * (bins - 1)
+        const b0 = Math.floor(idx)
+        const frac = idx - b0
+        const v = (data[b0] * (1 - frac) + data[b0 + 1] * frac) / 255
+        const rr = R * (1 + v * 0.8)
         const x = cx + Math.cos(a) * rr
         const y = cy + Math.sin(a) * rr
         if (i === 0) g.moveTo(x, y)
