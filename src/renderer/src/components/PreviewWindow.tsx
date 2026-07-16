@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type JSX, type MouseEvent, type WheelEvent
 import type { PreviewItem, PreviewPayload } from '@shared/types'
 import { formatBytes } from '../state'
 import { Icon } from './Icon'
-import { MediaControls } from './MediaControls'
 
 const extOf = (name: string): string => {
   const i = name.lastIndexOf('.')
@@ -49,10 +48,8 @@ export function PreviewWindow(): JSX.Element | null {
 function PreviewView({ files, start }: { files: PreviewItem[]; start: number }): JSX.Element | null {
   const [i, setI] = useState(start)
   const mediaRef = useRef<HTMLMediaElement | null>(null)
-  const [mediaEl, setMediaEl] = useState<HTMLMediaElement | null>(null)
   const setMedia = (el: HTMLMediaElement | null): void => {
     mediaRef.current = el
-    setMediaEl(el)
   }
   const many = files.length > 1
   const step = (d: number): void => setI((n) => (n + d + files.length) % files.length)
@@ -194,10 +191,12 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               key={url}
               ref={setMedia}
               src={url}
+              controls
+              controlsList="nodownload noplaybackrate noremoteplayback"
+              disablePictureInPicture
               preload="metadata"
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
-              onClick={() => (mediaRef.current?.paused ? void mediaRef.current.play() : mediaRef.current?.pause())}
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget
                 // Resolve duration if missing; otherwise show a real first frame
@@ -210,7 +209,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
                   }
                 }
               }}
-              className="h-full w-full object-contain"
+              className="h-full w-full rounded-lg object-contain"
             />
             {!playing && (
               <button
@@ -221,28 +220,16 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
             )}
-            <MediaControls media={mediaEl} onFullscreen={() => void stageRef.current?.requestFullscreen()} />
           </>
         )}
         {f.kind === 'audio' && (
-          <>
-            <div className="grid h-[220px] w-[220px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#8a7bff] to-[#ff9a8b] shadow-[0_12px_40px_rgba(0,0,0,.18)]">
-              {f.thumb ? (
-                <img src={f.thumb} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <Icon name="music" className="h-16 w-16 text-white/90" strokeWidth={1.5} />
-              )}
-            </div>
-            <audio
-              key={url}
-              ref={setMedia}
-              src={url}
-              preload="metadata"
-              onLoadedMetadata={(e) => forceDuration(e.currentTarget)}
-              className="hidden"
-            />
-            <MediaControls media={mediaEl} />
-          </>
+          <div className="grid h-[220px] w-[220px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#8a7bff] to-[#ff9a8b] shadow-[0_12px_40px_rgba(0,0,0,.18)]">
+            {f.thumb ? (
+              <img src={f.thumb} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <Icon name="music" className="h-16 w-16 text-white/90" strokeWidth={1.5} />
+            )}
+          </div>
         )}
 
         {f.kind === 'image' && zoom > 1 && (
@@ -279,6 +266,20 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         )}
       </div>
 
+      {f.kind === 'audio' && (
+        <div className="shrink-0 border-t border-line px-4 py-3">
+          <audio
+            key={url}
+            ref={setMedia}
+            src={url}
+            controls
+            controlsList="nodownload noplaybackrate"
+            preload="metadata"
+            onLoadedMetadata={(e) => forceDuration(e.currentTarget)}
+            className="w-full"
+          />
+        </div>
+      )}
     </div>
   )
 }
