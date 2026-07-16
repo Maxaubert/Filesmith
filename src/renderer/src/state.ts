@@ -11,7 +11,17 @@ export interface QueueItem {
   message?: string
   outputPath?: string
   error?: string
+  /** Dismissed from the Input column (its result may still show in Output). */
+  hiddenInput?: boolean
+  /** Result dismissed from the Output column (the input row may still show). */
+  hiddenOutput?: boolean
 }
+
+/** Whether an item is currently shown in the Input column. */
+export const inInput = (i: QueueItem): boolean => !i.hiddenInput
+/** Whether an item's result is currently shown in the Output column. */
+export const inOutput = (i: QueueItem): boolean =>
+  i.status === 'done' && !!i.outputPath && !i.hiddenOutput
 
 export type SelectMode = 'single' | 'toggle' | 'range'
 
@@ -53,8 +63,7 @@ export type Action =
   | { type: 'setOption'; tool: ToolId; key: string; value: string | number | boolean }
   | { type: 'addItems'; files: FileInfo[] }
   | { type: 'setThumb'; id: string; thumb: string | null }
-  | { type: 'removeItem'; id: string }
-  | { type: 'clearOutput'; id: string }
+  | { type: 'dismiss'; id: string; column: 'input' | 'output' }
   | { type: 'markQueued'; ids: string[] }
   | { type: 'jobEvent'; event: JobEvent }
   | { type: 'select'; id: string; mode: SelectMode }
@@ -73,7 +82,8 @@ export function reducer(state: AppState, action: Action): AppState {
         }
       }
     case 'addItems': {
-      const seen = new Set(state.items.map((i) => i.file.path))
+      // Ignore input-dismissed items so re-dropping a removed file re-adds it.
+      const seen = new Set(state.items.filter(inInput).map((i) => i.file.path))
       const add = action.files
         .filter((f) => !seen.has(f.path))
         .map<QueueItem>((f) => ({ id: newId(), file: f, thumb: null, status: 'ready', percent: 0 }))
@@ -94,37 +104,38 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         items: state.items.map((i) => (i.id === action.id ? { ...i, thumb: action.thumb } : i))
       }
-    case 'removeItem':
+    case 'dismiss': {
+      // Input and Output cards are two views of one item. Dismissing one hides
+      // only that view; the item is dropped entirely once neither view remains.
+      const items = state.items.map((i) =>
+        i.id === action.id
+          ? action.column === 'input'
+            ? { ...i, hiddenInput: true }
+            : { ...i, hiddenOutput: true }
+          : i
+      )
+      const kept = items.filter((i) => inInput(i) || inOutput(i))
+      const selectable = new Set(kept.filter(inInput).map((i) => i.id))
       return {
         ...state,
-        items: state.items.filter((i) => i.id !== action.id),
-        selected: state.selected.filter((s) => s !== action.id),
-        anchor: state.anchor === action.id ? null : state.anchor
+        items: kept,
+        selected: state.selected.filter((s) => selectable.has(s)),
+        anchor: state.anchor && selectable.has(state.anchor) ? state.anchor : null
       }
-    case 'clearOutput':
-      // The output file was deleted; return the item to a re-runnable state so
-      // it leaves the Output column but stays in the Input list.
-      return {
-        ...state,
-        items: state.items.map((i) =>
-          i.id === action.id
-            ? {
-                ...i,
-                status: 'ready',
-                percent: 0,
-                outputPath: undefined,
-                error: undefined,
-                message: undefined
-              }
-            : i
-        )
-      }
+    }
     case 'markQueued':
       return {
         ...state,
         items: state.items.map((i) =>
           action.ids.includes(i.id)
-            ? { ...i, status: 'queued', percent: 0, error: undefined, outputPath: undefined }
+            ? {
+                ...i,
+                status: 'queued',
+                percent: 0,
+                error: undefined,
+                outputPath: undefined,
+                hiddenOutput: false
+              }
             : i
         )
       }

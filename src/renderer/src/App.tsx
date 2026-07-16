@@ -137,7 +137,7 @@ export default function App(): JSX.Element {
             label: 'Remove from list',
             icon: 'trash',
             danger: true,
-            onClick: () => dispatch({ type: 'removeItem', id: item.id })
+            onClick: () => dispatch({ type: 'dismiss', id: item.id, column: 'input' })
           }
         ]
       })
@@ -158,7 +158,7 @@ export default function App(): JSX.Element {
           danger: true,
           onClick: () => {
             void window.filesmith.trashFile(out)
-            dispatch({ type: 'clearOutput', id: item.id })
+            dispatch({ type: 'dismiss', id: item.id, column: 'output' })
           }
         }
       ]

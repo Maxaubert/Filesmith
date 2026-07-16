@@ -22,7 +22,7 @@ export default tseslint.config(
     }
   },
   {
-    files: ['src/main/**/*.ts', 'src/preload/**/*.ts'],
+    files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'scripts/**/*.mjs'],
     languageOptions: { globals: globals.node }
   },
   prettier

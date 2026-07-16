@@ -1,6 +1,6 @@
 import type { JSX, MouseEvent } from 'react'
 import type { FileKind, JobOptions, ToolId } from '@shared/types'
-import { formatBytes, type QueueItem } from '../state'
+import { formatBytes, inInput, inOutput, type QueueItem } from '../state'
 import { Icon } from './Icon'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
@@ -222,11 +222,12 @@ export function Queues({
   onReveal: (path: string) => void
   onMenu: (side: 'input' | 'output', item: QueueItem, x: number, y: number) => void
 }): JSX.Element {
-  const done = items.filter((i) => i.status === 'done' && i.outputPath)
+  const inputs = items.filter(inInput)
+  const done = items.filter(inOutput)
   return (
     <div className="flex min-h-0 flex-1 gap-5">
-      <Column title="Input" count={items.length} empty="No files yet">
-        {items.map((i) => (
+      <Column title="Input" count={inputs.length} empty="No files yet">
+        {inputs.map((i) => (
           <InputCard
             key={i.id}
             item={i}
