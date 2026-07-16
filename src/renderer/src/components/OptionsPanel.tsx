@@ -1,15 +1,7 @@
 import type { JSX } from 'react'
-import type { JobOptions, ToolId } from '@shared/types'
+import type { FileKind, JobOptions, ToolId } from '@shared/types'
+import { categoryFormats, isSameFormat } from '@shared/convert'
 import { toolMeta } from '../lib/tools'
-
-const CONVERT_FORMATS = [
-  { label: 'WebP', ext: '.webp' },
-  { label: 'PNG', ext: '.png' },
-  { label: 'JPG', ext: '.jpg' },
-  { label: 'AVIF', ext: '.avif' },
-  { label: 'TIFF', ext: '.tiff' },
-  { label: 'GIF', ext: '.gif' }
-]
 
 function Label({ children }: { children: string }): JSX.Element {
   return (
@@ -49,26 +41,38 @@ function Segmented<T extends string>({
 
 function ConvertOptions({
   options,
+  activeKind,
+  sourceExt,
   set
 }: {
   options: JobOptions
+  activeKind: FileKind | null
+  sourceExt: string | null
   set: (k: string, v: string | number) => void
 }): JSX.Element {
+  const kind = activeKind ?? 'image'
+  const formats = categoryFormats(kind)
   return (
     <>
       <div>
         <Label>Target format</Label>
         <div className="grid grid-cols-2 gap-2">
-          {CONVERT_FORMATS.map((f) => {
-            const sel = options.format === f.ext
+          {formats.map((f) => {
+            // Gray out (and block) the source's own format: PNG can't become PNG.
+            const disabled = sourceExt != null && isSameFormat(f.ext, sourceExt)
+            const sel = options.format === f.ext && !disabled
             return (
               <button
                 key={f.ext}
+                disabled={disabled}
+                title={disabled ? 'Files are already this format' : undefined}
                 onClick={() => set('format', f.ext)}
                 className={`rounded-xl border py-2.5 text-[13px] font-semibold transition ${
                   sel
                     ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(91,91,214,.10)]'
-                    : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
+                    : disabled
+                      ? 'cursor-not-allowed border-black/[.06] bg-white text-[#c4c4cc]'
+                      : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
                 }`}
               >
                 {f.label}
@@ -77,18 +81,20 @@ function ConvertOptions({
           })}
         </div>
       </div>
-      <div>
-        <Label>Quality</Label>
-        <Segmented
-          value={String(options.quality ?? 'balanced')}
-          onChange={(v) => set('quality', v)}
-          options={[
-            { value: 'smaller', label: 'Smaller' },
-            { value: 'balanced', label: 'Balanced' },
-            { value: 'best', label: 'Best' }
-          ]}
-        />
-      </div>
+      {kind === 'image' && (
+        <div>
+          <Label>Quality</Label>
+          <Segmented
+            value={String(options.quality ?? 'balanced')}
+            onChange={(v) => set('quality', v)}
+            options={[
+              { value: 'smaller', label: 'Smaller' },
+              { value: 'balanced', label: 'Balanced' },
+              { value: 'best', label: 'Best' }
+            ]}
+          />
+        </div>
+      )}
     </>
   )
 }
@@ -194,12 +200,16 @@ function ResizeOptions({
 export function OptionsPanel({
   tool,
   options,
+  activeKind,
+  sourceExt,
   runCount,
   onSet,
   onRun
 }: {
   tool: ToolId
   options: JobOptions
+  activeKind: FileKind | null
+  sourceExt: string | null
   runCount: number
   onSet: (k: string, v: string | number) => void
   onRun: () => void
@@ -212,11 +222,18 @@ export function OptionsPanel({
         <p className="mt-0.5 text-[12.5px] text-muted">
           {runCount > 0
             ? `Applies to ${runCount} file${runCount === 1 ? '' : 's'}.`
-            : 'Add files to begin.'}
+            : 'Select files to begin.'}
         </p>
       </div>
 
-      {tool === 'convert' && <ConvertOptions options={options} set={onSet} />}
+      {tool === 'convert' && (
+        <ConvertOptions
+          options={options}
+          activeKind={activeKind}
+          sourceExt={sourceExt}
+          set={onSet}
+        />
+      )}
       {tool === 'compress' && <CompressOptions options={options} set={onSet} />}
       {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
 

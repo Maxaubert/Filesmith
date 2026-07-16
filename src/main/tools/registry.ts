@@ -6,27 +6,42 @@ import { resolveTool } from '../toolResolver'
 import { run } from '../run'
 import { uniqueOutPath } from '../output'
 import type { ToolModule } from './tool'
-import { buildConvertArgs, convertTargets, findTarget, qualityNum } from './convert'
+import {
+  buildFfmpegArgs,
+  buildMagickArgs,
+  convertTargets,
+  isSameFormat,
+  magickExtraFor,
+  qualityNum,
+  toolForKind
+} from './convert'
 import { buildResizeArgs, buildResizeSpec } from './resize'
 import { buildCompressArgs } from './compress'
 
 const convertTool: ToolModule = {
   async run(file, options, ctx) {
-    const targetExt = String(options.format ?? '.png').toLowerCase()
-    const target = findTarget(targetExt)
-    if (!target) throw new Error(`Unsupported target format: ${targetExt}`)
-    const output = uniqueOutPath(file.path, target.ext, 'converted')
-    const q = qualityNum(options.quality)
-    const extra = [...(target.extra ?? []), ...(q != null ? ['-quality', String(q)] : [])]
-    ctx.onProgress(undefined, `Converting to ${target.label}…`)
-    const { code, stderr } = await run(
-      resolveTool('magick'),
-      buildConvertArgs(file.path, output, extra),
-      {
-        signal: ctx.signal
-      }
-    )
-    if (code !== 0) throw new Error(stderr.trim() || `magick exited ${code}`)
+    const targetExt = String(options.format ?? '').toLowerCase()
+    if (!targetExt) throw new Error('No target format selected')
+    if (isSameFormat(file.ext, targetExt)) throw new Error('Source is already that format')
+    const kindTool = toolForKind(file.kind)
+    if (!kindTool) throw new Error(`Can't convert ${file.kind} files`)
+
+    const output = uniqueOutPath(file.path, targetExt, 'converted')
+    ctx.onProgress(undefined, 'Converting…')
+
+    let args: string[]
+    if (kindTool === 'ffmpeg') {
+      args = buildFfmpegArgs(file.path, output)
+    } else {
+      const q = qualityNum(options.quality)
+      const extra = [...magickExtraFor(targetExt), ...(q != null ? ['-quality', String(q)] : [])]
+      args = buildMagickArgs(file.path, output, extra)
+    }
+    const { code, stderr } = await run(resolveTool(kindTool), args, { signal: ctx.signal })
+    if (code !== 0) {
+      const last = stderr.trim().split('\n').pop()?.trim()
+      throw new Error(last || `${kindTool} exited ${code}`)
+    }
     return output
   }
 }
@@ -87,11 +102,13 @@ export function getTool(id: ToolId): ToolModule | undefined {
 /** Which tools apply to a file (drives the UI's tool highlighting). */
 export function toolsFor(file: FileInfo): ToolId[] {
   if (file.kind === 'image') return ['convert', 'compress', 'resize']
+  if (file.kind === 'video' || file.kind === 'audio') return ['convert']
   return []
 }
 
 /** Target options a tool offers for a file (the options panel). */
 export function targetsFor(id: ToolId, file: FileInfo): ToolTarget[] {
-  if (id === 'convert' && file.kind === 'image') return convertTargets(file.ext)
+  if (id === 'convert')
+    return convertTargets(file.kind, file.ext).map(({ label, ext }) => ({ label, ext }))
   return []
 }

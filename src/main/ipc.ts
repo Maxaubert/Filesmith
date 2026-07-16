@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, nativeImage } from 'electron'
+import { BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron'
 import type { FileInfo, JobEvent, JobRequest, ToolId } from '@shared/types'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
@@ -15,6 +15,11 @@ export function registerIpc(win: BrowserWindow): void {
     win.isMaximized() ? win.unmaximize() : win.maximize()
   )
   ipcMain.on('window:close', () => win.close())
+
+  // Reveal an output file in the OS file manager.
+  ipcMain.on('reveal', (_e, p: string) => {
+    if (p) shell.showItemInFolder(p)
+  })
 
   // Real thumbnails for the queue, via the OS shell (handles images natively).
   ipcMain.handle('thumbnail', async (_e, path: string, size = 128) => {

@@ -20,6 +20,7 @@ const api = {
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
   thumbnail: (path: string, size?: number): Promise<string | null> =>
     ipcRenderer.invoke('thumbnail', path, size),
+  reveal: (path: string): void => ipcRenderer.send('reveal', path),
 
   // tools
   checkTool: (name: string): Promise<boolean> => ipcRenderer.invoke('tool:check', name),

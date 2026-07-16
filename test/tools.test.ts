@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { buildFfmpegArgs, buildMagickArgs } from '../src/main/tools/convert'
 import {
-  buildConvertArgs,
+  categoryFormats,
   convertTargets,
-  findTarget,
-  IMAGE_TARGETS
-} from '../src/main/tools/convert'
+  isSameFormat,
+  magickExtraFor,
+  toolForKind
+} from '../src/shared/convert'
 import { buildResizeArgs, buildResizeSpec } from '../src/main/tools/resize'
 import { buildCompressArgs } from '../src/main/tools/compress'
 import { fileKind } from '../src/shared/fileKind'
@@ -20,35 +22,54 @@ describe('fileKind', () => {
   })
 })
 
-describe('convert', () => {
-  it('offers every target except the source format', () => {
-    const labels = convertTargets('.png').map((t) => t.label)
-    expect(labels).toContain('WebP')
-    expect(labels).not.toContain('PNG')
+describe('convert (category-aware)', () => {
+  it('offers only same-kind targets, excluding the source format', () => {
+    const img = convertTargets('image', '.png').map((t) => t.label)
+    expect(img).toContain('WebP')
+    expect(img).not.toContain('PNG')
+    const aud = convertTargets('audio', '.mp3').map((t) => t.label)
+    expect(aud).toContain('FLAC')
+    expect(aud).not.toContain('MP3')
+    // audio targets never include image/video formats
+    expect(aud).not.toContain('WebP')
+    expect(aud).not.toContain('MP4')
   })
 
   it('drops alias-format duplicates (.tif -> no TIFF, .jpeg -> no JPG)', () => {
-    expect(convertTargets('.tif').map((t) => t.ext)).not.toContain('.tiff')
-    expect(convertTargets('.jpeg').map((t) => t.ext)).not.toContain('.jpg')
+    expect(convertTargets('image', '.tif').map((t) => t.ext)).not.toContain('.tiff')
+    expect(convertTargets('image', '.jpeg').map((t) => t.ext)).not.toContain('.jpg')
   })
 
-  it('builds magick args with extra flags for ICO', () => {
-    const ico = findTarget('.ico')
-    expect(ico?.extra).toContain('icon:auto-resize=256,128,64,48,32,16')
-    expect(buildConvertArgs('in.png', 'out.ico', ico?.extra)).toEqual([
-      'in.png',
+  it('detects same-format no-ops (alias-aware)', () => {
+    expect(isSameFormat('.jpg', '.jpeg')).toBe(true)
+    expect(isSameFormat('.tif', '.tiff')).toBe(true)
+    expect(isSameFormat('.png', '.webp')).toBe(false)
+  })
+
+  it('routes each kind to the right tool', () => {
+    expect(toolForKind('image')).toBe('magick')
+    expect(toolForKind('audio')).toBe('ffmpeg')
+    expect(toolForKind('video')).toBe('ffmpeg')
+    expect(toolForKind('other')).toBeNull()
+  })
+
+  it('builds magick args (with ICO multi-resize)', () => {
+    expect(buildMagickArgs('a.png', 'b.webp')).toEqual(['a.png', 'b.webp'])
+    expect(buildMagickArgs('a.png', 'b.ico', magickExtraFor('.ico'))).toEqual([
+      'a.png',
       '-define',
       'icon:auto-resize=256,128,64,48,32,16',
-      'out.ico'
+      'b.ico'
     ])
   })
 
-  it('builds plain magick args otherwise', () => {
-    expect(buildConvertArgs('a.png', 'b.webp')).toEqual(['a.png', 'b.webp'])
+  it('builds ffmpeg args', () => {
+    expect(buildFfmpegArgs('a.mp3', 'b.flac')).toEqual(['-y', '-i', 'a.mp3', 'b.flac'])
   })
 
-  it('every target has a dotted extension', () => {
-    for (const t of IMAGE_TARGETS) expect(t.ext.startsWith('.')).toBe(true)
+  it('every format has a dotted extension', () => {
+    for (const k of ['image', 'video', 'audio'] as const)
+      for (const f of categoryFormats(k)) expect(f.ext.startsWith('.')).toBe(true)
   })
 })
 

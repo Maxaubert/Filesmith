@@ -1,9 +1,16 @@
-import type { JSX } from 'react'
-import type { JobOptions, ToolId } from '@shared/types'
+import type { JSX, MouseEvent } from 'react'
+import type { FileKind, JobOptions, ToolId } from '@shared/types'
 import { formatBytes, type QueueItem } from '../state'
 import { Icon } from './Icon'
 
-function subline(item: QueueItem, tool: ToolId, options: JobOptions): string {
+const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
+const extOf = (p: string): string => {
+  const b = baseName(p)
+  const i = b.lastIndexOf('.')
+  return i > 0 ? b.slice(i + 1).toUpperCase() : ''
+}
+
+function inputSub(item: QueueItem, tool: ToolId, options: JobOptions): string {
   const src = item.file.ext.replace('.', '').toUpperCase()
   if (tool === 'convert') {
     const to = String(options.format ?? '.webp')
@@ -16,10 +23,10 @@ function subline(item: QueueItem, tool: ToolId, options: JobOptions): string {
       ? `Resize ${options.percent}%`
       : `Resize ${options.width ?? ''}×${options.height ?? ''}`
   }
-  return 'Compress'
+  return `Compress ${src}`
 }
 
-function StatusCell({ item }: { item: QueueItem }): JSX.Element {
+function StatusCell({ item }: { item: QueueItem }): JSX.Element | null {
   if (item.status === 'done')
     return (
       <span className="grid h-5 w-5 place-items-center rounded-full bg-[#12a150]">
@@ -37,97 +44,177 @@ function StatusCell({ item }: { item: QueueItem }): JSX.Element {
         {item.percent ? `${Math.round(item.percent)}%` : ''}
       </span>
     )
-  // ready / queued
   return <Icon name="clock" className="h-5 w-5 text-[#b7b7c1]" strokeWidth={1.8} />
 }
 
-function FileCard({
+function Column({
+  title,
+  count,
+  children,
+  empty
+}: {
+  title: string
+  count: number
+  children: JSX.Element[] | JSX.Element
+  empty: string
+}): JSX.Element {
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="mb-2 flex shrink-0 items-center justify-between px-0.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">{title}</span>
+        <span className="text-xs text-muted">
+          {count} {count === 1 ? 'item' : 'items'}
+        </span>
+      </div>
+      {count === 0 ? (
+        <div className="grid flex-1 place-items-center rounded-2xl border border-dashed border-black/[.06]">
+          <div className="text-[13.5px] font-medium text-[#a2a2ac]">{empty}</div>
+        </div>
+      ) : (
+        <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-2 overflow-auto pr-0.5">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function InputCard({
   item,
   tool,
-  options
+  options,
+  selected,
+  compatible,
+  onClick
 }: {
   item: QueueItem
   tool: ToolId
   options: JobOptions
+  selected: boolean
+  compatible: boolean
+  onClick: (e: MouseEvent) => void
 }): JSX.Element {
   const indeterminate = item.status === 'running' && !item.percent
   return (
-    <div className="flex items-center gap-3.5 rounded-2xl border border-black/[.07] bg-white p-[11px] shadow-[0_1px_3px_rgba(0,0,0,.05),0_10px_30px_rgba(20,20,40,.06)]">
-      <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[11px] bg-[#ececf1] shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">
+    <div
+      onClick={onClick}
+      title={compatible ? undefined : 'A different file type than the current selection'}
+      className={`flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition ${
+        selected
+          ? 'border-accent ring-2 ring-accent/60'
+          : 'border-black/[.07] hover:border-black/[.14]'
+      } ${compatible ? '' : 'opacity-40'}`}
+    >
+      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[9px] bg-[#ececf1] shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">
         {item.thumb ? (
           <img src={item.thumb} alt="" className="h-full w-full object-cover" />
         ) : (
-          <span className="grid h-full w-full place-items-center text-[10px] font-semibold uppercase text-dim">
+          <span className="grid h-full w-full place-items-center text-[9px] font-semibold uppercase text-dim">
             {item.file.ext.replace('.', '')}
           </span>
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">{item.file.name}</div>
-        <div className="mt-0.5 text-xs text-dim">
-          {formatBytes(item.file.size)} <span className="mx-1 text-[#c3c3cc]">·</span>{' '}
-          {subline(item, tool, options)}
+        <div className="truncate text-[13px] font-semibold">{item.file.name}</div>
+        <div className="mt-0.5 truncate text-[11.5px] text-dim">
+          {formatBytes(item.file.size)} <span className="mx-0.5 text-[#c3c3cc]">·</span>{' '}
+          {inputSub(item, tool, options)}
         </div>
         {item.status === 'running' && (
-          <div className="mt-2 h-[5px] overflow-hidden rounded-full bg-[#ececf2]">
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[#ececf2]">
             <div
               className={`h-full rounded-full bg-gradient-to-r from-accent-hi to-accent ${indeterminate ? 'w-1/3 animate-pulse' : ''}`}
               style={indeterminate ? undefined : { width: `${item.percent}%` }}
             />
           </div>
         )}
-        {item.status === 'failed' && item.error && (
-          <div className="mt-1 truncate text-xs text-[#e0483d]">{item.error}</div>
-        )}
       </div>
-      <div className="shrink-0 pr-1">
+      <div className="shrink-0 pr-0.5">
         <StatusCell item={item} />
       </div>
     </div>
   )
 }
 
-export function Queue({
+function OutputCard({
+  item,
+  thumb,
+  onReveal
+}: {
+  item: QueueItem
+  thumb: string | null
+  onReveal: () => void
+}): JSX.Element {
+  const out = item.outputPath ?? ''
+  return (
+    <div
+      onClick={onReveal}
+      title="Reveal in folder"
+      className="flex cursor-pointer items-center gap-3 rounded-2xl border border-black/[.07] bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition hover:border-accent"
+    >
+      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[9px] bg-[#ececf1] shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">
+        {thumb ? (
+          <img src={thumb} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span className="grid h-full w-full place-items-center text-[9px] font-semibold uppercase text-dim">
+            {extOf(out)}
+          </span>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-semibold">{baseName(out)}</div>
+        <div className="mt-0.5 text-[11.5px] text-dim">{extOf(out)} · saved</div>
+      </div>
+      <Icon name="check" className="h-4 w-4 shrink-0 text-[#12a150]" strokeWidth={3} />
+    </div>
+  )
+}
+
+export function Queues({
   items,
   tool,
   options,
-  onClear
+  selected,
+  activeKind,
+  outThumbs,
+  onItemClick,
+  onReveal
 }: {
   items: QueueItem[]
   tool: ToolId
   options: JobOptions
-  onClear: () => void
+  selected: string[]
+  activeKind: FileKind | null
+  outThumbs: Record<string, string | null>
+  onItemClick: (id: string, e: MouseEvent) => void
+  onReveal: (path: string) => void
 }): JSX.Element {
-  const active = items.filter((i) => i.status === 'running' || i.status === 'queued').length
-  const done = items.filter((i) => i.status === 'done').length
-  const counts =
-    items.length === 0 ? '0 items' : `${active} in progress · ${done} done · ${items.length} total`
-  const hasFinished = items.some((i) => i.status === 'done')
-
+  const done = items.filter((i) => i.status === 'done' && i.outputPath)
   return (
-    <>
-      <div className="flex shrink-0 items-center justify-between px-0.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">Queue</span>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted">{counts}</span>
-          {hasFinished && (
-            <button onClick={onClear} className="text-xs text-muted transition hover:text-accent">
-              Clear finished
-            </button>
-          )}
-        </div>
-      </div>
-      {items.length === 0 ? (
-        <div className="grid flex-1 place-items-center">
-          <div className="text-[14.5px] font-medium text-[#a2a2ac]">No items in the queue</div>
-        </div>
-      ) : (
-        <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto pr-0.5">
-          {items.map((i) => (
-            <FileCard key={i.id} item={i} tool={tool} options={options} />
-          ))}
-        </div>
-      )}
-    </>
+    <div className="flex min-h-0 flex-1 gap-5">
+      <Column title="Input" count={items.length} empty="No files yet">
+        {items.map((i) => (
+          <InputCard
+            key={i.id}
+            item={i}
+            tool={tool}
+            options={options}
+            selected={selected.includes(i.id)}
+            compatible={activeKind === null || i.file.kind === activeKind}
+            onClick={(e) => onItemClick(i.id, e)}
+          />
+        ))}
+      </Column>
+      <Column title="Output" count={done.length} empty="No results yet">
+        {done.map((i) => (
+          <OutputCard
+            key={i.id}
+            item={i}
+            thumb={i.outputPath ? (outThumbs[i.outputPath] ?? null) : null}
+            onReveal={() => i.outputPath && onReveal(i.outputPath)}
+          />
+        ))}
+      </Column>
+    </div>
   )
 }

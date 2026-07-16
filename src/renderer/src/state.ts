@@ -13,9 +13,15 @@ export interface QueueItem {
   error?: string
 }
 
+export type SelectMode = 'single' | 'toggle' | 'range'
+
 export interface AppState {
   tool: ToolId
   items: QueueItem[]
+  /** Ids of selected input items. */
+  selected: string[]
+  /** Last item clicked without a modifier, for shift-range selection. */
+  anchor: string | null
   options: Record<ToolId, JobOptions>
 }
 
@@ -28,7 +34,13 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   pdf: {}
 }
 
-export const initialState: AppState = { tool: 'convert', items: [], options: DEFAULT_OPTIONS }
+export const initialState: AppState = {
+  tool: 'convert',
+  items: [],
+  selected: [],
+  anchor: null,
+  options: DEFAULT_OPTIONS
+}
 
 let counter = 0
 export function newId(): string {
@@ -42,9 +54,10 @@ export type Action =
   | { type: 'addItems'; files: FileInfo[] }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'removeItem'; id: string }
-  | { type: 'clearFinished' }
   | { type: 'markQueued'; ids: string[] }
   | { type: 'jobEvent'; event: JobEvent }
+  | { type: 'select'; id: string; mode: SelectMode }
+  | { type: 'clearSelection' }
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -63,7 +76,17 @@ export function reducer(state: AppState, action: Action): AppState {
       const add = action.files
         .filter((f) => !seen.has(f.path))
         .map<QueueItem>((f) => ({ id: newId(), file: f, thumb: null, status: 'ready', percent: 0 }))
-      return { ...state, items: [...state.items, ...add] }
+      if (add.length === 0) return state
+      // Dropped/added files become the current selection, constrained to one
+      // kind (the first added file's) so a batch is never cross-category.
+      const firstKind = add[0].file.kind
+      const ids = add.filter((i) => i.file.kind === firstKind).map((i) => i.id)
+      return {
+        ...state,
+        items: [...state.items, ...add],
+        selected: ids,
+        anchor: ids[ids.length - 1]
+      }
     }
     case 'setThumb':
       return {
@@ -71,9 +94,12 @@ export function reducer(state: AppState, action: Action): AppState {
         items: state.items.map((i) => (i.id === action.id ? { ...i, thumb: action.thumb } : i))
       }
     case 'removeItem':
-      return { ...state, items: state.items.filter((i) => i.id !== action.id) }
-    case 'clearFinished':
-      return { ...state, items: state.items.filter((i) => i.status !== 'done') }
+      return {
+        ...state,
+        items: state.items.filter((i) => i.id !== action.id),
+        selected: state.selected.filter((s) => s !== action.id),
+        anchor: state.anchor === action.id ? null : state.anchor
+      }
     case 'markQueued':
       return {
         ...state,
@@ -101,6 +127,35 @@ export function reducer(state: AppState, action: Action): AppState {
         )
       }
     }
+    case 'select': {
+      const order = state.items.map((i) => i.id)
+      if (action.mode === 'toggle') {
+        const has = state.selected.includes(action.id)
+        return {
+          ...state,
+          selected: has
+            ? state.selected.filter((s) => s !== action.id)
+            : [...state.selected, action.id],
+          anchor: action.id
+        }
+      }
+      if (action.mode === 'range' && state.anchor) {
+        const a = order.indexOf(state.anchor)
+        const b = order.indexOf(action.id)
+        if (a >= 0 && b >= 0) {
+          const [lo, hi] = a < b ? [a, b] : [b, a]
+          // Range selection stays within the anchor's kind (no cross-category batch).
+          const anchorKind = state.items.find((i) => i.id === state.anchor)?.file.kind
+          const range = order
+            .slice(lo, hi + 1)
+            .filter((id) => state.items.find((i) => i.id === id)?.file.kind === anchorKind)
+          return { ...state, selected: range }
+        }
+      }
+      return { ...state, selected: [action.id], anchor: action.id }
+    }
+    case 'clearSelection':
+      return { ...state, selected: [], anchor: null }
     default:
       return state
   }
