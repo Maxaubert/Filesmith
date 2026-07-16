@@ -24,6 +24,10 @@ function applyVolume(m: HTMLMediaElement, v: number): void {
   m.volume = v
   m.muted = v <= 0
 }
+function setPlaybackRate(m: HTMLMediaElement, r: number): void {
+  m.playbackRate = r
+}
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
 const vertical: CSSProperties = { writingMode: 'vertical-lr', direction: 'rtl', width: '20px', height: '90px' }
 
@@ -47,6 +51,7 @@ export function MediaBar({
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(false)
   const [vol, setVol] = useState(1)
+  const [rate, setRate] = useState(1)
   const barRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -56,9 +61,10 @@ export function MediaBar({
       setPlaying(!media.paused)
       setMuted(media.muted)
       setVol(media.volume)
+      setRate(media.playbackRate)
       setDur(Number.isFinite(media.duration) ? media.duration : 0)
     }
-    const evs = ['durationchange', 'loadedmetadata', 'play', 'pause', 'volumechange']
+    const evs = ['durationchange', 'loadedmetadata', 'play', 'pause', 'volumechange', 'ratechange']
     media.addEventListener('timeupdate', onTime)
     evs.forEach((e) => media.addEventListener(e, sync))
     sync()
@@ -91,8 +97,12 @@ export function MediaBar({
     window.addEventListener('mouseup', up)
   }
 
-  const btn = `grid h-8 w-8 shrink-0 place-items-center rounded-full transition ${
-    dark ? 'text-white/90 hover:bg-white/15 hover:text-white' : 'text-muted hover:bg-black/[.06] hover:text-ink'
+  const hover = dark
+    ? 'text-white/90 hover:bg-white/15 hover:text-white'
+    : 'text-muted hover:bg-black/[.06] hover:text-ink'
+  const btn = `grid h-8 w-8 shrink-0 place-items-center rounded-full transition ${hover}`
+  const popover = `pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded-xl opacity-0 shadow-[0_6px_20px_rgba(0,0,0,.25)] transition ${
+    dark ? 'bg-[#2c2c33]' : 'bg-white ring-1 ring-black/[.06]'
   }`
 
   return (
@@ -117,12 +127,33 @@ export function MediaBar({
           />
         </div>
       </div>
-      <div className="group/vol relative flex items-center">
-        <div
-          className={`pointer-events-none absolute bottom-full left-1/2 mb-1 grid -translate-x-1/2 place-items-center rounded-xl p-2.5 opacity-0 shadow-[0_6px_20px_rgba(0,0,0,.25)] transition group-hover/vol:pointer-events-auto group-hover/vol:opacity-100 ${
-            dark ? 'bg-[#2c2c33]' : 'bg-white ring-1 ring-black/[.06]'
-          }`}
+      <div className="group/spd relative flex items-center">
+        <div className={`${popover} flex flex-col p-1 group-hover/spd:pointer-events-auto group-hover/spd:opacity-100`}>
+          {SPEEDS.map((s) => (
+            <button
+              key={s}
+              onClick={() => setPlaybackRate(media, s)}
+              className={`rounded-md px-3.5 py-1 text-[12px] font-medium transition ${
+                s === rate
+                  ? 'text-accent'
+                  : dark
+                    ? 'text-white/85 hover:bg-white/10'
+                    : 'text-muted hover:bg-black/[.05]'
+              }`}
+            >
+              {s}×
+            </button>
+          ))}
+        </div>
+        <button
+          className={`grid h-8 shrink-0 place-items-center rounded-full px-2 text-[12px] font-semibold transition ${hover}`}
+          title="Playback speed"
         >
+          {rate}×
+        </button>
+      </div>
+      <div className="group/vol relative flex items-center">
+        <div className={`${popover} grid place-items-center p-2.5 group-hover/vol:pointer-events-auto group-hover/vol:opacity-100`}>
           <input
             type="range"
             min={0}
