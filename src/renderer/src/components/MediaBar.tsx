@@ -26,11 +26,18 @@ function applyVolume(m: HTMLMediaElement, v: number): void {
 }
 
 /**
- * Custom audio player styled to the app: the native dark pill look, but with our
+ * Custom media player styled to the app: the native dark pill look, but with our
  * own progress bar — a muted track, an indigo (accent) elapsed fill, and a white
- * playhead dot — since the native audio timeline can't show that contrast.
+ * playhead dot. Shared by audio and video so both use the same play icon and
+ * controls; video also gets a fullscreen button.
  */
-export function AudioBar({ media }: { media: HTMLMediaElement | null }): JSX.Element | null {
+export function MediaBar({
+  media,
+  onFullscreen
+}: {
+  media: HTMLMediaElement | null
+  onFullscreen?: () => void
+}): JSX.Element | null {
   const [cur, setCur] = useState(0)
   const [dur, setDur] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -114,14 +121,15 @@ export function AudioBar({ media }: { media: HTMLMediaElement | null }): JSX.Ele
           aria-label="Volume"
           className="h-1 w-0 cursor-pointer opacity-0 accent-accent transition-all duration-200 group-hover/vol:mr-2 group-hover/vol:w-16 group-hover/vol:opacity-100"
         />
-        <button
-          className={btn}
-          title={muted ? 'Unmute' : 'Mute'}
-          onClick={() => toggleMute(media)}
-        >
+        <button className={btn} title={muted ? 'Unmute' : 'Mute'} onClick={() => toggleMute(media)}>
           <Icon name={muted || vol <= 0 ? 'volume-mute' : 'volume'} className="h-[18px] w-[18px]" />
         </button>
       </div>
+      {onFullscreen && (
+        <button className={btn} title="Fullscreen" onClick={onFullscreen}>
+          <Icon name="fullscreen" className="h-[17px] w-[17px]" />
+        </button>
+      )}
     </div>
   )
 }

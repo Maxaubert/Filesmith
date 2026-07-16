@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type JSX, type MouseEvent, type WheelEvent
 import type { PreviewItem, PreviewPayload } from '@shared/types'
 import { formatBytes } from '../state'
 import { Icon } from './Icon'
-import { AudioBar } from './AudioBar'
+import { MediaBar } from './MediaBar'
 
 const extOf = (name: string): string => {
   const i = name.lastIndexOf('.')
@@ -75,7 +75,10 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape') {
+        if (document.fullscreenElement) return // let the browser exit fullscreen
+        close()
+      }
       else if (e.key === 'ArrowLeft' && many) step(-1)
       else if (e.key === 'ArrowRight' && many) step(1)
       else if (e.key === ' ' && mediaRef.current) {
@@ -196,12 +199,14 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               key={url}
               ref={setMedia}
               src={url}
-              controls
-              controlsList="nodownload noplaybackrate noremoteplayback"
-              disablePictureInPicture
               preload="metadata"
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
+              onClick={() => {
+                const m = mediaRef.current
+                if (m?.paused) void m.play()
+                else m?.pause()
+              }}
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget
                 // Resolve duration if missing; otherwise show a real first frame
@@ -225,6 +230,9 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
             )}
+            <div className="absolute inset-x-4 bottom-4">
+              <MediaBar media={mediaEl} onFullscreen={() => void stageRef.current?.requestFullscreen()} />
+            </div>
           </>
         )}
         {f.kind === 'audio' && (
@@ -294,7 +302,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             onLoadedMetadata={(e) => forceDuration(e.currentTarget)}
             className="hidden"
           />
-          <AudioBar media={mediaEl} />
+          <MediaBar media={mediaEl} />
         </div>
       )}
     </div>
