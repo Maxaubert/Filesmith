@@ -102,15 +102,10 @@ img {
   }
 }
 
-/* Keep the audio control panel's softened dark background, and lighten the
-   timeline track inside it so the elapsed/remaining split reads clearly. */
+/* Soften the audio control panel's dark background. The timeline itself is left
+   native so the browser keeps drawing its elapsed-vs-remaining contrast. */
 audio::-webkit-media-controls-panel {
   background-color: #4a4a53;
-}
-audio::-webkit-media-controls-timeline {
-  background-color: #9a9aa3;
-  border-radius: 3px;
-  height: 4px;
 }
 
 /* Slim, unobtrusive scrollbar for the queue */
