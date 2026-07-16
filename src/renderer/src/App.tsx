@@ -32,6 +32,10 @@ export default function App(): JSX.Element {
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
 
+  // The active tool's queue drives the UI. Thumbnails, however, load for items
+  // across every queue so switching tabs is instant.
+  const cur = state.queues[state.tool]
+
   // Stream job progress/terminal events into state.
   useEffect(() => window.filesmith.onJobEvent((e) => dispatch({ type: 'jobEvent', event: e })), [])
 
@@ -49,30 +53,34 @@ export default function App(): JSX.Element {
   // Lazy-load a real thumbnail for each item, once. Works across kinds: images
   // (incl. exotic formats via magick), videos (ffmpeg frame), audio cover art.
   useEffect(() => {
-    for (const item of state.items) {
-      if (item.thumb !== null || requested.current.has(item.id)) continue
-      requested.current.add(item.id)
-      void window.filesmith
-        .thumbnail(item.file.path, 128, item.file.kind)
-        .then((t) => dispatch({ type: 'setThumb', id: item.id, thumb: t }))
+    for (const q of Object.values(state.queues)) {
+      for (const item of q.items) {
+        if (item.thumb !== null || requested.current.has(item.id)) continue
+        requested.current.add(item.id)
+        void window.filesmith
+          .thumbnail(item.file.path, 128, item.file.kind)
+          .then((t) => dispatch({ type: 'setThumb', id: item.id, thumb: t }))
+      }
     }
-  }, [state.items])
+  }, [state.queues])
 
   // Lazy-load thumbnails for finished output files, once each (output keeps the
   // input's kind — convert never crosses categories).
   useEffect(() => {
-    for (const item of state.items) {
-      const out = item.outputPath
-      if (!out || item.status !== 'done' || outRequested.current.has(out)) continue
-      outRequested.current.add(out)
-      void window.filesmith
-        .thumbnail(out, 128, item.file.kind)
-        .then((t) => setOutThumbs((m) => ({ ...m, [out]: t })))
+    for (const q of Object.values(state.queues)) {
+      for (const item of q.items) {
+        const out = item.outputPath
+        if (!out || item.status !== 'done' || outRequested.current.has(out)) continue
+        outRequested.current.add(out)
+        void window.filesmith
+          .thumbnail(out, 128, item.file.kind)
+          .then((t) => setOutThumbs((m) => ({ ...m, [out]: t })))
+      }
     }
-  }, [state.items])
+  }, [state.queues])
 
-  // --- Selection-derived state -------------------------------------------------
-  const selectedItems = state.items.filter((i) => state.selected.includes(i.id))
+  // --- Selection-derived state (current tool's queue) --------------------------
+  const selectedItems = cur.items.filter((i) => cur.selected.includes(i.id))
   const activeKind: FileKind | null = selectedItems.length ? selectedItems[0].file.kind : null
   const srcNorms = new Set(selectedItems.map((i) => normalizeExt(i.file.ext)))
   const sourceExt: string | null = srcNorms.size === 1 ? [...srcNorms][0] : null
@@ -105,7 +113,7 @@ export default function App(): JSX.Element {
   }, [activeKind, sourceExt, state.options.convert.format])
 
   function onItemClick(id: string, e: MouseEvent): void {
-    const item = state.items.find((i) => i.id === id)
+    const item = cur.items.find((i) => i.id === id)
     if (!item) return
     const modified = e.shiftKey || e.ctrlKey || e.metaKey
     if (modified) {
@@ -224,10 +232,10 @@ export default function App(): JSX.Element {
           </div>
           <DropZone dragging={dragging} onBrowse={() => void browse()} />
           <Queues
-            items={state.items}
+            items={cur.items}
             tool={state.tool}
             options={state.options[state.tool]}
-            selected={state.selected}
+            selected={cur.selected}
             activeKind={activeKind}
             outThumbs={outThumbs}
             onItemClick={onItemClick}

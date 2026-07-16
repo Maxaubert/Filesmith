@@ -25,15 +25,23 @@ export const inOutput = (i: QueueItem): boolean =>
 
 export type SelectMode = 'single' | 'toggle' | 'range'
 
-export interface AppState {
-  tool: ToolId
+/** One tool tab's independent queue: its own files, selection, and anchor. */
+export interface QueueState {
   items: QueueItem[]
   /** Ids of selected input items. */
   selected: string[]
   /** Last item clicked without a modifier, for shift-range selection. */
   anchor: string | null
+}
+
+export interface AppState {
+  tool: ToolId
+  /** Each tool tab keeps its own input/output history. */
+  queues: Record<ToolId, QueueState>
   options: Record<ToolId, JobOptions>
 }
+
+export const TOOL_IDS: ToolId[] = ['convert', 'compress', 'resize', 'upscale', 'removebg', 'pdf']
 
 export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   convert: { format: '.webp', quality: 'balanced' },
@@ -44,11 +52,11 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   pdf: {}
 }
 
+const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })
+
 export const initialState: AppState = {
   tool: 'convert',
-  items: [],
-  selected: [],
-  anchor: null,
+  queues: Object.fromEntries(TOOL_IDS.map((t) => [t, emptyQueue()])) as Record<ToolId, QueueState>,
   options: DEFAULT_OPTIONS
 }
 
@@ -69,6 +77,57 @@ export type Action =
   | { type: 'select'; id: string; mode: SelectMode }
   | { type: 'clearSelection' }
 
+/** Replace the current tool's queue via `fn`. */
+function mapQueue(state: AppState, fn: (q: QueueState) => QueueState): AppState {
+  return { ...state, queues: { ...state.queues, [state.tool]: fn(state.queues[state.tool]) } }
+}
+
+/**
+ * Update an item by id in whichever tool queue holds it. Job/thumbnail events
+ * arrive asynchronously and may land after the user has switched tabs, so we
+ * can't assume the item lives in the current tool's queue.
+ */
+function mapItemById(
+  state: AppState,
+  id: string,
+  fn: (i: QueueItem) => QueueItem
+): AppState {
+  const queues = { ...state.queues }
+  for (const t of TOOL_IDS) {
+    const q = queues[t]
+    if (q.items.some((i) => i.id === id)) {
+      queues[t] = { ...q, items: q.items.map((i) => (i.id === id ? fn(i) : i)) }
+    }
+  }
+  return { ...state, queues }
+}
+
+function selectInQueue(q: QueueState, id: string, mode: SelectMode): QueueState {
+  const order = q.items.map((i) => i.id)
+  if (mode === 'toggle') {
+    const has = q.selected.includes(id)
+    return {
+      ...q,
+      selected: has ? q.selected.filter((s) => s !== id) : [...q.selected, id],
+      anchor: id
+    }
+  }
+  if (mode === 'range' && q.anchor) {
+    const a = order.indexOf(q.anchor)
+    const b = order.indexOf(id)
+    if (a >= 0 && b >= 0) {
+      const [lo, hi] = a < b ? [a, b] : [b, a]
+      // Range selection stays within the anchor's kind (no cross-category batch).
+      const anchorKind = q.items.find((i) => i.id === q.anchor)?.file.kind
+      const range = order
+        .slice(lo, hi + 1)
+        .filter((rid) => q.items.find((i) => i.id === rid)?.file.kind === anchorKind)
+      return { ...q, selected: range }
+    }
+  }
+  return { ...q, selected: [id], anchor: id }
+}
+
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'setTool':
@@ -82,8 +141,9 @@ export function reducer(state: AppState, action: Action): AppState {
         }
       }
     case 'addItems': {
+      const q = state.queues[state.tool]
       // Ignore input-dismissed items so re-dropping a removed file re-adds it.
-      const seen = new Set(state.items.filter(inInput).map((i) => i.file.path))
+      const seen = new Set(q.items.filter(inInput).map((i) => i.file.path))
       const add = action.files
         .filter((f) => !seen.has(f.path))
         .map<QueueItem>((f) => ({ id: newId(), file: f, thumb: null, status: 'ready', percent: 0 }))
@@ -92,41 +152,37 @@ export function reducer(state: AppState, action: Action): AppState {
       // kind (the first added file's) so a batch is never cross-category.
       const firstKind = add[0].file.kind
       const ids = add.filter((i) => i.file.kind === firstKind).map((i) => i.id)
-      return {
-        ...state,
-        items: [...state.items, ...add],
+      return mapQueue(state, (cur) => ({
+        items: [...cur.items, ...add],
         selected: ids,
         anchor: ids[ids.length - 1]
-      }
+      }))
     }
     case 'setThumb':
-      return {
-        ...state,
-        items: state.items.map((i) => (i.id === action.id ? { ...i, thumb: action.thumb } : i))
-      }
-    case 'dismiss': {
+      return mapItemById(state, action.id, (i) => ({ ...i, thumb: action.thumb }))
+    case 'dismiss':
       // Input and Output cards are two views of one item. Dismissing one hides
       // only that view; the item is dropped entirely once neither view remains.
-      const items = state.items.map((i) =>
-        i.id === action.id
-          ? action.column === 'input'
-            ? { ...i, hiddenInput: true }
-            : { ...i, hiddenOutput: true }
-          : i
-      )
-      const kept = items.filter((i) => inInput(i) || inOutput(i))
-      const selectable = new Set(kept.filter(inInput).map((i) => i.id))
-      return {
-        ...state,
-        items: kept,
-        selected: state.selected.filter((s) => selectable.has(s)),
-        anchor: state.anchor && selectable.has(state.anchor) ? state.anchor : null
-      }
-    }
+      return mapQueue(state, (q) => {
+        const items = q.items.map((i) =>
+          i.id === action.id
+            ? action.column === 'input'
+              ? { ...i, hiddenInput: true }
+              : { ...i, hiddenOutput: true }
+            : i
+        )
+        const kept = items.filter((i) => inInput(i) || inOutput(i))
+        const selectable = new Set(kept.filter(inInput).map((i) => i.id))
+        return {
+          items: kept,
+          selected: q.selected.filter((s) => selectable.has(s)),
+          anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
+        }
+      })
     case 'markQueued':
-      return {
-        ...state,
-        items: state.items.map((i) =>
+      return mapQueue(state, (q) => ({
+        ...q,
+        items: q.items.map((i) =>
           action.ids.includes(i.id)
             ? {
                 ...i,
@@ -138,54 +194,22 @@ export function reducer(state: AppState, action: Action): AppState {
               }
             : i
         )
-      }
+      }))
     case 'jobEvent': {
       const e = action.event
-      return {
-        ...state,
-        items: state.items.map((i) =>
-          i.id === e.id
-            ? {
-                ...i,
-                status: e.status as ItemStatus,
-                percent: e.percent ?? i.percent,
-                message: e.message,
-                outputPath: e.outputPath ?? i.outputPath,
-                error: e.error
-              }
-            : i
-        )
-      }
+      return mapItemById(state, e.id, (i) => ({
+        ...i,
+        status: e.status as ItemStatus,
+        percent: e.percent ?? i.percent,
+        message: e.message,
+        outputPath: e.outputPath ?? i.outputPath,
+        error: e.error
+      }))
     }
-    case 'select': {
-      const order = state.items.map((i) => i.id)
-      if (action.mode === 'toggle') {
-        const has = state.selected.includes(action.id)
-        return {
-          ...state,
-          selected: has
-            ? state.selected.filter((s) => s !== action.id)
-            : [...state.selected, action.id],
-          anchor: action.id
-        }
-      }
-      if (action.mode === 'range' && state.anchor) {
-        const a = order.indexOf(state.anchor)
-        const b = order.indexOf(action.id)
-        if (a >= 0 && b >= 0) {
-          const [lo, hi] = a < b ? [a, b] : [b, a]
-          // Range selection stays within the anchor's kind (no cross-category batch).
-          const anchorKind = state.items.find((i) => i.id === state.anchor)?.file.kind
-          const range = order
-            .slice(lo, hi + 1)
-            .filter((id) => state.items.find((i) => i.id === id)?.file.kind === anchorKind)
-          return { ...state, selected: range }
-        }
-      }
-      return { ...state, selected: [action.id], anchor: action.id }
-    }
+    case 'select':
+      return mapQueue(state, (q) => selectInQueue(q, action.id, action.mode))
     case 'clearSelection':
-      return { ...state, selected: [], anchor: null }
+      return mapQueue(state, (q) => ({ ...q, selected: [], anchor: null }))
     default:
       return state
   }
