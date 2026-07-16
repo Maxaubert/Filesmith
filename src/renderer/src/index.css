@@ -102,6 +102,12 @@ img {
   }
 }
 
+/* Lighten the native audio control bar so it isn't a harsh near-black strip
+   under the light preview UI. */
+audio::-webkit-media-controls-panel {
+  background-color: #4a4a53;
+}
+
 /* Slim, unobtrusive scrollbar for the queue */
 .scroll-thin::-webkit-scrollbar {
   width: 9px;

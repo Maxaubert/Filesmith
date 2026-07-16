@@ -223,13 +223,24 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
           </>
         )}
         {f.kind === 'audio' && (
-          <div className="grid h-[220px] w-[220px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#8a7bff] to-[#ff9a8b] shadow-[0_12px_40px_rgba(0,0,0,.18)]">
-            {f.thumb ? (
-              <img src={f.thumb} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <Icon name="music" className="h-16 w-16 text-white/90" strokeWidth={1.5} />
+          <>
+            <div className="grid h-[220px] w-[220px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#8a7bff] to-[#ff9a8b] shadow-[0_12px_40px_rgba(0,0,0,.18)]">
+              {f.thumb ? (
+                <img src={f.thumb} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <Icon name="music" className="h-16 w-16 text-white/90" strokeWidth={1.5} />
+              )}
+            </div>
+            {!playing && (
+              <button
+                onClick={() => void mediaRef.current?.play()}
+                title="Play"
+                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/45 backdrop-blur transition hover:scale-105 hover:bg-black/60"
+              >
+                <Icon name="play" className="ml-1 h-8 w-8 text-white" />
+              </button>
             )}
-          </div>
+          </>
         )}
 
         {f.kind === 'image' && zoom > 1 && (
@@ -275,6 +286,8 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             controls
             controlsList="nodownload noplaybackrate"
             preload="metadata"
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
             onLoadedMetadata={(e) => forceDuration(e.currentTarget)}
             className="w-full"
           />
