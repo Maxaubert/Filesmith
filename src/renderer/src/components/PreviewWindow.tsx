@@ -10,6 +10,27 @@ const extOf = (name: string): string => {
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 const MAX_ZOOM = 8
 
+// Some containers (notably MP3) don't report duration up front, so Chromium
+// leaves it Infinity and the progress bar never advances during playback until
+// a seek forces it to compute. Nudging currentTime to the end and back resolves
+// it, so the timeline works from the start. Returns true if it applied.
+function forceDuration(m: HTMLMediaElement): boolean {
+  if (m.duration === Infinity || Number.isNaN(m.duration)) {
+    const onT = (): void => {
+      m.removeEventListener('timeupdate', onT)
+      m.currentTime = 0
+    }
+    m.addEventListener('timeupdate', onT)
+    try {
+      m.currentTime = 1e101
+    } catch {
+      /* seek not ready yet; ignore */
+    }
+    return true
+  }
+  return false
+}
+
 /**
  * Root of the standalone preview window. Fetches its file list on load and when
  * the window is reused, remounting the view (via `ver`) so index/zoom reset.
@@ -119,8 +140,13 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
 
   return (
     <div className="flex h-screen flex-col bg-white">
-      {/* header doubles as the window's drag region (close with Esc / Alt+F4) */}
+      {/* header doubles as the window's drag region */}
       <div className="drag flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <div className="truncate text-[13.5px] font-bold">{f.name}</div>
+          <div className="mt-0.5 text-[11.5px] text-dim">{meta}</div>
+        </div>
+        <div className="flex-1" />
         <button
           title="Reveal in Explorer"
           onClick={() => window.filesmith.reveal(f.path)}
@@ -128,12 +154,14 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         >
           <Icon name="folder" className="h-[18px] w-[18px]" />
         </button>
-        <div className="min-w-0">
-          <div className="truncate text-[13.5px] font-bold">{f.name}</div>
-          <div className="mt-0.5 text-[11.5px] text-dim">{meta}</div>
-        </div>
-        <div className="flex-1" />
         {many && <span className="text-[11.5px] text-dim">{`${i + 1} / ${files.length}`}</span>}
+        <button
+          title="Close"
+          onClick={close}
+          className="no-drag grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] text-muted transition hover:bg-[#e0483d] hover:text-white"
+        >
+          <Icon name="close" className="h-[18px] w-[18px]" />
+        </button>
       </div>
 
       {/* media — one light, opaque backdrop for every kind */}
@@ -164,6 +192,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               ref={setMedia}
               src={url}
               controls
+              autoPlay
               controlsList="nodownload noplaybackrate noremoteplayback"
               disablePictureInPicture
               preload="metadata"
@@ -171,7 +200,9 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               onPause={() => setPlaying(false)}
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget
-                if (v.currentTime < 0.02) {
+                // Resolve duration if missing; otherwise (if not autoplaying)
+                // show a real first frame instead of black.
+                if (!forceDuration(v) && v.paused && v.currentTime < 0.02) {
                   try {
                     v.currentTime = 0.04
                   } catch {
@@ -238,7 +269,16 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
 
       {f.kind === 'audio' && (
         <div className="shrink-0 border-t border-line px-4 py-3">
-          <audio key={url} ref={setMedia} src={url} controls autoPlay className="w-full" />
+          <audio
+            key={url}
+            ref={setMedia}
+            src={url}
+            controls
+            autoPlay
+            controlsList="nodownload noplaybackrate"
+            onLoadedMetadata={(e) => forceDuration(e.currentTarget)}
+            className="w-full"
+          />
         </div>
       )}
     </div>
