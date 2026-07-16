@@ -22,11 +22,13 @@ import { ToolRail } from './components/ToolRail'
 import { DropZone } from './components/DropZone'
 import { Queues } from './components/Queue'
 import { OptionsPanel } from './components/OptionsPanel'
+import { ContextMenu, type MenuState } from './components/ContextMenu'
 
 export default function App(): JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [dragging, setDragging] = useState(false)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
+  const [menu, setMenu] = useState<MenuState | null>(null)
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
 
@@ -115,6 +117,54 @@ export default function App(): JSX.Element {
     dispatch({ type: 'select', id, mode })
   }
 
+  // Build the right-click / ⋯ menu for a queue item. Input acts on the source
+  // file (remove = drop from list); Output acts on the produced file (delete =
+  // recycle bin, then the item returns to the Input list as re-runnable).
+  function openMenu(side: 'input' | 'output', item: QueueItem, x: number, y: number): void {
+    if (side === 'input') {
+      setMenu({
+        x,
+        y,
+        items: [
+          { label: 'Preview', icon: 'eye', onClick: () => window.filesmith.openFile(item.file.path) },
+          {
+            label: 'Reveal in Explorer',
+            icon: 'folder',
+            onClick: () => window.filesmith.reveal(item.file.path)
+          },
+          { sep: true },
+          {
+            label: 'Remove from list',
+            icon: 'trash',
+            danger: true,
+            onClick: () => dispatch({ type: 'removeItem', id: item.id })
+          }
+        ]
+      })
+      return
+    }
+    const out = item.outputPath
+    if (!out) return
+    setMenu({
+      x,
+      y,
+      items: [
+        { label: 'Preview', icon: 'eye', onClick: () => window.filesmith.openFile(out) },
+        { label: 'Reveal in Explorer', icon: 'folder', onClick: () => window.filesmith.reveal(out) },
+        { sep: true },
+        {
+          label: 'Delete file',
+          icon: 'trash',
+          danger: true,
+          onClick: () => {
+            void window.filesmith.trashFile(out)
+            dispatch({ type: 'clearOutput', id: item.id })
+          }
+        }
+      ]
+    })
+  }
+
   async function browse(): Promise<void> {
     const files = await window.filesmith.pickFiles()
     if (files.length) dispatch({ type: 'addItems', files })
@@ -182,6 +232,7 @@ export default function App(): JSX.Element {
             outThumbs={outThumbs}
             onItemClick={onItemClick}
             onReveal={(p) => window.filesmith.reveal(p)}
+            onMenu={openMenu}
           />
         </section>
 
@@ -195,6 +246,7 @@ export default function App(): JSX.Element {
           onRun={run}
         />
       </div>
+      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   )
 }

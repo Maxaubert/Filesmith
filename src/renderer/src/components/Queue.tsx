@@ -79,13 +79,30 @@ function Column({
   )
 }
 
+function Kebab({ onOpen }: { onOpen: (x: number, y: number) => void }): JSX.Element {
+  return (
+    <button
+      title="More actions"
+      onClick={(e) => {
+        e.stopPropagation()
+        const r = e.currentTarget.getBoundingClientRect()
+        onOpen(r.right, r.bottom + 6)
+      }}
+      className="no-drag grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg text-[#9a9aa6] opacity-0 transition hover:bg-[#f0f0f5] hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+    >
+      <Icon name="dots" className="h-[18px] w-[18px]" strokeWidth={0} />
+    </button>
+  )
+}
+
 function InputCard({
   item,
   tool,
   options,
   selected,
   compatible,
-  onClick
+  onClick,
+  onMenu
 }: {
   item: QueueItem
   tool: ToolId
@@ -93,13 +110,18 @@ function InputCard({
   selected: boolean
   compatible: boolean
   onClick: (e: MouseEvent) => void
+  onMenu: (x: number, y: number) => void
 }): JSX.Element {
   const indeterminate = item.status === 'running' && !item.percent
   return (
     <div
       onClick={onClick}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onMenu(e.clientX, e.clientY)
+      }}
       title={compatible ? undefined : 'A different file type than the current selection'}
-      className={`flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition ${
+      className={`group flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition ${
         selected
           ? 'border-accent ring-2 ring-accent/60'
           : 'border-black/[.07] hover:border-black/[.14]'
@@ -129,7 +151,8 @@ function InputCard({
           </div>
         )}
       </div>
-      <div className="shrink-0 pr-0.5">
+      <div className="flex shrink-0 items-center gap-1 pr-0.5">
+        <Kebab onOpen={onMenu} />
         <StatusCell item={item} />
       </div>
     </div>
@@ -139,18 +162,24 @@ function InputCard({
 function OutputCard({
   item,
   thumb,
-  onReveal
+  onReveal,
+  onMenu
 }: {
   item: QueueItem
   thumb: string | null
   onReveal: () => void
+  onMenu: (x: number, y: number) => void
 }): JSX.Element {
   const out = item.outputPath ?? ''
   return (
     <div
       onClick={onReveal}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onMenu(e.clientX, e.clientY)
+      }}
       title="Reveal in folder"
-      className="flex cursor-pointer items-center gap-3 rounded-2xl border border-black/[.07] bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition hover:border-accent"
+      className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-black/[.07] bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition hover:border-accent"
     >
       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[9px] bg-[#ececf1] shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">
         {thumb ? (
@@ -165,7 +194,9 @@ function OutputCard({
         <div className="truncate text-[13px] font-semibold">{baseName(out)}</div>
         <div className="mt-0.5 text-[11.5px] text-dim">{extOf(out)} · saved</div>
       </div>
-      <Icon name="check" className="h-4 w-4 shrink-0 text-[#12a150]" strokeWidth={3} />
+      <div className="shrink-0 pr-0.5">
+        <Kebab onOpen={onMenu} />
+      </div>
     </div>
   )
 }
@@ -178,7 +209,8 @@ export function Queues({
   activeKind,
   outThumbs,
   onItemClick,
-  onReveal
+  onReveal,
+  onMenu
 }: {
   items: QueueItem[]
   tool: ToolId
@@ -188,6 +220,7 @@ export function Queues({
   outThumbs: Record<string, string | null>
   onItemClick: (id: string, e: MouseEvent) => void
   onReveal: (path: string) => void
+  onMenu: (side: 'input' | 'output', item: QueueItem, x: number, y: number) => void
 }): JSX.Element {
   const done = items.filter((i) => i.status === 'done' && i.outputPath)
   return (
@@ -202,6 +235,7 @@ export function Queues({
             selected={selected.includes(i.id)}
             compatible={activeKind === null || i.file.kind === activeKind}
             onClick={(e) => onItemClick(i.id, e)}
+            onMenu={(x, y) => onMenu('input', i, x, y)}
           />
         ))}
       </Column>
@@ -212,6 +246,7 @@ export function Queues({
             item={i}
             thumb={i.outputPath ? (outThumbs[i.outputPath] ?? null) : null}
             onReveal={() => i.outputPath && onReveal(i.outputPath)}
+            onMenu={(x, y) => onMenu('output', i, x, y)}
           />
         ))}
       </Column>

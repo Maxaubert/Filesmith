@@ -54,6 +54,7 @@ export type Action =
   | { type: 'addItems'; files: FileInfo[] }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'removeItem'; id: string }
+  | { type: 'clearOutput'; id: string }
   | { type: 'markQueued'; ids: string[] }
   | { type: 'jobEvent'; event: JobEvent }
   | { type: 'select'; id: string; mode: SelectMode }
@@ -99,6 +100,24 @@ export function reducer(state: AppState, action: Action): AppState {
         items: state.items.filter((i) => i.id !== action.id),
         selected: state.selected.filter((s) => s !== action.id),
         anchor: state.anchor === action.id ? null : state.anchor
+      }
+    case 'clearOutput':
+      // The output file was deleted; return the item to a re-runnable state so
+      // it leaves the Output column but stays in the Input list.
+      return {
+        ...state,
+        items: state.items.map((i) =>
+          i.id === action.id
+            ? {
+                ...i,
+                status: 'ready',
+                percent: 0,
+                outputPath: undefined,
+                error: undefined,
+                message: undefined
+              }
+            : i
+        )
       }
     case 'markQueued':
       return {

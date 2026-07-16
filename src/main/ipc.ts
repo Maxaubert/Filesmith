@@ -29,6 +29,22 @@ export function registerIpc(win: BrowserWindow): void {
     if (p) shell.showItemInFolder(p)
   })
 
+  // Open a file in its OS-default application (the "Preview" action).
+  ipcMain.on('file:open', (_e, p: string) => {
+    if (p) void shell.openPath(p)
+  })
+
+  // Move a file to the OS recycle bin — reversible, never a hard delete.
+  ipcMain.handle('file:trash', async (_e, p: string) => {
+    if (!p) return false
+    try {
+      await shell.trashItem(p)
+      return true
+    } catch {
+      return false
+    }
+  })
+
   // Real thumbnails for the queue, via the OS shell (handles images natively).
   ipcMain.handle('thumbnail', async (_e, path: string, size = 128) => {
     try {

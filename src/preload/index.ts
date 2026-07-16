@@ -21,6 +21,10 @@ const api = {
   thumbnail: (path: string, size?: number): Promise<string | null> =>
     ipcRenderer.invoke('thumbnail', path, size),
   reveal: (path: string): void => ipcRenderer.send('reveal', path),
+  /** Open a file in its OS-default app (Preview). */
+  openFile: (path: string): void => ipcRenderer.send('file:open', path),
+  /** Move a file to the recycle bin (reversible). */
+  trashFile: (path: string): Promise<boolean> => ipcRenderer.invoke('file:trash', path),
 
   // tools
   checkTool: (name: string): Promise<boolean> => ipcRenderer.invoke('tool:check', name),
