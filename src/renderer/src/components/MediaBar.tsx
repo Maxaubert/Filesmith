@@ -26,10 +26,10 @@ function applyVolume(m: HTMLMediaElement, v: number): void {
 }
 
 /**
- * Custom media player styled to the app: the native dark pill look, but with our
- * own progress bar — a muted track, an indigo (accent) elapsed fill, and a white
- * playhead dot. Shared by audio and video so both use the same play icon and
- * controls; video also gets a fullscreen button.
+ * Custom media controls, sized to sit directly on the light footer (no pill
+ * background): a muted track, an indigo (accent) elapsed fill, and a ringed
+ * accent playhead dot. Shared by audio and video so both match; video also gets
+ * a fullscreen button.
  */
 export function MediaBar({
   media,
@@ -88,24 +88,24 @@ export function MediaBar({
   }
 
   const btn =
-    'grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/90 transition hover:bg-white/12 hover:text-white'
+    'grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition hover:bg-black/[.06] hover:text-ink'
 
   return (
-    <div className="flex items-center gap-2.5 rounded-full bg-[#4a4a53] px-3.5 py-2.5">
+    <div className="flex items-center gap-2.5">
       <button className={btn} title={playing ? 'Pause' : 'Play'} onClick={() => togglePlay(media)}>
         <Icon name={playing ? 'pause' : 'play'} className="h-[17px] w-[17px]" strokeWidth={0} />
       </button>
-      <span className="shrink-0 text-[12px] font-medium tabular-nums text-white/85">
+      <span className="shrink-0 text-[12px] font-medium tabular-nums text-muted">
         {fmt(cur)} / {fmt(dur)}
       </span>
       <div onMouseDown={onBarDown} className="relative flex-1 cursor-pointer py-2.5">
-        <div ref={barRef} className="relative h-1.5 rounded-full bg-white/20">
+        <div ref={barRef} className="relative h-1.5 rounded-full bg-black/10">
           <div
             className="absolute inset-y-0 left-0 rounded-full bg-accent"
             style={{ width: `${frac * 100}%` }}
           />
           <div
-            className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,.45)]"
+            className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-accent shadow-[0_1px_3px_rgba(0,0,0,.25)]"
             style={{ left: `${frac * 100}%` }}
           />
         </div>

@@ -199,12 +199,14 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               key={url}
               ref={setMedia}
               src={url}
-              controls
-              controlsList="nodownload noplaybackrate noremoteplayback"
-              disablePictureInPicture
               preload="metadata"
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
+              onClick={() => {
+                const m = mediaRef.current
+                if (m?.paused) void m.play()
+                else m?.pause()
+              }}
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget
                 // Resolve duration if missing; otherwise show a real first frame
@@ -223,7 +225,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               <button
                 onClick={() => void mediaRef.current?.play()}
                 title="Play"
-                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#37373f] shadow-[0_6px_20px_rgba(0,0,0,.3)] transition hover:scale-105 hover:bg-[#42424b]"
+                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#2b2b31] shadow-[0_6px_20px_rgba(0,0,0,.3)] transition hover:scale-105 hover:bg-[#37373f]"
               >
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
@@ -285,19 +287,26 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         )}
       </div>
 
-      {f.kind === 'audio' && (
+      {(f.kind === 'video' || f.kind === 'audio') && (
         <div className="shrink-0 border-t border-line px-4 py-3">
-          <audio
-            key={url}
-            ref={setMedia}
-            src={url}
-            preload="metadata"
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onLoadedMetadata={(e) => forceDuration(e.currentTarget)}
-            className="hidden"
+          {f.kind === 'audio' && (
+            <audio
+              key={url}
+              ref={setMedia}
+              src={url}
+              preload="metadata"
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onLoadedMetadata={(e) => forceDuration(e.currentTarget)}
+              className="hidden"
+            />
+          )}
+          <MediaBar
+            media={mediaEl}
+            onFullscreen={
+              f.kind === 'video' ? () => void stageRef.current?.requestFullscreen() : undefined
+            }
           />
-          <MediaBar media={mediaEl} />
         </div>
       )}
     </div>
