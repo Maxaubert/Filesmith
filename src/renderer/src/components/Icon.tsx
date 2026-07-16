@@ -22,6 +22,10 @@ export type IconName =
   | 'chevron-left'
   | 'chevron-right'
   | 'play'
+  | 'pause'
+  | 'volume'
+  | 'volume-mute'
+  | 'fullscreen'
   | 'music'
 
 const PATHS: Record<IconName, JSX.Element> = {
@@ -88,6 +92,27 @@ const PATHS: Record<IconName, JSX.Element> = {
   'chevron-left': <path d="M15 18l-6-6 6-6" />,
   'chevron-right': <path d="M9 6l6 6-6 6" />,
   play: <path d="M8 5v14l11-7z" fill="currentColor" stroke="none" />,
+  pause: (
+    <>
+      <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
+      <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  volume: (
+    <>
+      <path d="M11 5 6 9H3v6h3l5 4V5z" />
+      <path d="M16 9a3 3 0 0 1 0 6" />
+    </>
+  ),
+  'volume-mute': (
+    <>
+      <path d="M11 5 6 9H3v6h3l5 4V5z" />
+      <path d="M22 9l-5 6M17 9l5 6" />
+    </>
+  ),
+  fullscreen: (
+    <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+  ),
   music: (
     <>
       <path d="M9 18V5l12-2v13" />

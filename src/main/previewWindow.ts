@@ -31,9 +31,7 @@ export function openPreviewWindow(next: PreviewPayload): void {
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      // Preview media should play on open without a click in this window.
-      autoplayPolicy: 'no-user-gesture-required'
+      sandbox: false
     }
   })
 
