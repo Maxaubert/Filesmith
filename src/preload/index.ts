@@ -45,6 +45,15 @@ const api = {
     ipcRenderer.on('preview:update', listener)
     return () => ipcRenderer.removeListener('preview:update', listener)
   },
+  /** Push a fresh file list to an open preview window (keeps its position). */
+  updatePreviewList: (files: PreviewItem[]): void =>
+    ipcRenderer.send('preview:update-list', files),
+  /** The preview window listens for live list changes. */
+  onPreviewList: (cb: (files: PreviewItem[]) => void): (() => void) => {
+    const listener = (_: unknown, files: PreviewItem[]): void => cb(files)
+    ipcRenderer.on('preview:list', listener)
+    return () => ipcRenderer.removeListener('preview:list', listener)
+  },
   /** Move a file to the recycle bin (reversible). */
   trashFile: (path: string): Promise<boolean> => ipcRenderer.invoke('file:trash', path),
 

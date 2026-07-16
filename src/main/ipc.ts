@@ -1,11 +1,19 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import type { FileInfo, FileKind, JobEvent, JobRequest, PreviewPayload, ToolId } from '@shared/types'
+import type {
+  FileInfo,
+  FileKind,
+  JobEvent,
+  JobRequest,
+  PreviewItem,
+  PreviewPayload,
+  ToolId
+} from '@shared/types'
 import { AUDIO_EXTS, IMAGE_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
 import { toolAvailable } from './toolResolver'
 import { makeThumbnail } from './thumbnail'
-import { openPreviewWindow, getPreviewPayload } from './previewWindow'
+import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
 import { targetsFor, toolsFor } from './tools/registry'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
@@ -33,6 +41,7 @@ export function registerIpc(win: BrowserWindow): void {
   // Preview window: open/reuse it, and let it fetch its file list on load.
   ipcMain.handle('preview:open', (_e, p: PreviewPayload) => openPreviewWindow(p))
   ipcMain.handle('preview:data', () => getPreviewPayload())
+  ipcMain.on('preview:update-list', (_e, files: PreviewItem[]) => updatePreviewFiles(files))
 
   // Reveal an output file in the OS file manager.
   ipcMain.on('reveal', (_e, p: string) => {

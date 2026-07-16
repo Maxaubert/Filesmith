@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'path'
-import type { PreviewPayload } from '@shared/types'
+import type { PreviewItem, PreviewPayload } from '@shared/types'
 
 // A separate, independently-resizable OS window for media preview. Being a real
 // window, it can be sized beyond the main window and resized from any edge or
@@ -10,6 +10,12 @@ let payload: PreviewPayload = { files: [], index: 0 }
 
 export function getPreviewPayload(): PreviewPayload {
   return payload
+}
+
+/** Push a new file list to the open preview window without changing its index. */
+export function updatePreviewFiles(files: PreviewItem[]): void {
+  payload = { ...payload, files }
+  if (win && !win.isDestroyed()) win.webContents.send('preview:list', files)
 }
 
 export function openPreviewWindow(next: PreviewPayload): void {

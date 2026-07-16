@@ -26,11 +26,43 @@ import { ContextMenu, type MenuState } from './components/ContextMenu'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 
+/** Build the preview window's file list for a column of a queue. */
+function toPreviewFiles(
+  items: QueueItem[],
+  side: 'input' | 'output',
+  outThumbs: Record<string, string | null>
+): PreviewItem[] {
+  if (side === 'input') {
+    return items
+      .filter(inInput)
+      .map((it) => ({
+        path: it.file.path,
+        name: it.file.name,
+        kind: it.file.kind,
+        size: it.file.size,
+        thumb: it.thumb
+      }))
+  }
+  return items
+    .filter(inOutput)
+    .map((it) => ({
+      path: it.outputPath as string,
+      name: baseName(it.outputPath as string),
+      kind: it.file.kind,
+      thumb: outThumbs[it.outputPath as string] ?? null
+    }))
+}
+
 export default function App(): JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [dragging, setDragging] = useState(false)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
+  // Which column/tool the open preview window is showing, so we can push live
+  // list updates to it when the queue changes.
+  const [previewCtx, setPreviewCtx] = useState<{ side: 'input' | 'output'; tool: ToolId } | null>(
+    null
+  )
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
 
@@ -130,27 +162,22 @@ export default function App(): JSX.Element {
   // Open the standalone preview window for a clicked item, letting the user page
   // through the whole column it lives in (all inputs, or all finished outputs).
   function openPreview(side: 'input' | 'output', item: QueueItem): void {
-    if (side === 'input') {
-      const list = cur.items.filter(inInput)
-      const files: PreviewItem[] = list.map((it) => ({
-        path: it.file.path,
-        name: it.file.name,
-        kind: it.file.kind,
-        size: it.file.size,
-        thumb: it.thumb
-      }))
-      void window.filesmith.openPreviewWindow(files, Math.max(0, list.findIndex((it) => it.id === item.id)))
-      return
-    }
-    const list = cur.items.filter(inOutput)
-    const files: PreviewItem[] = list.map((it) => ({
-      path: it.outputPath as string,
-      name: baseName(it.outputPath as string),
-      kind: it.file.kind,
-      thumb: outThumbs[it.outputPath as string] ?? null
-    }))
-    void window.filesmith.openPreviewWindow(files, Math.max(0, list.findIndex((it) => it.id === item.id)))
+    const list = cur.items.filter(side === 'input' ? inInput : inOutput)
+    const index = Math.max(
+      0,
+      list.findIndex((it) => it.id === item.id)
+    )
+    void window.filesmith.openPreviewWindow(toPreviewFiles(cur.items, side, outThumbs), index)
+    setPreviewCtx({ side, tool: state.tool })
   }
+
+  // Keep an open preview window's list in sync with the queue (it manages its
+  // own position; a no-op in main if the window is closed).
+  useEffect(() => {
+    if (!previewCtx) return
+    const items = state.queues[previewCtx.tool].items
+    window.filesmith.updatePreviewList(toPreviewFiles(items, previewCtx.side, outThumbs))
+  }, [state.queues, outThumbs, previewCtx])
 
   // Dismiss a set of items from a column. For Output we also recycle-bin the
   // produced file before dropping the card.

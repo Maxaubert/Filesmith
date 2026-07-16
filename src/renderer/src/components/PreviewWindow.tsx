@@ -40,7 +40,18 @@ export function PreviewWindow(): JSX.Element | null {
   const [state, setState] = useState<{ p: PreviewPayload; ver: number } | null>(null)
   useEffect(() => {
     void window.filesmith.getPreviewData().then((p) => setState((s) => ({ p, ver: (s?.ver ?? 0) + 1 })))
-    return window.filesmith.onPreviewUpdate((p) => setState((s) => ({ p, ver: (s?.ver ?? 0) + 1 })))
+    // Explicit re-open jumps to a new item (bump ver -> remount). A live list
+    // update just swaps the files and keeps the current position (same ver).
+    const unsubUpdate = window.filesmith.onPreviewUpdate((p) =>
+      setState((s) => ({ p, ver: (s?.ver ?? 0) + 1 }))
+    )
+    const unsubList = window.filesmith.onPreviewList((files) =>
+      setState((s) => (s ? { ...s, p: { ...s.p, files } } : s))
+    )
+    return () => {
+      unsubUpdate()
+      unsubList()
+    }
   }, [])
   if (!state || state.p.files.length === 0) return <div className="h-screen bg-white" />
   return <PreviewView key={state.ver} files={state.p.files} start={state.p.index} />
@@ -93,7 +104,9 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [many, files.length])
 
-  const f = files[i]
+  // The list can shrink under us (items removed from the queue); keep i valid.
+  if (files.length > 0 && i > files.length - 1) setI(files.length - 1)
+  const f = files[Math.min(i, Math.max(0, files.length - 1))]
   if (!f) return null
   const url = window.filesmith.mediaUrl(f.path)
   const meta = `${extOf(f.name)}${f.size ? ` · ${formatBytes(f.size)}` : ''}`
