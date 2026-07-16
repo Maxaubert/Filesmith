@@ -140,25 +140,27 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
 
   return (
     <div className="flex h-screen flex-col bg-white">
-      {/* header doubles as the window's drag region */}
-      <div className="drag flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
-        <div className="min-w-0">
-          <div className="truncate text-[13.5px] font-bold">{f.name}</div>
-          <div className="mt-0.5 text-[11.5px] text-dim">{meta}</div>
+      {/* header doubles as the window's drag region; close runs into the corner */}
+      <div className="drag flex shrink-0 items-stretch border-b border-line">
+        <div className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 pr-3">
+          <div className="min-w-0">
+            <div className="truncate text-[13.5px] font-bold">{f.name}</div>
+            <div className="mt-0.5 text-[11.5px] text-dim">{meta}</div>
+          </div>
+          <div className="flex-1" />
+          <button
+            title="Reveal in Explorer"
+            onClick={() => window.filesmith.reveal(f.path)}
+            className="no-drag grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] text-muted transition hover:bg-[#f0f0f5] hover:text-ink"
+          >
+            <Icon name="folder" className="h-[18px] w-[18px]" />
+          </button>
+          {many && <span className="text-[11.5px] text-dim">{`${i + 1} / ${files.length}`}</span>}
         </div>
-        <div className="flex-1" />
-        <button
-          title="Reveal in Explorer"
-          onClick={() => window.filesmith.reveal(f.path)}
-          className="no-drag grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] text-muted transition hover:bg-[#f0f0f5] hover:text-ink"
-        >
-          <Icon name="folder" className="h-[18px] w-[18px]" />
-        </button>
-        {many && <span className="text-[11.5px] text-dim">{`${i + 1} / ${files.length}`}</span>}
         <button
           title="Close"
           onClick={close}
-          className="no-drag grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] text-muted transition hover:bg-[#e0483d] hover:text-white"
+          className="no-drag grid w-12 shrink-0 place-items-center text-muted transition hover:bg-black/[.06] hover:text-ink"
         >
           <Icon name="close" className="h-[18px] w-[18px]" />
         </button>
