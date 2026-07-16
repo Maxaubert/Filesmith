@@ -120,6 +120,12 @@ img {
 .preview-stage:fullscreen .fs-bar {
   display: block;
 }
+/* Enlarge the audio artwork into a "now playing" view when fullscreen. */
+.preview-stage:fullscreen .fs-art {
+  height: min(56vh, 56vw);
+  width: min(56vh, 56vw);
+  border-radius: 24px;
+}
 
 /* Slim, unobtrusive scrollbar for the queue */
 .scroll-thin::-webkit-scrollbar {

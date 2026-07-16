@@ -242,7 +242,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         )}
         {f.kind === 'audio' && (
           <>
-            <div className="grid h-[220px] w-[220px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#8a7bff] to-[#ff9a8b] shadow-[0_12px_40px_rgba(0,0,0,.18)]">
+            <div className="fs-art grid h-[220px] w-[220px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#8a7bff] to-[#ff9a8b] shadow-[0_12px_40px_rgba(0,0,0,.18)]">
               {f.thumb ? (
                 <img src={f.thumb} alt="" className="h-full w-full object-cover" />
               ) : (
@@ -258,6 +258,10 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
             )}
+            {/* control overlay shown only in fullscreen (footer bar is hidden there) */}
+            <div className="fs-bar absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-6 pb-4 pt-12">
+              <MediaBar media={mediaEl} onFullscreen={toggleFs} dark />
+            </div>
           </>
         )}
 
@@ -309,7 +313,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               className="hidden"
             />
           )}
-          <MediaBar media={mediaEl} onFullscreen={f.kind === 'video' ? toggleFs : undefined} />
+          <MediaBar media={mediaEl} onFullscreen={toggleFs} />
         </div>
       )}
     </div>
