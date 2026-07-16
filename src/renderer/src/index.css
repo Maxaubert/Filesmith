@@ -102,6 +102,25 @@ img {
   }
 }
 
+/* Fullscreen video: fill black edge-to-edge, hide the window chrome/nav, and
+   show only the overlaid control bar — a proper video-player fullscreen. */
+.preview-stage:fullscreen {
+  background: #000;
+  padding: 0;
+}
+.preview-stage:fullscreen video {
+  border-radius: 0;
+}
+.preview-stage:fullscreen .fs-hide {
+  display: none;
+}
+.fs-bar {
+  display: none;
+}
+.preview-stage:fullscreen .fs-bar {
+  display: block;
+}
+
 /* Slim, unobtrusive scrollbar for the queue */
 .scroll-thin::-webkit-scrollbar {
   width: 9px;

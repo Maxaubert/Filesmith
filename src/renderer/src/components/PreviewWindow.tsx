@@ -143,6 +143,10 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
   }
 
   const imgCursor = f.kind === 'image' && zoom > 1 ? (panning ? 'grabbing' : 'grab') : 'default'
+  const toggleFs = (): void => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void stageRef.current?.requestFullscreen()
+  }
 
   return (
     <div className="flex h-screen flex-col bg-white">
@@ -176,7 +180,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
       <div
         ref={stageRef}
         onWheel={onWheel}
-        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f1f1f4] p-5"
+        className="preview-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f1f1f4] p-5"
       >
         {f.kind === 'image' && (
           <img
@@ -230,6 +234,10 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
             )}
+            {/* control overlay shown only in fullscreen (the footer bar is hidden there) */}
+            <div className="fs-bar absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-6 pb-4 pt-12">
+              <MediaBar media={mediaEl} onFullscreen={toggleFs} dark />
+            </div>
           </>
         )}
         {f.kind === 'audio' && (
@@ -272,14 +280,14 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             <button
               onClick={() => step(-1)}
               title="Previous"
-              className="absolute left-3.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-ink shadow-[0_3px_12px_rgba(0,0,0,.16)] transition hover:scale-105"
+              className="fs-hide absolute left-3.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-ink shadow-[0_3px_12px_rgba(0,0,0,.16)] transition hover:scale-105"
             >
               <Icon name="chevron-left" className="h-5 w-5" />
             </button>
             <button
               onClick={() => step(1)}
               title="Next"
-              className="absolute right-3.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-ink shadow-[0_3px_12px_rgba(0,0,0,.16)] transition hover:scale-105"
+              className="fs-hide absolute right-3.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-ink shadow-[0_3px_12px_rgba(0,0,0,.16)] transition hover:scale-105"
             >
               <Icon name="chevron-right" className="h-5 w-5" />
             </button>
@@ -301,12 +309,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               className="hidden"
             />
           )}
-          <MediaBar
-            media={mediaEl}
-            onFullscreen={
-              f.kind === 'video' ? () => void stageRef.current?.requestFullscreen() : undefined
-            }
-          />
+          <MediaBar media={mediaEl} onFullscreen={f.kind === 'video' ? toggleFs : undefined} />
         </div>
       )}
     </div>
