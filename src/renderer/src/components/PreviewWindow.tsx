@@ -277,7 +277,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         )}
         {f.kind === 'audio' && (
           <>
-            <div className="fs-art relative h-[340px] w-[340px]">
+            <div className="fs-art relative h-[380px] w-[380px]">
               <AudioVisualizer media={mediaEl} />
             </div>
             {!playing && (

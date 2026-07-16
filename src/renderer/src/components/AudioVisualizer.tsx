@@ -103,18 +103,20 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
       const overall = band(1, 40)
       const cx = W / 2
       const cy = H / 2
-      const R = Math.min(W, H) * 0.22 * (1 + bass * 0.55)
+      // Small resting circle leaves room for spikes; bass adds a gentle pulse.
+      const R = Math.min(W, H) * 0.14 * (1 + bass * 0.3)
 
-      const glow = g.createRadialGradient(cx, cy, R * 0.4, cx, cy, R * 2.4)
-      glow.addColorStop(0, `rgba(91,91,214,${0.1 + overall * 0.55})`)
+      // Glow fades fully within the canvas so there's no square haze / clipping.
+      const glow = g.createRadialGradient(cx, cy, R * 0.3, cx, cy, R * 2.2)
+      glow.addColorStop(0, `rgba(91,91,214,${0.08 + overall * 0.5})`)
       glow.addColorStop(1, 'rgba(91,91,214,0)')
       g.fillStyle = glow
       g.fillRect(0, 0, W, H)
 
-      // Map the spectrum around the circumference; a triangle-wave index keeps
-      // the shape symmetric and closed.
-      const pts = 140
-      const bins = 40
+      // Fewer, bigger lobes; a power curve makes loud bands spike out sharply
+      // while quiet ones stay near the resting circle.
+      const pts = 160
+      const bins = 16
       g.beginPath()
       for (let i = 0; i <= pts; i++) {
         const a = (i / pts) * Math.PI * 2
@@ -122,8 +124,9 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
         const idx = 2 + m * (bins - 1)
         const b0 = Math.floor(idx)
         const frac = idx - b0
-        const v = (data[b0] * (1 - frac) + data[b0 + 1] * frac) / 255
-        const rr = R * (1 + v * 0.8)
+        const raw = (data[b0] * (1 - frac) + data[b0 + 1] * frac) / 255
+        const spike = Math.pow(raw, 1.4)
+        const rr = R * (1 + spike * 1.5)
         const x = cx + Math.cos(a) * rr
         const y = cy + Math.sin(a) * rr
         if (i === 0) g.moveTo(x, y)
