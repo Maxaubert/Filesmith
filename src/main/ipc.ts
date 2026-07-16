@@ -1,10 +1,11 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import type { FileInfo, FileKind, JobEvent, JobRequest, ToolId } from '@shared/types'
+import type { FileInfo, FileKind, JobEvent, JobRequest, PreviewPayload, ToolId } from '@shared/types'
 import { AUDIO_EXTS, IMAGE_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
 import { toolAvailable } from './toolResolver'
 import { makeThumbnail } from './thumbnail'
+import { openPreviewWindow, getPreviewPayload } from './previewWindow'
 import { targetsFor, toolsFor } from './tools/registry'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
@@ -18,12 +19,20 @@ function isSupported(f: FileInfo): boolean {
 export function registerIpc(win: BrowserWindow): void {
   const queue = new JobQueue((e: JobEvent) => win.webContents.send('job:event', e))
 
-  // Custom (frameless) window controls.
-  ipcMain.on('window:minimize', () => win.minimize())
-  ipcMain.on('window:toggle-maximize', () =>
-    win.isMaximized() ? win.unmaximize() : win.maximize()
-  )
-  ipcMain.on('window:close', () => win.close())
+  // Custom (frameless) window controls — act on the sender's window so both the
+  // main window and the preview window control themselves.
+  ipcMain.on('window:minimize', (e) => BrowserWindow.fromWebContents(e.sender)?.minimize())
+  ipcMain.on('window:toggle-maximize', (e) => {
+    const w = BrowserWindow.fromWebContents(e.sender)
+    if (!w) return
+    if (w.isMaximized()) w.unmaximize()
+    else w.maximize()
+  })
+  ipcMain.on('window:close', (e) => BrowserWindow.fromWebContents(e.sender)?.close())
+
+  // Preview window: open/reuse it, and let it fetch its file list on load.
+  ipcMain.handle('preview:open', (_e, p: PreviewPayload) => openPreviewWindow(p))
+  ipcMain.handle('preview:data', () => getPreviewPayload())
 
   // Reveal an output file in the OS file manager.
   ipcMain.on('reveal', (_e, p: string) => {

@@ -7,7 +7,7 @@ import {
   type JSX,
   type MouseEvent
 } from 'react'
-import type { FileKind, ToolId } from '@shared/types'
+import type { FileKind, PreviewItem, ToolId } from '@shared/types'
 import {
   categoryFormats,
   defaultTargetExt,
@@ -23,7 +23,6 @@ import { DropZone } from './components/DropZone'
 import { Queues } from './components/Queue'
 import { OptionsPanel } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
-import { PreviewModal, type PreviewFile } from './components/PreviewModal'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 
@@ -32,7 +31,6 @@ export default function App(): JSX.Element {
   const [dragging, setDragging] = useState(false)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
-  const [preview, setPreview] = useState<{ files: PreviewFile[]; index: number } | null>(null)
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
 
@@ -129,29 +127,29 @@ export default function App(): JSX.Element {
     dispatch({ type: 'select', id, mode })
   }
 
-  // Open the in-app preview for a clicked item, letting the user page through
-  // the whole column it lives in (all inputs, or all finished outputs).
+  // Open the standalone preview window for a clicked item, letting the user page
+  // through the whole column it lives in (all inputs, or all finished outputs).
   function openPreview(side: 'input' | 'output', item: QueueItem): void {
     if (side === 'input') {
       const list = cur.items.filter(inInput)
-      const files: PreviewFile[] = list.map((it) => ({
+      const files: PreviewItem[] = list.map((it) => ({
         path: it.file.path,
         name: it.file.name,
         kind: it.file.kind,
         size: it.file.size,
         thumb: it.thumb
       }))
-      setPreview({ files, index: Math.max(0, list.findIndex((it) => it.id === item.id)) })
+      void window.filesmith.openPreviewWindow(files, Math.max(0, list.findIndex((it) => it.id === item.id)))
       return
     }
     const list = cur.items.filter(inOutput)
-    const files: PreviewFile[] = list.map((it) => ({
+    const files: PreviewItem[] = list.map((it) => ({
       path: it.outputPath as string,
       name: baseName(it.outputPath as string),
       kind: it.file.kind,
       thumb: outThumbs[it.outputPath as string] ?? null
     }))
-    setPreview({ files, index: Math.max(0, list.findIndex((it) => it.id === item.id)) })
+    void window.filesmith.openPreviewWindow(files, Math.max(0, list.findIndex((it) => it.id === item.id)))
   }
 
   // Dismiss a set of items from a column. For Output we also recycle-bin the
@@ -303,14 +301,6 @@ export default function App(): JSX.Element {
         />
       </div>
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
-      {preview && (
-        <PreviewModal
-          files={preview.files}
-          start={preview.index}
-          onClose={() => setPreview(null)}
-          onReveal={(p) => window.filesmith.reveal(p)}
-        />
-      )}
     </div>
   )
 }

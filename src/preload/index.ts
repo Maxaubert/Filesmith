@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { FileInfo, FileKind, JobEvent, JobRequest, ToolId, ToolTarget } from '@shared/types'
+import type {
+  FileInfo,
+  FileKind,
+  JobEvent,
+  JobRequest,
+  PreviewItem,
+  PreviewPayload,
+  ToolId,
+  ToolTarget
+} from '@shared/types'
 
 // The typed bridge the renderer talks to. The renderer never touches Node/fs/
 // child_process directly; every privileged action goes through these channels.
@@ -25,6 +34,17 @@ const api = {
   openFile: (path: string): void => ipcRenderer.send('file:open', path),
   /** A streamable URL for a local file, for the in-app preview. */
   mediaUrl: (path: string): string => `fsmedia://local/${encodeURIComponent(path)}`,
+  /** Open (or reuse + refocus) the standalone preview window. */
+  openPreviewWindow: (files: PreviewItem[], index: number): Promise<void> =>
+    ipcRenderer.invoke('preview:open', { files, index }),
+  /** The preview window fetches its file list on load. */
+  getPreviewData: (): Promise<PreviewPayload> => ipcRenderer.invoke('preview:data'),
+  /** The preview window listens for a new file list when reused. */
+  onPreviewUpdate: (cb: (p: PreviewPayload) => void): (() => void) => {
+    const listener = (_: unknown, p: PreviewPayload): void => cb(p)
+    ipcRenderer.on('preview:update', listener)
+    return () => ipcRenderer.removeListener('preview:update', listener)
+  },
   /** Move a file to the recycle bin (reversible). */
   trashFile: (path: string): Promise<boolean> => ipcRenderer.invoke('file:trash', path),
 

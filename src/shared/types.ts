@@ -41,3 +41,18 @@ export interface ToolTarget {
   label: string
   ext: string
 }
+
+/** One file shown in the preview window. */
+export interface PreviewItem {
+  path: string
+  name: string
+  kind: FileKind
+  size?: number
+  thumb?: string | null
+}
+
+/** The set of files handed to the preview window, plus which one to show first. */
+export interface PreviewPayload {
+  files: PreviewItem[]
+  index: number
+}
