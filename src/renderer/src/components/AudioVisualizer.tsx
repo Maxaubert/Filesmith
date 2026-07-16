@@ -46,9 +46,12 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
       if (ctx.state === 'suspended') void ctx.resume()
     }
     media.addEventListener('play', resume)
+    // Any click is a user gesture that can resume a suspended context.
+    window.addEventListener('pointerdown', resume)
     if (!media.paused) resume()
     return () => {
       media.removeEventListener('play', resume)
+      window.removeEventListener('pointerdown', resume)
       try {
         source.disconnect(analyser)
       } catch {

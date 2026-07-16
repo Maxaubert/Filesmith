@@ -34,6 +34,8 @@ const api = {
   openFile: (path: string): void => ipcRenderer.send('file:open', path),
   /** A streamable URL for a local file, for the in-app preview. */
   mediaUrl: (path: string): string => `fsmedia://local/${encodeURIComponent(path)}`,
+  /** Raw file bytes — audio plays from a same-origin blob so Web Audio can read it. */
+  readBytes: (path: string): Promise<Uint8Array | null> => ipcRenderer.invoke('file:bytes', path),
   /** Open (or reuse + refocus) the standalone preview window. */
   openPreviewWindow: (files: PreviewItem[], index: number): Promise<void> =>
     ipcRenderer.invoke('preview:open', { files, index }),

@@ -75,6 +75,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
   const [ty, setTy] = useState(0)
   const [panning, setPanning] = useState(false)
   const [playing, setPlaying] = useState(false)
+  const [audio, setAudio] = useState<{ path: string; src: string } | null>(null)
   const [zoomIndex, setZoomIndex] = useState(i)
   const stageRef = useRef<HTMLDivElement>(null)
   if (zoomIndex !== i) {
@@ -108,8 +109,28 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
   // The list can shrink under us (items removed from the queue); keep i valid.
   if (files.length > 0 && i > files.length - 1) setI(files.length - 1)
   const f = files[Math.min(i, Math.max(0, files.length - 1))]
+
+  // Audio plays from a same-origin blob URL so the Web Audio visualizer can read
+  // its samples (a cross-origin fsmedia:// source would be silenced).
+  const audioPath = f && f.kind === 'audio' ? f.path : null
+  useEffect(() => {
+    if (!audioPath) return
+    let obj: string | null = null
+    let cancelled = false
+    void window.filesmith.readBytes(audioPath).then((bytes) => {
+      if (cancelled || !bytes) return
+      obj = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer]))
+      setAudio({ path: audioPath, src: obj })
+    })
+    return () => {
+      cancelled = true
+      if (obj) URL.revokeObjectURL(obj)
+    }
+  }, [audioPath])
+
   if (!f) return null
   const url = window.filesmith.mediaUrl(f.path)
+  const audioSrc = audio && audio.path === audioPath ? audio.src : undefined
   const meta = `${extOf(f.name)}${f.size ? ` · ${formatBytes(f.size)}` : ''}`
 
   const cursorFromCentre = (e: { clientX: number; clientY: number }): [number, number] => {
@@ -326,8 +347,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             <audio
               key={url}
               ref={setMedia}
-              src={url}
-              crossOrigin="anonymous"
+              src={audioSrc}
               preload="metadata"
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}

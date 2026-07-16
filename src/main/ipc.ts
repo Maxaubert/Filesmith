@@ -1,3 +1,4 @@
+import { readFile } from 'fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type {
   FileInfo,
@@ -93,6 +94,15 @@ export function registerIpc(win: BrowserWindow): void {
       ]
     })
     return r.canceled ? [] : r.filePaths.map(fileInfoFromPath).filter(isSupported)
+  })
+  // Read a file's bytes so the renderer can play audio from a same-origin blob
+  // URL (needed for the Web Audio visualizer without CORS taint).
+  ipcMain.handle('file:bytes', async (_e, p: string) => {
+    try {
+      return new Uint8Array(await readFile(p))
+    } catch {
+      return null
+    }
   })
   ipcMain.handle('tools:for', (_e, file: FileInfo) => toolsFor(file))
   ipcMain.handle('tool:targets', (_e, id: ToolId, file: FileInfo) => targetsFor(id, file))
