@@ -72,6 +72,7 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
     const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1))
     const data = new Uint8Array(128)
     let raf = 0
+    let boomHold = 0
 
     const fit = (): void => {
       const r = canvas.getBoundingClientRect()
@@ -99,24 +100,29 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
       if (an && audioCtx?.state === 'running') an.getByteFrequencyData(data)
       else data.fill(0)
 
-      const bass = band(1, 6)
-      const overall = band(1, 40)
+      // React mainly to big bass hits: threshold + compress so normal audio is
+      // calm and a real boom/drop swells it hard. Fast attack, slow release.
+      const bass = band(1, 5)
+      const boomRaw = Math.pow(Math.max(0, (bass - 0.35) / 0.65), 1.6)
+      boomHold = Math.max(boomRaw, boomHold * 0.92)
+      const boom = boomHold
+
       const cx = W / 2
       const cy = H / 2
-      // Small resting circle leaves room for spikes; bass adds a gentle pulse.
-      const R = Math.min(W, H) * 0.14 * (1 + bass * 0.3)
+      const R = Math.min(W, H) * 0.2 * (1 + boom * 0.4)
 
-      // Glow fades fully within the canvas so there's no square haze / clipping.
-      const glow = g.createRadialGradient(cx, cy, R * 0.3, cx, cy, R * 2.2)
-      glow.addColorStop(0, `rgba(91,91,214,${0.08 + overall * 0.5})`)
+      // Glow fades within the canvas (fixed outer radius) so there's no square haze.
+      const glow = g.createRadialGradient(cx, cy, R * 0.3, cx, cy, Math.min(W, H) * 0.45)
+      glow.addColorStop(0, `rgba(91,91,214,${0.1 + boom * 0.5})`)
       glow.addColorStop(1, 'rgba(91,91,214,0)')
       g.fillStyle = glow
       g.fillRect(0, 0, W, H)
 
-      // Fewer, bigger lobes; a power curve makes loud bands spike out sharply
-      // while quiet ones stay near the resting circle.
+      // A few rounded lobes whose size grows with the boom — calm at rest, big
+      // spikes only when the track hits hard.
       const pts = 160
-      const bins = 16
+      const bins = 9
+      const lobeAmp = 0.12 + boom * 0.45
       g.beginPath()
       for (let i = 0; i <= pts; i++) {
         const a = (i / pts) * Math.PI * 2
@@ -125,8 +131,8 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
         const b0 = Math.floor(idx)
         const frac = idx - b0
         const raw = (data[b0] * (1 - frac) + data[b0 + 1] * frac) / 255
-        const spike = Math.pow(raw, 1.4)
-        const rr = R * (1 + spike * 1.5)
+        const spike = Math.pow(raw, 1.5)
+        const rr = R * (1 + spike * lobeAmp)
         const x = cx + Math.cos(a) * rr
         const y = cy + Math.sin(a) * rr
         if (i === 0) g.moveTo(x, y)
