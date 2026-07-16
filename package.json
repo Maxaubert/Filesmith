@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "package": "electron-vite build && electron-builder --win"
+    "binaries": "node scripts/fetch-binaries.mjs",
+    "package": "node scripts/fetch-binaries.mjs && electron-vite build && electron-builder --win"
   },
   "dependencies": {
     "react": "^19.2.7",
