@@ -1,1 +1,49 @@
 @import 'tailwindcss';
+
+@theme {
+  --color-ink: #1d1d1f;
+  --color-muted: #6e6e73;
+  --color-dim: #86868b;
+  --color-canvas: #f4f4f6;
+  --color-line: #ececef;
+  --color-accent: #5b5bd6;
+  --color-accent-hi: #6d6ce4;
+  --color-accent-soft: #eeeefb;
+  --font-sans:
+    -apple-system, 'SF Pro Display', 'SF Pro Text', 'Inter', system-ui, 'Segoe UI', sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Frameless window drag regions */
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Slim, unobtrusive scrollbar for the queue */
+.scroll-thin::-webkit-scrollbar {
+  width: 9px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #d3d3da;
+  border-radius: 9px;
+  border: 2px solid var(--color-canvas);
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: #c1c1cb;
+}

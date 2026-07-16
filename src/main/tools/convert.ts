@@ -42,3 +42,13 @@ export function findTarget(ext: string): ConvertTarget | undefined {
 export function buildConvertArgs(input: string, output: string, extra: string[] = []): string[] {
   return [input, ...extra, output]
 }
+
+/** Map a quality preset ('smaller'|'balanced'|'best') or number to a magick
+ * -quality value (1..100), or null to leave the default. */
+export function qualityNum(q: unknown): number | null {
+  if (typeof q === 'number' && q > 0) return Math.max(1, Math.min(100, Math.round(q)))
+  if (q === 'smaller') return 60
+  if (q === 'balanced') return 82
+  if (q === 'best') return 95
+  return null
+}

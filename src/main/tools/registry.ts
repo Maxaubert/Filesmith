@@ -6,7 +6,7 @@ import { resolveTool } from '../toolResolver'
 import { run } from '../run'
 import { uniqueOutPath } from '../output'
 import type { ToolModule } from './tool'
-import { buildConvertArgs, convertTargets, findTarget } from './convert'
+import { buildConvertArgs, convertTargets, findTarget, qualityNum } from './convert'
 import { buildResizeArgs, buildResizeSpec } from './resize'
 import { buildCompressArgs } from './compress'
 
@@ -16,11 +16,15 @@ const convertTool: ToolModule = {
     const target = findTarget(targetExt)
     if (!target) throw new Error(`Unsupported target format: ${targetExt}`)
     const output = uniqueOutPath(file.path, target.ext, 'converted')
+    const q = qualityNum(options.quality)
+    const extra = [...(target.extra ?? []), ...(q != null ? ['-quality', String(q)] : [])]
     ctx.onProgress(undefined, `Converting to ${target.label}…`)
     const { code, stderr } = await run(
       resolveTool('magick'),
-      buildConvertArgs(file.path, output, target.extra),
-      { signal: ctx.signal }
+      buildConvertArgs(file.path, output, extra),
+      {
+        signal: ctx.signal
+      }
     )
     if (code !== 0) throw new Error(stderr.trim() || `magick exited ${code}`)
     return output

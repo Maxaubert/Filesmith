@@ -4,13 +4,14 @@ import { registerIpc } from './ipc'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 720,
-    minWidth: 880,
-    minHeight: 560,
+    width: 1160,
+    height: 760,
+    minWidth: 900,
+    minHeight: 580,
     show: false,
-    autoHideMenuBar: true,
-    backgroundColor: '#0a0a0a',
+    // Frameless: the app draws its own top strip + window controls (RCMM-style).
+    frame: false,
+    backgroundColor: '#f4f4f6',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
