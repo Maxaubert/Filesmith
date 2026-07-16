@@ -1,9 +1,17 @@
 import { BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron'
 import type { FileInfo, JobEvent, JobRequest, ToolId } from '@shared/types'
+import { AUDIO_EXTS, IMAGE_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
 import { toolAvailable } from './toolResolver'
 import { targetsFor, toolsFor } from './tools/registry'
+
+// Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
+// is hidden from the picker and dropped from drag-and-drop.
+const bare = (exts: string[]): string[] => exts.map((e) => e.replace('.', ''))
+function isSupported(f: FileInfo): boolean {
+  return f.kind === 'image' || f.kind === 'video' || f.kind === 'audio'
+}
 
 /** Wire the renderer <-> engine channels for one window. */
 export function registerIpc(win: BrowserWindow): void {
@@ -40,12 +48,20 @@ export function registerIpc(win: BrowserWindow): void {
     return true
   })
   ipcMain.handle('tool:check', (_e, name: string) => toolAvailable(name))
-  ipcMain.handle('files:classify', (_e, paths: string[]) => paths.map(fileInfoFromPath))
+  ipcMain.handle('files:classify', (_e, paths: string[]) =>
+    paths.map(fileInfoFromPath).filter(isSupported)
+  )
   ipcMain.handle('files:pick', async () => {
     const r = await dialog.showOpenDialog(win, {
-      properties: ['openFile', 'multiSelections']
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'All supported', extensions: bare([...IMAGE_EXTS, ...VIDEO_EXTS, ...AUDIO_EXTS]) },
+        { name: 'Images', extensions: bare(IMAGE_EXTS) },
+        { name: 'Video', extensions: bare(VIDEO_EXTS) },
+        { name: 'Audio', extensions: bare(AUDIO_EXTS) }
+      ]
     })
-    return r.canceled ? [] : r.filePaths.map(fileInfoFromPath)
+    return r.canceled ? [] : r.filePaths.map(fileInfoFromPath).filter(isSupported)
   })
   ipcMain.handle('tools:for', (_e, file: FileInfo) => toolsFor(file))
   ipcMain.handle('tool:targets', (_e, id: ToolId, file: FileInfo) => targetsFor(id, file))

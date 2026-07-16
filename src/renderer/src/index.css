@@ -25,6 +25,20 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  /* This is a chrome-less app UI, not a document: don't let shift-click and
+     drags smear text selection across the interface. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+/* Re-enable selection only where typing/copying is meaningful. */
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+img {
+  -webkit-user-drag: none;
 }
 
 /* Frameless window drag regions */
