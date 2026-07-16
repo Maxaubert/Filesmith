@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { FileInfo, JobEvent, JobRequest, ToolId, ToolTarget } from '@shared/types'
+import type { FileInfo, FileKind, JobEvent, JobRequest, ToolId, ToolTarget } from '@shared/types'
 
 // The typed bridge the renderer talks to. The renderer never touches Node/fs/
 // child_process directly; every privileged action goes through these channels.
@@ -18,8 +18,8 @@ const api = {
   classify: (paths: string[]): Promise<FileInfo[]> => ipcRenderer.invoke('files:classify', paths),
   /** Resolve the absolute path of a dropped File (Electron removed File.path). */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
-  thumbnail: (path: string, size?: number): Promise<string | null> =>
-    ipcRenderer.invoke('thumbnail', path, size),
+  thumbnail: (path: string, size?: number, kind?: FileKind): Promise<string | null> =>
+    ipcRenderer.invoke('thumbnail', path, size, kind),
   reveal: (path: string): void => ipcRenderer.send('reveal', path),
   /** Open a file in its OS-default app (Preview). */
   openFile: (path: string): void => ipcRenderer.send('file:open', path),

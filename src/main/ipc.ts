@@ -1,9 +1,10 @@
-import { BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron'
-import type { FileInfo, JobEvent, JobRequest, ToolId } from '@shared/types'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import type { FileInfo, FileKind, JobEvent, JobRequest, ToolId } from '@shared/types'
 import { AUDIO_EXTS, IMAGE_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
 import { toolAvailable } from './toolResolver'
+import { makeThumbnail } from './thumbnail'
 import { targetsFor, toolsFor } from './tools/registry'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
@@ -45,15 +46,11 @@ export function registerIpc(win: BrowserWindow): void {
     }
   })
 
-  // Real thumbnails for the queue, via the OS shell (handles images natively).
-  ipcMain.handle('thumbnail', async (_e, path: string, size = 128) => {
-    try {
-      const img = await nativeImage.createThumbnailFromPath(path, { width: size, height: size })
-      return img.isEmpty() ? null : img.toDataURL()
-    } catch {
-      return null
-    }
-  })
+  // Real thumbnails for the queue: OS shell first, then a tool-based fallback
+  // (magick / ffmpeg) so videos, icons, and exotic image formats also render.
+  ipcMain.handle('thumbnail', (_e, path: string, size = 128, kind: FileKind = 'other') =>
+    makeThumbnail(path, size, kind)
+  )
 
   ipcMain.handle('job:run', (_e, req: JobRequest) => {
     queue.add(req)

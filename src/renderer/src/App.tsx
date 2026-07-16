@@ -46,27 +46,27 @@ export default function App(): JSX.Element {
     }
   }, [])
 
-  // Lazy-load a real thumbnail for each image item, once.
+  // Lazy-load a real thumbnail for each item, once. Works across kinds: images
+  // (incl. exotic formats via magick), videos (ffmpeg frame), audio cover art.
   useEffect(() => {
     for (const item of state.items) {
       if (item.thumb !== null || requested.current.has(item.id)) continue
       requested.current.add(item.id)
-      if (item.file.kind !== 'image') continue
       void window.filesmith
-        .thumbnail(item.file.path, 128)
+        .thumbnail(item.file.path, 128, item.file.kind)
         .then((t) => dispatch({ type: 'setThumb', id: item.id, thumb: t }))
     }
   }, [state.items])
 
-  // Lazy-load thumbnails for finished output files, once each.
+  // Lazy-load thumbnails for finished output files, once each (output keeps the
+  // input's kind — convert never crosses categories).
   useEffect(() => {
     for (const item of state.items) {
       const out = item.outputPath
       if (!out || item.status !== 'done' || outRequested.current.has(out)) continue
       outRequested.current.add(out)
-      if (item.file.kind !== 'image') continue
       void window.filesmith
-        .thumbnail(out, 128)
+        .thumbnail(out, 128, item.file.kind)
         .then((t) => setOutThumbs((m) => ({ ...m, [out]: t })))
     }
   }, [state.items])
