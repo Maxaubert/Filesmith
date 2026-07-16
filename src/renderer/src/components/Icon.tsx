@@ -21,6 +21,7 @@ export type IconName =
   | 'dots'
   | 'chevron-left'
   | 'chevron-right'
+  | 'play'
   | 'music'
 
 const PATHS: Record<IconName, JSX.Element> = {
@@ -86,6 +87,7 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   'chevron-left': <path d="M15 18l-6-6 6-6" />,
   'chevron-right': <path d="M9 6l6 6-6 6" />,
+  play: <path d="M8 5v14l11-7z" fill="currentColor" stroke="none" />,
   music: (
     <>
       <path d="M9 18V5l12-2v13" />

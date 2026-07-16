@@ -38,6 +38,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
   const [tx, setTx] = useState(0)
   const [ty, setTy] = useState(0)
   const [panning, setPanning] = useState(false)
+  const [playing, setPlaying] = useState(false)
   const [zoomIndex, setZoomIndex] = useState(i)
   const stageRef = useRef<HTMLDivElement>(null)
   if (zoomIndex !== i) {
@@ -45,6 +46,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     setZoom(1)
     setTx(0)
     setTy(0)
+    setPlaying(false)
   }
 
   useEffect(() => {
@@ -117,35 +119,21 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
 
   return (
     <div className="flex h-screen flex-col bg-white">
-      {/* header doubles as the window's drag region */}
+      {/* header doubles as the window's drag region (close with Esc / Alt+F4) */}
       <div className="drag flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
+        <button
+          title="Reveal in Explorer"
+          onClick={() => window.filesmith.reveal(f.path)}
+          className="no-drag grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] text-muted transition hover:bg-[#f0f0f5] hover:text-ink"
+        >
+          <Icon name="folder" className="h-[18px] w-[18px]" />
+        </button>
         <div className="min-w-0">
           <div className="truncate text-[13.5px] font-bold">{f.name}</div>
           <div className="mt-0.5 text-[11.5px] text-dim">{meta}</div>
         </div>
         <div className="flex-1" />
-        {many && <span className="mr-1 text-[11.5px] text-dim">{`${i + 1} / ${files.length}`}</span>}
-        <button
-          title="Reveal in Explorer"
-          onClick={() => window.filesmith.reveal(f.path)}
-          className="no-drag grid h-[34px] w-[34px] place-items-center rounded-[9px] text-muted transition hover:bg-[#f0f0f5] hover:text-ink"
-        >
-          <Icon name="folder" className="h-[18px] w-[18px]" />
-        </button>
-        <button
-          title="Maximize"
-          onClick={() => window.filesmith.toggleMaximize()}
-          className="no-drag grid h-[34px] w-[34px] place-items-center rounded-[9px] text-muted transition hover:bg-[#f0f0f5] hover:text-ink"
-        >
-          <Icon name="max" className="h-[15px] w-[15px]" />
-        </button>
-        <button
-          title="Close"
-          onClick={close}
-          className="no-drag grid h-[34px] w-[34px] place-items-center rounded-[9px] text-muted transition hover:bg-[#e0483d] hover:text-white"
-        >
-          <Icon name="close" className="h-[18px] w-[18px]" />
-        </button>
+        {many && <span className="text-[11.5px] text-dim">{`${i + 1} / ${files.length}`}</span>}
       </div>
 
       {/* media — one light, opaque backdrop for every kind */}
@@ -170,24 +158,39 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
           />
         )}
         {f.kind === 'video' && (
-          <video
-            key={url}
-            ref={setMedia}
-            src={url}
-            controls
-            preload="metadata"
-            onLoadedMetadata={(e) => {
-              const v = e.currentTarget
-              if (v.currentTime < 0.02) {
-                try {
-                  v.currentTime = 0.04
-                } catch {
-                  /* seek not ready yet; ignore */
+          <>
+            <video
+              key={url}
+              ref={setMedia}
+              src={url}
+              controls
+              controlsList="nodownload noplaybackrate noremoteplayback"
+              disablePictureInPicture
+              preload="metadata"
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onLoadedMetadata={(e) => {
+                const v = e.currentTarget
+                if (v.currentTime < 0.02) {
+                  try {
+                    v.currentTime = 0.04
+                  } catch {
+                    /* seek not ready yet; ignore */
+                  }
                 }
-              }
-            }}
-            className="h-full w-full rounded-lg object-contain"
-          />
+              }}
+              className="h-full w-full rounded-lg object-contain"
+            />
+            {!playing && (
+              <button
+                onClick={() => void mediaRef.current?.play()}
+                title="Play"
+                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/45 backdrop-blur transition hover:scale-105 hover:bg-black/60"
+              >
+                <Icon name="play" className="ml-1 h-8 w-8 text-white" />
+              </button>
+            )}
+          </>
         )}
         {f.kind === 'audio' && (
           <div className="grid h-[220px] w-[220px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#8a7bff] to-[#ff9a8b] shadow-[0_12px_40px_rgba(0,0,0,.18)]">
