@@ -199,14 +199,12 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               key={url}
               ref={setMedia}
               src={url}
+              controls
+              controlsList="nodownload noplaybackrate noremoteplayback"
+              disablePictureInPicture
               preload="metadata"
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
-              onClick={() => {
-                const m = mediaRef.current
-                if (m?.paused) void m.play()
-                else m?.pause()
-              }}
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget
                 // Resolve duration if missing; otherwise show a real first frame
@@ -230,9 +228,6 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
             )}
-            <div className="absolute inset-x-4 bottom-4">
-              <MediaBar media={mediaEl} onFullscreen={() => void stageRef.current?.requestFullscreen()} />
-            </div>
           </>
         )}
         {f.kind === 'audio' && (
