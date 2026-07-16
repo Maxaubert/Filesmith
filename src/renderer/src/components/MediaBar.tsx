@@ -101,7 +101,11 @@ export function MediaBar({
     ? 'text-white/90 hover:bg-white/15 hover:text-white'
     : 'text-muted hover:bg-black/[.06] hover:text-ink'
   const btn = `grid h-8 w-8 shrink-0 place-items-center rounded-full transition ${hover}`
-  const popover = `pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded-xl opacity-0 shadow-[0_6px_20px_rgba(0,0,0,.25)] transition ${
+  // Outer wrapper keeps a transparent hover "bridge" (pb-2) over the gap so the
+  // popover doesn't close while the cursor travels from button to menu.
+  const popoverOuter =
+    'pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 pb-2 opacity-0 transition'
+  const popoverInner = `rounded-xl shadow-[0_6px_20px_rgba(0,0,0,.25)] ${
     dark ? 'bg-[#2c2c33]' : 'bg-white ring-1 ring-black/[.06]'
   }`
 
@@ -128,22 +132,24 @@ export function MediaBar({
         </div>
       </div>
       <div className="group/spd relative flex items-center">
-        <div className={`${popover} flex flex-col p-1 group-hover/spd:pointer-events-auto group-hover/spd:opacity-100`}>
-          {SPEEDS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setPlaybackRate(media, s)}
-              className={`rounded-md px-3.5 py-1 text-[12px] font-medium transition ${
-                s === rate
-                  ? 'text-accent'
-                  : dark
-                    ? 'text-white/85 hover:bg-white/10'
-                    : 'text-muted hover:bg-black/[.05]'
-              }`}
-            >
-              {s}×
-            </button>
-          ))}
+        <div className={`${popoverOuter} group-hover/spd:pointer-events-auto group-hover/spd:opacity-100`}>
+          <div className={`${popoverInner} flex flex-col p-1`}>
+            {SPEEDS.map((s) => (
+              <button
+                key={s}
+                onClick={() => setPlaybackRate(media, s)}
+                className={`rounded-md px-3.5 py-1 text-[12px] font-medium transition ${
+                  s === rate
+                    ? 'text-accent'
+                    : dark
+                      ? 'text-white/85 hover:bg-white/10'
+                      : 'text-muted hover:bg-black/[.05]'
+                }`}
+              >
+                {s}×
+              </button>
+            ))}
+          </div>
         </div>
         <button
           className={`grid h-8 shrink-0 place-items-center rounded-full px-2 text-[12px] font-semibold transition ${hover}`}
@@ -153,18 +159,20 @@ export function MediaBar({
         </button>
       </div>
       <div className="group/vol relative flex items-center">
-        <div className={`${popover} grid place-items-center p-2.5 group-hover/vol:pointer-events-auto group-hover/vol:opacity-100`}>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.02}
-            value={muted ? 0 : vol}
-            onChange={(e) => applyVolume(media, Number(e.currentTarget.value))}
-            aria-label="Volume"
-            className="cursor-pointer accent-accent"
-            style={vertical}
-          />
+        <div className={`${popoverOuter} group-hover/vol:pointer-events-auto group-hover/vol:opacity-100`}>
+          <div className={`${popoverInner} grid place-items-center p-2.5`}>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.02}
+              value={muted ? 0 : vol}
+              onChange={(e) => applyVolume(media, Number(e.currentTarget.value))}
+              aria-label="Volume"
+              className="cursor-pointer accent-accent"
+              style={vertical}
+            />
+          </div>
         </div>
         <button className={btn} title={muted ? 'Unmute' : 'Mute'} onClick={() => toggleMute(media)}>
           <Icon name={muted || vol <= 0 ? 'volume-mute' : 'volume'} className="h-[18px] w-[18px]" />
