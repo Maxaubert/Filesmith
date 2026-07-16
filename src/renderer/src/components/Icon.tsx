@@ -19,6 +19,9 @@ export type IconName =
   | 'folder'
   | 'trash'
   | 'dots'
+  | 'chevron-left'
+  | 'chevron-right'
+  | 'music'
 
 const PATHS: Record<IconName, JSX.Element> = {
   convert: (
@@ -79,6 +82,15 @@ const PATHS: Record<IconName, JSX.Element> = {
       <circle cx="12" cy="5" r="1.7" fill="currentColor" stroke="none" />
       <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none" />
       <circle cx="12" cy="19" r="1.7" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'chevron-left': <path d="M15 18l-6-6 6-6" />,
+  'chevron-right': <path d="M9 6l6 6-6 6" />,
+  music: (
+    <>
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
     </>
   )
 }

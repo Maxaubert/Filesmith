@@ -21,8 +21,10 @@ const api = {
   thumbnail: (path: string, size?: number, kind?: FileKind): Promise<string | null> =>
     ipcRenderer.invoke('thumbnail', path, size, kind),
   reveal: (path: string): void => ipcRenderer.send('reveal', path),
-  /** Open a file in its OS-default app (Preview). */
+  /** Open a file in its OS-default app. */
   openFile: (path: string): void => ipcRenderer.send('file:open', path),
+  /** A streamable URL for a local file, for the in-app preview. */
+  mediaUrl: (path: string): string => `fsmedia://local/${encodeURIComponent(path)}`,
   /** Move a file to the recycle bin (reversible). */
   trashFile: (path: string): Promise<boolean> => ipcRenderer.invoke('file:trash', path),
 

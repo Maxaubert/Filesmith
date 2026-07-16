@@ -15,7 +15,7 @@ import {
   normalizeExt,
   toolForKind
 } from '@shared/convert'
-import { reducer, initialState, type QueueItem, type SelectMode } from './state'
+import { reducer, initialState, inInput, inOutput, type QueueItem, type SelectMode } from './state'
 import { toolMeta } from './lib/tools'
 import { TopBar } from './components/TopBar'
 import { ToolRail } from './components/ToolRail'
@@ -23,12 +23,16 @@ import { DropZone } from './components/DropZone'
 import { Queues } from './components/Queue'
 import { OptionsPanel } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
+import { PreviewModal, type PreviewFile } from './components/PreviewModal'
+
+const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 
 export default function App(): JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [dragging, setDragging] = useState(false)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
+  const [preview, setPreview] = useState<{ files: PreviewFile[]; index: number } | null>(null)
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
 
@@ -125,6 +129,31 @@ export default function App(): JSX.Element {
     dispatch({ type: 'select', id, mode })
   }
 
+  // Open the in-app preview for a clicked item, letting the user page through
+  // the whole column it lives in (all inputs, or all finished outputs).
+  function openPreview(side: 'input' | 'output', item: QueueItem): void {
+    if (side === 'input') {
+      const list = cur.items.filter(inInput)
+      const files: PreviewFile[] = list.map((it) => ({
+        path: it.file.path,
+        name: it.file.name,
+        kind: it.file.kind,
+        size: it.file.size,
+        thumb: it.thumb
+      }))
+      setPreview({ files, index: Math.max(0, list.findIndex((it) => it.id === item.id)) })
+      return
+    }
+    const list = cur.items.filter(inOutput)
+    const files: PreviewFile[] = list.map((it) => ({
+      path: it.outputPath as string,
+      name: baseName(it.outputPath as string),
+      kind: it.file.kind,
+      thumb: outThumbs[it.outputPath as string] ?? null
+    }))
+    setPreview({ files, index: Math.max(0, list.findIndex((it) => it.id === item.id)) })
+  }
+
   // Build the right-click / ⋯ menu for a queue item. Input acts on the source
   // file (remove = drop from list); Output acts on the produced file (delete =
   // recycle bin, then the item returns to the Input list as re-runnable).
@@ -134,7 +163,7 @@ export default function App(): JSX.Element {
         x,
         y,
         items: [
-          { label: 'Preview', icon: 'eye', onClick: () => window.filesmith.openFile(item.file.path) },
+          { label: 'Preview', icon: 'eye', onClick: () => openPreview('input', item) },
           {
             label: 'Reveal in Explorer',
             icon: 'folder',
@@ -157,7 +186,7 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Preview', icon: 'eye', onClick: () => window.filesmith.openFile(out) },
+        { label: 'Preview', icon: 'eye', onClick: () => openPreview('output', item) },
         { label: 'Reveal in Explorer', icon: 'folder', onClick: () => window.filesmith.reveal(out) },
         { sep: true },
         {
@@ -255,6 +284,14 @@ export default function App(): JSX.Element {
         />
       </div>
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+      {preview && (
+        <PreviewModal
+          files={preview.files}
+          start={preview.index}
+          onClose={() => setPreview(null)}
+          onReveal={(p) => window.filesmith.reveal(p)}
+        />
+      )}
     </div>
   )
 }

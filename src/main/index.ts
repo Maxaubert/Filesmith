@@ -1,6 +1,18 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, net, protocol, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { registerIpc } from './ipc'
+
+// A private scheme the renderer uses to load local media for the in-app
+// preview. Registered as a standard, streaming scheme so <video>/<audio> can
+// seek — the renderer can't touch file:// directly under web security.
+const MEDIA_SCHEME = 'fsmedia'
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: MEDIA_SCHEME,
+    privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true }
+  }
+])
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -38,6 +50,13 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Serve local files for the preview: fsmedia://local/<encoded-abs-path>.
+  // net.fetch on a file URL streams and honours Range requests (video seeking).
+  protocol.handle(MEDIA_SCHEME, (request) => {
+    const filePath = decodeURIComponent(new URL(request.url).pathname).slice(1)
+    return net.fetch(pathToFileURL(filePath).toString())
+  })
+
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
