@@ -11,8 +11,7 @@ const sourceCache = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>()
 function getSource(ctx: AudioContext, el: HTMLMediaElement): MediaElementAudioSourceNode {
   let s = sourceCache.get(el)
   if (!s) {
-    s = ctx.createMediaElementSource(el)
-    s.connect(ctx.destination) // audio path (analyser is only a tap)
+    s = ctx.createMediaElementSource(el) // can only be created once per element
     sourceCache.set(el, s)
   }
   return s
@@ -40,7 +39,9 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
     const analyser = ctx.createAnalyser()
     analyser.fftSize = 256
     analyser.smoothingTimeConstant = 0.82
+    // Route audio THROUGH the analyser so it always sees the live signal.
     source.connect(analyser)
+    analyser.connect(ctx.destination)
     analyserRef.current = analyser
     const resume = (): void => {
       if (ctx.state === 'suspended') void ctx.resume()
@@ -53,7 +54,7 @@ export function AudioVisualizer({ media }: { media: HTMLMediaElement | null }): 
       media.removeEventListener('play', resume)
       window.removeEventListener('pointerdown', resume)
       try {
-        source.disconnect(analyser)
+        source.disconnect()
       } catch {
         /* already disconnected */
       }
