@@ -223,7 +223,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               <button
                 onClick={() => void mediaRef.current?.play()}
                 title="Play"
-                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#4a4a53] shadow-[0_6px_20px_rgba(0,0,0,.3)] transition hover:scale-105 hover:bg-[#54545e]"
+                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#37373f] shadow-[0_6px_20px_rgba(0,0,0,.3)] transition hover:scale-105 hover:bg-[#42424b]"
               >
                 <Icon name="play" className="ml-1 h-8 w-8 text-white" />
               </button>
