@@ -102,12 +102,6 @@ img {
   }
 }
 
-/* Soften the audio control panel's dark background. The timeline itself is left
-   native so the browser keeps drawing its elapsed-vs-remaining contrast. */
-audio::-webkit-media-controls-panel {
-  background-color: #4a4a53;
-}
-
 /* Slim, unobtrusive scrollbar for the queue */
 .scroll-thin::-webkit-scrollbar {
   width: 9px;

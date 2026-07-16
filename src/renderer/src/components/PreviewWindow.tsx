@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type JSX, type MouseEvent, type WheelEvent
 import type { PreviewItem, PreviewPayload } from '@shared/types'
 import { formatBytes } from '../state'
 import { Icon } from './Icon'
+import { AudioBar } from './AudioBar'
 
 const extOf = (name: string): string => {
   const i = name.lastIndexOf('.')
@@ -48,8 +49,10 @@ export function PreviewWindow(): JSX.Element | null {
 function PreviewView({ files, start }: { files: PreviewItem[]; start: number }): JSX.Element | null {
   const [i, setI] = useState(start)
   const mediaRef = useRef<HTMLMediaElement | null>(null)
+  const [mediaEl, setMediaEl] = useState<HTMLMediaElement | null>(null)
   const setMedia = (el: HTMLMediaElement | null): void => {
     mediaRef.current = el
+    setMediaEl(el)
   }
   const many = files.length > 1
   const step = (d: number): void => setI((n) => (n + d + files.length) % files.length)
@@ -285,14 +288,13 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             key={url}
             ref={setMedia}
             src={url}
-            controls
-            controlsList="nodownload noplaybackrate"
             preload="metadata"
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onLoadedMetadata={(e) => forceDuration(e.currentTarget)}
-            className="w-full"
+            className="hidden"
           />
+          <AudioBar media={mediaEl} />
         </div>
       )}
     </div>
