@@ -265,6 +265,17 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
           </>
         )}
 
+        {/* Non-video formats: a corner "expand" button to view fullscreen. */}
+        {(f.kind === 'image' || f.kind === 'audio') && (
+          <button
+            onClick={toggleFs}
+            title="View fullscreen"
+            className="fs-hide absolute right-3.5 top-3.5 grid h-9 w-9 place-items-center rounded-full bg-white text-ink shadow-[0_3px_12px_rgba(0,0,0,.16)] transition hover:scale-105"
+          >
+            <Icon name="expand" className="h-[17px] w-[17px]" />
+          </button>
+        )}
+
         {f.kind === 'image' && zoom > 1 && (
           <button
             onClick={() => {
@@ -313,7 +324,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               className="hidden"
             />
           )}
-          <MediaBar media={mediaEl} onFullscreen={toggleFs} />
+          <MediaBar media={mediaEl} onFullscreen={f.kind === 'video' ? toggleFs : undefined} />
         </div>
       )}
     </div>

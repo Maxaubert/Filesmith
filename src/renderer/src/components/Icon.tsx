@@ -26,6 +26,7 @@ export type IconName =
   | 'volume'
   | 'volume-mute'
   | 'fullscreen'
+  | 'expand'
   | 'music'
 
 const PATHS: Record<IconName, JSX.Element> = {
@@ -112,6 +113,14 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   fullscreen: (
     <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+  ),
+  expand: (
+    <>
+      <path d="M15 3h6v6" />
+      <path d="M21 3l-7 7" />
+      <path d="M9 21H3v-6" />
+      <path d="M3 21l7-7" />
+    </>
   ),
   music: (
     <>
