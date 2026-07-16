@@ -152,7 +152,7 @@ export function MediaBar({
           </div>
         </div>
         <button
-          className={`grid h-8 shrink-0 place-items-center rounded-full px-2 text-[12px] font-semibold transition ${hover}`}
+          className={`grid h-8 w-12 shrink-0 place-items-center rounded-full text-[12px] font-semibold tabular-nums transition ${hover}`}
           title="Playback speed"
         >
           {rate}×
