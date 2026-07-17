@@ -3,6 +3,11 @@
 A running design doc for expanding the **Compress** tab, decided category by
 category with the user. Status per section: DECIDED / discussing / TODO.
 
+**STATUS: IMPLEMENTED** (images, video, audio, PDF). Engine + per-kind options UI
++ live video-resolution preview + Ghostscript/ffprobe bundling all landed and
+verified end-to-end against the real binaries. Possible follow-up: allow WAV/FLAC
+into audio Compress (wav→opus is a big win), currently excluded by canCompress.
+
 Current baseline (what the Compress tab does today):
 - Images: CaesiumCLT (jpg/png/webp/gif/tiff) + ImageMagick fallback, re-encode at
   a quality value, **same format in/out**.
