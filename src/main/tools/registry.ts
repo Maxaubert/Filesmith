@@ -1,10 +1,10 @@
-import { basename, join } from 'path'
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'fs'
+import { basename, dirname, extname, join } from 'path'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import type { FileInfo, ToolId, ToolTarget } from '@shared/types'
-import { resolveTool } from '../toolResolver'
+import { resolveSoffice, resolveTool } from '../toolResolver'
 import { run } from '../run'
-import { uniqueOutPath } from '../output'
+import { uniqueOutDir, uniqueOutPath } from '../output'
 import type { ToolModule } from './tool'
 import {
   buildFfmpegArgs,
@@ -17,6 +17,8 @@ import {
 } from './convert'
 import { buildResizeArgs, buildResizeSpec } from './resize'
 import { buildCompressArgs } from './compress'
+import { buildSofficeArgs, sofficeOutputPath } from './soffice'
+import { buildPdfCompressArgs, buildPdfImagesArgs, buildPdfTextArgs, type PdfOp } from './pdf'
 
 const convertTool: ToolModule = {
   async run(file, options, ctx) {
@@ -25,10 +27,55 @@ const convertTool: ToolModule = {
     if (isSameFormat(file.ext, targetExt)) throw new Error('Source is already that format')
     const kindTool = toolForKind(file.kind)
     if (!kindTool) throw new Error(`Can't convert ${file.kind} files`)
-
-    const output = uniqueOutPath(file.path, targetExt, 'converted')
     ctx.onProgress(undefined, 'Converting…')
 
+    // PDF -> plain text extracts reliably via mutool, no LibreOffice required.
+    if (file.kind === 'pdf' && isSameFormat(targetExt, '.txt')) {
+      const output = uniqueOutPath(file.path, '.txt', 'converted')
+      const { code, stderr } = await run(resolveTool('mutool'), buildPdfTextArgs(file.path, output), {
+        signal: ctx.signal
+      })
+      if (code !== 0)
+        throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+      return output
+    }
+
+    // Documents go through LibreOffice, which writes into an --outdir with a
+    // fixed name; convert in a temp dir, then copy to a collision-safe path.
+    if (kindTool === 'soffice') {
+      const tmp = mkdtempSync(join(tmpdir(), 'filesmith-doc-'))
+      try {
+        let result
+        try {
+          result = await run(
+            resolveSoffice(),
+            buildSofficeArgs(file.path, tmp, join(tmp, 'profile'), targetExt),
+            { signal: ctx.signal }
+          )
+        } catch (e) {
+          if (ctx.signal.aborted) throw e
+          throw new Error(
+            "LibreOffice isn't installed. Install it (winget install TheDocumentFoundation.LibreOffice), then restart Filesmith, to convert documents.",
+            { cause: e }
+          )
+        }
+        const { code, stderr } = result
+        const produced = sofficeOutputPath(file.path, tmp, targetExt)
+        if (code !== 0 || !existsSync(produced)) {
+          const last = stderr.trim().split('\n').pop()?.trim()
+          throw new Error(
+            last || `LibreOffice couldn't convert to ${targetExt.replace('.', '').toUpperCase()}`
+          )
+        }
+        const output = uniqueOutPath(file.path, targetExt, 'converted')
+        copyFileSync(produced, output)
+        return output
+      } finally {
+        rmSync(tmp, { recursive: true, force: true })
+      }
+    }
+
+    const output = uniqueOutPath(file.path, targetExt, 'converted')
     let args: string[]
     if (kindTool === 'ffmpeg') {
       args = buildFfmpegArgs(file.path, output)
@@ -42,6 +89,45 @@ const convertTool: ToolModule = {
       const last = stderr.trim().split('\n').pop()?.trim()
       throw new Error(last || `${kindTool} exited ${code}`)
     }
+    return output
+  }
+}
+
+// PDF-native ops via mutool: extract text, render pages to images, compress.
+const pdfTool: ToolModule = {
+  async run(file, options, ctx) {
+    const op = String(options.op ?? 'extract-text') as PdfOp
+    const mutool = resolveTool('mutool')
+
+    if (op === 'pages-to-images') {
+      const dpi = Math.max(36, Math.min(600, Number(options.dpi ?? 150)))
+      const dir = uniqueOutDir(dirname(file.path), basename(file.path, extname(file.path)) + ' (pages)')
+      mkdirSync(dir, { recursive: true })
+      ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)
+      const { code, stderr } = await run(mutool, buildPdfImagesArgs(file.path, dir, dpi), {
+        signal: ctx.signal
+      })
+      if (code !== 0) throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+      return dir
+    }
+
+    if (op === 'compress') {
+      const output = uniqueOutPath(file.path, '.pdf', 'compressed')
+      ctx.onProgress(undefined, 'Compressing PDF…')
+      const { code, stderr } = await run(mutool, buildPdfCompressArgs(file.path, output), {
+        signal: ctx.signal
+      })
+      if (code !== 0) throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+      return output
+    }
+
+    // extract-text
+    const output = uniqueOutPath(file.path, '.txt', 'text')
+    ctx.onProgress(undefined, 'Extracting text…')
+    const { code, stderr } = await run(mutool, buildPdfTextArgs(file.path, output), {
+      signal: ctx.signal
+    })
+    if (code !== 0) throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
     return output
   }
 }
@@ -92,7 +178,8 @@ const compressTool: ToolModule = {
 const TOOLS: Partial<Record<ToolId, ToolModule>> = {
   convert: convertTool,
   compress: compressTool,
-  resize: resizeTool
+  resize: resizeTool,
+  pdf: pdfTool
 }
 
 export function getTool(id: ToolId): ToolModule | undefined {
@@ -103,6 +190,8 @@ export function getTool(id: ToolId): ToolModule | undefined {
 export function toolsFor(file: FileInfo): ToolId[] {
   if (file.kind === 'image') return ['convert', 'compress', 'resize']
   if (file.kind === 'video' || file.kind === 'audio') return ['convert']
+  if (file.kind === 'pdf') return ['convert', 'pdf']
+  if (file.kind === 'document' || file.kind === 'text') return ['convert']
   return []
 }
 

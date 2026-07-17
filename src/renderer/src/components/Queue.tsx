@@ -1,6 +1,6 @@
 import type { JSX, MouseEvent } from 'react'
-import type { FileKind, JobOptions, ToolId } from '@shared/types'
-import { formatBytes, inInput, inOutput, type QueueItem } from '../state'
+import type { JobOptions, ToolId } from '@shared/types'
+import { formatBytes, groupOf, inInput, inOutput, type QueueItem } from '../state'
 import { Icon } from './Icon'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
@@ -215,7 +215,7 @@ export function Queues({
   tool,
   options,
   selected,
-  activeKind,
+  activeGroup,
   outThumbs,
   onItemClick,
   onOpen,
@@ -225,7 +225,7 @@ export function Queues({
   tool: ToolId
   options: JobOptions
   selected: string[]
-  activeKind: FileKind | null
+  activeGroup: string | null
   outThumbs: Record<string, string | null>
   onItemClick: (id: string, e: MouseEvent) => void
   onOpen: (side: 'input' | 'output', item: QueueItem) => void
@@ -243,7 +243,7 @@ export function Queues({
             tool={tool}
             options={options}
             selected={selected.includes(i.id)}
-            compatible={activeKind === null || i.file.kind === activeKind}
+            compatible={activeGroup === null || groupOf(i.file) === activeGroup}
             onClick={(e) => onItemClick(i.id, e)}
             onOpen={() => onOpen('input', i)}
             onMenu={(x, y) => onMenu('input', i, x, y)}

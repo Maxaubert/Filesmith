@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import type { FileKind, JobOptions, ToolId } from '@shared/types'
-import { categoryFormats, isSameFormat } from '@shared/convert'
+import { familyFormats, isSameFormat } from '@shared/convert'
 import { toolMeta } from '../lib/tools'
 
 function Label({ children }: { children: string }): JSX.Element {
@@ -43,23 +43,26 @@ function ConvertOptions({
   options,
   activeKind,
   sourceExt,
+  srcExts,
   set
 }: {
   options: JobOptions
   activeKind: FileKind | null
   sourceExt: string | null
+  srcExts: string[]
   set: (k: string, v: string | number) => void
 }): JSX.Element {
   const kind = activeKind ?? 'image'
-  const formats = categoryFormats(kind)
+  const formats = familyFormats(kind, sourceExt ?? '')
   return (
     <>
       <div>
         <Label>Target format</Label>
         <div className="grid grid-cols-2 gap-2">
           {formats.map((f) => {
-            // Gray out (and block) the source's own format: PNG can't become PNG.
-            const disabled = sourceExt != null && isSameFormat(f.ext, sourceExt)
+            // Grey out (and block) any format a selected source already is: with
+            // a PNG + JPEG selection, neither PNG nor JPEG is a valid target.
+            const disabled = srcExts.some((e) => isSameFormat(f.ext, e))
             const sel = options.format === f.ext && !disabled
             return (
               <button
@@ -197,11 +200,62 @@ function ResizeOptions({
   )
 }
 
+function PdfOptions({
+  options,
+  set
+}: {
+  options: JobOptions
+  set: (k: string, v: string | number) => void
+}): JSX.Element {
+  const op = String(options.op ?? 'extract-text')
+  return (
+    <>
+      <div>
+        <Label>Operation</Label>
+        <Segmented
+          value={op}
+          onChange={(v) => set('op', v)}
+          options={[
+            { value: 'extract-text', label: 'Text' },
+            { value: 'pages-to-images', label: 'Images' },
+            { value: 'compress', label: 'Compress' }
+          ]}
+        />
+      </div>
+      {op === 'pages-to-images' && (
+        <div>
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
+              Resolution
+            </span>
+            <span className="text-sm font-semibold text-accent">{Number(options.dpi ?? 150)} DPI</span>
+          </div>
+          <input
+            type="range"
+            min={72}
+            max={400}
+            step={2}
+            value={Number(options.dpi ?? 150)}
+            onChange={(e) => set('dpi', Number(e.target.value))}
+            className="w-full accent-accent"
+          />
+        </div>
+      )}
+      <p className="text-[12.5px] leading-relaxed text-muted">
+        {op === 'extract-text' && 'Save the PDF’s text layer as a .txt file next to it.'}
+        {op === 'pages-to-images' && 'Render every page to a PNG in a new folder.'}
+        {op === 'compress' && 'Rewrite the PDF smaller (garbage-collect + compress streams).'}
+      </p>
+    </>
+  )
+}
+
 export function OptionsPanel({
   tool,
   options,
   activeKind,
   sourceExt,
+  srcExts,
   runCount,
   onSet,
   onRun
@@ -210,6 +264,7 @@ export function OptionsPanel({
   options: JobOptions
   activeKind: FileKind | null
   sourceExt: string | null
+  srcExts: string[]
   runCount: number
   onSet: (k: string, v: string | number) => void
   onRun: () => void
@@ -231,11 +286,13 @@ export function OptionsPanel({
           options={options}
           activeKind={activeKind}
           sourceExt={sourceExt}
+          srcExts={srcExts}
           set={onSet}
         />
       )}
       {tool === 'compress' && <CompressOptions options={options} set={onSet} />}
       {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
+      {tool === 'pdf' && <PdfOptions options={options} set={onSet} />}
 
       <button
         onClick={onRun}

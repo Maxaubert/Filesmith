@@ -8,14 +8,16 @@ import {
   type MouseEvent
 } from 'react'
 import type { FileKind, PreviewItem, ToolId } from '@shared/types'
+import { familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
 import {
-  categoryFormats,
-  defaultTargetExt,
-  isSameFormat,
-  normalizeExt,
-  toolForKind
-} from '@shared/convert'
-import { reducer, initialState, inInput, inOutput, type QueueItem, type SelectMode } from './state'
+  reducer,
+  initialState,
+  inInput,
+  inOutput,
+  groupOf,
+  type QueueItem,
+  type SelectMode
+} from './state'
 import { toolMeta } from './lib/tools'
 import { TopBar } from './components/TopBar'
 import { ToolRail } from './components/ToolRail'
@@ -116,7 +118,9 @@ export default function App(): JSX.Element {
   // --- Selection-derived state (current tool's queue) --------------------------
   const selectedItems = cur.items.filter((i) => cur.selected.includes(i.id))
   const activeKind: FileKind | null = selectedItems.length ? selectedItems[0].file.kind : null
+  const activeGroup: string | null = selectedItems.length ? groupOf(selectedItems[0].file) : null
   const srcNorms = new Set(selectedItems.map((i) => normalizeExt(i.file.ext)))
+  const srcExts = [...srcNorms] // every selected source format (for greying targets)
   const sourceExt: string | null = srcNorms.size === 1 ? [...srcNorms][0] : null
 
   const canRun = (i: QueueItem): boolean =>
@@ -130,30 +134,34 @@ export default function App(): JSX.Element {
       const fmt = String(state.options.convert.format ?? '')
       return toolForKind(i.file.kind) != null && !isSameFormat(i.file.ext, fmt)
     }
+    if (state.tool === 'pdf') return i.file.kind === 'pdf'
     return i.file.kind === 'image' // compress / resize are image-only for now
   })
 
-  // Keep the convert target valid for the active kind (and never the source format).
+  // Keep the convert target valid for the active kind, and never a format that
+  // any selected source already is (those are greyed out).
   useEffect(() => {
     if (!activeKind) return
     const fmt = String(state.options.convert.format ?? '')
-    const valid =
-      categoryFormats(activeKind).some((f) => f.ext === fmt) &&
-      !(sourceExt != null && isSameFormat(fmt, sourceExt))
+    const opts = familyFormats(activeKind, sourceExt ?? '')
+    const isSource = (ext: string): boolean => srcExts.some((e) => isSameFormat(ext, e))
+    const valid = opts.some((f) => f.ext === fmt) && !isSource(fmt)
     if (!valid) {
-      const def = defaultTargetExt(activeKind, sourceExt ?? '')
+      const def = opts.find((f) => !isSource(f.ext))?.ext
       if (def) dispatch({ type: 'setOption', tool: 'convert', key: 'format', value: def })
     }
-  }, [activeKind, sourceExt, state.options.convert.format])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKind, sourceExt, srcExts.join('|'), state.options.convert.format])
 
   function onItemClick(id: string, e: MouseEvent): void {
     const item = cur.items.find((i) => i.id === id)
     if (!item) return
     const modified = e.shiftKey || e.ctrlKey || e.metaKey
     if (modified) {
-      // Multi-select stays within one kind: ignore modified clicks on other kinds.
-      const anchorKind = selectedItems.length ? selectedItems[0].file.kind : item.file.kind
-      if (item.file.kind !== anchorKind) return
+      // Multi-select stays within one convert group (docs/text/pdf batch
+      // together): ignore modified clicks on files from another group.
+      const anchor = selectedItems.length ? selectedItems[0].file : item.file
+      if (groupOf(item.file) !== groupOf(anchor)) return
     }
     const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
     dispatch({ type: 'select', id, mode })
@@ -309,7 +317,7 @@ export default function App(): JSX.Element {
             tool={state.tool}
             options={state.options[state.tool]}
             selected={cur.selected}
-            activeKind={activeKind}
+            activeGroup={activeGroup}
             outThumbs={outThumbs}
             onItemClick={onItemClick}
             onOpen={openPreview}
@@ -322,6 +330,7 @@ export default function App(): JSX.Element {
           options={state.options[state.tool]}
           activeKind={activeKind}
           sourceExt={sourceExt}
+          srcExts={srcExts}
           runCount={runCount}
           onSet={(k, v) => dispatch({ type: 'setOption', tool: state.tool, key: k, value: v })}
           onRun={run}

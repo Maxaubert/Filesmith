@@ -63,8 +63,8 @@ export const TOOLS: ToolMeta[] = [
   }
 ]
 
-/** Tools with a working engine in phase 1. The rest render as "soon". */
-export const ENABLED_TOOLS: ToolId[] = ['convert', 'compress', 'resize']
+/** Tools with a working engine. The rest (AI tools) render as "soon". */
+export const ENABLED_TOOLS: ToolId[] = ['convert', 'compress', 'resize', 'pdf']
 
 export function toolMeta(id: ToolId): ToolMeta {
   return TOOLS.find((t) => t.id === id) ?? TOOLS[0]

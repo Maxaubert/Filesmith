@@ -36,6 +36,8 @@ const api = {
   mediaUrl: (path: string): string => `fsmedia://local/${encodeURIComponent(path)}`,
   /** Raw file bytes — audio plays from a same-origin blob so Web Audio can read it. */
   readBytes: (path: string): Promise<Uint8Array | null> => ipcRenderer.invoke('file:bytes', path),
+  /** A text file's contents (capped at 1 MB) for the text preview. */
+  readText: (path: string): Promise<string | null> => ipcRenderer.invoke('file:text', path),
   /** Open (or reuse + refocus) the standalone preview window. */
   openPreviewWindow: (files: PreviewItem[], index: number): Promise<void> =>
     ipcRenderer.invoke('preview:open', { files, index }),

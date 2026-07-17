@@ -40,12 +40,53 @@ export const AUDIO_FORMATS: FormatOption[] = [
   { label: 'WAV', ext: '.wav' }
 ]
 
-/** All formats offered for a kind (before excluding the source's own). */
+// Document families, all converted via LibreOffice. Targets depend on the
+// source's sub-type (word / spreadsheet / slides / pdf / plain-text).
+const WORD_FORMATS: FormatOption[] = [
+  { label: 'PDF', ext: '.pdf' },
+  { label: 'DOCX', ext: '.docx' },
+  { label: 'ODT', ext: '.odt' },
+  { label: 'RTF', ext: '.rtf' },
+  { label: 'TXT', ext: '.txt' },
+  { label: 'HTML', ext: '.html' }
+]
+const SHEET_FORMATS: FormatOption[] = [
+  { label: 'PDF', ext: '.pdf' },
+  { label: 'XLSX', ext: '.xlsx' },
+  { label: 'ODS', ext: '.ods' },
+  { label: 'CSV', ext: '.csv' }
+]
+const SLIDE_FORMATS: FormatOption[] = [
+  { label: 'PDF', ext: '.pdf' },
+  { label: 'PPTX', ext: '.pptx' },
+  { label: 'ODP', ext: '.odp' }
+]
+const SHEET_EXTS = ['.xlsx', '.xls', '.ods', '.csv', '.tsv']
+const SLIDE_EXTS = ['.pptx', '.ppt', '.odp']
+
+// Word docs, plain text, and PDF all share the full document format set, so any
+// of them can convert to any other (docx<->pdf<->txt<->rtf<->odt<->html).
+// Spreadsheets and slides keep their own natural targets.
+function docFormats(srcExt: string): FormatOption[] {
+  const e = normalizeExt(srcExt)
+  if (SHEET_EXTS.includes(e)) return SHEET_FORMATS
+  if (SLIDE_EXTS.includes(e)) return SLIDE_FORMATS
+  return WORD_FORMATS
+}
+
+/** All formats offered for a kind (image/video/audio ignore srcExt). */
 export function categoryFormats(kind: FileKind): FormatOption[] {
   if (kind === 'image') return IMAGE_FORMATS
   if (kind === 'video') return VIDEO_FORMATS
   if (kind === 'audio') return AUDIO_FORMATS
   return []
+}
+
+/** Full format family for a source, including its own format (for the UI grid
+ * that greys out the source's own). Document families need the source ext. */
+export function familyFormats(kind: FileKind, srcExt: string): FormatOption[] {
+  if (kind === 'document' || kind === 'pdf' || kind === 'text') return docFormats(srcExt)
+  return categoryFormats(kind)
 }
 
 /** Fold alias extensions so .tif == .tiff and .jpeg == .jpg. */
@@ -63,7 +104,7 @@ export function isSameFormat(a: string, b: string): boolean {
 
 /** Target formats for a source of the given kind, dropping the source's own format. */
 export function convertTargets(kind: FileKind, srcExt: string): FormatOption[] {
-  return categoryFormats(kind).filter((f) => !isSameFormat(f.ext, srcExt))
+  return familyFormats(kind, srcExt).filter((f) => !isSameFormat(f.ext, srcExt))
 }
 
 /** A sensible default target for a source (first valid, non-same format). */
@@ -72,10 +113,25 @@ export function defaultTargetExt(kind: FileKind, srcExt: string): string | null 
   return t.length ? t[0].ext : null
 }
 
+/**
+ * The batch-conversion group a file belongs to: files in the same group share a
+ * target-format set and can be multi-selected + converted together. Word docs,
+ * plain text, and PDF all share one 'doc' group; spreadsheets and slides get
+ * their own (their targets differ).
+ */
+export function convertGroup(kind: FileKind, ext: string): string {
+  if (kind === 'image' || kind === 'video' || kind === 'audio') return kind
+  const e = normalizeExt(ext)
+  if (SHEET_EXTS.includes(e)) return 'sheet'
+  if (SLIDE_EXTS.includes(e)) return 'slide'
+  return 'doc'
+}
+
 /** Which external tool converts this kind (or null if unsupported). */
-export function toolForKind(kind: FileKind): 'magick' | 'ffmpeg' | null {
+export function toolForKind(kind: FileKind): 'magick' | 'ffmpeg' | 'soffice' | null {
   if (kind === 'image') return 'magick'
   if (kind === 'video' || kind === 'audio') return 'ffmpeg'
+  if (kind === 'document' || kind === 'pdf' || kind === 'text') return 'soffice'
   return null
 }
 

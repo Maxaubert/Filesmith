@@ -23,6 +23,35 @@ export function resolveTool(name: string): string {
   return existsSync(bundled) ? bundled : name
 }
 
+/**
+ * Resolve LibreOffice's `soffice`. LibreOffice is a full install tree (not a
+ * single exe), so it lives in resources/libreoffice/ rather than the flat bin
+ * dir. Prefer the bundled copy, then PATH, then the usual Windows install dirs.
+ * `soffice.com` (the console launcher) is preferred on Windows because it blocks
+ * until the headless conversion finishes; `soffice.exe` can return early.
+ */
+export function resolveSoffice(): string {
+  const loRoot = app.isPackaged
+    ? join(process.resourcesPath, 'libreoffice')
+    : join(app.getAppPath(), 'resources', 'libreoffice')
+  const names = process.platform === 'win32' ? ['soffice.com', 'soffice.exe'] : ['soffice']
+  for (const n of names) {
+    const p = join(loRoot, 'program', n)
+    if (existsSync(p)) return p
+  }
+  if (process.platform === 'win32') {
+    for (const p of [
+      'C:\\Program Files\\LibreOffice\\program\\soffice.com',
+      'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+      'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.com',
+      'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe'
+    ]) {
+      if (existsSync(p)) return p
+    }
+  }
+  return 'soffice'
+}
+
 /** True if the tool is bundled or answers a version probe on PATH. */
 export async function toolAvailable(name: string): Promise<boolean> {
   const bundled = join(bundledDir(), name + EXE)

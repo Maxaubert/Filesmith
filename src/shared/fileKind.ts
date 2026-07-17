@@ -53,7 +53,51 @@ export const AUDIO_EXTS = [
   '.aif',
   '.amr'
 ]
-export const DOC_EXTS = ['.docx', '.doc', '.odt', '.rtf', '.html', '.htm', '.md']
+// Office/binary documents LibreOffice converts (word, spreadsheet, slides).
+export const DOC_EXTS = [
+  '.docx',
+  '.doc',
+  '.odt',
+  '.rtf',
+  '.xlsx',
+  '.xls',
+  '.ods',
+  '.csv',
+  '.pptx',
+  '.ppt',
+  '.odp',
+  '.epub'
+]
+// Plain-text / markup / code — previewed as text, converted as documents.
+export const TEXT_EXTS = [
+  '.txt',
+  '.md',
+  '.markdown',
+  '.rst',
+  '.log',
+  '.json',
+  '.xml',
+  '.yml',
+  '.yaml',
+  '.toml',
+  '.ini',
+  '.html',
+  '.htm',
+  '.css',
+  '.js',
+  '.ts',
+  '.jsx',
+  '.tsx',
+  '.py',
+  '.cs',
+  '.java',
+  '.c',
+  '.cpp',
+  '.h',
+  '.go',
+  '.rs',
+  '.sh'
+]
 
 /** Classify a file by its extension (lowercased, with or without a leading dot). */
 export function fileKind(ext: string): FileKind {
@@ -62,6 +106,7 @@ export function fileKind(ext: string): FileKind {
   if (IMAGE_EXTS.includes(e)) return 'image'
   if (VIDEO_EXTS.includes(e)) return 'video'
   if (AUDIO_EXTS.includes(e)) return 'audio'
+  if (TEXT_EXTS.includes(e)) return 'text'
   if (DOC_EXTS.includes(e)) return 'document'
   return 'other'
 }

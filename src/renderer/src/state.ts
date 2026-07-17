@@ -1,4 +1,8 @@
 import type { FileInfo, JobEvent, JobOptions, ToolId } from '@shared/types'
+import { convertGroup } from '@shared/convert'
+
+/** The batch group a file belongs to (files that convert together). */
+export const groupOf = (f: FileInfo): string => convertGroup(f.kind, f.ext)
 
 export type ItemStatus = 'ready' | 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 
@@ -49,7 +53,7 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   resize: { mode: 'percent', percent: 50 },
   upscale: {},
   removebg: {},
-  pdf: {}
+  pdf: { op: 'extract-text', dpi: 150 }
 }
 
 const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })
@@ -117,11 +121,14 @@ function selectInQueue(q: QueueState, id: string, mode: SelectMode): QueueState 
     const b = order.indexOf(id)
     if (a >= 0 && b >= 0) {
       const [lo, hi] = a < b ? [a, b] : [b, a]
-      // Range selection stays within the anchor's kind (no cross-category batch).
-      const anchorKind = q.items.find((i) => i.id === q.anchor)?.file.kind
-      const range = order
-        .slice(lo, hi + 1)
-        .filter((rid) => q.items.find((i) => i.id === rid)?.file.kind === anchorKind)
+      // Range selection stays within the anchor's convert group (docs/text/pdf
+      // batch together; no cross-category batch).
+      const anchorItem = q.items.find((i) => i.id === q.anchor)
+      const anchorGroup = anchorItem ? groupOf(anchorItem.file) : null
+      const range = order.slice(lo, hi + 1).filter((rid) => {
+        const it = q.items.find((i) => i.id === rid)
+        return it != null && groupOf(it.file) === anchorGroup
+      })
       return { ...q, selected: range }
     }
   }
@@ -149,9 +156,9 @@ export function reducer(state: AppState, action: Action): AppState {
         .map<QueueItem>((f) => ({ id: newId(), file: f, thumb: null, status: 'ready', percent: 0 }))
       if (add.length === 0) return state
       // Dropped/added files become the current selection, constrained to one
-      // kind (the first added file's) so a batch is never cross-category.
-      const firstKind = add[0].file.kind
-      const ids = add.filter((i) => i.file.kind === firstKind).map((i) => i.id)
+      // convert group (the first added file's) so a batch is never cross-category.
+      const firstGroup = groupOf(add[0].file)
+      const ids = add.filter((i) => groupOf(i.file) === firstGroup).map((i) => i.id)
       return mapQueue(state, (cur) => ({
         items: [...cur.items, ...add],
         selected: ids,

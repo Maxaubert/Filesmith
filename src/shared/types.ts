@@ -2,7 +2,7 @@
 
 export type ToolId = 'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'pdf'
 
-export type FileKind = 'image' | 'video' | 'audio' | 'pdf' | 'document' | 'other'
+export type FileKind = 'image' | 'video' | 'audio' | 'pdf' | 'document' | 'text' | 'other'
 
 /** A file the user has added, as the renderer knows it. */
 export interface FileInfo {

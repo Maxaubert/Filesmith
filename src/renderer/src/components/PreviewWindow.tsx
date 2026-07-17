@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type JSX, type MouseEvent, type WheelEvent } from 'react'
 import type { PreviewItem, PreviewPayload } from '@shared/types'
 import { formatBytes } from '../state'
+import { renderMarkdown } from '../lib/markdown'
 import { Icon } from './Icon'
 import { MediaBar } from './MediaBar'
 import { AudioVisualizer } from './AudioVisualizer'
@@ -76,6 +77,8 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
   const [panning, setPanning] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [audio, setAudio] = useState<{ path: string; src: string } | null>(null)
+  const [pdf, setPdf] = useState<{ path: string; src: string } | null>(null)
+  const [text, setText] = useState<{ path: string; text: string } | null>(null)
   const [zoomIndex, setZoomIndex] = useState(i)
   const stageRef = useRef<HTMLDivElement>(null)
   if (zoomIndex !== i) {
@@ -128,10 +131,41 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     }
   }, [audioPath])
 
+  // PDFs render in Chromium's built-in viewer via a same-origin blob URL.
+  const pdfPath = f && f.kind === 'pdf' ? f.path : null
+  useEffect(() => {
+    if (!pdfPath) return
+    let obj: string | null = null
+    let cancelled = false
+    void window.filesmith.readBytes(pdfPath).then((bytes) => {
+      if (cancelled || !bytes) return
+      obj = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' }))
+      setPdf({ path: pdfPath, src: obj })
+    })
+    return () => {
+      cancelled = true
+      if (obj) URL.revokeObjectURL(obj)
+    }
+  }, [pdfPath])
+
+  // Plain-text/code files load their contents (capped) for a scrollable reader.
+  const textPath = f && f.kind === 'text' ? f.path : null
+  useEffect(() => {
+    if (!textPath) return
+    let cancelled = false
+    void window.filesmith.readText(textPath).then((t) => {
+      if (!cancelled) setText({ path: textPath, text: t ?? '(could not read this file)' })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [textPath])
+
   if (!f) return null
   const url = window.filesmith.mediaUrl(f.path)
   const audioSrc = audio && audio.path === audioPath ? audio.src : undefined
   const meta = `${extOf(f.name)}${f.size ? ` · ${formatBytes(f.size)}` : ''}`
+  const isMd = f.kind === 'text' && ['md', 'markdown'].includes(extOf(f.name).toLowerCase())
 
   const cursorFromCentre = (e: { clientX: number; clientY: number }): [number, number] => {
     const r = stageRef.current?.getBoundingClientRect()
@@ -280,20 +314,60 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             <div className="fs-art relative h-full w-full">
               <AudioVisualizer media={mediaEl} />
             </div>
-            {!playing && (
-              <button
-                onClick={() => void mediaRef.current?.play()}
-                title="Play"
-                className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#4a4a53] shadow-[0_6px_20px_rgba(0,0,0,.3)] transition hover:scale-105 hover:bg-[#54545e]"
-              >
-                <Icon name="play" className="ml-1 h-8 w-8 text-white" />
-              </button>
-            )}
             {/* control overlay shown only in fullscreen (footer bar is hidden there) */}
             <div className="fs-bar absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-6 pb-4 pt-12">
               <MediaBar media={mediaEl} onFullscreen={toggleFs} dark />
             </div>
           </>
+        )}
+        {f.kind === 'pdf' &&
+          (pdf && pdf.path === pdfPath ? (
+            <iframe
+              key={pdf.src}
+              title={f.name}
+              // #pagemode=none asks the built-in viewer to start with the
+              // thumbnail/bookmark sidebar collapsed.
+              src={`${pdf.src}#pagemode=none`}
+              className="h-full w-full rounded-lg border-0 bg-white"
+            />
+          ) : (
+            <div className="text-[13px] text-muted">Loading…</div>
+          ))}
+        {f.kind === 'text' &&
+          (isMd ? (
+            <div
+              className="scroll-thin md-body h-full w-full overflow-auto rounded-lg bg-white px-8 py-7 text-left shadow-[inset_0_0_0_1px_rgba(20,20,40,.06)]"
+              dangerouslySetInnerHTML={{
+                __html:
+                  text && text.path === textPath
+                    ? renderMarkdown(text.text, f.path.replace(/[\\/][^\\/]*$/, ''))
+                    : ''
+              }}
+            />
+          ) : (
+            <pre className="scroll-thin h-full w-full overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white p-5 text-left font-mono text-[12.5px] leading-relaxed text-ink shadow-[inset_0_0_0_1px_rgba(20,20,40,.06)]">
+              {text && text.path === textPath ? text.text : ''}
+            </pre>
+          ))}
+        {(f.kind === 'document' || f.kind === 'other') && (
+          <div className="flex flex-col items-center gap-5 text-center">
+            <div className="grid h-24 w-24 place-items-center rounded-[20px] bg-white text-[16px] font-bold text-accent shadow-[0_10px_28px_rgba(20,20,40,.10)]">
+              {extOf(f.name) || 'FILE'}
+            </div>
+            <div>
+              <div className="text-[14px] font-semibold">{f.name}</div>
+              <div className="mt-1 text-[12.5px] text-muted">
+                No inline preview for {extOf(f.name) || 'this'} files. Convert it, or open it in its
+                app.
+              </div>
+            </div>
+            <button
+              onClick={() => window.filesmith.openFile(f.path)}
+              className="rounded-[11px] bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_8px_20px_rgba(91,91,214,.32)] transition hover:bg-accent-hi"
+            >
+              Open in default app
+            </button>
+          </div>
         )}
 
         {/* Non-video formats: a corner "expand" button to view fullscreen. */}

@@ -9,7 +9,7 @@ import type {
   PreviewPayload,
   ToolId
 } from '@shared/types'
-import { AUDIO_EXTS, IMAGE_EXTS, VIDEO_EXTS } from '@shared/fileKind'
+import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
 import { toolAvailable } from './toolResolver'
@@ -21,7 +21,7 @@ import { targetsFor, toolsFor } from './tools/registry'
 // is hidden from the picker and dropped from drag-and-drop.
 const bare = (exts: string[]): string[] => exts.map((e) => e.replace('.', ''))
 function isSupported(f: FileInfo): boolean {
-  return f.kind === 'image' || f.kind === 'video' || f.kind === 'audio'
+  return f.kind !== 'other'
 }
 
 /** Wire the renderer <-> engine channels for one window. */
@@ -87,10 +87,22 @@ export function registerIpc(win: BrowserWindow): void {
     const r = await dialog.showOpenDialog(win, {
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: 'All supported', extensions: bare([...IMAGE_EXTS, ...VIDEO_EXTS, ...AUDIO_EXTS]) },
+        {
+          name: 'All supported',
+          extensions: bare([
+            ...IMAGE_EXTS,
+            ...VIDEO_EXTS,
+            ...AUDIO_EXTS,
+            '.pdf',
+            ...DOC_EXTS,
+            ...TEXT_EXTS
+          ])
+        },
         { name: 'Images', extensions: bare(IMAGE_EXTS) },
         { name: 'Video', extensions: bare(VIDEO_EXTS) },
-        { name: 'Audio', extensions: bare(AUDIO_EXTS) }
+        { name: 'Audio', extensions: bare(AUDIO_EXTS) },
+        { name: 'Documents', extensions: bare(['.pdf', ...DOC_EXTS]) },
+        { name: 'Text', extensions: bare(TEXT_EXTS) }
       ]
     })
     return r.canceled ? [] : r.filePaths.map(fileInfoFromPath).filter(isSupported)
@@ -100,6 +112,16 @@ export function registerIpc(win: BrowserWindow): void {
   ipcMain.handle('file:bytes', async (_e, p: string) => {
     try {
       return new Uint8Array(await readFile(p))
+    } catch {
+      return null
+    }
+  })
+  // Read a text file's contents (capped) for the text preview.
+  ipcMain.handle('file:text', async (_e, p: string) => {
+    try {
+      const buf = await readFile(p)
+      const cap = 1024 * 1024 // 1 MB — enough for preview, avoids huge reads
+      return buf.subarray(0, cap).toString('utf8')
     } catch {
       return null
     }

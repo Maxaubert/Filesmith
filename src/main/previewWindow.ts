@@ -37,7 +37,8 @@ export function openPreviewWindow(next: PreviewPayload): void {
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      plugins: true // Chromium's built-in PDF viewer (for the PDF preview)
     }
   })
 

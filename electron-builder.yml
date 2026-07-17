@@ -10,10 +10,14 @@ files:
   - '!{.eslintcache,.prettierrc.yaml,.prettierignore,eslint.config.js,tsconfig*.json}'
   - '!{.git,.claude,docs,test}/*'
 # Bundled core CLI tools (ffmpeg, ImageMagick, mutool, CaesiumCLT) ship in
-# resources/bin and are copied into the app's resources at package time.
+# resources/bin; LibreOffice (document conversion) ships in resources/libreoffice.
+# Both are populated by scripts/fetch-binaries.mjs before packaging.
 extraResources:
   - from: resources/bin
     to: bin
+    filter: ['**/*']
+  - from: resources/libreoffice
+    to: libreoffice
     filter: ['**/*']
 win:
   target:

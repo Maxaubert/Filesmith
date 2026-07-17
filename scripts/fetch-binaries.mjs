@@ -14,15 +14,19 @@
  *  - ffmpeg (ffmpeg.exe): downloaded from gyan.dev's "essentials" build. The
  *    local winget build is the "full" static one (~217 MB per exe) — far too
  *    large to ship — so we fetch the leaner essentials build instead.
- *  - mutool (PDF) is deferred until the PDF tools land (phase 3).
+ *  - mutool (PDF ops): a single static exe, copied from the local install.
+ *  - LibreOffice (document conversion): the whole install tree copied into
+ *    resources/libreoffice (~350 MB) — bundled so doc conversion works offline.
  *
  * Install the copy-sourced tools first if missing:
- *   winget install ImageMagick.ImageMagick SaeraSoft.CaesiumCLT
+ *   winget install ImageMagick.ImageMagick SaeraSoft.CaesiumCLT ArtifexSoftware.mutool
+ *   (LibreOffice: install from libreoffice.org)
  */
 import {
   existsSync,
   mkdirSync,
   copyFileSync,
+  cpSync,
   writeFileSync,
   rmSync,
   readdirSync,
@@ -119,11 +123,40 @@ async function bundleFfmpeg() {
   }
 }
 
+/** mutool (MuPDF): a single static exe for the PDF tools. */
+function bundleMutool() {
+  const m = which('mutool')
+  if (!m) {
+    log('  ! mutool not found — skip (winget install ArtifexSoftware.mutool)')
+    return
+  }
+  copyFileSync(m, join(BIN, 'mutool.exe'))
+  log(`  ✓ mutool: mutool.exe (${mb(join(BIN, 'mutool.exe'))} MB)`)
+}
+
+/** LibreOffice: bundle the whole install tree into resources/libreoffice so
+ * document conversion works offline. Big (~350 MB) — that's the tradeoff for
+ * the "bundle it" choice. Requires a local install to copy from. */
+function bundleLibreOffice() {
+  const roots = ['C:\\Program Files\\LibreOffice', 'C:\\Program Files (x86)\\LibreOffice']
+  const src = roots.find((r) => existsSync(join(r, 'program', 'soffice.exe')))
+  if (!src) {
+    log('  ! LibreOffice not found — skip (install from libreoffice.org, then re-run)')
+    return
+  }
+  const dest = join(ROOT, 'resources', 'libreoffice')
+  log('  … copying LibreOffice tree (~350 MB, this takes a moment)…')
+  rmSync(dest, { recursive: true, force: true })
+  cpSync(src, dest, { recursive: true })
+  log(`  ✓ LibreOffice: bundled from ${src}`)
+}
+
 log('Populating resources/bin …')
 bundleImageMagick()
 bundleCaesium()
 await bundleFfmpeg()
-log('  (mutool/PDF deferred until phase 3)')
+bundleMutool()
+bundleLibreOffice()
 
 const bundled = readdirSync(BIN).filter((f) => f !== '.gitkeep')
 const total = bundled.reduce((s, f) => s + statSync(join(BIN, f)).size, 0)
