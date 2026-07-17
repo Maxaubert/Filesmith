@@ -2,6 +2,7 @@
 // UI uses the exact same data; this module adds the argument builders and quality
 // mapping the runner needs.
 export {
+  canCompress,
   categoryFormats,
   convertTargets,
   defaultTargetExt,

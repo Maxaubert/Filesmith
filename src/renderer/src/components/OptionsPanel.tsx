@@ -104,12 +104,30 @@ function ConvertOptions({
 
 function CompressOptions({
   options,
+  activeKind,
   set
 }: {
   options: JobOptions
+  activeKind: FileKind | null
   set: (k: string, v: string | number) => void
 }): JSX.Element {
   const q = Number(options.quality ?? 80)
+  // mutool's PDF compression is structural (garbage-collect + deflate streams);
+  // there's no quality knob, so don't show a slider that would do nothing.
+  if (activeKind === 'pdf') {
+    return (
+      <p className="text-[12.5px] leading-relaxed text-muted">
+        Rewrite the PDF smaller by garbage-collecting unused objects and compressing its
+        streams. Lossless — no quality setting.
+      </p>
+    )
+  }
+  const hint =
+    activeKind === 'video'
+      ? 'Re-encodes video (H.264 / VP9) at the chosen quality.'
+      : activeKind === 'audio'
+        ? 'Re-encodes audio at a matching bitrate.'
+        : 'Re-compresses the image at the chosen quality.'
   return (
     <div>
       <div className="mb-2.5 flex items-center justify-between">
@@ -128,6 +146,7 @@ function CompressOptions({
         <span>Smaller file</span>
         <span>Higher quality</span>
       </div>
+      <p className="mt-3 text-[12.5px] leading-relaxed text-muted">{hint}</p>
     </div>
   )
 }
@@ -290,7 +309,9 @@ export function OptionsPanel({
           set={onSet}
         />
       )}
-      {tool === 'compress' && <CompressOptions options={options} set={onSet} />}
+      {tool === 'compress' && (
+        <CompressOptions options={options} activeKind={activeKind} set={onSet} />
+      )}
       {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
       {tool === 'pdf' && <PdfOptions options={options} set={onSet} />}
 

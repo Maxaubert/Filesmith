@@ -1,24 +1,83 @@
 import { basename, dirname, extname, join } from 'path'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'fs'
 import { tmpdir } from 'os'
 import type { FileInfo, ToolId, ToolTarget } from '@shared/types'
 import { resolveSoffice, resolveTool } from '../toolResolver'
 import { run } from '../run'
-import { uniqueOutDir, uniqueOutPath } from '../output'
-import type { ToolModule } from './tool'
+import { reserveOutPath, uniqueOutDir } from '../output'
+import type { ToolContext, ToolModule } from './tool'
 import {
   buildFfmpegArgs,
   buildMagickArgs,
+  canCompress,
   convertTargets,
   isSameFormat,
   magickExtraFor,
+  normalizeExt,
   qualityNum,
   toolForKind
 } from './convert'
-import { buildResizeArgs, buildResizeSpec } from './resize'
-import { buildCompressArgs } from './compress'
+import { buildResizeArgs, buildResizeSpec, isValidResizeSpec } from './resize'
+import {
+  buildAudioCompressArgs,
+  buildCompressArgs,
+  buildMagickCompressArgs,
+  buildVideoCompressArgs,
+  CAESIUM_EXTS
+} from './compress'
 import { buildSofficeArgs, sofficeOutputPath } from './soffice'
 import { buildPdfCompressArgs, buildPdfImagesArgs, buildPdfTextArgs, type PdfOp } from './pdf'
+
+/**
+ * Run a CLI tool that writes directly to an already-reserved `output` path, and
+ * clean up on any failure or cancel. `output` was reserved as an empty
+ * placeholder (see reserveOutPath), so success requires the tool to have
+ * actually written bytes — a 0-byte result means the tool failed or (for
+ * ImageMagick) split a multi-frame source into `output-0.ext`, `output-1.ext`
+ * and left the placeholder empty. `requireNonEmpty` is false only for text
+ * extraction, where an empty result is legitimate (a PDF with no text layer).
+ */
+async function runToOutput(
+  tool: string,
+  args: string[],
+  output: string,
+  ctx: ToolContext,
+  label: string,
+  requireNonEmpty = true
+): Promise<string> {
+  try {
+    const { code, stderr } = await run(tool, args, { signal: ctx.signal })
+    const wrote = existsSync(output) && (!requireNonEmpty || statSync(output).size > 0)
+    if (code !== 0 || !wrote) {
+      throw new Error(stderr.trim().split('\n').pop()?.trim() || `${label} exited ${code}`)
+    }
+    return output
+  } catch (e) {
+    // Remove the placeholder / partial so a failed or canceled job never leaves
+    // a half-written (or 0-byte) output next to the source.
+    try {
+      if (existsSync(output)) rmSync(output, { force: true })
+    } catch {
+      /* best effort */
+    }
+    throw e
+  }
+}
+
+// ImageMagick target formats that hold multiple frames/pages; every other raster
+// target is single-frame, so a multi-frame source (animated GIF, multi-page
+// TIFF, MPO) is read as `input[0]` — otherwise magick writes `out-0.jpg`,
+// `out-1.jpg`, … and the exact output path never appears.
+const MULTIFRAME_TARGETS = ['.gif', '.tiff', '.webp', '.avif']
 
 const convertTool: ToolModule = {
   async run(file, options, ctx) {
@@ -31,13 +90,15 @@ const convertTool: ToolModule = {
 
     // PDF -> plain text extracts reliably via mutool, no LibreOffice required.
     if (file.kind === 'pdf' && isSameFormat(targetExt, '.txt')) {
-      const output = uniqueOutPath(file.path, '.txt', 'converted')
-      const { code, stderr } = await run(resolveTool('mutool'), buildPdfTextArgs(file.path, output), {
-        signal: ctx.signal
-      })
-      if (code !== 0)
-        throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
-      return output
+      const output = reserveOutPath(file.path, '.txt', 'converted')
+      return runToOutput(
+        resolveTool('mutool'),
+        buildPdfTextArgs(file.path, output),
+        output,
+        ctx,
+        'mutool',
+        false
+      )
     }
 
     // Documents go through LibreOffice, which writes into an --outdir with a
@@ -67,7 +128,7 @@ const convertTool: ToolModule = {
             last || `LibreOffice couldn't convert to ${targetExt.replace('.', '').toUpperCase()}`
           )
         }
-        const output = uniqueOutPath(file.path, targetExt, 'converted')
+        const output = reserveOutPath(file.path, targetExt, 'converted')
         if (isSameFormat(targetExt, '.txt')) {
           // Drop the UTF-8 BOM the encoded-Text filter prepends.
           let buf = readFileSync(produced)
@@ -83,21 +144,21 @@ const convertTool: ToolModule = {
       }
     }
 
-    const output = uniqueOutPath(file.path, targetExt, 'converted')
+    const output = reserveOutPath(file.path, targetExt, 'converted')
     let args: string[]
     if (kindTool === 'ffmpeg') {
       args = buildFfmpegArgs(file.path, output)
     } else {
       const q = qualityNum(options.quality)
       const extra = [...magickExtraFor(targetExt), ...(q != null ? ['-quality', String(q)] : [])]
-      args = buildMagickArgs(file.path, output, extra)
+      // Single-frame target: read only the first frame so a multi-frame source
+      // doesn't split into out-0/out-1/… and leave the exact output path empty.
+      const src = MULTIFRAME_TARGETS.includes(normalizeExt(targetExt))
+        ? file.path
+        : `${file.path}[0]`
+      args = buildMagickArgs(src, output, extra)
     }
-    const { code, stderr } = await run(resolveTool(kindTool), args, { signal: ctx.signal })
-    if (code !== 0) {
-      const last = stderr.trim().split('\n').pop()?.trim()
-      throw new Error(last || `${kindTool} exited ${code}`)
-    }
-    return output
+    return runToOutput(resolveTool(kindTool), args, output, ctx, kindTool)
   }
 }
 
@@ -120,66 +181,114 @@ const pdfTool: ToolModule = {
     }
 
     if (op === 'compress') {
-      const output = uniqueOutPath(file.path, '.pdf', 'compressed')
+      const output = reserveOutPath(file.path, '.pdf', 'compressed')
       ctx.onProgress(undefined, 'Compressing PDF…')
-      const { code, stderr } = await run(mutool, buildPdfCompressArgs(file.path, output), {
-        signal: ctx.signal
-      })
-      if (code !== 0) throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
-      return output
+      return runToOutput(mutool, buildPdfCompressArgs(file.path, output), output, ctx, 'mutool')
     }
 
     // extract-text
-    const output = uniqueOutPath(file.path, '.txt', 'text')
+    const output = reserveOutPath(file.path, '.txt', 'text')
     ctx.onProgress(undefined, 'Extracting text…')
-    const { code, stderr } = await run(mutool, buildPdfTextArgs(file.path, output), {
-      signal: ctx.signal
-    })
-    if (code !== 0) throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
-    return output
+    return runToOutput(mutool, buildPdfTextArgs(file.path, output), output, ctx, 'mutool', false)
   }
 }
 
 const resizeTool: ToolModule = {
   async run(file, options, ctx) {
     const spec = buildResizeSpec(options)
-    const output = uniqueOutPath(file.path, file.ext, 'resized')
+    if (!isValidResizeSpec(spec)) throw new Error('Enter a width, height, or percentage to resize by')
+    const output = reserveOutPath(file.path, file.ext, 'resized')
     ctx.onProgress(undefined, `Resizing ${spec}…`)
-    const { code, stderr } = await run(
+    const animated = normalizeExt(file.ext) === '.gif'
+    return runToOutput(
       resolveTool('magick'),
-      buildResizeArgs(file.path, output, spec),
-      {
-        signal: ctx.signal
-      }
+      buildResizeArgs(file.path, output, spec, animated),
+      output,
+      ctx,
+      'magick'
     )
-    if (code !== 0) throw new Error(stderr.trim() || `magick exited ${code}`)
-    return output
   }
 }
 
 const compressTool: ToolModule = {
   async run(file, options, ctx) {
     const quality = Number(options.quality ?? 80)
-    // CaesiumCLT mirrors the input filename into -o, so write to a temp dir and
-    // then copy the single result to a collision-safe name next to the source.
-    const tmp = mkdtempSync(join(tmpdir(), 'filesmith-'))
-    try {
-      ctx.onProgress(undefined, `Compressing (q${quality})…`)
-      const { code, stderr } = await run(
-        resolveTool('caesiumclt'),
-        buildCompressArgs(file.path, tmp, quality),
-        { signal: ctx.signal }
-      )
-      const produced = join(tmp, basename(file.path))
-      if (code !== 0 || !existsSync(produced)) {
-        throw new Error(stderr.trim() || `caesiumclt exited ${code}`)
-      }
-      const output = uniqueOutPath(file.path, file.ext, 'compressed')
-      copyFileSync(produced, output)
-      return output
-    } finally {
-      rmSync(tmp, { recursive: true, force: true })
+    if (!canCompress(file.kind, file.ext)) throw new Error(`Can't compress ${file.kind} files`)
+    ctx.onProgress(undefined, `Compressing (q${quality})…`)
+
+    // PDF: mutool re-writes the object streams smaller (clean -gggg -z).
+    if (file.kind === 'pdf') {
+      const output = reserveOutPath(file.path, '.pdf', 'compressed')
+      return runToOutput(resolveTool('mutool'), buildPdfCompressArgs(file.path, output), output, ctx, 'mutool')
     }
+
+    // Video: ffmpeg CRF re-encode, keeping the source container (WebM -> VP9/Opus,
+    // everything else -> H.264/AAC).
+    if (file.kind === 'video') {
+      const output = reserveOutPath(file.path, file.ext, 'compressed')
+      const webm = normalizeExt(file.ext) === '.webm'
+      return runToOutput(
+        resolveTool('ffmpeg'),
+        buildVideoCompressArgs(file.path, output, quality, webm),
+        output,
+        ctx,
+        'ffmpeg'
+      )
+    }
+
+    // Audio: ffmpeg bitrate re-encode (only reached for lossy formats — canCompress
+    // rejects flac/wav/… where a bitrate target is meaningless).
+    if (file.kind === 'audio') {
+      const output = reserveOutPath(file.path, file.ext, 'compressed')
+      return runToOutput(
+        resolveTool('ffmpeg'),
+        buildAudioCompressArgs(file.path, output, quality, file.ext),
+        output,
+        ctx,
+        'ffmpeg'
+      )
+    }
+
+    // Image via CaesiumCLT for the formats it decodes; CaesiumCLT mirrors the
+    // input filename into -o, so run into a temp dir and copy the single result
+    // to a collision-safe name next to the source.
+    if (CAESIUM_EXTS.includes(normalizeExt(file.ext))) {
+      const tmp = mkdtempSync(join(tmpdir(), 'filesmith-'))
+      const output = reserveOutPath(file.path, file.ext, 'compressed')
+      try {
+        const { code, stderr } = await run(
+          resolveTool('caesiumclt'),
+          buildCompressArgs(file.path, tmp, quality),
+          { signal: ctx.signal }
+        )
+        const produced = join(tmp, basename(file.path))
+        if (code !== 0 || !existsSync(produced)) {
+          throw new Error(stderr.trim().split('\n').pop()?.trim() || `caesiumclt exited ${code}`)
+        }
+        copyFileSync(produced, output)
+        return output
+      } catch (e) {
+        try {
+          if (existsSync(output)) rmSync(output, { force: true })
+        } catch {
+          /* best effort */
+        }
+        throw e
+      } finally {
+        rmSync(tmp, { recursive: true, force: true })
+      }
+    }
+
+    // Other image formats (avif/jxl/heic/bmp/svg/…) — ImageMagick re-encode at the
+    // quality target.
+    const output = reserveOutPath(file.path, file.ext, 'compressed')
+    return runToOutput(
+      resolveTool('magick'),
+      buildMagickCompressArgs(file.path, output, quality),
+      output,
+      ctx,
+      'magick'
+    )
   }
 }
 
@@ -196,9 +305,10 @@ export function getTool(id: ToolId): ToolModule | undefined {
 
 /** Which tools apply to a file (drives the UI's tool highlighting). */
 export function toolsFor(file: FileInfo): ToolId[] {
-  if (file.kind === 'image') return ['convert', 'compress', 'resize']
-  if (file.kind === 'video' || file.kind === 'audio') return ['convert']
-  if (file.kind === 'pdf') return ['convert', 'pdf']
+  const compress = canCompress(file.kind, file.ext) ? (['compress'] as ToolId[]) : []
+  if (file.kind === 'image') return ['convert', ...compress, 'resize']
+  if (file.kind === 'video' || file.kind === 'audio') return ['convert', ...compress]
+  if (file.kind === 'pdf') return ['convert', ...compress, 'pdf']
   if (file.kind === 'document' || file.kind === 'text') return ['convert']
   return []
 }

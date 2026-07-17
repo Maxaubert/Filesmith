@@ -8,7 +8,7 @@ import {
   type MouseEvent
 } from 'react'
 import type { FileKind, PreviewItem, ToolId } from '@shared/types'
-import { familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
+import { canCompress, familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
 import { fileKind } from '@shared/fileKind'
 import {
   reducer,
@@ -144,7 +144,8 @@ export default function App(): JSX.Element {
       return toolForKind(i.file.kind) != null && !isSameFormat(i.file.ext, fmt)
     }
     if (state.tool === 'pdf') return i.file.kind === 'pdf'
-    return i.file.kind === 'image' // compress / resize are image-only for now
+    if (state.tool === 'compress') return canCompress(i.file.kind, i.file.ext)
+    return i.file.kind === 'image' // resize is image-only
   })
 
   // Keep the convert target valid for the active kind, and never a format that

@@ -127,6 +127,18 @@ export function convertGroup(kind: FileKind, ext: string): string {
   return 'doc'
 }
 
+// Audio formats where bitrate compression is meaningful (lossy). Lossless/raw
+// (flac/wav/aiff/ac3/amr) are excluded — a bitrate target is meaningless there.
+export const LOSSY_AUDIO_EXTS = ['.mp3', '.m4a', '.aac', '.ogg', '.opus', '.wma']
+
+/** Whether the Compress tool supports a given file. Images (Caesium/magick),
+ * video (ffmpeg), PDF (mutool) all compress; audio only for lossy formats. */
+export function canCompress(kind: FileKind, ext: string): boolean {
+  if (kind === 'image' || kind === 'video' || kind === 'pdf') return true
+  if (kind === 'audio') return LOSSY_AUDIO_EXTS.includes(normalizeExt(ext))
+  return false
+}
+
 /** Which external tool converts this kind (or null if unsupported). */
 export function toolForKind(kind: FileKind): 'magick' | 'ffmpeg' | 'soffice' | null {
   if (kind === 'image') return 'magick'
@@ -136,8 +148,15 @@ export function toolForKind(kind: FileKind): 'magick' | 'ffmpeg' | 'soffice' | n
 }
 
 const ICO_EXTRA = ['-define', 'icon:auto-resize=256,128,64,48,32,16']
+// Targets with no alpha channel — flatten transparency onto white so a
+// transparent PNG/GIF doesn't come out with a black background.
+const NO_ALPHA = ['.jpg', '.bmp']
+const FLATTEN = ['-background', 'white', '-alpha', 'remove', '-alpha', 'off']
 
-/** Extra ImageMagick flags for a given target ext (multi-size ICO). */
+/** Extra ImageMagick flags for a given target ext (multi-size ICO, alpha flatten). */
 export function magickExtraFor(ext: string): string[] {
-  return normalizeExt(ext) === '.ico' ? ICO_EXTRA : []
+  const e = normalizeExt(ext)
+  if (e === '.ico') return ICO_EXTRA
+  if (NO_ALPHA.includes(e)) return FLATTEN
+  return []
 }

@@ -20,7 +20,8 @@ export const IMAGE_EXTS = [
   '.tga',
   '.ppm',
   '.xcf',
-  '.mpo'
+  '.mpo',
+  '.ico'
 ]
 export const VIDEO_EXTS = [
   '.mp4',
@@ -63,10 +64,12 @@ export const DOC_EXTS = [
   '.xls',
   '.ods',
   '.csv',
+  '.tsv',
   '.pptx',
   '.ppt',
-  '.odp',
-  '.epub'
+  '.odp'
+  // .epub omitted: LibreOffice has no epub import filter, so every epub
+  // conversion would fail. Add back only with a real epub reader.
 ]
 // Plain-text / markup / code — previewed as text, converted as documents.
 export const TEXT_EXTS = [
