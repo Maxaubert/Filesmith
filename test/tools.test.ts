@@ -244,10 +244,19 @@ describe('compress', () => {
 })
 
 describe('canCompress', () => {
-  it('accepts images, video, and PDF unconditionally', () => {
-    expect(canCompress('image', '.png')).toBe(true)
+  it('accepts video and PDF unconditionally', () => {
     expect(canCompress('video', '.mp4')).toBe(true)
+    expect(canCompress('video', '.vob')).toBe(true)
     expect(canCompress('pdf', '.pdf')).toBe(true)
+  })
+  it('accepts raster images the compressors handle, not vector/exotic exts', () => {
+    for (const e of ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.tif', '.tiff', '.avif', '.jxl', '.bmp', '.heic'])
+      expect(canCompress('image', e)).toBe(true)
+    // vector / layered / exotic: would silently rasterize -> excluded
+    expect(canCompress('image', '.svg')).toBe(false)
+    expect(canCompress('image', '.xcf')).toBe(false)
+    expect(canCompress('image', '.tga')).toBe(false)
+    expect(canCompress('image', '.ppm')).toBe(false)
   })
   it('accepts only lossy audio, not lossless/raw', () => {
     expect(canCompress('audio', '.mp3')).toBe(true)

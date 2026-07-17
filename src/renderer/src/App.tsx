@@ -296,6 +296,15 @@ export default function App(): JSX.Element {
 
   const meta = toolMeta(state.tool)
   const runCount = runList.length
+  // The kind the options panel should key off is what will actually RUN, not the
+  // anchor item: a PDF co-selected with a non-compressible doc (same group)
+  // leaves the anchor 'document' while only the PDF runs. All-same-kind -> that
+  // kind; mixed -> 'image' (the quality slider applies to the non-PDF members).
+  const runKind: FileKind | null = runList.length
+    ? runList.every((i) => i.file.kind === runList[0].file.kind)
+      ? runList[0].file.kind
+      : 'image'
+    : activeKind
 
   return (
     <div className="flex h-screen flex-col">
@@ -339,6 +348,7 @@ export default function App(): JSX.Element {
           tool={state.tool}
           options={state.options[state.tool]}
           activeKind={activeKind}
+          runKind={runKind}
           sourceExt={sourceExt}
           srcExts={srcExts}
           runCount={runCount}

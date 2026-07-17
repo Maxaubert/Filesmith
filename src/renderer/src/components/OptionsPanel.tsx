@@ -273,6 +273,7 @@ export function OptionsPanel({
   tool,
   options,
   activeKind,
+  runKind,
   sourceExt,
   srcExts,
   runCount,
@@ -282,6 +283,7 @@ export function OptionsPanel({
   tool: ToolId
   options: JobOptions
   activeKind: FileKind | null
+  runKind: FileKind | null
   sourceExt: string | null
   srcExts: string[]
   runCount: number
@@ -310,7 +312,7 @@ export function OptionsPanel({
         />
       )}
       {tool === 'compress' && (
-        <CompressOptions options={options} activeKind={activeKind} set={onSet} />
+        <CompressOptions options={options} activeKind={runKind} set={onSet} />
       )}
       {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
       {tool === 'pdf' && <PdfOptions options={options} set={onSet} />}

@@ -129,16 +129,27 @@ const convertTool: ToolModule = {
           )
         }
         const output = reserveOutPath(file.path, targetExt, 'converted')
-        if (isSameFormat(targetExt, '.txt')) {
-          // Drop the UTF-8 BOM the encoded-Text filter prepends.
-          let buf = readFileSync(produced)
-          if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf)
-            buf = buf.subarray(3)
-          writeFileSync(output, buf)
-        } else {
-          copyFileSync(produced, output)
+        try {
+          if (isSameFormat(targetExt, '.txt')) {
+            // Drop the UTF-8 BOM the encoded-Text filter prepends.
+            let buf = readFileSync(produced)
+            if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf)
+              buf = buf.subarray(3)
+            writeFileSync(output, buf)
+          } else {
+            copyFileSync(produced, output)
+          }
+          return output
+        } catch (e) {
+          // Remove the reserved placeholder if the copy/write fails, or it's
+          // orphaned as a 0-byte file next to the source.
+          try {
+            if (existsSync(output)) rmSync(output, { force: true })
+          } catch {
+            /* best effort */
+          }
+          throw e
         }
-        return output
       } finally {
         rmSync(tmp, { recursive: true, force: true })
       }
@@ -222,11 +233,14 @@ const compressTool: ToolModule = {
       return runToOutput(resolveTool('mutool'), buildPdfCompressArgs(file.path, output), output, ctx, 'mutool')
     }
 
-    // Video: ffmpeg CRF re-encode, keeping the source container (WebM -> VP9/Opus,
-    // everything else -> H.264/AAC).
+    // Video: ffmpeg CRF re-encode with FIXED encoders, so the OUTPUT container
+    // follows the codec, not the source. WebM stays WebM (VP9/Opus); everything
+    // else is written as .mp4 (H.264/AAC + faststart) — H.264/AAC can't mux into
+    // .vob/.ogv and the +faststart flag is mov/mp4-only, so keeping the source
+    // ext would fail for those containers.
     if (file.kind === 'video') {
-      const output = reserveOutPath(file.path, file.ext, 'compressed')
       const webm = normalizeExt(file.ext) === '.webm'
+      const output = reserveOutPath(file.path, webm ? '.webm' : '.mp4', 'compressed')
       return runToOutput(
         resolveTool('ffmpeg'),
         buildVideoCompressArgs(file.path, output, quality, webm),
@@ -254,8 +268,11 @@ const compressTool: ToolModule = {
     // to a collision-safe name next to the source.
     if (CAESIUM_EXTS.includes(normalizeExt(file.ext))) {
       const tmp = mkdtempSync(join(tmpdir(), 'filesmith-'))
-      const output = reserveOutPath(file.path, file.ext, 'compressed')
+      // Declared outside try so the catch can clean the placeholder; reserved
+      // INSIDE try so a throw there still hits the finally that removes tmp.
+      let output: string | undefined
       try {
+        output = reserveOutPath(file.path, file.ext, 'compressed')
         const { code, stderr } = await run(
           resolveTool('caesiumclt'),
           buildCompressArgs(file.path, tmp, quality),
@@ -269,7 +286,7 @@ const compressTool: ToolModule = {
         return output
       } catch (e) {
         try {
-          if (existsSync(output)) rmSync(output, { force: true })
+          if (output && existsSync(output)) rmSync(output, { force: true })
         } catch {
           /* best effort */
         }
@@ -279,8 +296,9 @@ const compressTool: ToolModule = {
       }
     }
 
-    // Other image formats (avif/jxl/heic/bmp/svg/…) — ImageMagick re-encode at the
-    // quality target.
+    // Other raster image formats (avif/jxl/heic/bmp) — ImageMagick re-encode at
+    // the quality target. canCompress keeps vector/exotic exts (svg/xcf/…) out,
+    // so this never rasterizes a vector into a silently-broken same-ext file.
     const output = reserveOutPath(file.path, file.ext, 'compressed')
     return runToOutput(
       resolveTool('magick'),

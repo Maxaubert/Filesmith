@@ -154,7 +154,13 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     let obj: string | null = null
     let cancelled = false
     void window.filesmith.readBytes(audioPath).then((bytes) => {
-      if (cancelled || !bytes) return
+      if (cancelled) return
+      if (!bytes) {
+        // Too large for the IPC read cap (or unreadable) — a src-less <audio>
+        // fires no onError, so show the "open in default app" fallback directly.
+        setFailed(audioPath)
+        return
+      }
       obj = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>]))
       setAudio({ path: audioPath, src: obj })
     })
@@ -171,7 +177,13 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     let obj: string | null = null
     let cancelled = false
     void window.filesmith.readBytes(pdfPath).then((bytes) => {
-      if (cancelled || !bytes) return
+      if (cancelled) return
+      if (!bytes) {
+        // Too large for the IPC read cap (or unreadable) — otherwise the viewer
+        // stays on "Loading…" forever; show the fallback card instead.
+        setFailed(pdfPath)
+        return
+      }
       obj = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }))
       setPdf({ path: pdfPath, src: obj })
     })
@@ -357,6 +369,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
           </>
         )}
         {f.kind === 'pdf' &&
+          !showFallback &&
           (pdf && pdf.path === pdfPath ? (
             <iframe
               key={pdf.src}

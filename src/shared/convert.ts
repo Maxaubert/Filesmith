@@ -131,11 +131,32 @@ export function convertGroup(kind: FileKind, ext: string): string {
 // (flac/wav/aiff/ac3/amr) are excluded — a bitrate target is meaningless there.
 export const LOSSY_AUDIO_EXTS = ['.mp3', '.m4a', '.aac', '.ogg', '.opus', '.wma']
 
-/** Whether the Compress tool supports a given file. Images (Caesium/magick),
- * video (ffmpeg), PDF (mutool) all compress; audio only for lossy formats. */
+// Image formats the compressors can actually re-encode: CaesiumCLT's set plus
+// the raster formats ImageMagick re-encodes at a quality target. Vector/layered/
+// exotic exts (svg, xcf, tga, ppm, mpo) are excluded — "compress to same ext"
+// there would silently rasterize into a broken file that still passes a size>0
+// check, so they must not be offered.
+export const COMPRESSIBLE_IMAGE_EXTS = [
+  '.jpg',
+  '.png',
+  '.webp',
+  '.gif',
+  '.tiff',
+  '.avif',
+  '.jxl',
+  '.heic',
+  '.heif',
+  '.bmp'
+]
+
+/** Whether the Compress tool supports a given file. Images: only formats the
+ * compressors handle (Caesium set + raster magick); video (ffmpeg) and PDF
+ * (mutool) always; audio only for lossy formats. */
 export function canCompress(kind: FileKind, ext: string): boolean {
-  if (kind === 'image' || kind === 'video' || kind === 'pdf') return true
-  if (kind === 'audio') return LOSSY_AUDIO_EXTS.includes(normalizeExt(ext))
+  const e = normalizeExt(ext)
+  if (kind === 'image') return COMPRESSIBLE_IMAGE_EXTS.includes(e)
+  if (kind === 'video' || kind === 'pdf') return true
+  if (kind === 'audio') return LOSSY_AUDIO_EXTS.includes(e)
   return false
 }
 
