@@ -168,7 +168,6 @@ function ChoiceSelect<T extends string>({
   choices: Choice<T>[]
   onChange: (v: T) => void
 }): JSX.Element {
-  const current = choices.find((c) => c.value === value)
   return (
     <div className="relative">
       <select
@@ -179,7 +178,7 @@ function ChoiceSelect<T extends string>({
         {choices.map((c) => (
           <option key={c.value} value={c.value}>
             {c.label}
-            {c.sub ? ` — ${c.sub}` : ''}
+            {c.sub ? ` (${c.sub})` : ''}
           </option>
         ))}
       </select>
@@ -194,11 +193,6 @@ function ChoiceSelect<T extends string>({
       >
         <path d="M6 9l6 6 6-6" />
       </svg>
-      {current?.sub && (
-        <p className="mt-2 text-[12px] leading-relaxed text-muted">
-          {current.label} — {current.sub}.
-        </p>
-      )}
     </div>
   )
 }
