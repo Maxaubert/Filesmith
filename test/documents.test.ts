@@ -67,9 +67,9 @@ describe('document convert targets', () => {
 })
 
 describe('soffice (LibreOffice) args', () => {
-  it('uses the plain Text filter for .txt, bare ext otherwise', () => {
-    expect(sofficeFilter('txt')).toBe('txt:Text')
-    expect(sofficeFilter('.txt')).toBe('txt:Text')
+  it('uses the UTF-8 encoded Text filter for .txt, bare ext otherwise', () => {
+    expect(sofficeFilter('txt')).toBe('txt:Text (encoded):UTF8')
+    expect(sofficeFilter('.txt')).toBe('txt:Text (encoded):UTF8')
     expect(sofficeFilter('.pdf')).toBe('pdf')
     expect(sofficeFilter('docx')).toBe('docx')
   })

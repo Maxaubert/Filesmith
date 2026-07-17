@@ -8,7 +8,9 @@ import { basename, extname, join } from 'path'
  * most; plain text needs the explicit Text filter. */
 export function sofficeFilter(targetExt: string): string {
   const e = targetExt.replace(/^\./, '').toLowerCase()
-  if (e === 'txt') return 'txt:Text'
+  // Force UTF-8 on text export — the default Text filter falls back to the
+  // system codepage and garbles non-ASCII (e.g. æøå) for some sources (markdown).
+  if (e === 'txt') return 'txt:Text (encoded):UTF8'
   return e
 }
 

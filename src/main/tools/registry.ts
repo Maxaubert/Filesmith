@@ -1,5 +1,5 @@
 import { basename, dirname, extname, join } from 'path'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import type { FileInfo, ToolId, ToolTarget } from '@shared/types'
 import { resolveSoffice, resolveTool } from '../toolResolver'
@@ -68,7 +68,15 @@ const convertTool: ToolModule = {
           )
         }
         const output = uniqueOutPath(file.path, targetExt, 'converted')
-        copyFileSync(produced, output)
+        if (isSameFormat(targetExt, '.txt')) {
+          // Drop the UTF-8 BOM the encoded-Text filter prepends.
+          let buf = readFileSync(produced)
+          if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf)
+            buf = buf.subarray(3)
+          writeFileSync(output, buf)
+        } else {
+          copyFileSync(produced, output)
+        }
         return output
       } finally {
         rmSync(tmp, { recursive: true, force: true })
