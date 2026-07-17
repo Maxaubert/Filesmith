@@ -236,6 +236,8 @@ async function bundleGhostscript() {
     writeFileSync(exe, Buffer.from(await res.arrayBuffer()))
     execFileSync(sevenZip, ['x', exe, `-o${join(tmp, 'x')}`, '-y'], { stdio: 'ignore' })
     copySubset(join(tmp, 'x'))
+    if (!existsSync(join(dest, 'bin', 'gswin64c.exe')))
+      throw new Error('gswin64c.exe missing after extract (unexpected installer layout)')
     log('  ✓ Ghostscript: downloaded + extracted')
   } catch (e) {
     log(`  ! Ghostscript failed (${e.message}) — PDF non-lossless compress needs it`)

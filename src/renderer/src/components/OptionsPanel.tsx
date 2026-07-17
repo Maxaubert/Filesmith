@@ -14,6 +14,7 @@ import { toolMeta } from '../lib/tools'
 
 /** A live "input → output" resolution row for the video resolution preview. */
 export interface VideoOutputRow {
+  path: string
   name: string
   from: string
   to: string
@@ -258,7 +259,7 @@ function CompressOptions({
             <Label>Output</Label>
             <div className="scroll-thin max-h-32 space-y-1 overflow-auto rounded-xl border border-black/[.08] bg-white p-2.5">
               {videoOutputs.map((r) => (
-                <div key={r.name} className="flex items-center gap-1.5 text-[11px]">
+                <div key={r.path} className="flex items-center gap-1.5 text-[11px]">
                   <span className="min-w-0 flex-1 truncate text-dim" title={r.name}>
                     {r.name}
                   </span>

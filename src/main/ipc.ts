@@ -138,7 +138,10 @@ export function registerIpc(win: BrowserWindow): void {
       await fh?.close()
     }
   })
-  // Video pixel dimensions via ffprobe, for the compress resolution preview.
+  // Video DISPLAY dimensions via ffprobe, for the compress resolution preview.
+  // Reads the display-matrix rotation and swaps W/H for ±90/270 so the preview
+  // matches ffmpeg's auto-rotated encode (phone portrait video is stored coded
+  // landscape with a rotation matrix).
   ipcMain.handle('video:dimensions', async (_e, p: string) => {
     try {
       const { code, stdout } = await run(resolveTool('ffprobe'), [
@@ -147,13 +150,22 @@ export function registerIpc(win: BrowserWindow): void {
         '-select_streams',
         'v:0',
         '-show_entries',
-        'stream=width,height',
+        'stream=width,height:stream_side_data=rotation',
         '-of',
-        'csv=p=0:s=x',
+        'default=noprint_wrappers=1',
         p
       ])
-      const m = code === 0 ? /(\d+)x(\d+)/.exec(stdout.trim()) : null
-      return m ? { width: Number(m[1]), height: Number(m[2]) } : null
+      if (code !== 0) return null
+      const num = (k: string): number | null => {
+        const m = new RegExp(`^${k}=(-?\\d+)`, 'm').exec(stdout)
+        return m ? Number(m[1]) : null
+      }
+      let w = num('width')
+      let h = num('height')
+      const rot = num('rotation')
+      if (w == null || h == null) return null
+      if (rot != null && Math.abs(rot % 180) === 90) [w, h] = [h, w]
+      return { width: w, height: h }
     } catch {
       return null
     }

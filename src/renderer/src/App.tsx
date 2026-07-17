@@ -408,7 +408,12 @@ export default function App(): JSX.Element {
     for (const p of compressVideoPaths) {
       if (p in vDims || vDimsRequested.current.has(p)) continue
       vDimsRequested.current.add(p)
-      void window.filesmith.videoDimensions(p).then((d) => setVDims((m) => ({ ...m, [p]: d })))
+      void window.filesmith.videoDimensions(p).then((d) => {
+        // A failed probe returns null; don't cache it — drop the request marker
+        // so it can be re-probed (transient errors, a file still being written).
+        if (d) setVDims((m) => ({ ...m, [p]: d }))
+        else vDimsRequested.current.delete(p)
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compressVideoPaths.join('|')])
@@ -416,9 +421,9 @@ export default function App(): JSX.Element {
   const videoOutputs: VideoOutputRow[] = compressVideoPaths.map((p) => {
     const d = vDims[p]
     const name = baseName(p)
-    if (!d) return { name, from: '…', to: '…' }
+    if (!d) return { path: p, name, from: '…', to: '…' }
     const o = fitResolution(d.width, d.height, compressResolution)
-    return { name, from: `${d.width}×${d.height}`, to: `${o.w}×${o.h}` }
+    return { path: p, name, from: `${d.width}×${d.height}`, to: `${o.w}×${o.h}` }
   })
 
   return (

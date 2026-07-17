@@ -68,9 +68,12 @@ Three independent controls in the video Compress options:
    slower encode, well supported. ffmpeg `libx265` (mp4 with `-tag:v hvc1` for
    Apple compatibility).
 3. **AV1 (smallest)** — another ~20-35% smaller than H.265, slowest encode,
-   narrower support. ffmpeg `libsvtav1` (fast AV1 encoder). Requires the bundled
-   ffmpeg to include SVT-AV1 — verify, else fall back to hiding the option.
-- WebM sources keep the VP9/Opus path as today.
+   narrower support. ffmpeg `libsvtav1` (fast AV1 encoder). The bundled gyan.dev
+   essentials ffmpeg includes SVT-AV1 (verified).
+- **Output is always .mp4**, driven by the chosen codec (H.264/H.265/AV1 all mux
+  there). The codec picker replaces the old auto-VP9-for-WebM behavior: a `.webm`
+  source is re-encoded to `.mp4` with the selected codec. (No VP9 option is
+  offered; VP9/WebM output would be a Convert-tool concern if ever wanted.)
 
 ### b. Quality — the existing slider
 - Maps to CRF per codec (the CRF scale differs by codec: ~18-32 for x264/x265,

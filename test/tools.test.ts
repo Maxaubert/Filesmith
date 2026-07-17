@@ -172,13 +172,21 @@ describe('compress', () => {
     expect(CAESIUM_EXTS).toEqual(['.jpg', '.png', '.webp', '.gif', '.tiff'])
   })
 
-  it('builds ImageMagick compress/convert args (first frame + quality)', () => {
-    // Output extension drives the target format (avif here); [0] avoids splitting.
-    expect(buildMagickCompressArgs('in.png', 'out.avif', 70)).toEqual([
-      'in.png[0]',
+  it('builds ImageMagick compress/convert args, frame-aware by target', () => {
+    // Multi-frame target (webp/avif/gif/tiff): keep all frames (no [0]) so an
+    // animated GIF -> WebP stays animated.
+    expect(buildMagickCompressArgs('in.gif', 'out.webp', 70)).toEqual([
+      'in.gif',
       '-quality',
       '70',
-      'out.avif'
+      'out.webp'
+    ])
+    // Single-frame target: read only the first frame so it doesn't split.
+    expect(buildMagickCompressArgs('in.gif', 'out.jpg', 70)).toEqual([
+      'in.gif[0]',
+      '-quality',
+      '70',
+      'out.jpg'
     ])
   })
 

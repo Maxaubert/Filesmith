@@ -1,5 +1,12 @@
+import { extname } from 'path'
 import { normalizeExt } from '@shared/convert'
 import { RES_BOX, type AudioCodec, type VideoCodec, type VideoResolution } from '@shared/compress'
+
+// Image targets that hold multiple frames — keep all frames (an animated GIF
+// compressed to WebP/AVIF stays animated). Every other target is single-frame,
+// so a multi-frame source is read as `input[0]` (else magick splits into
+// out-0/out-1 and the exact output path stays empty).
+const MULTIFRAME_TARGETS = ['.gif', '.tiff', '.webp', '.avif']
 
 // Compression argument builders. No Electron. The runner (registry.ts) picks a
 // path by kind: CaesiumCLT for its image formats, ImageMagick for other images
@@ -16,10 +23,12 @@ export function buildCompressArgs(input: string, outDir: string, quality: number
 }
 
 /** ImageMagick image compress / format conversion — the output extension decides
- * the target format (webp/avif/…); `-quality` drives lossy encoding. Reading the
- * first frame ([0]) keeps a multi-frame source from splitting into out-0/out-1. */
+ * the target format (webp/avif/…); `-quality` drives lossy encoding. A
+ * single-frame target reads only `input[0]` (so a multi-frame source doesn't
+ * split); a multi-frame target keeps every frame (animated GIF -> animated WebP). */
 export function buildMagickCompressArgs(input: string, output: string, quality: number): string[] {
-  return [`${input}[0]`, '-quality', String(quality), output]
+  const src = MULTIFRAME_TARGETS.includes(normalizeExt(extname(output))) ? input : `${input}[0]`
+  return [src, '-quality', String(quality), output]
 }
 
 // --- Video ---------------------------------------------------------------------
