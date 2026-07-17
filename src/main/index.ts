@@ -1,8 +1,31 @@
 import { app, protocol, shell, BrowserWindow } from 'electron'
 import { join, extname } from 'path'
-import { createReadStream, statSync } from 'fs'
+import { createReadStream, readdirSync, rmSync, statSync } from 'fs'
+import { tmpdir } from 'os'
 import { Readable } from 'stream'
 import { registerIpc } from './ipc'
+
+// Remove temp dirs orphaned by a previous HARD crash (normal runs delete their
+// own in a finally). Guarded by age so a concurrent second instance's in-use
+// temp dir (recently touched) is never swept out from under an active job.
+// Best-effort; never throws, never blocks startup.
+function sweepStaleTempDirs(): void {
+  try {
+    const dir = tmpdir()
+    const cutoff = Date.now() - 60 * 60 * 1000 // 1 hour
+    for (const name of readdirSync(dir)) {
+      if (!name.startsWith('filesmith-')) continue
+      const p = join(dir, name)
+      try {
+        if (statSync(p).mtimeMs < cutoff) rmSync(p, { recursive: true, force: true })
+      } catch {
+        /* in use or already gone — leave it */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 // A private scheme the renderer uses to load local media for the preview
 // window. Registered as a standard, streaming scheme so <video>/<audio> can
@@ -132,6 +155,8 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  sweepStaleTempDirs()
+
   // Serve local files for the preview: fsmedia://local/<encoded-abs-path>.
   protocol.handle(MEDIA_SCHEME, (request) => serveMedia(request))
 
