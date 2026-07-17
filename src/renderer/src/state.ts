@@ -78,6 +78,7 @@ export type Action =
   | { type: 'setTool'; tool: ToolId }
   | { type: 'setOption'; tool: ToolId; key: string; value: string | number | boolean }
   | { type: 'addItems'; files: FileInfo[] }
+  | { type: 'addSources'; items: QueueItem[] }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'dismiss'; id: string; column: 'input' | 'output' }
   | { type: 'markQueued'; ids: string[] }
@@ -169,6 +170,17 @@ export function reducer(state: AppState, action: Action): AppState {
         anchor: ids[ids.length - 1]
       }))
     }
+    case 'addSources': {
+      // Append pre-built source items (an output promoted back to input, so its
+      // origin is visible) and select them. The caller (run) already reuses an
+      // existing input for a path that's already present, so no dedup here.
+      if (!action.items.length) return state
+      return mapQueue(state, (cur) => ({
+        items: [...cur.items, ...action.items],
+        selected: action.items.map((i) => i.id),
+        anchor: action.items[action.items.length - 1].id
+      }))
+    }
     case 'setThumb':
       return mapItemById(state, action.id, (i) => ({ ...i, thumb: action.thumb }))
     case 'dismiss':
@@ -209,9 +221,9 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'jobEvent': {
       const e = action.event
       // A finished job doesn't turn its source into an output — it appends a
-      // separate result item and resets the source to ready, so the source can
-      // be run again (each run adds another result). Progress/failure stay on
-      // the source item in place.
+      // separate result item and marks the source done (checkmark). The source
+      // stays re-runnable; each further run appends another result and the
+      // checkmark persists until the next run replaces it with a progress bar.
       if (e.status === 'done' && e.outputPath) {
         const queues = { ...state.queues }
         for (const t of TOOL_IDS) {
@@ -232,7 +244,7 @@ export function reducer(state: AppState, action: Action): AppState {
             items: [
               ...q.items.map((i) =>
                 i.id === e.id
-                  ? { ...i, status: 'ready' as ItemStatus, percent: 0, message: undefined, error: undefined }
+                  ? { ...i, status: 'done' as ItemStatus, percent: 100, message: undefined, error: undefined }
                   : i
               ),
               result

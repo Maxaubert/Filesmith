@@ -7,7 +7,7 @@ import {
   type JSX,
   type MouseEvent
 } from 'react'
-import type { FileKind, PreviewItem, ToolId } from '@shared/types'
+import type { FileInfo, FileKind, PreviewItem, ToolId } from '@shared/types'
 import { canCompress, familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
 import { fileKind } from '@shared/fileKind'
 import {
@@ -16,6 +16,7 @@ import {
   inInput,
   inOutput,
   groupOf,
+  newId,
   type QueueItem,
   type SelectMode
 } from './state'
@@ -32,6 +33,18 @@ const extOfPath = (p: string): string => {
   const b = baseName(p)
   const i = b.lastIndexOf('.')
   return i > 0 ? b.slice(i) : ''
+}
+
+/** The file an operation acts on: a source's own file, or — for a produced
+ * result — its OUTPUT file (real path/kind/ext), so operating on an output uses
+ * the output's type, not the original source's. */
+function effectiveFile(i: QueueItem): FileInfo {
+  if (i.isResult && i.outputPath) {
+    const p = i.outputPath
+    const ext = extOfPath(p)
+    return { path: p, name: baseName(p), ext, kind: fileKind(ext), size: 0 }
+  }
+  return i.file
 }
 
 /** Build the preview window's file list for a column of a queue. */
@@ -125,27 +138,35 @@ export default function App(): JSX.Element {
   }, [state.queues])
 
   // --- Selection-derived state (current tool's queue) --------------------------
+  // Operations key off each item's EFFECTIVE file (a result's output file), so
+  // selecting an output and running uses the output's type.
   const selectedItems = cur.items.filter((i) => cur.selected.includes(i.id))
-  const activeKind: FileKind | null = selectedItems.length ? selectedItems[0].file.kind : null
-  const activeGroup: string | null = selectedItems.length ? groupOf(selectedItems[0].file) : null
-  const srcNorms = new Set(selectedItems.map((i) => normalizeExt(i.file.ext)))
+  const selEff = selectedItems.map(effectiveFile)
+  const activeKind: FileKind | null = selEff.length ? selEff[0].kind : null
+  const activeGroup: string | null = selEff.length ? groupOf(selEff[0]) : null
+  const srcNorms = new Set(selEff.map((f) => normalizeExt(f.ext)))
   const srcExts = [...srcNorms] // every selected source format (for greying targets)
   const sourceExt: string | null = srcNorms.size === 1 ? [...srcNorms][0] : null
 
+  // A source is runnable when idle (incl. already-done, so it can run again); a
+  // result is always runnable — running it promotes its output back to input.
   const canRun = (i: QueueItem): boolean =>
-    i.status === 'ready' || i.status === 'failed' || i.status === 'canceled'
+    i.isResult
+      ? !!i.outputPath
+      : ['ready', 'failed', 'canceled', 'done'].includes(i.status)
 
   // The files a run would actually process: selected, runnable, tool-compatible,
   // and (for convert) not already the target format.
   const runList: QueueItem[] = selectedItems.filter((i) => {
     if (!canRun(i)) return false
+    const f = effectiveFile(i)
     if (state.tool === 'convert') {
       const fmt = String(state.options.convert.format ?? '')
-      return toolForKind(i.file.kind) != null && !isSameFormat(i.file.ext, fmt)
+      return toolForKind(f.kind) != null && !isSameFormat(f.ext, fmt)
     }
-    if (state.tool === 'pdf') return i.file.kind === 'pdf'
-    if (state.tool === 'compress') return canCompress(i.file.kind, i.file.ext)
-    return i.file.kind === 'image' // resize is image-only
+    if (state.tool === 'pdf') return f.kind === 'pdf'
+    if (state.tool === 'compress') return canCompress(f.kind, f.ext)
+    return f.kind === 'image' // resize is image-only
   })
 
   // Keep the convert target valid for the active kind, and never a format that
@@ -170,8 +191,8 @@ export default function App(): JSX.Element {
     if (modified) {
       // Multi-select stays within one convert group (docs/text/pdf batch
       // together): ignore modified clicks on files from another group.
-      const anchor = selectedItems.length ? selectedItems[0].file : item.file
-      if (groupOf(item.file) !== groupOf(anchor)) return
+      const anchor = selectedItems.length ? effectiveFile(selectedItems[0]) : effectiveFile(item)
+      if (groupOf(effectiveFile(item)) !== groupOf(anchor)) return
     }
     const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
     dispatch({ type: 'select', id, mode })
@@ -296,32 +317,53 @@ export default function App(): JSX.Element {
     if (files.length) dispatch({ type: 'addItems', files })
   }
 
-  function run(): void {
+  async function run(): Promise<void> {
     if (!runList.length) return
     const opts = state.options[state.tool]
-    // Merge is the one multi-input op: all selected PDFs become ONE job anchored
-    // on the first, carrying the ordered path list; the rest are consumed as
-    // inputs, not run individually.
+
+    // Resolve run targets. A selected source runs in place; a selected OUTPUT is
+    // promoted into the Input column (origin visible) and run from there. Reuse
+    // an existing input if that output path is already one.
+    const targets: { id: string; path: string }[] = []
+    const newSources: QueueItem[] = []
+    for (const i of runList) {
+      if (!i.isResult) {
+        targets.push({ id: i.id, path: i.file.path })
+        continue
+      }
+      const out = i.outputPath
+      if (!out) continue
+      const existing = cur.items.find((x) => !x.isResult && inInput(x) && x.file.path === out)
+      if (existing) {
+        targets.push({ id: existing.id, path: out })
+        continue
+      }
+      const [fi] = await window.filesmith.classify([out])
+      if (!fi) continue
+      const src: QueueItem = { id: newId(), file: fi, thumb: null, status: 'ready', percent: 0 }
+      newSources.push(src)
+      targets.push({ id: src.id, path: out })
+    }
+    if (newSources.length) dispatch({ type: 'addSources', items: newSources })
+    if (!targets.length) return
+
+    // Merge is the one multi-input op: all target PDFs become ONE job anchored on
+    // the first, carrying the ordered path list; the rest are consumed as inputs.
     if (state.tool === 'pdf' && opts.op === 'merge') {
-      if (runList.length < 2) return
-      const anchor = runList[0]
+      if (targets.length < 2) return
+      const anchor = targets[0]
       dispatch({ type: 'markQueued', ids: [anchor.id] })
       void window.filesmith.runJob({
         id: anchor.id,
         tool: 'pdf',
-        input: anchor.file.path,
-        options: { ...opts, mergeInputs: runList.map((i) => i.file.path) }
+        input: anchor.path,
+        options: { ...opts, mergeInputs: targets.map((t) => t.path) }
       })
       return
     }
-    dispatch({ type: 'markQueued', ids: runList.map((i) => i.id) })
-    for (const item of runList) {
-      void window.filesmith.runJob({
-        id: item.id,
-        tool: state.tool,
-        input: item.file.path,
-        options: opts
-      })
+    dispatch({ type: 'markQueued', ids: targets.map((t) => t.id) })
+    for (const t of targets) {
+      void window.filesmith.runJob({ id: t.id, tool: state.tool, input: t.path, options: opts })
     }
   }
 
@@ -334,8 +376,8 @@ export default function App(): JSX.Element {
   // leaves the anchor 'document' while only the PDF runs. All-same-kind -> that
   // kind; mixed -> 'image' (the quality slider applies to the non-PDF members).
   const runKind: FileKind | null = runList.length
-    ? runList.every((i) => i.file.kind === runList[0].file.kind)
-      ? runList[0].file.kind
+    ? runList.every((i) => effectiveFile(i).kind === effectiveFile(runList[0]).kind)
+      ? effectiveFile(runList[0]).kind
       : 'image'
     : activeKind
 
@@ -386,7 +428,7 @@ export default function App(): JSX.Element {
           srcExts={srcExts}
           runCount={runCount}
           onSet={(k, v) => dispatch({ type: 'setOption', tool: state.tool, key: k, value: v })}
-          onRun={run}
+          onRun={() => void run()}
         />
       </div>
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />

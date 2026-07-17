@@ -37,11 +37,12 @@ describe('per-tool queues', () => {
       type: 'jobEvent',
       event: { id, status: 'done', outputPath: 'C:/x/a.webp' }
     })
-    // A finished job appends a result item and resets the source to ready.
+    // A finished job appends a result item and marks the source done (checkmark),
+    // keeping it re-runnable.
     const conv = s.queues.convert.items
     expect(conv).toHaveLength(2)
     expect(conv[0].id).toBe(id)
-    expect(conv[0].status).toBe('ready')
+    expect(conv[0].status).toBe('done')
     expect(conv[0].isResult).toBeFalsy()
     expect(conv[1].isResult).toBe(true)
     expect(conv[1].status).toBe('done')
