@@ -564,7 +564,7 @@ export function OptionsPanel({
       {activeKind === null ? (
         // Nothing selected: don't assume a kind or show bogus choices (e.g. a
         // format grid). Reveal the real options once a file is selected.
-        <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-black/[.08] px-4 text-center">
+        <div className="flex flex-1 items-center justify-center px-4 text-center">
           <span className="text-[13px] font-medium text-[#a2a2ac]">No files selected</span>
         </div>
       ) : (
