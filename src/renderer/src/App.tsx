@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { FileKind, PreviewItem, ToolId } from '@shared/types'
 import { familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
+import { fileKind } from '@shared/fileKind'
 import {
   reducer,
   initialState,
@@ -27,6 +28,11 @@ import { OptionsPanel } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
+const extOfPath = (p: string): string => {
+  const b = baseName(p)
+  const i = b.lastIndexOf('.')
+  return i > 0 ? b.slice(i) : ''
+}
 
 /** Build the preview window's file list for a column of a queue. */
 function toPreviewFiles(
@@ -45,14 +51,17 @@ function toPreviewFiles(
         thumb: it.thumb
       }))
   }
-  return items
-    .filter(inOutput)
-    .map((it) => ({
-      path: it.outputPath as string,
-      name: baseName(it.outputPath as string),
-      kind: it.file.kind,
-      thumb: outThumbs[it.outputPath as string] ?? null
-    }))
+  return items.filter(inOutput).map((it) => {
+    const out = it.outputPath as string
+    // Classify the OUTPUT by its own extension — a PDF made from a .txt is a
+    // pdf, not text (using the input's kind previewed it as raw bytes).
+    return {
+      path: out,
+      name: baseName(out),
+      kind: fileKind(extOfPath(out)),
+      thumb: outThumbs[out] ?? null
+    }
+  })
 }
 
 export default function App(): JSX.Element {
