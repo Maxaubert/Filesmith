@@ -374,9 +374,11 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             <iframe
               key={pdf.src}
               title={f.name}
-              // #pagemode=none asks the built-in viewer to start with the
-              // thumbnail/bookmark sidebar collapsed.
-              src={`${pdf.src}#pagemode=none`}
+              // Strip Chromium's built-in PDF chrome so only the document shows:
+              // toolbar=0 removes the top bar (download/print/page/zoom),
+              // navpanes=0 removes the thumbnail/bookmark sidebar; view=FitH
+              // fits the page width. Wheel scroll + ctrl-wheel zoom still work.
+              src={`${pdf.src}#toolbar=0&navpanes=0&view=FitH`}
               className="h-full w-full rounded-lg border-0 bg-white"
             />
           ) : (
