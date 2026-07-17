@@ -158,6 +158,51 @@ function ChoiceGrid<T extends string>({
   )
 }
 
+/** A styled single-select dropdown (label + optional sub description). */
+function ChoiceSelect<T extends string>({
+  value,
+  choices,
+  onChange
+}: {
+  value: T
+  choices: Choice<T>[]
+  onChange: (v: T) => void
+}): JSX.Element {
+  const current = choices.find((c) => c.value === value)
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as T)}
+        className="w-full cursor-pointer appearance-none rounded-xl border border-black/[.10] bg-white py-2.5 pl-3.5 pr-9 text-[13px] font-semibold text-ink outline-none transition hover:border-[#b9b9c8] focus:border-accent"
+      >
+        {choices.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+            {c.sub ? ` — ${c.sub}` : ''}
+          </option>
+        ))}
+      </select>
+      <svg
+        viewBox="0 0 24 24"
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dim"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+      {current?.sub && (
+        <p className="mt-2 text-[12px] leading-relaxed text-muted">
+          {current.label} — {current.sub}.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function QualitySlider({
   options,
   set
@@ -205,7 +250,7 @@ function CompressOptions({
       <>
         <div>
           <Label>Level</Label>
-          <ChoiceGrid
+          <ChoiceSelect
             value={String(options.pdfLevel ?? 'balanced')}
             choices={PDF_LEVELS}
             onChange={(v) => set('pdfLevel', v)}
@@ -237,7 +282,7 @@ function CompressOptions({
       <>
         <div>
           <Label>Codec</Label>
-          <ChoiceGrid
+          <ChoiceSelect
             value={String(options.videoCodec ?? 'h264')}
             choices={VIDEO_CODECS}
             onChange={(v) => set('videoCodec', v)}
@@ -283,7 +328,7 @@ function CompressOptions({
       <>
         <div>
           <Label>Format</Label>
-          <ChoiceGrid
+          <ChoiceSelect
             value={String(options.audioCodec ?? 'keep')}
             choices={AUDIO_CODECS}
             onChange={(v) => set('audioCodec', v)}
@@ -310,9 +355,6 @@ function CompressOptions({
             })}
           </div>
         </div>
-        <p className="text-[12.5px] leading-relaxed text-muted">
-          Lower bitrate = smaller file. Opus stays clean at lower bitrates than MP3/AAC.
-        </p>
       </>
     )
   }
@@ -322,7 +364,7 @@ function CompressOptions({
     <>
       <div>
         <Label>Format</Label>
-        <ChoiceGrid
+        <ChoiceSelect
           value={String(options.imageFormat ?? 'keep')}
           choices={IMAGE_FORMATS}
           onChange={(v) => set('imageFormat', v)}
