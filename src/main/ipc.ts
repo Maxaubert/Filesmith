@@ -1,4 +1,4 @@
-import { readFile } from 'fs/promises'
+import { open, readFile, stat } from 'fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type {
   FileInfo,
@@ -107,23 +107,34 @@ export function registerIpc(win: BrowserWindow): void {
     })
     return r.canceled ? [] : r.filePaths.map(fileInfoFromPath).filter(isSupported)
   })
-  // Read a file's bytes so the renderer can play audio from a same-origin blob
-  // URL (needed for the Web Audio visualizer without CORS taint).
+  // Read a file's bytes so the renderer can play audio / show a PDF from a
+  // same-origin blob URL (Web Audio needs no CORS taint). Guard the size first:
+  // a whole-file read into a Uint8Array over IPC would OOM on a huge input, so
+  // reject it and let the renderer fall back to "open in default app".
   ipcMain.handle('file:bytes', async (_e, p: string) => {
     try {
+      const st = await stat(p)
+      const MAX = 256 * 1024 * 1024 // 256 MB — generous for media/PDF, bounded
+      if (st.size > MAX) return null
       return new Uint8Array(await readFile(p))
     } catch {
       return null
     }
   })
-  // Read a text file's contents (capped) for the text preview.
+  // Read the first slice of a text file for the preview. Read ONLY the cap via a
+  // file handle — never load a multi-GB log fully into memory just to truncate.
   ipcMain.handle('file:text', async (_e, p: string) => {
+    let fh
     try {
-      const buf = await readFile(p)
-      const cap = 1024 * 1024 // 1 MB — enough for preview, avoids huge reads
-      return buf.subarray(0, cap).toString('utf8')
+      fh = await open(p, 'r')
+      const cap = 1024 * 1024 // 1 MB — enough for preview
+      const buf = Buffer.alloc(cap)
+      const { bytesRead } = await fh.read(buf, 0, cap, 0)
+      return buf.subarray(0, bytesRead).toString('utf8')
     } catch {
       return null
+    } finally {
+      await fh?.close()
     }
   })
   ipcMain.handle('tools:for', (_e, file: FileInfo) => toolsFor(file))

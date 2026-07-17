@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import type { PreviewItem, PreviewPayload } from '@shared/types'
 
@@ -45,6 +45,20 @@ export function openPreviewWindow(next: PreviewPayload): void {
   win.on('ready-to-show', () => win?.show())
   win.on('closed', () => {
     win = null
+  })
+
+  // A markdown/HTML link click must open in the OS browser, never navigate the
+  // preview window away from the app. (Hash/SPA nav fires did-navigate-in-page,
+  // not will-navigate, so this only catches real page loads; same-URL reloads —
+  // dev HMR — are allowed through.)
+  win.webContents.setWindowOpenHandler((details) => {
+    if (/^https?:/i.test(details.url)) void shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (e, url) => {
+    if (url === win?.webContents.getURL()) return
+    e.preventDefault()
+    if (/^https?:/i.test(url)) void shell.openExternal(url)
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']

@@ -113,6 +113,14 @@ function createWindow(): void {
     void shell.openExternal(details.url)
     return { action: 'deny' }
   })
+  // Never let a link click navigate the app window away from its own document;
+  // route real page loads to the OS browser. (SPA hash nav doesn't fire this;
+  // same-URL reloads — dev HMR — pass through.)
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (url === mainWindow.webContents.getURL()) return
+    e.preventDefault()
+    if (/^https?:/i.test(url)) void shell.openExternal(url)
+  })
 
   // electron-vite injects ELECTRON_RENDERER_URL in dev; load the built file in prod.
   const devUrl = process.env['ELECTRON_RENDERER_URL']

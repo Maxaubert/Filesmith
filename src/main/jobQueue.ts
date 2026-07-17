@@ -29,8 +29,17 @@ export class JobQueue {
   }
 
   cancel(id: string): void {
-    this.controllers.get(id)?.abort()
+    const ctrl = this.controllers.get(id)
+    if (ctrl) {
+      // Active job: aborting makes execute()'s catch emit the terminal 'canceled'.
+      ctrl.abort()
+      return
+    }
+    // Queued but not yet started: drop it and emit the terminal event ourselves,
+    // or the row stays stuck showing 'queued' forever.
+    const before = this.queue.length
     this.queue = this.queue.filter((r) => r.id !== id)
+    if (this.queue.length !== before) this.emit({ id, status: 'canceled' })
   }
 
   private pump(): void {
