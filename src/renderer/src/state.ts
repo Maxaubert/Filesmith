@@ -15,17 +15,21 @@ export interface QueueItem {
   message?: string
   outputPath?: string
   error?: string
-  /** Dismissed from the Input column (its result may still show in Output). */
+  /** True for a produced result (Output column) vs a source file (Input column).
+   * A source item is re-runnable and stays put; each successful run appends a
+   * fresh result item, so running one source twice yields two results. */
+  isResult?: boolean
+  /** Dismissed from the Input column. */
   hiddenInput?: boolean
-  /** Result dismissed from the Output column (the input row may still show). */
+  /** Result dismissed from the Output column. */
   hiddenOutput?: boolean
 }
 
-/** Whether an item is currently shown in the Input column. */
-export const inInput = (i: QueueItem): boolean => !i.hiddenInput
-/** Whether an item's result is currently shown in the Output column. */
+/** Whether an item is a source shown in the Input column. */
+export const inInput = (i: QueueItem): boolean => !i.isResult && !i.hiddenInput
+/** Whether an item is a finished result shown in the Output column. */
 export const inOutput = (i: QueueItem): boolean =>
-  i.status === 'done' && !!i.outputPath && !i.hiddenOutput
+  !!i.isResult && i.status === 'done' && !!i.outputPath && !i.hiddenOutput
 
 export type SelectMode = 'single' | 'toggle' | 'range'
 
@@ -204,6 +208,40 @@ export function reducer(state: AppState, action: Action): AppState {
       }))
     case 'jobEvent': {
       const e = action.event
+      // A finished job doesn't turn its source into an output — it appends a
+      // separate result item and resets the source to ready, so the source can
+      // be run again (each run adds another result). Progress/failure stay on
+      // the source item in place.
+      if (e.status === 'done' && e.outputPath) {
+        const queues = { ...state.queues }
+        for (const t of TOOL_IDS) {
+          const q = queues[t]
+          const src = q.items.find((i) => i.id === e.id && !i.isResult)
+          if (!src) continue
+          const result: QueueItem = {
+            id: newId(),
+            file: src.file,
+            thumb: null,
+            status: 'done',
+            percent: 100,
+            outputPath: e.outputPath,
+            isResult: true
+          }
+          queues[t] = {
+            ...q,
+            items: [
+              ...q.items.map((i) =>
+                i.id === e.id
+                  ? { ...i, status: 'ready' as ItemStatus, percent: 0, message: undefined, error: undefined }
+                  : i
+              ),
+              result
+            ]
+          }
+          return { ...state, queues }
+        }
+        return state
+      }
       return mapItemById(state, e.id, (i) => ({
         ...i,
         status: e.status as ItemStatus,

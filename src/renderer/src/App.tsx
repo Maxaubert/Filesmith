@@ -247,11 +247,19 @@ export default function App(): JSX.Element {
     }
     const out = item.outputPath
     if (!out) return
+    const outPaths = targets
+      .map((id) => cur.items.find((x) => x.id === id)?.outputPath)
+      .filter((p): p is string => !!p)
     setMenu({
       x,
       y,
       items: [
         { label: 'Preview', icon: 'eye', onClick: () => openPreview('output', item) },
+        {
+          label: n > 1 ? `Use ${n} as input` : 'Use as input',
+          icon: 'upload',
+          onClick: () => void sendToInput(outPaths)
+        },
         { label: 'Reveal in Explorer', icon: 'folder', onClick: () => window.filesmith.reveal(out) },
         { sep: true },
         {
@@ -266,6 +274,14 @@ export default function App(): JSX.Element {
 
   async function browse(): Promise<void> {
     const files = await window.filesmith.pickFiles()
+    if (files.length) dispatch({ type: 'addItems', files })
+  }
+
+  // Feed produced output files back into the Input column so further operations
+  // can be chained onto them (compress -> send to input -> convert, etc.).
+  async function sendToInput(paths: string[]): Promise<void> {
+    if (!paths.length) return
+    const files = await window.filesmith.classify(paths)
     if (files.length) dispatch({ type: 'addItems', files })
   }
 

@@ -37,8 +37,27 @@ describe('per-tool queues', () => {
       type: 'jobEvent',
       event: { id, status: 'done', outputPath: 'C:/x/a.webp' }
     })
-    expect(s.queues.convert.items[0].status).toBe('done')
-    expect(s.queues.convert.items[0].outputPath).toBe('C:/x/a.webp')
+    // A finished job appends a result item and resets the source to ready.
+    const conv = s.queues.convert.items
+    expect(conv).toHaveLength(2)
+    expect(conv[0].id).toBe(id)
+    expect(conv[0].status).toBe('ready')
+    expect(conv[0].isResult).toBeFalsy()
+    expect(conv[1].isResult).toBe(true)
+    expect(conv[1].status).toBe('done')
+    expect(conv[1].outputPath).toBe('C:/x/a.webp')
+  })
+
+  it('appends a fresh result on each finished run; the source persists', () => {
+    let s = reducer(initialState, { type: 'addItems', files: [img('a.png')] })
+    const id = s.queues.convert.items[0].id
+    s = reducer(s, { type: 'jobEvent', event: { id, status: 'done', outputPath: 'C:/x/a (1).webp' } })
+    s = reducer(s, { type: 'jobEvent', event: { id, status: 'done', outputPath: 'C:/x/a (2).webp' } })
+    const items = s.queues.convert.items
+    expect(items.filter((i) => !i.isResult)).toHaveLength(1) // one source
+    const results = items.filter((i) => i.isResult)
+    expect(results).toHaveLength(2) // two accumulated outputs
+    expect(results.map((r) => r.outputPath)).toEqual(['C:/x/a (1).webp', 'C:/x/a (2).webp'])
   })
 
   it('dismissing in one tool does not touch another tool holding the same file', () => {
