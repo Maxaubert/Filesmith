@@ -140,6 +140,21 @@ img {
   background: #c1c1cb;
 }
 
+/* Artificial "flow" for jobs that report no incremental percent (convert,
+   etc.): ease from near-0 toward ~92% — fast first, then slowing — so even a
+   2s conversion reads as a smooth fill instead of a stuck bar. */
+@keyframes fs-fill {
+  from {
+    width: 6%;
+  }
+  to {
+    width: 92%;
+  }
+}
+.fs-fill {
+  animation: fs-fill 5s cubic-bezier(0.1, 0.85, 0.2, 1) forwards;
+}
+
 /* Rendered Markdown in the text preview. */
 .md-body {
   color: var(--color-ink);

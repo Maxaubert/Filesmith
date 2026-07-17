@@ -148,7 +148,9 @@ function InputCard({
         {item.status === 'running' && (
           <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[#ececf2]">
             <div
-              className={`h-full rounded-full bg-gradient-to-r from-accent-hi to-accent ${indeterminate ? 'w-1/3 animate-pulse' : ''}`}
+              className={`h-full rounded-full bg-gradient-to-r from-accent-hi to-accent ${
+                indeterminate ? 'fs-fill' : 'transition-[width] duration-300 ease-out'
+              }`}
               style={indeterminate ? undefined : { width: `${item.percent}%` }}
             />
           </div>
