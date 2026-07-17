@@ -24,17 +24,12 @@ export const VIDEO_CODECS: Choice<VideoCodec>[] = [
   { value: 'av1', label: 'AV1', sub: 'smallest' }
 ]
 
-export type VideoResolution =
-  | 'original'
-  | '1440p'
-  | '1080p'
-  | '720p'
-  | '480p'
-  | '360p'
-  | '240p'
+// Six presets fill a clean 3-column grid (2 rows). 1440p is intentionally
+// omitted — for a "make it smaller" tool, 1080p is the sensible cap for 4K
+// sources and it keeps the control compact.
+export type VideoResolution = 'original' | '1080p' | '720p' | '480p' | '360p' | '240p'
 export const VIDEO_RESOLUTIONS: Choice<VideoResolution>[] = [
   { value: 'original', label: 'Original' },
-  { value: '1440p', label: '1440p' },
   { value: '1080p', label: '1080p' },
   { value: '720p', label: '720p' },
   { value: '480p', label: '480p' },
@@ -45,7 +40,6 @@ export const VIDEO_RESOLUTIONS: Choice<VideoResolution>[] = [
 // The bounding box each resolution preset fits WITHIN (keeping aspect ratio,
 // never upscaling). Works for any shape — landscape, portrait, ultrawide.
 export const RES_BOX: Record<Exclude<VideoResolution, 'original'>, [number, number]> = {
-  '1440p': [2560, 1440],
   '1080p': [1920, 1080],
   '720p': [1280, 720],
   '480p': [854, 480],

@@ -118,18 +118,20 @@ function ConvertOptions({
   )
 }
 
-/** A 2-column grid of option cards (label + sub-label), like the convert grid. */
+/** A grid of option cards (label + sub-label), like the convert format grid. */
 function ChoiceGrid<T extends string>({
   value,
   choices,
+  cols = 2,
   onChange
 }: {
   value: T
   choices: Choice<T>[]
+  cols?: 2 | 3
   onChange: (v: T) => void
 }): JSX.Element {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className={`grid gap-2 ${cols === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
       {choices.map((c) => {
         const sel = value === c.value
         return (
@@ -245,10 +247,13 @@ function CompressOptions({
           <ChoiceGrid
             value={String(options.resolution ?? 'original')}
             choices={VIDEO_RESOLUTIONS}
+            cols={3}
             onChange={(v) => set('resolution', v)}
           />
         </div>
-        {videoOutputs && videoOutputs.length > 0 && (
+        {String(options.resolution ?? 'original') !== 'original' &&
+          videoOutputs &&
+          videoOutputs.length > 0 && (
           <div>
             <Label>Output</Label>
             <div className="scroll-thin max-h-32 space-y-1 overflow-auto rounded-xl border border-black/[.08] bg-white p-2.5">
@@ -545,7 +550,7 @@ export function OptionsPanel({
 }): JSX.Element {
   const meta = toolMeta(tool)
   return (
-    <aside className="flex w-[300px] shrink-0 flex-col gap-5 border-l border-black/[.06] bg-white/40 px-[22px] py-6">
+    <aside className="scroll-thin flex w-[300px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-black/[.06] bg-white/40 px-[22px] py-6">
       <div>
         <h3 className="text-base font-bold">{meta.label} options</h3>
         <p className="mt-0.5 text-[12.5px] text-muted">
