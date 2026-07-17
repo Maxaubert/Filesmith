@@ -12,7 +12,8 @@ import type {
 import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
-import { toolAvailable } from './toolResolver'
+import { resolveTool, toolAvailable } from './toolResolver'
+import { run } from './run'
 import { makeThumbnail } from './thumbnail'
 import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
 import { targetsFor, toolsFor } from './tools/registry'
@@ -135,6 +136,26 @@ export function registerIpc(win: BrowserWindow): void {
       return null
     } finally {
       await fh?.close()
+    }
+  })
+  // Video pixel dimensions via ffprobe, for the compress resolution preview.
+  ipcMain.handle('video:dimensions', async (_e, p: string) => {
+    try {
+      const { code, stdout } = await run(resolveTool('ffprobe'), [
+        '-v',
+        'error',
+        '-select_streams',
+        'v:0',
+        '-show_entries',
+        'stream=width,height',
+        '-of',
+        'csv=p=0:s=x',
+        p
+      ])
+      const m = code === 0 ? /(\d+)x(\d+)/.exec(stdout.trim()) : null
+      return m ? { width: Number(m[1]), height: Number(m[2]) } : null
+    } catch {
+      return null
     }
   })
   ipcMain.handle('tools:for', (_e, file: FileInfo) => toolsFor(file))

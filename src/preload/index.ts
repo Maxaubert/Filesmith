@@ -38,6 +38,9 @@ const api = {
   readBytes: (path: string): Promise<Uint8Array | null> => ipcRenderer.invoke('file:bytes', path),
   /** A text file's contents (capped at 1 MB) for the text preview. */
   readText: (path: string): Promise<string | null> => ipcRenderer.invoke('file:text', path),
+  /** Video pixel dimensions (via ffprobe) for the resolution-preview list. */
+  videoDimensions: (path: string): Promise<{ width: number; height: number } | null> =>
+    ipcRenderer.invoke('video:dimensions', path),
   /** Open (or reuse + refocus) the standalone preview window. */
   openPreviewWindow: (files: PreviewItem[], index: number): Promise<void> =>
     ipcRenderer.invoke('preview:open', { files, index }),

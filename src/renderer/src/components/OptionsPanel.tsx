@@ -1,7 +1,23 @@
 import type { JSX } from 'react'
 import type { FileKind, JobOptions, ToolId } from '@shared/types'
 import { familyFormats, isSameFormat } from '@shared/convert'
+import {
+  AUDIO_BITRATES,
+  AUDIO_CODECS,
+  IMAGE_FORMATS,
+  PDF_LEVELS,
+  VIDEO_CODECS,
+  VIDEO_RESOLUTIONS,
+  type Choice
+} from '@shared/compress'
 import { toolMeta } from '../lib/tools'
+
+/** A live "input → output" resolution row for the video resolution preview. */
+export interface VideoOutputRow {
+  name: string
+  from: string
+  to: string
+}
 
 function Label({ children }: { children: string }): JSX.Element {
   return (
@@ -102,32 +118,51 @@ function ConvertOptions({
   )
 }
 
-function CompressOptions({
+/** A 2-column grid of option cards (label + sub-label), like the convert grid. */
+function ChoiceGrid<T extends string>({
+  value,
+  choices,
+  onChange
+}: {
+  value: T
+  choices: Choice<T>[]
+  onChange: (v: T) => void
+}): JSX.Element {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {choices.map((c) => {
+        const sel = value === c.value
+        return (
+          <button
+            key={c.value}
+            onClick={() => onChange(c.value)}
+            className={`rounded-xl border py-2 text-[12.5px] font-semibold leading-tight transition ${
+              sel
+                ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(91,91,214,.10)]'
+                : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
+            }`}
+          >
+            {c.label}
+            {c.sub && (
+              <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wide opacity-60">
+                {c.sub}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function QualitySlider({
   options,
-  activeKind,
   set
 }: {
   options: JobOptions
-  activeKind: FileKind | null
-  set: (k: string, v: string | number) => void
+  set: (k: string, v: string | number | boolean) => void
 }): JSX.Element {
   const q = Number(options.quality ?? 80)
-  // mutool's PDF compression is structural (garbage-collect + deflate streams);
-  // there's no quality knob, so don't show a slider that would do nothing.
-  if (activeKind === 'pdf') {
-    return (
-      <p className="text-[12.5px] leading-relaxed text-muted">
-        Rewrite the PDF smaller by garbage-collecting unused objects and compressing its
-        streams. Lossless — no quality setting.
-      </p>
-    )
-  }
-  const hint =
-    activeKind === 'video'
-      ? 'Re-encodes video (H.264 / VP9) at the chosen quality.'
-      : activeKind === 'audio'
-        ? 'Re-encodes audio at a matching bitrate.'
-        : 'Re-compresses the image at the chosen quality.'
   return (
     <div>
       <div className="mb-2.5 flex items-center justify-between">
@@ -146,8 +181,149 @@ function CompressOptions({
         <span>Smaller file</span>
         <span>Higher quality</span>
       </div>
-      <p className="mt-3 text-[12.5px] leading-relaxed text-muted">{hint}</p>
     </div>
+  )
+}
+
+function CompressOptions({
+  options,
+  activeKind,
+  videoOutputs,
+  set
+}: {
+  options: JobOptions
+  activeKind: FileKind | null
+  videoOutputs?: VideoOutputRow[]
+  set: (k: string, v: string | number | boolean) => void
+}): JSX.Element {
+  if (activeKind === 'pdf') {
+    const gray = Boolean(options.pdfGray)
+    return (
+      <>
+        <div>
+          <Label>Level</Label>
+          <ChoiceGrid
+            value={String(options.pdfLevel ?? 'balanced')}
+            choices={PDF_LEVELS}
+            onChange={(v) => set('pdfLevel', v)}
+          />
+        </div>
+        <button
+          onClick={() => set('pdfGray', !gray)}
+          className="flex items-center justify-between rounded-xl border border-black/[.10] bg-white px-3.5 py-2.5 text-left transition hover:border-[#b9b9c8]"
+        >
+          <span className="text-[12.5px] font-semibold text-ink">Convert to grayscale</span>
+          <span
+            className={`relative h-[22px] w-[38px] rounded-full transition ${gray ? 'bg-accent' : 'bg-[#d4d4dc]'}`}
+          >
+            <span
+              className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow transition-all ${gray ? 'left-[19px]' : 'left-[3px]'}`}
+            />
+          </span>
+        </button>
+        <p className="text-[12.5px] leading-relaxed text-muted">
+          Lossless keeps images untouched; the other levels downsample embedded images
+          (~300/150/72 dpi).
+        </p>
+      </>
+    )
+  }
+
+  if (activeKind === 'video') {
+    return (
+      <>
+        <div>
+          <Label>Codec</Label>
+          <ChoiceGrid
+            value={String(options.videoCodec ?? 'h264')}
+            choices={VIDEO_CODECS}
+            onChange={(v) => set('videoCodec', v)}
+          />
+        </div>
+        <div>
+          <Label>Resolution</Label>
+          <ChoiceGrid
+            value={String(options.resolution ?? 'original')}
+            choices={VIDEO_RESOLUTIONS}
+            onChange={(v) => set('resolution', v)}
+          />
+        </div>
+        {videoOutputs && videoOutputs.length > 0 && (
+          <div>
+            <Label>Output</Label>
+            <div className="scroll-thin max-h-32 space-y-1 overflow-auto rounded-xl border border-black/[.08] bg-white p-2.5">
+              {videoOutputs.map((r) => (
+                <div key={r.name} className="flex items-center gap-1.5 text-[11px]">
+                  <span className="min-w-0 flex-1 truncate text-dim" title={r.name}>
+                    {r.name}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10.5px] text-muted">
+                    {r.from}
+                    {r.to !== r.from && <span className="text-accent"> → {r.to}</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <QualitySlider options={options} set={set} />
+      </>
+    )
+  }
+
+  if (activeKind === 'audio') {
+    const br = Number(options.audioBitrate ?? 192)
+    return (
+      <>
+        <div>
+          <Label>Format</Label>
+          <ChoiceGrid
+            value={String(options.audioCodec ?? 'keep')}
+            choices={AUDIO_CODECS}
+            onChange={(v) => set('audioCodec', v)}
+          />
+        </div>
+        <div>
+          <Label>Bitrate</Label>
+          <div className="grid grid-cols-3 gap-2">
+            {AUDIO_BITRATES.map((b) => {
+              const sel = br === b
+              return (
+                <button
+                  key={b}
+                  onClick={() => set('audioBitrate', b)}
+                  className={`rounded-xl border py-2 text-[12.5px] font-semibold transition ${
+                    sel
+                      ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(91,91,214,.10)]'
+                      : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
+                  }`}
+                >
+                  {b}k
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <p className="text-[12.5px] leading-relaxed text-muted">
+          Lower bitrate = smaller file. Opus stays clean at lower bitrates than MP3/AAC.
+        </p>
+      </>
+    )
+  }
+
+  // Image
+  return (
+    <>
+      <div>
+        <Label>Format</Label>
+        <ChoiceGrid
+          value={String(options.imageFormat ?? 'keep')}
+          choices={IMAGE_FORMATS}
+          onChange={(v) => set('imageFormat', v)}
+        />
+      </div>
+      <QualitySlider options={options} set={set} />
+    </>
   )
 }
 
@@ -349,6 +525,7 @@ export function OptionsPanel({
   options,
   activeKind,
   runKind,
+  videoOutputs,
   sourceExt,
   srcExts,
   runCount,
@@ -359,10 +536,11 @@ export function OptionsPanel({
   options: JobOptions
   activeKind: FileKind | null
   runKind: FileKind | null
+  videoOutputs?: VideoOutputRow[]
   sourceExt: string | null
   srcExts: string[]
   runCount: number
-  onSet: (k: string, v: string | number) => void
+  onSet: (k: string, v: string | number | boolean) => void
   onRun: () => void
 }): JSX.Element {
   const meta = toolMeta(tool)
@@ -395,7 +573,12 @@ export function OptionsPanel({
             />
           )}
           {tool === 'compress' && (
-            <CompressOptions options={options} activeKind={runKind} set={onSet} />
+            <CompressOptions
+              options={options}
+              activeKind={runKind}
+              videoOutputs={videoOutputs}
+              set={onSet}
+            />
           )}
           {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
           {tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}

@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { FileInfo, FileKind, PreviewItem, ToolId } from '@shared/types'
 import { canCompress, familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
+import { fitResolution, type VideoResolution } from '@shared/compress'
 import { fileKind } from '@shared/fileKind'
 import {
   reducer,
@@ -25,7 +26,7 @@ import { TopBar } from './components/TopBar'
 import { ToolRail } from './components/ToolRail'
 import { DropZone } from './components/DropZone'
 import { Queues } from './components/Queue'
-import { OptionsPanel } from './components/OptionsPanel'
+import { OptionsPanel, type VideoOutputRow } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
@@ -89,6 +90,9 @@ export default function App(): JSX.Element {
   )
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
+  // Cached video dimensions (via ffprobe) for the compress resolution preview.
+  const [vDims, setVDims] = useState<Record<string, { width: number; height: number } | null>>({})
+  const vDimsRequested = useRef<Set<string>>(new Set())
 
   // The active tool's queue drives the UI. Thumbnails, however, load for items
   // across every queue so switching tabs is instant.
@@ -393,6 +397,30 @@ export default function App(): JSX.Element {
       : 'image'
     : activeKind
 
+  // Live "input → output" resolution list for the video Compress options. Probe
+  // each selected video's dimensions once (via ffprobe) and recompute the output
+  // size for the chosen preset.
+  const compressVideoPaths =
+    state.tool === 'compress'
+      ? runList.map(effectiveFile).filter((f) => f.kind === 'video').map((f) => f.path)
+      : []
+  useEffect(() => {
+    for (const p of compressVideoPaths) {
+      if (p in vDims || vDimsRequested.current.has(p)) continue
+      vDimsRequested.current.add(p)
+      void window.filesmith.videoDimensions(p).then((d) => setVDims((m) => ({ ...m, [p]: d })))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compressVideoPaths.join('|')])
+  const compressResolution = String(state.options.compress.resolution ?? 'original') as VideoResolution
+  const videoOutputs: VideoOutputRow[] = compressVideoPaths.map((p) => {
+    const d = vDims[p]
+    const name = baseName(p)
+    if (!d) return { name, from: '…', to: '…' }
+    const o = fitResolution(d.width, d.height, compressResolution)
+    return { name, from: `${d.width}×${d.height}`, to: `${o.w}×${o.h}` }
+  })
+
   return (
     <div className="flex h-screen flex-col">
       <TopBar />
@@ -436,6 +464,7 @@ export default function App(): JSX.Element {
           options={state.options[state.tool]}
           activeKind={activeKind}
           runKind={runKind}
+          videoOutputs={videoOutputs}
           sourceExt={sourceExt}
           srcExts={srcExts}
           runCount={runCount}
