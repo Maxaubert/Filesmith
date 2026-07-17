@@ -134,31 +134,54 @@ function bundleMutool() {
   log(`  ✓ mutool: mutool.exe (${mb(join(BIN, 'mutool.exe'))} MB)`)
 }
 
-/** LibreOffice: bundle the whole install tree into resources/libreoffice so
- * document conversion works offline. Big (~350 MB) — that's the tradeoff for
- * the "bundle it" choice. Requires a local install to copy from. */
+/**
+ * Bundle the whole LibreOffice tree into resources/libreoffice so document
+ * conversion works offline with zero user setup (~360 MB — the "bundle it"
+ * tradeoff). Copies from a local install (the reliable source, same pattern as
+ * the other bundled tools). A downloaded MSI can't be used directly: its admin
+ * image (`msiexec /a`) leaves a corrupt bootstrap.ini and won't run — a real
+ * install (or LibreOffice Portable) is required to copy from.
+ */
 function bundleLibreOffice() {
-  const roots = ['C:\\Program Files\\LibreOffice', 'C:\\Program Files (x86)\\LibreOffice']
-  const src = roots.find((r) => existsSync(join(r, 'program', 'soffice.exe')))
-  if (!src) {
-    log('  ! LibreOffice not found — skip (install from libreoffice.org, then re-run)')
+  const dest = join(ROOT, 'resources', 'libreoffice')
+  if (existsSync(join(dest, 'program', 'soffice.exe'))) {
+    log('  ✓ LibreOffice: already bundled')
     return
   }
-  const dest = join(ROOT, 'resources', 'libreoffice')
-  log('  … copying LibreOffice tree (~350 MB, this takes a moment)…')
+  // A local install or a LibreOffice Portable "App/libreoffice" tree.
+  const candidates = [
+    'C:\\Program Files\\LibreOffice',
+    'C:\\Program Files (x86)\\LibreOffice',
+    process.env.LIBREOFFICE_DIR || ''
+  ].filter(Boolean)
+  const src = candidates.find((r) => existsSync(join(r, 'program', 'soffice.exe')))
+  if (!src) {
+    log('  ! LibreOffice not found — skip. To bundle it, install LibreOffice')
+    log('    (winget install TheDocumentFoundation.LibreOffice) or set LIBREOFFICE_DIR')
+    log('    to a LibreOffice tree, then re-run. Document conversion needs it.')
+    return
+  }
+  log('  … copying LibreOffice tree (~360 MB, this takes a moment)…')
   rmSync(dest, { recursive: true, force: true })
   cpSync(src, dest, { recursive: true })
   log(`  ✓ LibreOffice: bundled from ${src}`)
 }
 
-log('Populating resources/bin …')
-bundleImageMagick()
-bundleCaesium()
-await bundleFfmpeg()
-bundleMutool()
-bundleLibreOffice()
+// `--lo-only` bundles just LibreOffice (the big download), leaving the fast
+// resources/bin tools untouched.
+if (process.argv.includes('--lo-only')) {
+  bundleLibreOffice()
+} else {
+  log('Populating resources/bin …')
+  bundleImageMagick()
+  bundleCaesium()
+  await bundleFfmpeg()
+  bundleMutool()
+  bundleLibreOffice()
 
-const bundled = readdirSync(BIN).filter((f) => f !== '.gitkeep')
-const total = bundled.reduce((s, f) => s + statSync(join(BIN, f)).size, 0)
-log(`\nresources/bin: ${bundled.length} files, ${(total / MB).toFixed(1)} MB total`)
-if (!existsSync(join(BIN, 'magick.exe'))) log('  ⚠ magick.exe missing — image convert/resize will need PATH')
+  const bundled = readdirSync(BIN).filter((f) => f !== '.gitkeep')
+  const total = bundled.reduce((s, f) => s + statSync(join(BIN, f)).size, 0)
+  log(`\nresources/bin: ${bundled.length} files, ${(total / MB).toFixed(1)} MB total`)
+  if (!existsSync(join(BIN, 'magick.exe')))
+    log('  ⚠ magick.exe missing — image convert/resize will need PATH')
+}

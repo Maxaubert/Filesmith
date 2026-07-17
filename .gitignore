@@ -8,6 +8,8 @@ dist/
 # Bundled tool binaries are fetched by a script, not committed (they're large).
 resources/bin/*
 !resources/bin/.gitkeep
+# Bundled LibreOffice tree (~360 MB) — downloaded/extracted by fetch-binaries.
+resources/libreoffice/
 
 # Local Claude settings overrides
 .claude/settings.local.json

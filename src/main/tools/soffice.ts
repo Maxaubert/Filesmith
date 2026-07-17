@@ -26,7 +26,12 @@ export function buildSofficeArgs(
   const profileUrl = 'file:///' + profileDir.replace(/\\/g, '/')
   return [
     '--headless',
+    '--invisible',
+    '--nodefault',
+    '--nolockcheck',
+    '--nologo',
     '--norestore',
+    '--nofirststartwizard',
     `-env:UserInstallation=${profileUrl}`,
     '--convert-to',
     sofficeFilter(targetExt),
