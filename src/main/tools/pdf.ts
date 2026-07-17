@@ -1,4 +1,5 @@
 import { join } from 'path'
+import type { PdfLevel } from '@shared/compress'
 
 // PDF-native operations via mutool (MuPDF). Separate from convert (LibreOffice):
 // these act on the PDF itself rather than converting to another document format.
@@ -59,7 +60,47 @@ export function buildPdfImagesArgs(input: string, outDir: string, dpi: number): 
   return ['draw', '-F', 'png', '-r', String(dpi), '-o', join(outDir, 'page-%d.png'), input]
 }
 
-/** `mutool clean -gggg -z <in> <out>` — garbage-collect + compress streams. */
+/** `mutool clean -gggg -z <in> <out>` — garbage-collect + compress streams
+ * (the lossless PDF compress level; no image downsampling). */
 export function buildPdfCompressArgs(input: string, output: string): string[] {
   return ['clean', '-gggg', '-z', input, output]
+}
+
+// Ghostscript -dPDFSETTINGS preset per (non-lossless) level. Downsamples the
+// images embedded in the PDF, which mutool can't do.
+const GS_SETTING: Record<Exclude<PdfLevel, 'lossless'>, string> = {
+  high: '/printer', // ~300 dpi
+  balanced: '/ebook', // ~150 dpi
+  smallest: '/screen' // ~72 dpi
+}
+
+/**
+ * Ghostscript PDF compress: `gs -sDEVICE=pdfwrite -dPDFSETTINGS=/<tier> …`.
+ * `gray` converts to grayscale (DeviceGray). Only called for non-lossless levels
+ * (the 'lossless' level runs mutool clean instead).
+ */
+export function buildGsCompressArgs(
+  input: string,
+  output: string,
+  level: Exclude<PdfLevel, 'lossless'>,
+  gray: boolean
+): string[] {
+  const args = [
+    '-sDEVICE=pdfwrite',
+    '-dCompatibilityLevel=1.7',
+    `-dPDFSETTINGS=${GS_SETTING[level]}`,
+    '-dNOPAUSE',
+    '-dBATCH',
+    '-dQUIET',
+    '-dSAFER'
+  ]
+  if (gray) {
+    args.push(
+      '-sColorConversionStrategy=Gray',
+      '-sProcessColorModel=DeviceGray',
+      '-dOverrideICC=true'
+    )
+  }
+  args.push(`-sOutputFile=${output}`, input)
+  return args
 }

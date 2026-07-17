@@ -9,14 +9,16 @@ import {
 } from '../src/shared/convert'
 import { buildResizeArgs, buildResizeSpec, isValidResizeSpec } from '../src/main/tools/resize'
 import {
+  audioOutputExt,
   buildAudioCompressArgs,
   buildCompressArgs,
   buildMagickCompressArgs,
   buildVideoCompressArgs,
-  crfForQuality,
-  kbpsForQuality,
+  crfForCodec,
   CAESIUM_EXTS
 } from '../src/main/tools/compress'
+import { buildGsCompressArgs } from '../src/main/tools/pdf'
+import { fitResolution } from '../src/shared/compress'
 import { canCompress } from '../src/shared/convert'
 import {
   buildPdfMergeArgs,
@@ -170,84 +172,93 @@ describe('compress', () => {
     expect(CAESIUM_EXTS).toEqual(['.jpg', '.png', '.webp', '.gif', '.tiff'])
   })
 
-  it('builds ImageMagick fallback compress args', () => {
-    expect(buildMagickCompressArgs('in.avif', 'out.avif', 70)).toEqual([
-      'in.avif',
+  it('builds ImageMagick compress/convert args (first frame + quality)', () => {
+    // Output extension drives the target format (avif here); [0] avoids splitting.
+    expect(buildMagickCompressArgs('in.png', 'out.avif', 70)).toEqual([
+      'in.png[0]',
       '-quality',
       '70',
       'out.avif'
     ])
   })
 
-  it('maps quality to a sane CRF (higher quality -> lower CRF)', () => {
-    expect(crfForQuality(100)).toBe(18)
-    expect(crfForQuality(10)).toBe(32)
-    expect(crfForQuality(55)).toBe(25)
-    // clamps out-of-range input
-    expect(crfForQuality(0)).toBe(32)
-    expect(crfForQuality(999)).toBe(18)
+  it('maps quality to a per-codec CRF (higher quality -> lower CRF)', () => {
+    // x264/x265 range 18-32
+    expect(crfForCodec('h264', 100)).toBe(18)
+    expect(crfForCodec('h265', 10)).toBe(32)
+    // av1 range 28-50
+    expect(crfForCodec('av1', 100)).toBe(28)
+    expect(crfForCodec('av1', 10)).toBe(50)
+    // clamps out-of-range
+    expect(crfForCodec('h264', 0)).toBe(32)
+    expect(crfForCodec('h264', 999)).toBe(18)
   })
 
-  it('builds H.264/AAC video args by default and VP9/Opus for WebM', () => {
-    expect(buildVideoCompressArgs('in.mp4', 'out.mp4', 100, false)).toEqual([
-      '-y',
-      '-i',
-      'in.mp4',
-      '-c:v',
-      'libx264',
-      '-preset',
-      'medium',
-      '-crf',
-      '18',
-      '-c:a',
-      'aac',
-      '-b:a',
-      '128k',
-      '-movflags',
-      '+faststart',
+  it('builds video args per codec, output always mp4', () => {
+    expect(
+      buildVideoCompressArgs('in.mkv', 'out.mp4', { codec: 'h264', quality: 100, resolution: 'original' })
+    ).toEqual([
+      '-y', '-i', 'in.mkv',
+      '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
+      '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart',
       'out.mp4'
     ])
-    expect(buildVideoCompressArgs('in.webm', 'out.webm', 100, true)).toEqual([
-      '-y',
-      '-i',
-      'in.webm',
-      '-c:v',
-      'libvpx-vp9',
-      '-b:v',
-      '0',
-      '-crf',
-      '18',
-      '-c:a',
-      'libopus',
-      '-b:a',
-      '128k',
-      'out.webm'
-    ])
+    // H.265 adds the hvc1 tag; AV1 uses libsvtav1 + numeric preset
+    expect(
+      buildVideoCompressArgs('in.mp4', 'out.mp4', { codec: 'h265', quality: 100, resolution: 'original' })
+    ).toContain('hvc1')
+    const av1 = buildVideoCompressArgs('in.mp4', 'out.mp4', { codec: 'av1', quality: 100, resolution: 'original' })
+    expect(av1).toContain('libsvtav1')
+    expect(av1.join(' ')).toContain('-preset 6')
   })
 
-  it('maps quality to an audio bitrate and picks a codec by extension', () => {
-    expect(kbpsForQuality(10)).toBe(64)
-    expect(kbpsForQuality(100)).toBe(256)
-    expect(buildAudioCompressArgs('in.mp3', 'out.mp3', 100, '.mp3')).toEqual([
-      '-y',
-      '-i',
-      'in.mp3',
-      '-c:a',
-      'libmp3lame',
-      '-b:a',
-      '256k',
-      'out.mp3'
+  it('adds an aspect-safe, downscale-only scale expression for a resolution preset', () => {
+    const a = buildVideoCompressArgs('in.mp4', 'out.mp4', {
+      codec: 'h264', quality: 80, resolution: '720p'
+    })
+    expect(a).toContain('-vf')
+    expect(a[a.indexOf('-vf') + 1]).toBe(
+      "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"
+    )
+    // 'original' adds no filter
+    const b = buildVideoCompressArgs('in.mp4', 'out.mp4', {
+      codec: 'h264', quality: 80, resolution: 'original'
+    })
+    expect(b).not.toContain('-vf')
+  })
+
+  it('builds audio args for a target codec + bitrate, keep uses source codec', () => {
+    expect(buildAudioCompressArgs('in.wav', 'out.opus', { codec: 'opus', bitrate: 96, sourceExt: '.wav' })).toEqual([
+      '-y', '-i', 'in.wav', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'
     ])
-    expect(buildAudioCompressArgs('in.ogg', 'out.ogg', 10, '.ogg')).toEqual([
-      '-y',
-      '-i',
-      'in.ogg',
-      '-c:a',
-      'libvorbis',
-      '-b:a',
-      '64k',
-      'out.ogg'
+    expect(buildAudioCompressArgs('in.ogg', 'out.ogg', { codec: 'keep', bitrate: 128, sourceExt: '.ogg' })).toEqual([
+      '-y', '-i', 'in.ogg', '-c:a', 'libvorbis', '-b:a', '128k', 'out.ogg'
     ])
+    expect(audioOutputExt('mp3', '.m4a')).toBe('.mp3')
+    expect(audioOutputExt('aac', '.wav')).toBe('.m4a')
+    expect(audioOutputExt('keep', '.ogg')).toBe('.ogg')
+  })
+
+  it('builds Ghostscript PDF compress args per level + grayscale', () => {
+    const bal = buildGsCompressArgs('in.pdf', 'out.pdf', 'balanced', false)
+    expect(bal).toContain('-sDEVICE=pdfwrite')
+    expect(bal).toContain('-dPDFSETTINGS=/ebook')
+    expect(bal).toContain('-sOutputFile=out.pdf')
+    expect(bal).not.toContain('-sColorConversionStrategy=Gray')
+    expect(buildGsCompressArgs('in.pdf', 'out.pdf', 'smallest', false)).toContain('-dPDFSETTINGS=/screen')
+    expect(buildGsCompressArgs('in.pdf', 'out.pdf', 'high', true)).toContain('-sColorConversionStrategy=Gray')
+  })
+})
+
+describe('fitResolution', () => {
+  it('downscales to fit the box, preserving aspect ratio, even dims', () => {
+    expect(fitResolution(1920, 1080, '720p')).toEqual({ w: 1280, h: 720 })
+    expect(fitResolution(1080, 1920, '720p')).toEqual({ w: 406, h: 720 }) // portrait
+    expect(fitResolution(2560, 1080, '720p')).toEqual({ w: 1280, h: 540 }) // ultrawide
+  })
+  it('never upscales and passes through original', () => {
+    expect(fitResolution(640, 480, '1080p')).toEqual({ w: 640, h: 480 })
+    expect(fitResolution(1920, 1080, 'original')).toEqual({ w: 1920, h: 1080 })
   })
 })
 

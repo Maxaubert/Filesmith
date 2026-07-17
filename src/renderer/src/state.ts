@@ -53,7 +53,16 @@ export const TOOL_IDS: ToolId[] = ['convert', 'compress', 'resize', 'upscale', '
 
 export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   convert: { format: '.webp', quality: 'balanced' },
-  compress: { quality: 80 },
+  compress: {
+    quality: 80,
+    imageFormat: 'keep',
+    videoCodec: 'h264',
+    resolution: 'original',
+    audioCodec: 'keep',
+    audioBitrate: 192,
+    pdfLevel: 'balanced',
+    pdfGray: false
+  },
   resize: { mode: 'percent', percent: 50 },
   upscale: {},
   removebg: {},

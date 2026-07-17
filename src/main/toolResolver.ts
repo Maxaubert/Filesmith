@@ -1,4 +1,4 @@
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { run } from './run'
@@ -50,6 +50,35 @@ export function resolveSoffice(): string {
     }
   }
   return 'soffice'
+}
+
+/**
+ * Resolve Ghostscript's console binary. Like LibreOffice, Ghostscript is a tree
+ * (exe + gsdll + lib + Resource), so it lives in resources/ghostscript/ rather
+ * than the flat bin dir; the console exe finds its lib/Resource relative to
+ * itself. Prefer the bundled copy, then a Program Files install, then PATH.
+ */
+export function resolveGhostscript(): string {
+  const gsRoot = app.isPackaged
+    ? join(process.resourcesPath, 'ghostscript')
+    : join(app.getAppPath(), 'resources', 'ghostscript')
+  const exe = process.platform === 'win32' ? 'gswin64c.exe' : 'gs'
+  const bundled = join(gsRoot, 'bin', exe)
+  if (existsSync(bundled)) return bundled
+  if (process.platform === 'win32') {
+    // Program Files\gs\gs<version>\bin\gswin64c.exe
+    for (const base of ['C:\\Program Files\\gs', 'C:\\Program Files (x86)\\gs']) {
+      try {
+        for (const ver of readdirSync(base)) {
+          const p = join(base, ver, 'bin', 'gswin64c.exe')
+          if (existsSync(p)) return p
+        }
+      } catch {
+        /* not installed there */
+      }
+    }
+  }
+  return exe.replace('.exe', '') // hope it's on PATH
 }
 
 /** True if the tool is bundled or answers a version probe on PATH. */

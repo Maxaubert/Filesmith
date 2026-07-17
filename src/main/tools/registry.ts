@@ -12,7 +12,14 @@ import {
 } from 'fs'
 import { tmpdir } from 'os'
 import type { FileInfo, ToolId, ToolTarget } from '@shared/types'
-import { resolveSoffice, resolveTool } from '../toolResolver'
+import type {
+  AudioCodec,
+  ImageFormat,
+  PdfLevel,
+  VideoCodec,
+  VideoResolution
+} from '@shared/compress'
+import { resolveGhostscript, resolveSoffice, resolveTool } from '../toolResolver'
 import { run } from '../run'
 import { reserveOutPath, uniqueOutDir } from '../output'
 import type { ToolContext, ToolModule } from './tool'
@@ -29,6 +36,7 @@ import {
 } from './convert'
 import { buildResizeArgs, buildResizeSpec, isValidResizeSpec } from './resize'
 import {
+  audioOutputExt,
   buildAudioCompressArgs,
   buildCompressArgs,
   buildMagickCompressArgs,
@@ -37,6 +45,7 @@ import {
 } from './compress'
 import { buildSofficeArgs, sofficeOutputPath } from './soffice'
 import {
+  buildGsCompressArgs,
   buildPdfCompressArgs,
   buildPdfExtractArgs,
   buildPdfImagesArgs,
@@ -330,48 +339,65 @@ const compressTool: ToolModule = {
   async run(file, options, ctx) {
     const quality = Number(options.quality ?? 80)
     if (!canCompress(file.kind, file.ext)) throw new Error(`Can't compress ${file.kind} files`)
-    ctx.onProgress(undefined, `Compressing (q${quality})…`)
 
-    // PDF: mutool re-writes the object streams smaller (clean -gggg -z).
+    // PDF: 'lossless' level = mutool clean (streams + GC, no image change);
+    // every other level = Ghostscript, which downsamples the embedded images.
     if (file.kind === 'pdf') {
+      const level = String(options.pdfLevel ?? 'balanced') as PdfLevel
+      const gray = Boolean(options.pdfGray)
       const output = reserveOutPath(file.path, '.pdf', 'compressed')
-      return runToOutput(resolveTool('mutool'), buildPdfCompressArgs(file.path, output), output, ctx, 'mutool')
+      if (level === 'lossless') {
+        ctx.onProgress(undefined, 'Compressing PDF (lossless)…')
+        return runToOutput(resolveTool('mutool'), buildPdfCompressArgs(file.path, output), output, ctx, 'mutool')
+      }
+      ctx.onProgress(undefined, `Compressing PDF (${level}${gray ? ', gray' : ''})…`)
+      return runToOutput(
+        resolveGhostscript(),
+        buildGsCompressArgs(file.path, output, level, gray),
+        output,
+        ctx,
+        'ghostscript'
+      )
     }
 
-    // Video: ffmpeg CRF re-encode with FIXED encoders, so the OUTPUT container
-    // follows the codec, not the source. WebM stays WebM (VP9/Opus); everything
-    // else is written as .mp4 (H.264/AAC + faststart) — H.264/AAC can't mux into
-    // .vob/.ogv and the +faststart flag is mov/mp4-only, so keeping the source
-    // ext would fail for those containers.
+    // Video: ffmpeg re-encode with the chosen codec (H.264/H.265/AV1). Output is
+    // always .mp4 (all three mux there); resolution presets downscale to fit.
     if (file.kind === 'video') {
-      const webm = normalizeExt(file.ext) === '.webm'
-      const output = reserveOutPath(file.path, webm ? '.webm' : '.mp4', 'compressed')
+      const codec = String(options.videoCodec ?? 'h264') as VideoCodec
+      const resolution = String(options.resolution ?? 'original') as VideoResolution
+      const output = reserveOutPath(file.path, '.mp4', 'compressed')
+      ctx.onProgress(undefined, `Compressing video (${codec})…`)
       return runToOutput(
         resolveTool('ffmpeg'),
-        buildVideoCompressArgs(file.path, output, quality, webm),
+        buildVideoCompressArgs(file.path, output, { codec, quality, resolution }),
         output,
         ctx,
         'ffmpeg'
       )
     }
 
-    // Audio: ffmpeg bitrate re-encode (only reached for lossy formats — canCompress
-    // rejects flac/wav/… where a bitrate target is meaningless).
+    // Audio: ffmpeg re-encode to the chosen codec + bitrate (only lossy formats
+    // reach here — canCompress rejects flac/wav/… where a bitrate is meaningless).
     if (file.kind === 'audio') {
-      const output = reserveOutPath(file.path, file.ext, 'compressed')
+      const codec = String(options.audioCodec ?? 'keep') as AudioCodec
+      const bitrate = Number(options.audioBitrate ?? 192)
+      const output = reserveOutPath(file.path, audioOutputExt(codec, file.ext), 'compressed')
+      ctx.onProgress(undefined, `Compressing audio (${bitrate}k)…`)
       return runToOutput(
         resolveTool('ffmpeg'),
-        buildAudioCompressArgs(file.path, output, quality, file.ext),
+        buildAudioCompressArgs(file.path, output, { codec, bitrate, sourceExt: file.ext }),
         output,
         ctx,
         'ffmpeg'
       )
     }
 
-    // Image via CaesiumCLT for the formats it decodes; CaesiumCLT mirrors the
-    // input filename into -o, so run into a temp dir and copy the single result
-    // to a collision-safe name next to the source.
-    if (CAESIUM_EXTS.includes(normalizeExt(file.ext))) {
+    // Images: 'keep' re-encodes in the source format (CaesiumCLT for its formats,
+    // else ImageMagick); 'webp'/'avif' converts (lossy) to that format via magick.
+    const imageFormat = String(options.imageFormat ?? 'keep') as ImageFormat
+    ctx.onProgress(undefined, `Compressing image (q${quality})…`)
+
+    if (imageFormat === 'keep' && CAESIUM_EXTS.includes(normalizeExt(file.ext))) {
       const tmp = mkdtempSync(join(tmpdir(), 'filesmith-'))
       // Declared outside try so the catch can clean the placeholder; reserved
       // INSIDE try so a throw there still hits the finally that removes tmp.
@@ -401,10 +427,10 @@ const compressTool: ToolModule = {
       }
     }
 
-    // Other raster image formats (avif/jxl/heic/bmp) — ImageMagick re-encode at
-    // the quality target. canCompress keeps vector/exotic exts (svg/xcf/…) out,
-    // so this never rasterizes a vector into a silently-broken same-ext file.
-    const output = reserveOutPath(file.path, file.ext, 'compressed')
+    // Convert to webp/avif, or re-encode a non-Caesium source format in place —
+    // both via ImageMagick, output extension chosen by the target format.
+    const outExt = imageFormat === 'keep' ? file.ext : `.${imageFormat}`
+    const output = reserveOutPath(file.path, outExt, 'compressed')
     return runToOutput(
       resolveTool('magick'),
       buildMagickCompressArgs(file.path, output, quality),

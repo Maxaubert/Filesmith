@@ -1,8 +1,9 @@
 import { normalizeExt } from '@shared/convert'
+import { RES_BOX, type AudioCodec, type VideoCodec, type VideoResolution } from '@shared/compress'
 
 // Compression argument builders. No Electron. The runner (registry.ts) picks a
-// path by kind: CaesiumCLT for its image formats, ImageMagick for other images,
-// ffmpeg for video/audio, mutool for PDF.
+// path by kind: CaesiumCLT for its image formats, ImageMagick for other images
+// (and for image-format conversion), ffmpeg for video/audio, mutool/gs for PDF.
 
 /** Image formats CaesiumCLT can actually decode/encode (normalized exts). */
 export const CAESIUM_EXTS = ['.jpg', '.png', '.webp', '.gif', '.tiff']
@@ -14,55 +15,71 @@ export function buildCompressArgs(input: string, outDir: string, quality: number
   return ['-e', '-q', String(quality), '-o', outDir, input]
 }
 
-/** ImageMagick fallback for image formats CaesiumCLT can't read. */
+/** ImageMagick image compress / format conversion — the output extension decides
+ * the target format (webp/avif/…); `-quality` drives lossy encoding. Reading the
+ * first frame ([0]) keeps a multi-frame source from splitting into out-0/out-1. */
 export function buildMagickCompressArgs(input: string, output: string, quality: number): string[] {
-  return [input, '-quality', String(quality), output]
+  return [`${input}[0]`, '-quality', String(quality), output]
 }
 
-/** Slider 10..100 -> x264/VP9 CRF (lower CRF = higher quality). q100->18, q10->32. */
-export function crfForQuality(quality: number): number {
-  const q = Math.max(10, Math.min(100, quality))
-  return Math.round(18 + ((100 - q) * (32 - 18)) / 90)
+// --- Video ---------------------------------------------------------------------
+
+const VIDEO_ENCODER: Record<VideoCodec, string> = {
+  h264: 'libx264',
+  h265: 'libx265',
+  av1: 'libsvtav1'
 }
 
 /**
- * ffmpeg video compress with FIXED encoders (ffprobe isn't bundled, so we never
- * try to keep the source codec). WebM -> VP9/Opus; everything else -> H.264/AAC
- * in MP4 (universally playable, faststart for web).
+ * Slider 10..100 -> CRF, per codec (the CRF scale differs by codec). x264/x265
+ * use ~18-32; SVT-AV1 uses a higher range (~28-50) for comparable quality.
  */
-export function buildVideoCompressArgs(
-  input: string,
-  output: string,
-  quality: number,
-  webm: boolean
-): string[] {
-  const crf = String(crfForQuality(quality))
-  const v = webm
-    ? ['-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', crf, '-c:a', 'libopus', '-b:a', '128k']
-    : [
-        '-c:v',
-        'libx264',
-        '-preset',
-        'medium',
-        '-crf',
-        crf,
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
-        '-movflags',
-        '+faststart'
-      ]
-  return ['-y', '-i', input, ...v, output]
-}
-
-/** Slider 10..100 -> audio bitrate kbps. q10->64k, q100->256k. */
-export function kbpsForQuality(quality: number): number {
+export function crfForCodec(codec: VideoCodec, quality: number): number {
   const q = Math.max(10, Math.min(100, quality))
-  return Math.round(64 + ((q - 10) / 90) * (256 - 64))
+  const [lo, hi] = codec === 'av1' ? [28, 50] : [18, 32]
+  return Math.round(hi - ((q - 10) * (hi - lo)) / 90)
 }
 
-const AUDIO_CODEC: Record<string, string> = {
+export interface VideoOpts {
+  codec: VideoCodec
+  quality: number
+  resolution: VideoResolution
+}
+
+/**
+ * ffmpeg video compress. Output is always MP4 (H.264/H.265/AV1 all mux there);
+ * the chosen codec drives the encoder and CRF. Resolution presets use an ffmpeg
+ * scale EXPRESSION so ffmpeg computes the fit itself: downscale to the box,
+ * preserve aspect ratio, never upscale (`min(box,i…)`), even dimensions
+ * (`force_divisible_by=2`) — no need to probe the source. Audio -> AAC 128k.
+ */
+export function buildVideoCompressArgs(input: string, output: string, o: VideoOpts): string[] {
+  const args = ['-y', '-i', input]
+  if (o.resolution !== 'original') {
+    const [bw, bh] = RES_BOX[o.resolution]
+    args.push(
+      '-vf',
+      `scale='min(${bw},iw)':'min(${bh},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`
+    )
+  }
+  args.push('-c:v', VIDEO_ENCODER[o.codec])
+  args.push('-preset', o.codec === 'av1' ? '6' : 'medium')
+  args.push('-crf', String(crfForCodec(o.codec, o.quality)))
+  if (o.codec === 'h265') args.push('-tag:v', 'hvc1') // Apple/QuickTime compatibility
+  args.push('-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart')
+  args.push(output)
+  return args
+}
+
+// --- Audio ---------------------------------------------------------------------
+
+const AUDIO_ENCODER: Record<Exclude<AudioCodec, 'keep'>, string> = {
+  mp3: 'libmp3lame',
+  aac: 'aac',
+  opus: 'libopus'
+}
+// For "keep", re-encode in the source codec (mapped from its extension).
+const EXT_ENCODER: Record<string, string> = {
   '.mp3': 'libmp3lame',
   '.m4a': 'aac',
   '.aac': 'aac',
@@ -70,14 +87,28 @@ const AUDIO_CODEC: Record<string, string> = {
   '.opus': 'libopus',
   '.wma': 'wmav2'
 }
+// The output extension for a chosen codec (keep -> source ext).
+const CODEC_EXT: Record<Exclude<AudioCodec, 'keep'>, string> = {
+  mp3: '.mp3',
+  aac: '.m4a',
+  opus: '.opus'
+}
 
-/** ffmpeg audio compress: re-encode to a target bitrate keeping the format. */
-export function buildAudioCompressArgs(
-  input: string,
-  output: string,
-  quality: number,
-  ext: string
-): string[] {
-  const codec = AUDIO_CODEC[normalizeExt(ext)] ?? 'aac'
-  return ['-y', '-i', input, '-c:a', codec, '-b:a', `${kbpsForQuality(quality)}k`, output]
+/** Output extension for an audio compress: the target codec's container, or the
+ * source extension when keeping the codec. */
+export function audioOutputExt(codec: AudioCodec, sourceExt: string): string {
+  return codec === 'keep' ? normalizeExt(sourceExt) : CODEC_EXT[codec]
+}
+
+export interface AudioOpts {
+  codec: AudioCodec
+  bitrate: number
+  sourceExt: string
+}
+
+/** ffmpeg audio compress to a target codec + bitrate (kbps). */
+export function buildAudioCompressArgs(input: string, output: string, o: AudioOpts): string[] {
+  const enc =
+    o.codec === 'keep' ? (EXT_ENCODER[normalizeExt(o.sourceExt)] ?? 'aac') : AUDIO_ENCODER[o.codec]
+  return ['-y', '-i', input, '-c:a', enc, '-b:a', `${o.bitrate}k`, output]
 }
