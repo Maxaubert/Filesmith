@@ -61,6 +61,21 @@ describe('per-tool queues', () => {
     expect(results.map((r) => r.outputPath)).toEqual(['C:/x/a (1).webp', 'C:/x/a (2).webp'])
   })
 
+  it('addSources appends pre-built input rows and selects them (per-run entries)', () => {
+    let s = reducer(initialState, { type: 'addItems', files: [img('a.png')] })
+    const clone = {
+      id: 'clone-1',
+      file: img('a.png'),
+      thumb: null,
+      status: 'ready' as const,
+      percent: 0
+    }
+    s = reducer(s, { type: 'addSources', items: [clone] })
+    // Two input rows for the same file (original + a run clone), no dedup.
+    expect(s.queues.convert.items.filter((i) => !i.isResult)).toHaveLength(2)
+    expect(s.queues.convert.selected).toEqual(['clone-1'])
+  })
+
   it('dismissing in one tool does not touch another tool holding the same file', () => {
     let s = reducer(initialState, { type: 'addItems', files: [img('a.png')] })
     s = reducer(s, { type: 'setTool', tool: 'compress' })

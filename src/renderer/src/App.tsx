@@ -317,50 +317,62 @@ export default function App(): JSX.Element {
     if (files.length) dispatch({ type: 'addItems', files })
   }
 
+  // Build a fresh Input-column source item for a path (a promoted output, or a
+  // clone of an already-run source), so each operation gets its own input row.
+  async function makeSource(i: QueueItem): Promise<QueueItem | null> {
+    if (i.isResult) {
+      const [fi] = await window.filesmith.classify([effectiveFile(i).path])
+      return fi ? { id: newId(), file: fi, thumb: null, status: 'ready', percent: 0 } : null
+    }
+    return { id: newId(), file: i.file, thumb: null, status: 'ready', percent: 0 }
+  }
+
   async function run(): Promise<void> {
     if (!runList.length) return
     const opts = state.options[state.tool]
 
-    // Resolve run targets. A selected source runs in place; a selected OUTPUT is
-    // promoted into the Input column (origin visible) and run from there. Reuse
-    // an existing input if that output path is already one.
-    const targets: { id: string; path: string }[] = []
-    const newSources: QueueItem[] = []
-    for (const i of runList) {
-      if (!i.isResult) {
-        targets.push({ id: i.id, path: i.file.path })
-        continue
-      }
-      const out = i.outputPath
-      if (!out) continue
-      const existing = cur.items.find((x) => !x.isResult && inInput(x) && x.file.path === out)
-      if (existing) {
-        targets.push({ id: existing.id, path: out })
-        continue
-      }
-      const [fi] = await window.filesmith.classify([out])
-      if (!fi) continue
-      const src: QueueItem = { id: newId(), file: fi, thumb: null, status: 'ready', percent: 0 }
-      newSources.push(src)
-      targets.push({ id: src.id, path: out })
-    }
-    if (newSources.length) dispatch({ type: 'addSources', items: newSources })
-    if (!targets.length) return
-
-    // Merge is the one multi-input op: all target PDFs become ONE job anchored on
-    // the first, carrying the ordered path list; the rest are consumed as inputs.
+    // Merge is N-in/1-out, so it doesn't follow the 1:1 rule: run the anchor in
+    // place (promoting it first if it's an output) with all paths as inputs.
     if (state.tool === 'pdf' && opts.op === 'merge') {
-      if (targets.length < 2) return
-      const anchor = targets[0]
-      dispatch({ type: 'markQueued', ids: [anchor.id] })
+      if (runList.length < 2) return
+      const paths = runList.map((i) => effectiveFile(i).path)
+      const anchor = runList[0]
+      let anchorId = anchor.id
+      if (anchor.isResult) {
+        const src = await makeSource(anchor)
+        if (!src) return
+        dispatch({ type: 'addSources', items: [src] })
+        anchorId = src.id
+      }
+      dispatch({ type: 'markQueued', ids: [anchorId] })
       void window.filesmith.runJob({
-        id: anchor.id,
+        id: anchorId,
         tool: 'pdf',
-        input: anchor.path,
-        options: { ...opts, mergeInputs: targets.map((t) => t.path) }
+        input: paths[0],
+        options: { ...opts, mergeInputs: paths }
       })
       return
     }
+
+    // One job per selected item, keeping Input/Output counts in step. A source
+    // that hasn't produced an output yet (ready/failed/canceled) runs IN PLACE —
+    // it's the input row that will pair with this output. A done source or a
+    // selected output produces a NEW input row (a clone / promoted origin), so
+    // running the same thing twice yields two input rows and two outputs.
+    const targets: { id: string; path: string }[] = []
+    const newSources: QueueItem[] = []
+    for (const i of runList) {
+      if (!i.isResult && i.status !== 'done') {
+        targets.push({ id: i.id, path: i.file.path })
+        continue
+      }
+      const src = await makeSource(i)
+      if (!src) continue
+      newSources.push(src)
+      targets.push({ id: src.id, path: src.file.path })
+    }
+    if (newSources.length) dispatch({ type: 'addSources', items: newSources })
+    if (!targets.length) return
     dispatch({ type: 'markQueued', ids: targets.map((t) => t.id) })
     for (const t of targets) {
       void window.filesmith.runJob({ id: t.id, tool: state.tool, input: t.path, options: opts })
