@@ -11,7 +11,7 @@ const extOf = (name: string): string => {
   return i > 0 ? name.slice(i + 1).toUpperCase() : ''
 }
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
-const MAX_ZOOM = 8
+const MAX_ZOOM = 40
 
 // Some containers (notably MP3) don't report duration up front, so Chromium
 // leaves it Infinity and the progress bar never advances during playback until
