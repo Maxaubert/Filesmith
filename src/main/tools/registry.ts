@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -35,7 +36,18 @@ import {
   CAESIUM_EXTS
 } from './compress'
 import { buildSofficeArgs, sofficeOutputPath } from './soffice'
-import { buildPdfCompressArgs, buildPdfImagesArgs, buildPdfTextArgs, type PdfOp } from './pdf'
+import {
+  buildPdfCompressArgs,
+  buildPdfExtractArgs,
+  buildPdfImagesArgs,
+  buildPdfInfoArgs,
+  buildPdfMergeArgs,
+  buildPdfPagesArgs,
+  buildPdfTextArgs,
+  normalizePageRange,
+  parsePdfPageCount,
+  type PdfOp
+} from './pdf'
 
 /**
  * Run a CLI tool that writes directly to an already-reserved `output` path, and
@@ -173,11 +185,104 @@ const convertTool: ToolModule = {
   }
 }
 
-// PDF-native ops via mutool: extract text, render pages to images, compress.
+// PDF-native ops via mutool: extract text, render pages to images, compress,
+// merge, split (by range or every page), extract embedded images.
 const pdfTool: ToolModule = {
   async run(file, options, ctx) {
     const op = String(options.op ?? 'extract-text') as PdfOp
     const mutool = resolveTool('mutool')
+
+    // Merge: concatenate all selected PDFs (queue order) into one new PDF next
+    // to the first. The ordered path list rides in options.mergeInputs.
+    if (op === 'merge') {
+      const inputs = Array.isArray(options.mergeInputs) ? options.mergeInputs : [file.path]
+      if (inputs.length < 2) throw new Error('Select at least two PDFs to merge')
+      const output = reserveOutPath(file.path, '.pdf', 'merged')
+      ctx.onProgress(undefined, `Merging ${inputs.length} PDFs…`)
+      return runToOutput(mutool, buildPdfMergeArgs(inputs, output), output, ctx, 'mutool')
+    }
+
+    // Split (range): keep only the given pages/ranges in a new PDF.
+    if (op === 'split-range') {
+      const pages = normalizePageRange(String(options.range ?? ''))
+      if (!pages) throw new Error('Enter pages to keep, e.g. 1-3,5')
+      const output = reserveOutPath(file.path, '.pdf', 'pages')
+      ctx.onProgress(undefined, `Extracting pages ${pages}…`)
+      return runToOutput(mutool, buildPdfPagesArgs(file.path, output, pages), output, ctx, 'mutool')
+    }
+
+    // Split (every page): one single-page PDF per page in a new folder.
+    if (op === 'split-pages') {
+      const info = await run(mutool, buildPdfInfoArgs(file.path), { signal: ctx.signal })
+      const count = parsePdfPageCount(info.stdout)
+      if (count < 1)
+        throw new Error(info.stderr.trim().split('\n').pop()?.trim() || 'Could not read the PDF')
+      const base = basename(file.path, extname(file.path))
+      const dir = uniqueOutDir(dirname(file.path), base + ' (split)')
+      mkdirSync(dir, { recursive: true })
+      const width = String(count).length
+      try {
+        for (let n = 1; n <= count; n++) {
+          if (ctx.signal.aborted) throw new Error('Canceled')
+          ctx.onProgress(Math.round(((n - 1) / count) * 100), `Splitting page ${n}/${count}…`)
+          const out = join(dir, `${base}-${String(n).padStart(width, '0')}.pdf`)
+          const { code, stderr } = await run(mutool, buildPdfPagesArgs(file.path, out, String(n)), {
+            signal: ctx.signal
+          })
+          if (code !== 0)
+            throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+        }
+        return dir
+      } catch (e) {
+        try {
+          rmSync(dir, { recursive: true, force: true })
+        } catch {
+          /* best effort */
+        }
+        throw e
+      }
+    }
+
+    // Extract images: dump embedded image resources into a new folder. mutool
+    // writes into its CWD, so run it with cwd set to the fresh folder; it also
+    // emits font-* files, which we drop so the folder is images-only.
+    if (op === 'extract-images') {
+      const base = basename(file.path, extname(file.path))
+      const dir = uniqueOutDir(dirname(file.path), base + ' (images)')
+      mkdirSync(dir, { recursive: true })
+      ctx.onProgress(undefined, 'Extracting images…')
+      const { code, stderr } = await run(mutool, buildPdfExtractArgs(file.path), {
+        signal: ctx.signal,
+        cwd: dir
+      })
+      const cleanup = (): void => {
+        try {
+          rmSync(dir, { recursive: true, force: true })
+        } catch {
+          /* best effort */
+        }
+      }
+      if (code !== 0) {
+        cleanup()
+        throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+      }
+      let images = 0
+      for (const f of readdirSync(dir)) {
+        if (/^image-/i.test(f)) images++
+        else {
+          try {
+            rmSync(join(dir, f), { force: true })
+          } catch {
+            /* best effort */
+          }
+        }
+      }
+      if (images === 0) {
+        cleanup()
+        throw new Error('No embedded images found in this PDF')
+      }
+      return dir
+    }
 
     if (op === 'pages-to-images') {
       const dpi = Math.max(36, Math.min(600, Number(options.dpi ?? 150)))

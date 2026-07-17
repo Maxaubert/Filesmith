@@ -21,8 +21,9 @@ export interface JobRequest {
   options: JobOptions
 }
 
-/** Free-form per-tool options (e.g. target format, quality, scale, dimensions). */
-export type JobOptions = Record<string, string | number | boolean>
+/** Free-form per-tool options (e.g. target format, quality, scale, dimensions).
+ * String arrays carry ordered path lists (PDF merge's inputs). */
+export type JobOptions = Record<string, string | number | boolean | string[]>
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 

@@ -53,7 +53,7 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   resize: { mode: 'percent', percent: 50 },
   upscale: {},
   removebg: {},
-  pdf: { op: 'extract-text', dpi: 150 }
+  pdf: { op: 'extract-text', dpi: 150, range: '' }
 }
 
 const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })

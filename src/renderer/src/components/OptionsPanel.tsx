@@ -219,27 +219,86 @@ function ResizeOptions({
   )
 }
 
+// Every PDF operation, with a short grid label + tooltip + descriptive hint.
+const PDF_OPS: { value: string; label: string; title: string; hint: string }[] = [
+  {
+    value: 'extract-text',
+    label: 'Text',
+    title: 'Extract the text layer',
+    hint: 'Save the PDF’s text layer as a .txt file next to it.'
+  },
+  {
+    value: 'pages-to-images',
+    label: 'Pages → PNG',
+    title: 'Render each page to a PNG image',
+    hint: 'Render every page to a PNG in a new folder.'
+  },
+  {
+    value: 'compress',
+    label: 'Compress',
+    title: 'Shrink the PDF',
+    hint: 'Rewrite the PDF smaller (garbage-collect + compress streams). Lossless.'
+  },
+  {
+    value: 'merge',
+    label: 'Merge',
+    title: 'Combine the selected PDFs into one',
+    hint: 'Combine the selected PDFs, in queue order, into one new PDF.'
+  },
+  {
+    value: 'split-range',
+    label: 'Split',
+    title: 'Keep only certain pages',
+    hint: 'Keep only the pages you list, in a new PDF.'
+  },
+  {
+    value: 'split-pages',
+    label: 'Burst',
+    title: 'Save every page as its own PDF',
+    hint: 'Save every page as its own PDF in a new folder.'
+  },
+  {
+    value: 'extract-images',
+    label: 'Extract imgs',
+    title: 'Pull embedded images out of the PDF',
+    hint: 'Pull every embedded image into a new folder.'
+  }
+]
+
 function PdfOptions({
   options,
+  runCount,
   set
 }: {
   options: JobOptions
+  runCount: number
   set: (k: string, v: string | number) => void
 }): JSX.Element {
   const op = String(options.op ?? 'extract-text')
+  const current = PDF_OPS.find((o) => o.value === op)
   return (
     <>
       <div>
         <Label>Operation</Label>
-        <Segmented
-          value={op}
-          onChange={(v) => set('op', v)}
-          options={[
-            { value: 'extract-text', label: 'Text' },
-            { value: 'pages-to-images', label: 'Images' },
-            { value: 'compress', label: 'Compress' }
-          ]}
-        />
+        <div className="grid grid-cols-2 gap-2">
+          {PDF_OPS.map((o) => {
+            const sel = op === o.value
+            return (
+              <button
+                key={o.value}
+                title={o.title}
+                onClick={() => set('op', o.value)}
+                className={`rounded-xl border py-2.5 text-[12.5px] font-semibold transition ${
+                  sel
+                    ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(91,91,214,.10)]'
+                    : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
+                }`}
+              >
+                {o.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
       {op === 'pages-to-images' && (
         <div>
@@ -260,11 +319,27 @@ function PdfOptions({
           />
         </div>
       )}
-      <p className="text-[12.5px] leading-relaxed text-muted">
-        {op === 'extract-text' && 'Save the PDF’s text layer as a .txt file next to it.'}
-        {op === 'pages-to-images' && 'Render every page to a PNG in a new folder.'}
-        {op === 'compress' && 'Rewrite the PDF smaller (garbage-collect + compress streams).'}
-      </p>
+      {op === 'split-range' && (
+        <div>
+          <Label>Pages to keep</Label>
+          <input
+            type="text"
+            placeholder="e.g. 1-3,5,8-10"
+            value={String(options.range ?? '')}
+            onChange={(e) => set('range', e.target.value)}
+            className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+        </div>
+      )}
+      {op === 'merge' ? (
+        <p className="text-[12.5px] leading-relaxed text-muted">
+          {runCount >= 2
+            ? `${runCount} PDFs will be merged, in queue order, into one new PDF.`
+            : 'Select 2 or more PDFs (in the queue) to merge them.'}
+        </p>
+      ) : (
+        <p className="text-[12.5px] leading-relaxed text-muted">{current?.hint}</p>
+      )}
     </>
   )
 }
@@ -315,7 +390,7 @@ export function OptionsPanel({
         <CompressOptions options={options} activeKind={runKind} set={onSet} />
       )}
       {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
-      {tool === 'pdf' && <PdfOptions options={options} set={onSet} />}
+      {tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
 
       <button
         onClick={onRun}

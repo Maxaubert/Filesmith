@@ -283,6 +283,21 @@ export default function App(): JSX.Element {
   function run(): void {
     if (!runList.length) return
     const opts = state.options[state.tool]
+    // Merge is the one multi-input op: all selected PDFs become ONE job anchored
+    // on the first, carrying the ordered path list; the rest are consumed as
+    // inputs, not run individually.
+    if (state.tool === 'pdf' && opts.op === 'merge') {
+      if (runList.length < 2) return
+      const anchor = runList[0]
+      dispatch({ type: 'markQueued', ids: [anchor.id] })
+      void window.filesmith.runJob({
+        id: anchor.id,
+        tool: 'pdf',
+        input: anchor.file.path,
+        options: { ...opts, mergeInputs: runList.map((i) => i.file.path) }
+      })
+      return
+    }
     dispatch({ type: 'markQueued', ids: runList.map((i) => i.id) })
     for (const item of runList) {
       void window.filesmith.runJob({
@@ -295,7 +310,9 @@ export default function App(): JSX.Element {
   }
 
   const meta = toolMeta(state.tool)
-  const runCount = runList.length
+  // Merge needs 2+ PDFs before it can run; every other op runs per selected file.
+  const isMerge = state.tool === 'pdf' && String(state.options.pdf.op) === 'merge'
+  const runCount = isMerge && runList.length < 2 ? 0 : runList.length
   // The kind the options panel should key off is what will actually RUN, not the
   // anchor item: a PDF co-selected with a non-compressible doc (same group)
   // leaves the anchor 'document' while only the PDF runs. All-same-kind -> that

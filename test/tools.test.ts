@@ -18,6 +18,14 @@ import {
   CAESIUM_EXTS
 } from '../src/main/tools/compress'
 import { canCompress } from '../src/shared/convert'
+import {
+  buildPdfMergeArgs,
+  buildPdfPagesArgs,
+  buildPdfExtractArgs,
+  buildPdfInfoArgs,
+  normalizePageRange,
+  parsePdfPageCount
+} from '../src/main/tools/pdf'
 import { fileKind } from '../src/shared/fileKind'
 
 describe('fileKind', () => {
@@ -240,6 +248,45 @@ describe('compress', () => {
       '64k',
       'out.ogg'
     ])
+  })
+})
+
+describe('pdf ops', () => {
+  it('builds merge args (ordered inputs after -o)', () => {
+    expect(buildPdfMergeArgs(['a.pdf', 'b.pdf', 'c.pdf'], 'out.pdf')).toEqual([
+      'merge',
+      '-o',
+      'out.pdf',
+      'a.pdf',
+      'b.pdf',
+      'c.pdf'
+    ])
+  })
+  it('builds page-range/keep args and single-page split args', () => {
+    expect(buildPdfPagesArgs('in.pdf', 'out.pdf', '1-3,5')).toEqual([
+      'clean',
+      'in.pdf',
+      'out.pdf',
+      '1-3,5'
+    ])
+    expect(buildPdfPagesArgs('in.pdf', 'p-04.pdf', '4')).toEqual(['clean', 'in.pdf', 'p-04.pdf', '4'])
+  })
+  it('builds info + extract args', () => {
+    expect(buildPdfInfoArgs('in.pdf')).toEqual(['info', 'in.pdf'])
+    expect(buildPdfExtractArgs('in.pdf')).toEqual(['extract', 'in.pdf'])
+  })
+  it('parses page count from mutool info output', () => {
+    expect(parsePdfPageCount('Info object (500 0 R):\nPages: 12\nRetrieved 3 fonts')).toBe(12)
+    expect(parsePdfPageCount('no pages line here')).toBe(0)
+  })
+  it('normalizes valid page ranges and rejects garbage', () => {
+    expect(normalizePageRange('1-3,5')).toBe('1-3,5')
+    expect(normalizePageRange(' 2 - 4 , 7 ')).toBe('2-4,7')
+    expect(normalizePageRange('8')).toBe('8')
+    expect(normalizePageRange('')).toBeNull()
+    expect(normalizePageRange('abc')).toBeNull()
+    expect(normalizePageRange('1;2')).toBeNull()
+    expect(normalizePageRange('1-')).toBeNull()
   })
 })
 
