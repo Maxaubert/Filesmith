@@ -206,6 +206,14 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     }
   }, [textPath])
 
+  // Only image/video/audio have a fullscreen affordance. If the user arrow-keys
+  // from a fullscreened image into a document/text/PDF/other, drop out of
+  // fullscreen so they aren't stuck viewing a non-media file fullscreen.
+  const fullscreenable = !!f && (f.kind === 'image' || f.kind === 'video' || f.kind === 'audio')
+  useEffect(() => {
+    if (!fullscreenable && document.fullscreenElement) void document.exitFullscreen()
+  }, [fullscreenable, f?.path])
+
   if (!f) return null
   const showFallback = failed === f.path
   const url = window.filesmith.mediaUrl(f.path)
