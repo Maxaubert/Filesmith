@@ -10,6 +10,8 @@ resources/bin/*
 !resources/bin/.gitkeep
 # Bundled LibreOffice tree (~360 MB) — downloaded/extracted by fetch-binaries.
 resources/libreoffice/
+# Bundled Ghostscript tree (~42 MB) — downloaded/extracted by fetch-binaries.
+resources/ghostscript/
 
 # Local Claude settings overrides
 .claude/settings.local.json

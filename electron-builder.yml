@@ -19,6 +19,9 @@ extraResources:
   - from: resources/libreoffice
     to: libreoffice
     filter: ['**/*']
+  - from: resources/ghostscript
+    to: ghostscript
+    filter: ['**/*']
 win:
   target:
     - nsis
