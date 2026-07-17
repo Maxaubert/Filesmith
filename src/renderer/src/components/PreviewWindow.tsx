@@ -35,6 +35,35 @@ function forceDuration(m: HTMLMediaElement): boolean {
 }
 
 /**
+ * Centered fallback card shown when a file has no inline preview — the native
+ * kind for 'document'/'other', and the graceful landing spot when Chromium
+ * can't decode an image/video/audio the file-kind heuristic still classified as
+ * playable (e.g. .heic, .mkv, .wma). Single source of truth for that markup.
+ */
+function FallbackCard({ file }: { file: PreviewItem }): JSX.Element {
+  return (
+    <div className="flex flex-col items-center gap-5 text-center">
+      <div className="grid h-24 w-24 place-items-center rounded-[20px] bg-white text-[16px] font-bold text-accent shadow-[0_10px_28px_rgba(20,20,40,.10)]">
+        {extOf(file.name) || 'FILE'}
+      </div>
+      <div>
+        <div className="text-[14px] font-semibold">{file.name}</div>
+        <div className="mt-1 text-[12.5px] text-muted">
+          No inline preview for {extOf(file.name) || 'this'} files. Convert it, or open it in its
+          app.
+        </div>
+      </div>
+      <button
+        onClick={() => window.filesmith.openFile(file.path)}
+        className="rounded-[11px] bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_8px_20px_rgba(91,91,214,.32)] transition hover:bg-accent-hi"
+      >
+        Open in default app
+      </button>
+    </div>
+  )
+}
+
+/**
  * Root of the standalone preview window. Fetches its file list on load and when
  * the window is reused, remounting the view (via `ver`) so index/zoom reset.
  */
@@ -79,6 +108,9 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
   const [audio, setAudio] = useState<{ path: string; src: string } | null>(null)
   const [pdf, setPdf] = useState<{ path: string; src: string } | null>(null)
   const [text, setText] = useState<{ path: string; text: string } | null>(null)
+  // Path of the item whose media element failed to decode; when it matches the
+  // shown file we render the fallback card instead of a broken/blank player.
+  const [failed, setFailed] = useState<string | null>(null)
   const [zoomIndex, setZoomIndex] = useState(i)
   const stageRef = useRef<HTMLDivElement>(null)
   if (zoomIndex !== i) {
@@ -87,6 +119,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     setTx(0)
     setTy(0)
     setPlaying(false)
+    setFailed(null)
   }
 
   useEffect(() => {
@@ -122,7 +155,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     let cancelled = false
     void window.filesmith.readBytes(audioPath).then((bytes) => {
       if (cancelled || !bytes) return
-      obj = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer]))
+      obj = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>]))
       setAudio({ path: audioPath, src: obj })
     })
     return () => {
@@ -139,7 +172,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
     let cancelled = false
     void window.filesmith.readBytes(pdfPath).then((bytes) => {
       if (cancelled || !bytes) return
-      obj = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' }))
+      obj = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }))
       setPdf({ path: pdfPath, src: obj })
     })
     return () => {
@@ -162,6 +195,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
   }, [textPath])
 
   if (!f) return null
+  const showFallback = failed === f.path
   const url = window.filesmith.mediaUrl(f.path)
   const audioSrc = audio && audio.path === audioPath ? audio.src : undefined
   const meta = `${extOf(f.name)}${f.size ? ` · ${formatBytes(f.size)}` : ''}`
@@ -251,11 +285,12 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         onWheel={onWheel}
         className="preview-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f1f1f4] p-5"
       >
-        {f.kind === 'image' && (
+        {f.kind === 'image' && !showFallback && (
           <img
             src={url}
             alt={f.name}
             draggable={false}
+            onError={() => setFailed(f.path)}
             onMouseDown={onImgDown}
             onDoubleClick={(e) => zoomAt(e, zoom > 1 ? 1 : 2)}
             style={{
@@ -266,13 +301,14 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             className="max-h-full max-w-full object-contain"
           />
         )}
-        {f.kind === 'video' && (
+        {f.kind === 'video' && !showFallback && (
           <>
             <video
               key={url}
               ref={setMedia}
               src={url}
               preload="metadata"
+              onError={() => setFailed(f.path)}
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
               onClick={() => {
@@ -309,7 +345,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
             </div>
           </>
         )}
-        {f.kind === 'audio' && (
+        {f.kind === 'audio' && !showFallback && (
           <>
             <div className="fs-art relative h-full w-full">
               <AudioVisualizer media={mediaEl} />
@@ -349,29 +385,10 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               {text && text.path === textPath ? text.text : ''}
             </pre>
           ))}
-        {(f.kind === 'document' || f.kind === 'other') && (
-          <div className="flex flex-col items-center gap-5 text-center">
-            <div className="grid h-24 w-24 place-items-center rounded-[20px] bg-white text-[16px] font-bold text-accent shadow-[0_10px_28px_rgba(20,20,40,.10)]">
-              {extOf(f.name) || 'FILE'}
-            </div>
-            <div>
-              <div className="text-[14px] font-semibold">{f.name}</div>
-              <div className="mt-1 text-[12.5px] text-muted">
-                No inline preview for {extOf(f.name) || 'this'} files. Convert it, or open it in its
-                app.
-              </div>
-            </div>
-            <button
-              onClick={() => window.filesmith.openFile(f.path)}
-              className="rounded-[11px] bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_8px_20px_rgba(91,91,214,.32)] transition hover:bg-accent-hi"
-            >
-              Open in default app
-            </button>
-          </div>
-        )}
+        {(f.kind === 'document' || f.kind === 'other' || showFallback) && <FallbackCard file={f} />}
 
         {/* Non-video formats: a corner "expand" button to view fullscreen. */}
-        {(f.kind === 'image' || f.kind === 'audio') && (
+        {(f.kind === 'image' || f.kind === 'audio') && !showFallback && (
           <button
             onClick={toggleFs}
             title="View fullscreen"
@@ -415,7 +432,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         )}
       </div>
 
-      {(f.kind === 'video' || f.kind === 'audio') && (
+      {(f.kind === 'video' || f.kind === 'audio') && !showFallback && (
         <div className="shrink-0 border-t border-line px-4 py-3">
           {f.kind === 'audio' && (
             <audio
@@ -423,6 +440,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
               ref={setMedia}
               src={audioSrc}
               preload="metadata"
+              onError={() => setFailed(f.path)}
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
               onLoadedMetadata={(e) => forceDuration(e.currentTarget)}

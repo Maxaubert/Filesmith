@@ -37,6 +37,30 @@ describe('renderMarkdown', () => {
     expect(renderMarkdown('1. a\n2. b')).toContain('<ol><li>a</li><li>b</li></ol>')
   })
 
+  it('nests lists by leading-space depth (2 spaces per level)', () => {
+    expect(renderMarkdown('- a\n  - nested\n- b')).toContain(
+      '<ul><li>a<ul><li>nested</li></ul></li><li>b</li></ul>'
+    )
+    // A tab counts as 2 spaces (one level) too.
+    expect(renderMarkdown('- a\n\t- nested')).toContain('<ul><li>a<ul><li>nested</li></ul></li></ul>')
+  })
+
+  it('honors an ordered-list start number via <ol start>', () => {
+    expect(renderMarkdown('3. a\n4. b')).toContain('<ol start="3"><li>a</li><li>b</li></ol>')
+    // Lists starting at 1 stay plain <ol>.
+    expect(renderMarkdown('1. a')).toContain('<ol><li>a</li></ol>')
+  })
+
+  it('rejects non-allowlisted link schemes (data:, vbscript:) with href="#"', () => {
+    expect(renderMarkdown('[x](data:text/html,<script>alert(1)</script>)')).toContain('href="#"')
+    expect(renderMarkdown('[x](vbscript:msgbox(1))')).toContain('href="#"')
+    // Entity-encoded javascript can't slip past the decode-then-check.
+    expect(renderMarkdown('[x](java&#115;cript:alert(1))')).toContain('href="#"')
+    // Allowlisted schemes and relative paths survive.
+    expect(renderMarkdown('[x](https://x.com)')).toContain('href="https://x.com"')
+    expect(renderMarkdown('[x](./local/file.md)')).toContain('href="./local/file.md"')
+  })
+
   it('renders GFM tables', () => {
     const md = '| A | B |\n|---|---|\n| 1 | 2 |'
     const html = renderMarkdown(md)
