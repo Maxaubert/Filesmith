@@ -377,20 +377,30 @@ export function OptionsPanel({
         </p>
       </div>
 
-      {tool === 'convert' && (
-        <ConvertOptions
-          options={options}
-          activeKind={activeKind}
-          sourceExt={sourceExt}
-          srcExts={srcExts}
-          set={onSet}
-        />
+      {activeKind === null ? (
+        // Nothing selected: don't assume a kind or show bogus choices (e.g. a
+        // format grid). Reveal the real options once a file is selected.
+        <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-black/[.08] px-4 text-center">
+          <span className="text-[13px] font-medium text-[#a2a2ac]">No files selected</span>
+        </div>
+      ) : (
+        <>
+          {tool === 'convert' && (
+            <ConvertOptions
+              options={options}
+              activeKind={activeKind}
+              sourceExt={sourceExt}
+              srcExts={srcExts}
+              set={onSet}
+            />
+          )}
+          {tool === 'compress' && (
+            <CompressOptions options={options} activeKind={runKind} set={onSet} />
+          )}
+          {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
+          {tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
+        </>
       )}
-      {tool === 'compress' && (
-        <CompressOptions options={options} activeKind={runKind} set={onSet} />
-      )}
-      {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
-      {tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
 
       <button
         onClick={onRun}
