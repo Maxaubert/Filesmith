@@ -127,9 +127,10 @@ export function convertGroup(kind: FileKind, ext: string): string {
   return 'doc'
 }
 
-// Audio formats where bitrate compression is meaningful (lossy). Lossless/raw
-// (flac/wav/aiff/ac3/amr) are excluded — a bitrate target is meaningless there.
-export const LOSSY_AUDIO_EXTS = ['.mp3', '.m4a', '.aac', '.ogg', '.opus', '.wma']
+// Lossless / raw audio. These CAN be compressed (re-encoding a FLAC or WAV to
+// Opus is a huge win), but "keep the same codec at a bitrate" is meaningless for
+// them, so the engine gives them a lossless-FLAC path instead.
+export const LOSSLESS_AUDIO_EXTS = ['.flac', '.wav', '.aiff', '.aif']
 
 // Image formats the compressors can actually re-encode: CaesiumCLT's set plus
 // the raster formats ImageMagick re-encodes at a quality target. Vector/layered/
@@ -150,14 +151,18 @@ export const COMPRESSIBLE_IMAGE_EXTS = [
 ]
 
 /** Whether the Compress tool supports a given file. Images: only formats the
- * compressors handle (Caesium set + raster magick); video (ffmpeg) and PDF
- * (mutool) always; audio only for lossy formats. */
+ * compressors handle (Caesium set + raster magick); video, audio and PDF always
+ * (lossless audio re-encodes to a lossy codec, or to max-compression FLAC). */
 export function canCompress(kind: FileKind, ext: string): boolean {
   const e = normalizeExt(ext)
   if (kind === 'image') return COMPRESSIBLE_IMAGE_EXTS.includes(e)
-  if (kind === 'video' || kind === 'pdf') return true
-  if (kind === 'audio') return LOSSY_AUDIO_EXTS.includes(e)
+  if (kind === 'video' || kind === 'pdf' || kind === 'audio') return true
   return false
+}
+
+/** True for raw/lossless audio, where a bitrate target makes no sense. */
+export function isLosslessAudio(ext: string): boolean {
+  return LOSSLESS_AUDIO_EXTS.includes(normalizeExt(ext))
 }
 
 /** Which external tool converts this kind (or null if unsupported). */

@@ -75,7 +75,7 @@ async function runToOutput(
     const { code, stderr } = await run(tool, args, { signal: ctx.signal, onStderr })
     const wrote = existsSync(output) && (!requireNonEmpty || statSync(output).size > 0)
     if (code !== 0 || !wrote) {
-      throw new Error(stderr.trim().split('\n').pop()?.trim() || `${label} exited ${code}`)
+      throw new Error(describeToolError(stderr, label, code))
     }
     return output
   } catch (e) {
@@ -88,6 +88,37 @@ async function runToOutput(
     }
     throw e
   }
+}
+
+// Generic trailing lines tools end with that say nothing useful on their own
+// ("Conversion failed!"), and the lines that actually explain what went wrong.
+const NOISE_LINE =
+  /^(conversion failed|error opening output file|task finished with error|terminating thread|exiting normally)/i
+const USEFUL_LINE =
+  /(invalid data found|moov atom not found|no such file|permission denied|unknown encoder|could not open encoder|received no packets|does not contain any stream|unsupported|not supported|decoder .* not found|invalid argument|no space left)/i
+
+/**
+ * Turn a tool's stderr into a message worth showing. Prefers the line that
+ * explains the failure over the generic last line, and rewrites the common
+ * "this file is broken" case into plain language.
+ */
+export function describeToolError(stderr: string, label: string, code: number): string {
+  const lines = stderr
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+  const useful = [...lines].reverse().find((l) => USEFUL_LINE.test(l))
+  if (useful) {
+    if (/received no packets|could not open encoder/i.test(useful))
+      return 'This file looks incomplete or corrupt (a stream had no data).'
+    if (/invalid data found|moov atom not found/i.test(useful))
+      return 'This file could not be read (invalid or truncated data).'
+    if (/no space left/i.test(useful)) return 'Ran out of disk space.'
+    if (/permission denied/i.test(useful)) return 'Permission denied writing the output.'
+    return useful
+  }
+  const last = [...lines].reverse().find((l) => !NOISE_LINE.test(l))
+  return last || `${label} exited ${code}`
 }
 
 // ImageMagick target formats that hold multiple frames/pages; every other raster
@@ -186,7 +217,7 @@ const convertTool: ToolModule = {
         ctx,
         kindTool,
         true,
-        ffmpegProgress(duration, (pct) => ctx.onProgress(pct, 'Converting…'))
+        ffmpegProgress(duration, (pct, eta) => ctx.onProgress(pct, 'Converting…', eta))
       )
     } else {
       const q = qualityNum(options.quality)
@@ -379,7 +410,7 @@ const compressTool: ToolModule = {
         ctx,
         'ffmpeg',
         true,
-        ffmpegProgress(duration, (pct) => ctx.onProgress(pct, `Compressing video (${codec})…`))
+        ffmpegProgress(duration, (pct, eta) => ctx.onProgress(pct, `Compressing video (${codec})…`, eta))
       )
     }
 
@@ -398,7 +429,7 @@ const compressTool: ToolModule = {
         ctx,
         'ffmpeg',
         true,
-        ffmpegProgress(duration, (pct) => ctx.onProgress(pct, `Compressing audio (${bitrate}k)…`))
+        ffmpegProgress(duration, (pct, eta) => ctx.onProgress(pct, `Compressing audio (${bitrate}k)…`, eta))
       )
     }
 

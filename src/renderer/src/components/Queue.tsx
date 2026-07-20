@@ -1,6 +1,6 @@
 import type { JSX, MouseEvent } from 'react'
 import type { JobOptions, ToolId } from '@shared/types'
-import { formatBytes, groupOf, inInput, inOutput, type QueueItem } from '../state'
+import { formatBytes, formatEta, groupOf, inInput, inOutput, type QueueItem } from '../state'
 import { Icon } from './Icon'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
@@ -41,7 +41,11 @@ function StatusCell({ item }: { item: QueueItem }): JSX.Element | null {
     return (
       <span className="flex items-center gap-1.5 text-xs font-semibold text-accent">
         <span className="h-[7px] w-[7px] rounded-full bg-accent" />
-        {item.percent ? `${Math.round(item.percent)}%` : ''}
+        {/* One decimal below 10% so a long encode visibly MOVES instead of
+            sitting on "0%" for minutes. */}
+        {item.hasProgress
+          ? `${item.percent < 10 ? item.percent.toFixed(1) : Math.round(item.percent)}%`
+          : ''}
       </span>
     )
   return <Icon name="clock" className="h-5 w-5 text-[#b7b7c1]" strokeWidth={1.8} />
@@ -114,7 +118,9 @@ function InputCard({
   onOpen: () => void
   onMenu: (x: number, y: number) => void
 }): JSX.Element {
-  const indeterminate = item.status === 'running' && !item.percent
+  // Determinate only once the job reports a real percentage — a long encode
+  // legitimately sits at 0-1% for a while and must NOT fall back to the fake fill.
+  const indeterminate = item.status === 'running' && !item.hasProgress
   return (
     <div
       onClick={onClick}
@@ -141,9 +147,18 @@ function InputCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-semibold">{item.file.name}</div>
-        <div className="mt-0.5 truncate text-[11.5px] text-dim">
-          {formatBytes(item.file.size)} <span className="mx-0.5 text-[#c3c3cc]">·</span>{' '}
-          {inputSub(item, tool, options)}
+        <div className="mt-0.5 truncate text-[11.5px] text-dim" title={item.error ?? undefined}>
+          {item.status === 'failed' && item.error ? (
+            // Say WHY it failed. "Failed" alone leaves the user guessing.
+            <span className="text-[#e0483d]">{item.error}</span>
+          ) : (
+            <>
+              {formatBytes(item.file.size)} <span className="mx-0.5 text-[#c3c3cc]">·</span>{' '}
+              {item.status === 'running' && item.etaSec != null && formatEta(item.etaSec)
+                ? formatEta(item.etaSec)
+                : inputSub(item, tool, options)}
+            </>
+          )}
         </div>
         {item.status === 'running' && (
           <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[#ececf2]">
@@ -209,12 +224,22 @@ function OutputCard({
             <>
               <span className="mx-0.5 text-[#c3c3cc]">·</span>
               {formatBytes(item.outputSize)}
-              {/* How much it shrank vs the source (only when it actually did). */}
-              {item.file.size > 0 && item.outputSize < item.file.size && (
-                <span className="ml-1 font-semibold text-[#12a150]">
-                  −{Math.round((1 - item.outputSize / item.file.size) * 100)}%
-                </span>
-              )}
+              {/* Change vs the source. Green when it shrank; amber when it grew
+                  (re-encoding an already-optimised file can do that) — hiding
+                  that just makes compression look broken. */}
+              {item.file.size > 0 &&
+                (item.outputSize < item.file.size ? (
+                  <span className="ml-1 font-semibold text-[#12a150]">
+                    −{Math.round((1 - item.outputSize / item.file.size) * 100)}%
+                  </span>
+                ) : (
+                  <span
+                    className="ml-1 font-semibold text-[#b7791f]"
+                    title="Bigger than the original — this file was already well compressed"
+                  >
+                    +{Math.round((item.outputSize / item.file.size - 1) * 100)}%
+                  </span>
+                ))}
             </>
           )}
         </div>

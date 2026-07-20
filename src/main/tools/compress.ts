@@ -1,5 +1,5 @@
 import { extname } from 'path'
-import { normalizeExt } from '@shared/convert'
+import { isLosslessAudio, normalizeExt } from '@shared/convert'
 import { SCALE_MAX, SCALE_MIN, type AudioCodec, type VideoCodec } from '@shared/compress'
 
 // Image targets that hold multiple frames — keep all frames (an animated GIF
@@ -12,8 +12,11 @@ const MULTIFRAME_TARGETS = ['.gif', '.tiff', '.webp', '.avif']
 // path by kind: CaesiumCLT for its image formats, ImageMagick for other images
 // (and for image-format conversion), ffmpeg for video/audio, mutool/gs for PDF.
 
-/** Image formats CaesiumCLT can actually decode/encode (normalized exts). */
-export const CAESIUM_EXTS = ['.jpg', '.png', '.webp', '.gif', '.tiff']
+/** Image formats CaesiumCLT can actually decode/encode (normalized exts).
+ * TIFF is deliberately absent: CaesiumCLT fails on it ("Unable to compute the
+ * base path for the files"), verified against the bundled binary, so TIFFs fall
+ * through to the ImageMagick path instead. */
+export const CAESIUM_EXTS = ['.jpg', '.png', '.webp', '.gif']
 
 /** CaesiumCLT image compress: keep EXIF (-e), quality, output dir, input.
  * CaesiumCLT mirrors the input filename into -o, so callers write to a temp dir
@@ -101,10 +104,16 @@ const CODEC_EXT: Record<Exclude<AudioCodec, 'keep'>, string> = {
   opus: '.opus'
 }
 
-/** Output extension for an audio compress: the target codec's container, or the
- * source extension when keeping the codec. */
+/**
+ * Output extension for an audio compress: the target codec's container, or the
+ * source extension when keeping the codec. "Keep" on a LOSSLESS source (wav /
+ * aiff / flac) becomes FLAC — a bitrate is meaningless there, so the honest
+ * "keep every sample but make it smaller" answer is max-compression FLAC
+ * (a WAV typically drops ~40-50%).
+ */
 export function audioOutputExt(codec: AudioCodec, sourceExt: string): string {
-  return codec === 'keep' ? normalizeExt(sourceExt) : CODEC_EXT[codec]
+  if (codec !== 'keep') return CODEC_EXT[codec]
+  return isLosslessAudio(sourceExt) ? '.flac' : normalizeExt(sourceExt)
 }
 
 export interface AudioOpts {
@@ -113,8 +122,12 @@ export interface AudioOpts {
   sourceExt: string
 }
 
-/** ffmpeg audio compress to a target codec + bitrate (kbps). */
+/** ffmpeg audio compress to a target codec + bitrate (kbps), or lossless FLAC
+ * when keeping the format of a lossless source. */
 export function buildAudioCompressArgs(input: string, output: string, o: AudioOpts): string[] {
+  if (o.codec === 'keep' && isLosslessAudio(o.sourceExt)) {
+    return ['-y', '-i', input, '-c:a', 'flac', '-compression_level', '8', output]
+  }
   const enc =
     o.codec === 'keep' ? (EXT_ENCODER[normalizeExt(o.sourceExt)] ?? 'aac') : AUDIO_ENCODER[o.codec]
   return ['-y', '-i', input, '-c:a', enc, '-b:a', `${o.bitrate}k`, output]

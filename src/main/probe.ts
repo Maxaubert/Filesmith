@@ -65,13 +65,17 @@ export async function probeDuration(path: string): Promise<number | null> {
 
 /**
  * Build an onStderr handler that turns ffmpeg's progress lines
- * (`… time=00:01:23.45 …`) into 0-99% against a known duration. Returns
- * undefined when the duration is unknown, so the caller falls back to the
- * indeterminate bar instead of reporting a bogus number.
+ * (`… time=00:01:23.45 … speed=1.87x`) into a 0-99% figure against a known
+ * duration, plus a seconds-remaining estimate derived from ffmpeg's own speed
+ * multiplier. Returns undefined when the duration is unknown, so the caller
+ * falls back to the indeterminate bar instead of reporting a bogus number.
+ *
+ * The ETA matters as much as the percentage here: a 2-hour movie spends
+ * minutes below 1%, which reads as "stuck" without a time remaining.
  */
 export function ffmpegProgress(
   durationSec: number | null,
-  onPercent: (pct: number) => void
+  onProgress: (pct: number, etaSec: number | null) => void
 ): ((chunk: string) => void) | undefined {
   if (!durationSec) return undefined
   return (chunk: string) => {
@@ -81,7 +85,11 @@ export function ffmpegProgress(
     for (let hit = re.exec(chunk); hit; hit = re.exec(chunk)) m = hit
     if (!m) return
     const secs = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])
+    let speed: number | null = null
+    const sre = /speed=\s*([\d.]+)x/g
+    for (let hit = sre.exec(chunk); hit; hit = sre.exec(chunk)) speed = Number(hit[1])
+    const eta = speed && speed > 0 ? Math.max(0, (durationSec - secs) / speed) : null
     // Cap at 99 so the bar only completes when the job actually finishes.
-    onPercent(Math.max(0, Math.min(99, (secs / durationSec) * 100)))
+    onProgress(Math.max(0, Math.min(99, (secs / durationSec) * 100)), eta)
   }
 }

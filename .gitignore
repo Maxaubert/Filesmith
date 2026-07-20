@@ -15,3 +15,4 @@ resources/ghostscript/
 
 # Local Claude settings overrides
 .claude/settings.local.json
+.harness/

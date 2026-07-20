@@ -32,6 +32,9 @@ export interface JobEvent {
   id: string
   status: JobStatus
   percent?: number // 0..100 when determinable
+  /** Seconds remaining, when the tool can estimate it. A long encode sits below
+   * 1% for minutes, so the time left is what tells the user it's alive. */
+  etaSec?: number
   message?: string
   outputPath?: string
   /** Size in bytes of the produced file (so the UI can show the result size

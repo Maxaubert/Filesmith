@@ -13,6 +13,13 @@ export interface QueueItem {
   status: ItemStatus
   percent: number
   message?: string
+  /** True once the job has reported a REAL percentage. Distinguishes "running
+   * at 0%" (determinate, show a real bar) from "running, no progress info"
+   * (indeterminate, show the animated bar). Checking `!percent` conflated the
+   * two and made long encodes show the fake fill for their first minutes. */
+  hasProgress?: boolean
+  /** Seconds remaining for a long job, when the tool can estimate it. */
+  etaSec?: number
   outputPath?: string
   /** Size of the produced file, for the Output card's size + reduction. */
   outputSize?: number
@@ -222,6 +229,7 @@ export function reducer(state: AppState, action: Action): AppState {
                 ...i,
                 status: 'queued',
                 percent: 0,
+                hasProgress: false,
                 error: undefined,
                 outputPath: undefined,
                 hiddenOutput: false
@@ -270,6 +278,9 @@ export function reducer(state: AppState, action: Action): AppState {
         ...i,
         status: e.status as ItemStatus,
         percent: e.percent ?? i.percent,
+        // Only a real reported percentage flips the bar to determinate.
+        hasProgress: e.percent != null || i.hasProgress,
+        etaSec: e.etaSec ?? i.etaSec,
         message: e.message,
         outputPath: e.outputPath ?? i.outputPath,
         error: e.error
@@ -289,6 +300,17 @@ export function processable(items: QueueItem[]): QueueItem[] {
   return items.filter(
     (i) => i.status === 'ready' || i.status === 'failed' || i.status === 'canceled'
   )
+}
+
+/** "45s left" / "12m left" / "1h 22m left" — what actually reassures a user
+ * during a long encode that sits below 1% for minutes. */
+export function formatEta(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return ''
+  if (sec < 60) return `${Math.max(1, Math.round(sec))}s left`
+  const m = Math.round(sec / 60)
+  if (m < 60) return `${m}m left`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m left`
 }
 
 export function formatBytes(n: number): string {

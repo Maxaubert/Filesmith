@@ -59,13 +59,21 @@ export class JobQueue {
     const ctrl = new AbortController()
     this.controllers.set(req.id, ctrl)
     this.active++
-    this.emit({ id: req.id, status: 'running', percent: 0 })
+    // No percent here: "started" is not progress. Only a tool reporting a real
+    // percentage should switch the UI to a determinate bar.
+    this.emit({ id: req.id, status: 'running' })
     try {
       const file = fileInfoFromPath(req.input)
       const output = await tool.run(file, req.options, {
         signal: ctrl.signal,
-        onProgress: (percent, message) =>
-          this.emit({ id: req.id, status: 'running', percent, message })
+        onProgress: (percent, message, etaSec) =>
+          this.emit({
+            id: req.id,
+            status: 'running',
+            percent,
+            message,
+            etaSec: etaSec ?? undefined
+          })
       })
       // Report the produced size so the UI can show the result and how much it
       // shrank. Directory outputs (pages-to-images, split) have no single size.

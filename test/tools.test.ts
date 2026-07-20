@@ -168,8 +168,11 @@ describe('compress', () => {
     ])
   })
 
-  it('lists only the image formats CaesiumCLT actually decodes', () => {
-    expect(CAESIUM_EXTS).toEqual(['.jpg', '.png', '.webp', '.gif', '.tiff'])
+  it('lists only the image formats CaesiumCLT actually decodes (no tiff)', () => {
+    // Verified against the bundled binary: it errors on TIFF, which therefore
+    // must route to ImageMagick instead.
+    expect(CAESIUM_EXTS).toEqual(['.jpg', '.png', '.webp', '.gif'])
+    expect(CAESIUM_EXTS).not.toContain('.tiff')
   })
 
   it('builds ImageMagick compress/convert args, frame-aware by target', () => {
@@ -322,11 +325,24 @@ describe('canCompress', () => {
     expect(canCompress('image', '.tga')).toBe(false)
     expect(canCompress('image', '.ppm')).toBe(false)
   })
-  it('accepts only lossy audio, not lossless/raw', () => {
+  it('accepts all audio, including lossless (flac/wav -> opus is a big win)', () => {
     expect(canCompress('audio', '.mp3')).toBe(true)
     expect(canCompress('audio', '.m4a')).toBe(true)
-    expect(canCompress('audio', '.flac')).toBe(false)
-    expect(canCompress('audio', '.wav')).toBe(false)
+    expect(canCompress('audio', '.flac')).toBe(true)
+    expect(canCompress('audio', '.wav')).toBe(true)
+  })
+
+  it('routes "keep format" on lossless audio to FLAC, not a bitrate', () => {
+    // A bitrate is meaningless for wav/flac, so keep-format means lossless FLAC.
+    expect(audioOutputExt('keep', '.wav')).toBe('.flac')
+    expect(audioOutputExt('keep', '.flac')).toBe('.flac')
+    expect(buildAudioCompressArgs('in.wav', 'out.flac', { codec: 'keep', bitrate: 192, sourceExt: '.wav' })).toEqual([
+      '-y', '-i', 'in.wav', '-c:a', 'flac', '-compression_level', '8', 'out.flac'
+    ])
+    // an explicit lossy codec still applies the bitrate
+    expect(buildAudioCompressArgs('in.wav', 'out.opus', { codec: 'opus', bitrate: 96, sourceExt: '.wav' })).toEqual([
+      '-y', '-i', 'in.wav', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'
+    ])
   })
   it('rejects documents, text, and unknown kinds', () => {
     expect(canCompress('document', '.docx')).toBe(false)
