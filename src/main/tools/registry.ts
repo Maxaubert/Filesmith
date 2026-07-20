@@ -12,16 +12,11 @@ import {
 } from 'fs'
 import { tmpdir } from 'os'
 import type { FileInfo, ToolId, ToolTarget } from '@shared/types'
-import type {
-  AudioCodec,
-  ImageFormat,
-  PdfLevel,
-  VideoCodec,
-  VideoResolution
-} from '@shared/compress'
+import type { AudioCodec, ImageFormat, PdfLevel, VideoCodec } from '@shared/compress'
 import { resolveGhostscript, resolveSoffice, resolveTool } from '../toolResolver'
 import { run } from '../run'
 import { reserveOutPath, uniqueOutDir } from '../output'
+import { ffmpegProgress, probeDuration } from '../probe'
 import type { ToolContext, ToolModule } from './tool'
 import {
   buildFfmpegArgs,
@@ -73,10 +68,11 @@ async function runToOutput(
   output: string,
   ctx: ToolContext,
   label: string,
-  requireNonEmpty = true
+  requireNonEmpty = true,
+  onStderr?: (chunk: string) => void
 ): Promise<string> {
   try {
-    const { code, stderr } = await run(tool, args, { signal: ctx.signal })
+    const { code, stderr } = await run(tool, args, { signal: ctx.signal, onStderr })
     const wrote = existsSync(output) && (!requireNonEmpty || statSync(output).size > 0)
     if (code !== 0 || !wrote) {
       throw new Error(stderr.trim().split('\n').pop()?.trim() || `${label} exited ${code}`)
@@ -179,7 +175,19 @@ const convertTool: ToolModule = {
     const output = reserveOutPath(file.path, targetExt, 'converted')
     let args: string[]
     if (kindTool === 'ffmpeg') {
+      // Real progress for media transcodes (they can run for a long time).
+      const duration = await probeDuration(file.path)
       args = buildFfmpegArgs(file.path, output)
+      if (duration) ctx.onProgress(0, 'Converting…')
+      return runToOutput(
+        resolveTool(kindTool),
+        args,
+        output,
+        ctx,
+        kindTool,
+        true,
+        ffmpegProgress(duration, (pct) => ctx.onProgress(pct, 'Converting…'))
+      )
     } else {
       const q = qualityNum(options.quality)
       const extra = [...magickExtraFor(targetExt), ...(q != null ? ['-quality', String(q)] : [])]
@@ -305,12 +313,6 @@ const pdfTool: ToolModule = {
       return dir
     }
 
-    if (op === 'compress') {
-      const output = reserveOutPath(file.path, '.pdf', 'compressed')
-      ctx.onProgress(undefined, 'Compressing PDF…')
-      return runToOutput(mutool, buildPdfCompressArgs(file.path, output), output, ctx, 'mutool')
-    }
-
     // extract-text
     const output = reserveOutPath(file.path, '.txt', 'text')
     ctx.onProgress(undefined, 'Extracting text…')
@@ -364,15 +366,20 @@ const compressTool: ToolModule = {
     // always .mp4 (all three mux there); resolution presets downscale to fit.
     if (file.kind === 'video') {
       const codec = String(options.videoCodec ?? 'h264') as VideoCodec
-      const resolution = String(options.resolution ?? 'original') as VideoResolution
+      const scale = Number(options.scale ?? 100)
       const output = reserveOutPath(file.path, '.mp4', 'compressed')
-      ctx.onProgress(undefined, `Compressing video (${codec})…`)
+      // Real progress: ffmpeg's `time=` against the source duration. Long
+      // re-encodes (a full movie) otherwise look stuck on an indeterminate bar.
+      const duration = await probeDuration(file.path)
+      ctx.onProgress(duration ? 0 : undefined, `Compressing video (${codec})…`)
       return runToOutput(
         resolveTool('ffmpeg'),
-        buildVideoCompressArgs(file.path, output, { codec, quality, resolution }),
+        buildVideoCompressArgs(file.path, output, { codec, quality, scale }),
         output,
         ctx,
-        'ffmpeg'
+        'ffmpeg',
+        true,
+        ffmpegProgress(duration, (pct) => ctx.onProgress(pct, `Compressing video (${codec})…`))
       )
     }
 
@@ -382,13 +389,16 @@ const compressTool: ToolModule = {
       const codec = String(options.audioCodec ?? 'keep') as AudioCodec
       const bitrate = Number(options.audioBitrate ?? 192)
       const output = reserveOutPath(file.path, audioOutputExt(codec, file.ext), 'compressed')
-      ctx.onProgress(undefined, `Compressing audio (${bitrate}k)…`)
+      const duration = await probeDuration(file.path)
+      ctx.onProgress(duration ? 0 : undefined, `Compressing audio (${bitrate}k)…`)
       return runToOutput(
         resolveTool('ffmpeg'),
         buildAudioCompressArgs(file.path, output, { codec, bitrate, sourceExt: file.ext }),
         output,
         ctx,
-        'ffmpeg'
+        'ffmpeg',
+        true,
+        ffmpegProgress(duration, (pct) => ctx.onProgress(pct, `Compressing audio (${bitrate}k)…`))
       )
     }
 

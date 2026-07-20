@@ -24,44 +24,24 @@ export const VIDEO_CODECS: Choice<VideoCodec>[] = [
   { value: 'av1', label: 'AV1', sub: 'smallest' }
 ]
 
-// Six presets fill a clean 3-column grid (2 rows). 1440p is intentionally
-// omitted — for a "make it smaller" tool, 1080p is the sensible cap for 4K
-// sources and it keeps the control compact.
-export type VideoResolution = 'original' | '1080p' | '720p' | '480p' | '360p' | '240p'
-export const VIDEO_RESOLUTIONS: Choice<VideoResolution>[] = [
-  { value: 'original', label: 'Original' },
-  { value: '1080p', label: '1080p' },
-  { value: '720p', label: '720p' },
-  { value: '480p', label: '480p' },
-  { value: '360p', label: '360p' },
-  { value: '240p', label: '240p' }
-]
-
-// The bounding box each resolution preset fits WITHIN (keeping aspect ratio,
-// never upscaling). Works for any shape — landscape, portrait, ultrawide.
-export const RES_BOX: Record<Exclude<VideoResolution, 'original'>, [number, number]> = {
-  '1080p': [1920, 1080],
-  '720p': [1280, 720],
-  '480p': [854, 480],
-  '360p': [640, 360],
-  '240p': [426, 240]
-}
+// Video is scaled by a PERCENTAGE, not by named presets. A label like "720p" is
+// a lie for anything that isn't 16:9 (an ultrawide "720p" is 1280x540), and it
+// means different things per file in a multi-selection. A percentage is honest
+// for any aspect ratio and any number of files; the options panel shows the
+// exact resulting pixels per file next to it.
+export const SCALE_MIN = 25
+export const SCALE_MAX = 100
+export const SCALE_STEP = 5
 
 /**
- * Given a source WxH and a preset, the actual output WxH after a downscale-only
- * "fit within the box, preserve aspect ratio" resize. Returns the source size
- * unchanged for 'original' or when it already fits. Both dimensions are rounded
- * to even numbers (required by most codecs).
+ * The actual output WxH after scaling by `pct` percent, preserving aspect ratio.
+ * Both dimensions are rounded to even numbers (required by most codecs), which
+ * matches ffmpeg's `force_divisible_by=2`.
  */
-export function fitResolution(
-  w: number,
-  h: number,
-  res: VideoResolution
-): { w: number; h: number } {
-  if (res === 'original' || w <= 0 || h <= 0) return { w, h }
-  const [bw, bh] = RES_BOX[res]
-  const scale = Math.min(1, bw / w, bh / h) // never upscale
-  const even = (n: number): number => Math.max(2, Math.round((n * scale) / 2) * 2)
+export function scaleResolution(w: number, h: number, pct: number): { w: number; h: number } {
+  const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, pct)) / 100
+  if (s >= 1 || w <= 0 || h <= 0) return { w, h }
+  const even = (n: number): number => Math.max(2, Math.round((n * s) / 2) * 2)
   return { w: even(w), h: even(h) }
 }
 

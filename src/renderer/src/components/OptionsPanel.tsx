@@ -6,8 +6,10 @@ import {
   AUDIO_CODECS,
   IMAGE_FORMATS,
   PDF_LEVELS,
+  SCALE_MAX,
+  SCALE_MIN,
+  SCALE_STEP,
   VIDEO_CODECS,
-  VIDEO_RESOLUTIONS,
   type Choice
 } from '@shared/compress'
 import { toolMeta } from '../lib/tools'
@@ -119,46 +121,7 @@ function ConvertOptions({
   )
 }
 
-/** A grid of option cards (label + sub-label), like the convert format grid. */
-function ChoiceGrid<T extends string>({
-  value,
-  choices,
-  cols = 2,
-  onChange
-}: {
-  value: T
-  choices: Choice<T>[]
-  cols?: 2 | 3
-  onChange: (v: T) => void
-}): JSX.Element {
-  return (
-    <div className={`grid gap-2 ${cols === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-      {choices.map((c) => {
-        const sel = value === c.value
-        return (
-          <button
-            key={c.value}
-            onClick={() => onChange(c.value)}
-            className={`rounded-xl border py-2 text-[12.5px] font-semibold leading-tight transition ${
-              sel
-                ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(91,91,214,.10)]'
-                : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
-            }`}
-          >
-            {c.label}
-            {c.sub && (
-              <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wide opacity-60">
-                {c.sub}
-              </span>
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-/** A styled single-select dropdown (label + optional sub description). */
+/** A styled single-select dropdown (label plus an optional short descriptor). */
 function ChoiceSelect<T extends string>({
   value,
   choices,
@@ -283,15 +246,27 @@ function CompressOptions({
           />
         </div>
         <div>
-          <Label>Resolution</Label>
-          <ChoiceGrid
-            value={String(options.resolution ?? 'original')}
-            choices={VIDEO_RESOLUTIONS}
-            cols={3}
-            onChange={(v) => set('resolution', v)}
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">Scale</span>
+            <span className="text-sm font-semibold text-accent">
+              {Number(options.scale ?? 100) === 100 ? 'Original' : `${Number(options.scale)}%`}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={SCALE_MIN}
+            max={SCALE_MAX}
+            step={SCALE_STEP}
+            value={Number(options.scale ?? 100)}
+            onChange={(e) => set('scale', Number(e.target.value))}
+            className="w-full accent-accent"
           />
+          <div className="mt-1.5 flex justify-between text-[11px] text-dim">
+            <span>{SCALE_MIN}%</span>
+            <span>Original</span>
+          </div>
         </div>
-        {String(options.resolution ?? 'original') !== 'original' &&
+        {Number(options.scale ?? 100) < 100 &&
           videoOutputs &&
           videoOutputs.length > 0 && (
           <div>
@@ -450,12 +425,6 @@ const PDF_OPS: { value: string; label: string; title: string; hint: string }[] =
     label: 'Pages → PNG',
     title: 'Render each page to a PNG image',
     hint: 'Render every page to a PNG in a new folder.'
-  },
-  {
-    value: 'compress',
-    label: 'Compress',
-    title: 'Shrink the PDF',
-    hint: 'Rewrite the PDF smaller (garbage-collect + compress streams). Lossless.'
   },
   {
     value: 'merge',

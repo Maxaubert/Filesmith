@@ -9,7 +9,7 @@ import {
 } from 'react'
 import type { FileInfo, FileKind, PreviewItem, ToolId } from '@shared/types'
 import { canCompress, familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
-import { fitResolution, type VideoResolution } from '@shared/compress'
+import { scaleResolution } from '@shared/compress'
 import { fileKind } from '@shared/fileKind'
 import {
   reducer,
@@ -417,12 +417,12 @@ export default function App(): JSX.Element {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compressVideoPaths.join('|')])
-  const compressResolution = String(state.options.compress.resolution ?? 'original') as VideoResolution
+  const compressScale = Number(state.options.compress.scale ?? 100)
   const videoOutputs: VideoOutputRow[] = compressVideoPaths.map((p) => {
     const d = vDims[p]
     const name = baseName(p)
     if (!d) return { path: p, name, from: '…', to: '…' }
-    const o = fitResolution(d.width, d.height, compressResolution)
+    const o = scaleResolution(d.width, d.height, compressScale)
     return { path: p, name, from: `${d.width}×${d.height}`, to: `${o.w}×${o.h}` }
   })
 

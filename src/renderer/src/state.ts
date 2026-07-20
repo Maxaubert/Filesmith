@@ -14,6 +14,8 @@ export interface QueueItem {
   percent: number
   message?: string
   outputPath?: string
+  /** Size of the produced file, for the Output card's size + reduction. */
+  outputSize?: number
   error?: string
   /** True for a produced result (Output column) vs a source file (Input column).
    * A source item is re-runnable and stays put; each successful run appends a
@@ -57,7 +59,7 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
     quality: 80,
     imageFormat: 'keep',
     videoCodec: 'h264',
-    resolution: 'original',
+    scale: 100,
     audioCodec: 'keep',
     audioBitrate: 192,
     pdfLevel: 'balanced',
@@ -246,6 +248,7 @@ export function reducer(state: AppState, action: Action): AppState {
             status: 'done',
             percent: 100,
             outputPath: e.outputPath,
+            outputSize: e.outputSize,
             isResult: true
           }
           queues[t] = {

@@ -203,7 +203,21 @@ function OutputCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-semibold">{baseName(out)}</div>
-        <div className="mt-0.5 text-[11.5px] text-dim">{extOf(out)} · saved</div>
+        <div className="mt-0.5 truncate text-[11.5px] text-dim">
+          {extOf(out)}
+          {item.outputSize != null && (
+            <>
+              <span className="mx-0.5 text-[#c3c3cc]">·</span>
+              {formatBytes(item.outputSize)}
+              {/* How much it shrank vs the source (only when it actually did). */}
+              {item.file.size > 0 && item.outputSize < item.file.size && (
+                <span className="ml-1 font-semibold text-[#12a150]">
+                  −{Math.round((1 - item.outputSize / item.file.size) * 100)}%
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
       <div className="shrink-0 pr-0.5">
         <Kebab onOpen={onMenu} />

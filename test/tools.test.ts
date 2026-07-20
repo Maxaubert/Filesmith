@@ -18,7 +18,7 @@ import {
   CAESIUM_EXTS
 } from '../src/main/tools/compress'
 import { buildGsCompressArgs } from '../src/main/tools/pdf'
-import { fitResolution } from '../src/shared/compress'
+import { scaleResolution } from '../src/shared/compress'
 import { canCompress } from '../src/shared/convert'
 import {
   buildPdfMergeArgs,
@@ -204,7 +204,7 @@ describe('compress', () => {
 
   it('builds video args per codec, output always mp4', () => {
     expect(
-      buildVideoCompressArgs('in.mkv', 'out.mp4', { codec: 'h264', quality: 100, resolution: 'original' })
+      buildVideoCompressArgs('in.mkv', 'out.mp4', { codec: 'h264', quality: 100, scale: 100 })
     ).toEqual([
       '-y', '-i', 'in.mkv',
       '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
@@ -213,24 +213,22 @@ describe('compress', () => {
     ])
     // H.265 adds the hvc1 tag; AV1 uses libsvtav1 + numeric preset
     expect(
-      buildVideoCompressArgs('in.mp4', 'out.mp4', { codec: 'h265', quality: 100, resolution: 'original' })
+      buildVideoCompressArgs('in.mp4', 'out.mp4', { codec: 'h265', quality: 100, scale: 100 })
     ).toContain('hvc1')
-    const av1 = buildVideoCompressArgs('in.mp4', 'out.mp4', { codec: 'av1', quality: 100, resolution: 'original' })
+    const av1 = buildVideoCompressArgs('in.mp4', 'out.mp4', { codec: 'av1', quality: 100, scale: 100 })
     expect(av1).toContain('libsvtav1')
     expect(av1.join(' ')).toContain('-preset 6')
   })
 
-  it('adds an aspect-safe, downscale-only scale expression for a resolution preset', () => {
+  it('adds an aspect-safe percentage scale filter below 100%', () => {
     const a = buildVideoCompressArgs('in.mp4', 'out.mp4', {
-      codec: 'h264', quality: 80, resolution: '720p'
+      codec: 'h264', quality: 80, scale: 50
     })
     expect(a).toContain('-vf')
-    expect(a[a.indexOf('-vf') + 1]).toBe(
-      "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"
-    )
-    // 'original' adds no filter
+    expect(a[a.indexOf('-vf') + 1]).toBe('scale=w=iw*0.5:h=ih*0.5:force_divisible_by=2')
+    // 100% (original) adds no filter at all
     const b = buildVideoCompressArgs('in.mp4', 'out.mp4', {
-      codec: 'h264', quality: 80, resolution: 'original'
+      codec: 'h264', quality: 80, scale: 100
     })
     expect(b).not.toContain('-vf')
   })
@@ -258,15 +256,15 @@ describe('compress', () => {
   })
 })
 
-describe('fitResolution', () => {
-  it('downscales to fit the box, preserving aspect ratio, even dims', () => {
-    expect(fitResolution(1920, 1080, '720p')).toEqual({ w: 1280, h: 720 })
-    expect(fitResolution(1080, 1920, '720p')).toEqual({ w: 406, h: 720 }) // portrait
-    expect(fitResolution(2560, 1080, '720p')).toEqual({ w: 1280, h: 540 }) // ultrawide
+describe('scaleResolution', () => {
+  it('scales by percent, preserving aspect ratio, with even dims', () => {
+    expect(scaleResolution(1920, 1080, 50)).toEqual({ w: 960, h: 540 })
+    expect(scaleResolution(1080, 1920, 50)).toEqual({ w: 540, h: 960 }) // portrait
+    expect(scaleResolution(2560, 1080, 50)).toEqual({ w: 1280, h: 540 }) // ultrawide
   })
-  it('never upscales and passes through original', () => {
-    expect(fitResolution(640, 480, '1080p')).toEqual({ w: 640, h: 480 })
-    expect(fitResolution(1920, 1080, 'original')).toEqual({ w: 1920, h: 1080 })
+  it('rounds to even and passes through at 100%', () => {
+    expect(scaleResolution(1921, 1081, 50)).toEqual({ w: 960, h: 540 }) // even
+    expect(scaleResolution(1920, 1080, 100)).toEqual({ w: 1920, h: 1080 })
   })
 })
 

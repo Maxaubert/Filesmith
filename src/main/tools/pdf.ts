@@ -4,10 +4,12 @@ import type { PdfLevel } from '@shared/compress'
 // PDF-native operations via mutool (MuPDF). Separate from convert (LibreOffice):
 // these act on the PDF itself rather than converting to another document format.
 
+// NOTE: PDF compression lives in the Compress tab (level picker + Ghostscript),
+// not here — a second mutool-only "compress" op silently produced far worse
+// results for the same filename, so it was removed.
 export type PdfOp =
   | 'extract-text'
   | 'pages-to-images'
-  | 'compress'
   | 'merge'
   | 'split-range'
   | 'split-pages'

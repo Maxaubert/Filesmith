@@ -1,4 +1,5 @@
 import { cpus } from 'os'
+import { statSync } from 'fs'
 import type { JobEvent, JobRequest } from '@shared/types'
 import { fileInfoFromPath } from './fileInfo'
 import { getTool } from './tools/registry'
@@ -66,7 +67,16 @@ export class JobQueue {
         onProgress: (percent, message) =>
           this.emit({ id: req.id, status: 'running', percent, message })
       })
-      this.emit({ id: req.id, status: 'done', percent: 100, outputPath: output })
+      // Report the produced size so the UI can show the result and how much it
+      // shrank. Directory outputs (pages-to-images, split) have no single size.
+      let outputSize: number | undefined
+      try {
+        const st = statSync(output)
+        if (st.isFile()) outputSize = st.size
+      } catch {
+        /* best effort */
+      }
+      this.emit({ id: req.id, status: 'done', percent: 100, outputPath: output, outputSize })
     } catch (err) {
       const aborted = ctrl.signal.aborted
       this.emit({

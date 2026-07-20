@@ -1,6 +1,6 @@
 import { extname } from 'path'
 import { normalizeExt } from '@shared/convert'
-import { RES_BOX, type AudioCodec, type VideoCodec, type VideoResolution } from '@shared/compress'
+import { SCALE_MAX, SCALE_MIN, type AudioCodec, type VideoCodec } from '@shared/compress'
 
 // Image targets that hold multiple frames — keep all frames (an animated GIF
 // compressed to WebP/AVIF stays animated). Every other target is single-frame,
@@ -52,24 +52,22 @@ export function crfForCodec(codec: VideoCodec, quality: number): number {
 export interface VideoOpts {
   codec: VideoCodec
   quality: number
-  resolution: VideoResolution
+  /** Output size as a percentage of the source (100 = original). */
+  scale: number
 }
 
 /**
  * ffmpeg video compress. Output is always MP4 (H.264/H.265/AV1 all mux there);
- * the chosen codec drives the encoder and CRF. Resolution presets use an ffmpeg
- * scale EXPRESSION so ffmpeg computes the fit itself: downscale to the box,
- * preserve aspect ratio, never upscale (`min(box,i…)`), even dimensions
- * (`force_divisible_by=2`) — no need to probe the source. Audio -> AAC 128k.
+ * the chosen codec drives the encoder and CRF. Scaling is a percentage of the
+ * source, computed by ffmpeg itself (`iw*S`), with even dimensions
+ * (`force_divisible_by=2`) — aspect ratio is preserved for any shape and no
+ * probe is needed. Audio -> AAC 128k.
  */
 export function buildVideoCompressArgs(input: string, output: string, o: VideoOpts): string[] {
   const args = ['-y', '-i', input]
-  if (o.resolution !== 'original') {
-    const [bw, bh] = RES_BOX[o.resolution]
-    args.push(
-      '-vf',
-      `scale='min(${bw},iw)':'min(${bh},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`
-    )
+  if (o.scale < 100) {
+    const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, o.scale)) / 100
+    args.push('-vf', `scale=w=iw*${s}:h=ih*${s}:force_divisible_by=2`)
   }
   args.push('-c:v', VIDEO_ENCODER[o.codec])
   args.push('-preset', o.codec === 'av1' ? '6' : 'medium')

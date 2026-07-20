@@ -12,8 +12,8 @@ import type {
 import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
-import { resolveTool, toolAvailable } from './toolResolver'
-import { run } from './run'
+import { toolAvailable } from './toolResolver'
+import { probeDimensions } from './probe'
 import { makeThumbnail } from './thumbnail'
 import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
 import { targetsFor, toolsFor } from './tools/registry'
@@ -138,38 +138,8 @@ export function registerIpc(win: BrowserWindow): void {
       await fh?.close()
     }
   })
-  // Video DISPLAY dimensions via ffprobe, for the compress resolution preview.
-  // Reads the display-matrix rotation and swaps W/H for ±90/270 so the preview
-  // matches ffmpeg's auto-rotated encode (phone portrait video is stored coded
-  // landscape with a rotation matrix).
-  ipcMain.handle('video:dimensions', async (_e, p: string) => {
-    try {
-      const { code, stdout } = await run(resolveTool('ffprobe'), [
-        '-v',
-        'error',
-        '-select_streams',
-        'v:0',
-        '-show_entries',
-        'stream=width,height:stream_side_data=rotation',
-        '-of',
-        'default=noprint_wrappers=1',
-        p
-      ])
-      if (code !== 0) return null
-      const num = (k: string): number | null => {
-        const m = new RegExp(`^${k}=(-?\\d+)`, 'm').exec(stdout)
-        return m ? Number(m[1]) : null
-      }
-      let w = num('width')
-      let h = num('height')
-      const rot = num('rotation')
-      if (w == null || h == null) return null
-      if (rot != null && Math.abs(rot % 180) === 90) [w, h] = [h, w]
-      return { width: w, height: h }
-    } catch {
-      return null
-    }
-  })
+  // Video DISPLAY dimensions (rotation-aware) for the compress scale preview.
+  ipcMain.handle('video:dimensions', (_e, p: string) => probeDimensions(p))
   ipcMain.handle('tools:for', (_e, file: FileInfo) => toolsFor(file))
   ipcMain.handle('tool:targets', (_e, id: ToolId, file: FileInfo) => targetsFor(id, file))
 }

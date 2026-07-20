@@ -34,6 +34,9 @@ export interface JobEvent {
   percent?: number // 0..100 when determinable
   message?: string
   outputPath?: string
+  /** Size in bytes of the produced file (so the UI can show the result size
+   * and the reduction vs the source). Absent for directory outputs. */
+  outputSize?: number
   error?: string
 }
 
