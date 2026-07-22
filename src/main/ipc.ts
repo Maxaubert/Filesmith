@@ -24,6 +24,7 @@ import { pidInstalled, comfyEngineReady, pidEnvMarker, PID_BACKBONES } from './p
 import { installPid, installComfyEngine } from './pid/install'
 import { scanComfy, guessComfyFolder, findComfyPidWeights } from './comfy/discover'
 import { readComfyStore, writeComfyStore, usableComfyModels } from './comfy/store'
+import { comfyPythonReady, clearComfyPythonCache } from './comfy/pythonEnv'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
 // is hidden from the picker and dropped from drag-and-drop.
@@ -191,10 +192,12 @@ export function registerIpc(win: BrowserWindow): void {
       const store = readComfyStore()
       return {
         nvidia: gpu,
-        engineReady: comfyEngineReady(),
-        // The heavy torch env already present (e.g. PiD installed) means setup is
-        // just adding the spandrel loader — seconds, not a multi-GB download.
-        envExists: existsSync(pidEnvMarker()),
+        // Ready with NO install when the user's ComfyUI Python already has
+        // torch+spandrel; otherwise our own env must be built.
+        engineReady: comfyEngineReady() || comfyPythonReady(),
+        // The heavy torch env already present (e.g. PiD installed, or ComfyUI's
+        // Python is usable) means setup is quick or unnecessary.
+        envExists: existsSync(pidEnvMarker()) || comfyPythonReady(),
         // Whether the user's ComfyUI has PiD weights we can reuse — the UI only
         // offers PiD when it's reusable (or already installed).
         pidReusable: findComfyPidWeights(basename(PID_BACKBONES.flux.checkpointDir)) != null,
@@ -228,6 +231,9 @@ export function registerIpc(win: BrowserWindow): void {
   })
   ipcMain.handle('comfy:scan', async (_e, folder: string) => {
     try {
+      // A newly-picked folder may bring its own ComfyUI Python into scope.
+      writeComfyStore({ folder, models: readComfyStore()?.models ?? [] })
+      clearComfyPythonCache()
       const models = await scanComfy(folder)
       writeComfyStore({ folder, models })
       return { ok: true, models }

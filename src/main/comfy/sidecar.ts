@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { createInterface } from 'readline'
-import { pidKernelCache, pidVenvPython, spandrelServerScript } from '../pid/paths'
+import { pidKernelCache, spandrelServerScript } from '../pid/paths'
+import { resolveSpandrelPython } from './pythonEnv'
 
 // Resident spandrel upscale sidecar — loads a ComfyUI upscale model once and runs
 // tiled upscales, kept warm across images. Runs in the shared PiD torch venv (see
@@ -51,7 +52,7 @@ class SpandrelSidecar {
   private ensure(): Promise<void> {
     if (this.ready) return this.ready
     this.ready = new Promise<void>((resolve, reject) => {
-      const proc = spawn(pidVenvPython(), [spandrelServerScript()], {
+      const proc = spawn(resolveSpandrelPython(), [spandrelServerScript()], {
         windowsHide: true,
         env: {
           ...process.env,

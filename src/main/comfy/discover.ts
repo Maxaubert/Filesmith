@@ -4,8 +4,9 @@ import { homedir } from 'os'
 import { basename, dirname, isAbsolute, join, resolve } from 'path'
 import type { ComfyModel, ComfyProbe } from '@shared/comfy'
 import { classifyModel } from '@shared/comfy'
-import { pidKernelCache, pidVenvPython, spandrelServerScript } from '../pid/paths'
+import { pidKernelCache, spandrelServerScript } from '../pid/paths'
 import { readComfyStore } from './store'
+import { resolveSpandrelPython } from './pythonEnv'
 
 const MODEL_EXTS = ['.pth', '.safetensors', '.pt', '.ckpt']
 
@@ -209,7 +210,7 @@ export function scanModelFiles(dirs: string[]): string[] {
 export function probeModels(paths: string[]): Promise<ComfyProbe[]> {
   if (!paths.length) return Promise.resolve([])
   return new Promise((resolvePromise) => {
-    const proc = spawn(pidVenvPython(), [spandrelServerScript(), '--probe'], {
+    const proc = spawn(resolveSpandrelPython(), [spandrelServerScript(), '--probe'], {
       windowsHide: true,
       env: {
         ...process.env,
