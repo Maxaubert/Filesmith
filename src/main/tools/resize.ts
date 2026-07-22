@@ -5,7 +5,12 @@ import type { JobOptions } from '@shared/types'
 /**
  * Build the ImageMagick geometry spec from options:
  * - percent mode: `"50%"`
- * - dimensions mode: `"800x600"` (aspect-preserving) or `"800x600!"` when `exact`.
+ * - dimensions mode: `"800x600"` (fit inside, preserving aspect) or `"800x600!"`
+ *   when the fit is 'stretch', which honours both numbers and distorts.
+ *
+ * Note what the default costs: `WxH` fits INSIDE the box, so whichever field
+ * isn't the limiting one has no effect (5000x400 and 2500x400 both give 300x400
+ * for a portrait source). The UI shows the resulting size so that's visible.
  */
 export function buildResizeSpec(options: JobOptions): string {
   const mode = String(options.mode ?? 'percent')
@@ -15,7 +20,10 @@ export function buildResizeSpec(options: JobOptions): string {
   }
   const w = options.width != null && options.width !== '' ? String(options.width) : ''
   const h = options.height != null && options.height !== '' ? String(options.height) : ''
-  return `${w}x${h}${options.exact ? '!' : ''}`
+  // Stretching only means anything when both numbers are present; with one field
+  // blank there is nothing to distort against.
+  const stretch = options.fit === 'stretch' && w !== '' && h !== ''
+  return `${w}x${h}${stretch ? '!' : ''}`
 }
 
 /**

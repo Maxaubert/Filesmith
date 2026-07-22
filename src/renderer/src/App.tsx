@@ -7,13 +7,22 @@ import {
   type JSX,
   type MouseEvent
 } from 'react'
-import type { FileInfo, FileKind, PreviewItem, ToolId } from '@shared/types'
+import type { FileInfo, FileKind, PreviewItem } from '@shared/types'
 import { canCompress, familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
-import { scaleResolution } from '@shared/compress'
+import {
+  estimatedPngBytes,
+  formatBytes,
+  HUGE_OUTPUT_BYTES,
+  scaleResolution,
+  upscaledSize
+} from '@shared/compress'
+import { resizedSize } from '@shared/resize'
 import { fileKind } from '@shared/fileKind'
 import {
   reducer,
   initialState,
+  optionsKey,
+  emptyQueue,
   inInput,
   inOutput,
   groupOf,
@@ -21,13 +30,15 @@ import {
   type QueueItem,
   type SelectMode
 } from './state'
-import { toolMeta } from './lib/tools'
+import { acceptsKind, categoryOf, findOperation, operationsFor, type CategoryId } from '@shared/catalog'
 import { TopBar } from './components/TopBar'
-import { ToolRail } from './components/ToolRail'
+import { CategoryRail } from './components/CategoryRail'
+import { OperationTitle } from './components/OperationTitle'
 import { DropZone } from './components/DropZone'
 import { Queues } from './components/Queue'
 import { OptionsPanel, type VideoOutputRow } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
+import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 const extOfPath = (p: string): string => {
@@ -85,7 +96,7 @@ export default function App(): JSX.Element {
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
   // list updates to it when the queue changes.
-  const [previewCtx, setPreviewCtx] = useState<{ side: 'input' | 'output'; tool: ToolId } | null>(
+  const [previewCtx, setPreviewCtx] = useState<{ side: 'input' | 'output'; key: string } | null>(
     null
   )
   const requested = useRef<Set<string>>(new Set())
@@ -93,10 +104,18 @@ export default function App(): JSX.Element {
   // Cached video dimensions (via ffprobe) for the compress resolution preview.
   const [vDims, setVDims] = useState<Record<string, { width: number; height: number } | null>>({})
   const vDimsRequested = useRef<Set<string>>(new Set())
+  // Oversize-upscale confirmation, and the flag that lets the confirmed run through.
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const confirmedHuge = useRef(false)
 
-  // The active tool's queue drives the UI. Thumbnails, however, load for items
-  // across every queue so switching tabs is instant.
-  const cur = state.queues[state.tool]
+  // The queue belongs to the file type and is shared across its operations, so
+  // switching Convert -> Compress keeps the same files. Options are per
+  // operation, keyed by (category, operation).
+  const op = findOperation(state.category, state.operation) ?? operationsFor(state.category)[0]
+  const tool = op.tool
+  const category = categoryOf(state.category)
+  const cur = state.queues[state.category] ?? emptyQueue()
+  const curOptions = state.options[optionsKey(state)] ?? {}
 
   // Stream job progress/terminal events into state.
   useEffect(() => window.filesmith.onJobEvent((e) => dispatch({ type: 'jobEvent', event: e })), [])
@@ -164,29 +183,31 @@ export default function App(): JSX.Element {
   const runList: QueueItem[] = selectedItems.filter((i) => {
     if (!canRun(i)) return false
     const f = effectiveFile(i)
-    if (state.tool === 'convert') {
-      const fmt = String(state.options.convert.format ?? '')
+    // The workspace is type-locked, so the category already guarantees the kind.
+    // What is left to check is whether this specific file can take this operation.
+    if (!acceptsKind(state.category, f.kind)) return false
+    if (op.tool === 'convert') {
+      const fmt = String(curOptions.format ?? '')
       return toolForKind(f.kind) != null && !isSameFormat(f.ext, fmt)
     }
-    if (state.tool === 'pdf') return f.kind === 'pdf'
-    if (state.tool === 'compress') return canCompress(f.kind, f.ext)
-    return f.kind === 'image' // resize is image-only
+    if (op.tool === 'compress') return canCompress(f.kind, f.ext)
+    return true
   })
 
   // Keep the convert target valid for the active kind, and never a format that
   // any selected source already is (those are greyed out).
   useEffect(() => {
-    if (!activeKind) return
-    const fmt = String(state.options.convert.format ?? '')
+    if (!activeKind || tool !== 'convert') return
+    const fmt = String(curOptions.format ?? '')
     const opts = familyFormats(activeKind, sourceExt ?? '')
     const isSource = (ext: string): boolean => srcExts.some((e) => isSameFormat(ext, e))
     const valid = opts.some((f) => f.ext === fmt) && !isSource(fmt)
     if (!valid) {
       const def = opts.find((f) => !isSource(f.ext))?.ext
-      if (def) dispatch({ type: 'setOption', tool: 'convert', key: 'format', value: def })
+      if (def) dispatch({ type: 'setOption', key: 'format', value: def })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKind, sourceExt, srcExts.join('|'), state.options.convert.format])
+  }, [activeKind, sourceExt, srcExts.join('|'), curOptions.format, tool])
 
   function onItemClick(id: string, e: MouseEvent): void {
     const item = cur.items.find((i) => i.id === id)
@@ -211,14 +232,14 @@ export default function App(): JSX.Element {
       list.findIndex((it) => it.id === item.id)
     )
     void window.filesmith.openPreviewWindow(toPreviewFiles(cur.items, side, outThumbs), index)
-    setPreviewCtx({ side, tool: state.tool })
+    setPreviewCtx({ side, key: state.category })
   }
 
   // Keep an open preview window's list in sync with the queue (it manages its
   // own position; a no-op in main if the window is closed).
   useEffect(() => {
     if (!previewCtx) return
-    const items = state.queues[previewCtx.tool].items
+    const items = state.queues[previewCtx.key as CategoryId]?.items ?? []
     window.filesmith.updatePreviewList(toPreviewFiles(items, previewCtx.side, outThumbs))
   }, [state.queues, outThumbs, previewCtx])
 
@@ -272,19 +293,11 @@ export default function App(): JSX.Element {
     }
     const out = item.outputPath
     if (!out) return
-    const outPaths = targets
-      .map((id) => cur.items.find((x) => x.id === id)?.outputPath)
-      .filter((p): p is string => !!p)
     setMenu({
       x,
       y,
       items: [
         { label: 'Preview', icon: 'eye', onClick: () => openPreview('output', item) },
-        {
-          label: n > 1 ? `Use ${n} as input` : 'Use as input',
-          icon: 'upload',
-          onClick: () => void sendToInput(outPaths)
-        },
         { label: 'Reveal in Explorer', icon: 'folder', onClick: () => window.filesmith.reveal(out) },
         { sep: true },
         {
@@ -297,16 +310,14 @@ export default function App(): JSX.Element {
     })
   }
 
-  async function browse(): Promise<void> {
-    const files = await window.filesmith.pickFiles()
-    if (files.length) dispatch({ type: 'addItems', files })
+  /** Keep only what this workspace accepts. The screen promises one file type,
+   * so silently taking a video into the Images queue would break that promise. */
+  function ofCategory(files: FileInfo[]): FileInfo[] {
+    return files.filter((f) => acceptsKind(state.category, f.kind))
   }
 
-  // Feed produced output files back into the Input column so further operations
-  // can be chained onto them (compress -> send to input -> convert, etc.).
-  async function sendToInput(paths: string[]): Promise<void> {
-    if (!paths.length) return
-    const files = await window.filesmith.classify(paths)
+  async function browse(): Promise<void> {
+    const files = ofCategory(await window.filesmith.pickFiles())
     if (files.length) dispatch({ type: 'addItems', files })
   }
 
@@ -317,7 +328,7 @@ export default function App(): JSX.Element {
       .map((f) => window.filesmith.pathForFile(f))
       .filter(Boolean)
     if (!paths.length) return
-    const files = await window.filesmith.classify(paths)
+    const files = ofCategory(await window.filesmith.classify(paths))
     if (files.length) dispatch({ type: 'addItems', files })
   }
 
@@ -331,13 +342,49 @@ export default function App(): JSX.Element {
     return { id: newId(), file: i.file, thumb: null, status: 'ready', percent: 0 }
   }
 
+  /**
+   * Upscaling has no size ceiling, but a big source at 4x can run to many
+   * gigabytes. Warn once with the estimate and let the user decide, rather than
+   * refusing outright or letting them discover it after the disk fills.
+   */
+  function hugeUpscaleWarning(): string | null {
+    if (tool !== 'upscale') return null
+    const rows = upscaleOutputs
+      .map((r) => /^(\d+)×(\d+)$/.exec(r.to))
+      .filter((m): m is RegExpExecArray => m != null)
+      .map((m) => estimatedPngBytes(Number(m[1]), Number(m[2])))
+    const worst = Math.max(0, ...rows)
+    if (worst <= HUGE_OUTPUT_BYTES) return null
+    const total = rows.reduce((a, b) => a + b, 0)
+    return rows.length === 1
+      ? `The result will be roughly ${formatBytes(worst)}, and may take a long time.`
+      : `The largest result will be roughly ${formatBytes(worst)} (about ${formatBytes(total)} in total), and may take a long time.`
+  }
+
   async function run(): Promise<void> {
     if (!runList.length) return
-    const opts = state.options[state.tool]
+    const opts = curOptions
+
+    const warning = hugeUpscaleWarning()
+    if (warning && !confirmedHuge.current) {
+      setConfirm({
+        title: 'That is a very large image',
+        body: warning,
+        confirmLabel: 'Upscale anyway',
+        onConfirm: () => {
+          // One confirmation covers this run only.
+          confirmedHuge.current = true
+          void run().finally(() => {
+            confirmedHuge.current = false
+          })
+        }
+      })
+      return
+    }
 
     // Merge is N-in/1-out, so it doesn't follow the 1:1 rule: run the anchor in
     // place (promoting it first if it's an output) with all paths as inputs.
-    if (state.tool === 'pdf' && opts.op === 'merge') {
+    if (op.tool === 'pdf' && opts.op === 'merge') {
       if (runList.length < 2) return
       const paths = runList.map((i) => effectiveFile(i).path)
       const anchor = runList[0]
@@ -348,7 +395,7 @@ export default function App(): JSX.Element {
         dispatch({ type: 'addSources', items: [src] })
         anchorId = src.id
       }
-      dispatch({ type: 'markQueued', ids: [anchorId] })
+      dispatch({ type: 'markQueued', ids: [anchorId], options: opts })
       void window.filesmith.runJob({
         id: anchorId,
         tool: 'pdf',
@@ -377,15 +424,14 @@ export default function App(): JSX.Element {
     }
     if (newSources.length) dispatch({ type: 'addSources', items: newSources })
     if (!targets.length) return
-    dispatch({ type: 'markQueued', ids: targets.map((t) => t.id) })
+    dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), options: opts })
     for (const t of targets) {
-      void window.filesmith.runJob({ id: t.id, tool: state.tool, input: t.path, options: opts })
+      void window.filesmith.runJob({ id: t.id, tool: op.tool, input: t.path, options: opts })
     }
   }
 
-  const meta = toolMeta(state.tool)
   // Merge needs 2+ PDFs before it can run; every other op runs per selected file.
-  const isMerge = state.tool === 'pdf' && String(state.options.pdf.op) === 'merge'
+  const isMerge = op.tool === 'pdf' && String(curOptions.op) === 'merge'
   const runCount = isMerge && runList.length < 2 ? 0 : runList.length
   // The kind the options panel should key off is what will actually RUN, not the
   // anchor item: a PDF co-selected with a non-compressible doc (same group)
@@ -400,15 +446,24 @@ export default function App(): JSX.Element {
   // Live "input → output" resolution list for the video Compress options. Probe
   // each selected video's dimensions once (via ffprobe) and recompute the output
   // size for the chosen preset.
-  const compressVideoPaths =
-    state.tool === 'compress'
+  // Upscale reuses the same probe cache to preview the (much larger) result size.
+  const probePaths =
+    tool === 'compress'
       ? runList.map(effectiveFile).filter((f) => f.kind === 'video').map((f) => f.path)
-      : []
+      : tool === 'upscale' || tool === 'resize'
+        ? runList.map(effectiveFile).filter((f) => f.kind === 'image').map((f) => f.path)
+        : []
+  const compressVideoPaths = tool === 'compress' ? probePaths : []
   useEffect(() => {
-    for (const p of compressVideoPaths) {
+    for (const p of probePaths) {
       if (p in vDims || vDimsRequested.current.has(p)) continue
       vDimsRequested.current.add(p)
-      void window.filesmith.videoDimensions(p).then((d) => {
+      // Images resolve via ImageMagick, video via ffprobe (rotation-aware).
+      const probe =
+        tool === 'upscale' || tool === 'resize'
+          ? window.filesmith.imageDimensions(p)
+          : window.filesmith.videoDimensions(p)
+      void probe.then((d) => {
         // A failed probe returns null; don't cache it — drop the request marker
         // so it can be re-probed (transient errors, a file still being written).
         if (d) setVDims((m) => ({ ...m, [p]: d }))
@@ -416,8 +471,8 @@ export default function App(): JSX.Element {
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compressVideoPaths.join('|')])
-  const compressScale = Number(state.options.compress.scale ?? 100)
+  }, [probePaths.join('|')])
+  const compressScale = Number(curOptions.scale ?? 100)
   const videoOutputs: VideoOutputRow[] = compressVideoPaths.map((p) => {
     const d = vDims[p]
     const name = baseName(p)
@@ -426,58 +481,115 @@ export default function App(): JSX.Element {
     return { path: p, name, from: `${d.width}×${d.height}`, to: `${o.w}×${o.h}` }
   })
 
+  // Resize's output list. This is the fix for "I changed the width and got the
+  // same file": in Keep-aspect mode the non-limiting field is discarded by
+  // ImageMagick, and only the resulting size makes that visible.
+  const resizeOpts = curOptions
+  const numOrNull = (v: unknown): number | null =>
+    v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v)
+  const resizeOutputs: VideoOutputRow[] =
+    tool === 'resize' && String(resizeOpts.mode ?? 'percent') === 'dimensions'
+      ? probePaths.map((p) => {
+          const d = vDims[p]
+          const name = baseName(p)
+          if (!d) return { path: p, name, from: '…', to: '…' }
+          const out = resizedSize(
+            d.width,
+            d.height,
+            numOrNull(resizeOpts.width),
+            numOrNull(resizeOpts.height),
+            resizeOpts.fit === 'stretch' ? 'stretch' : 'contain'
+          )
+          const from = `${d.width}×${d.height}`
+          return { path: p, name, from, to: out ? `${out.w}×${out.h}` : from }
+        })
+      : []
+
+  const upscaleFactor = Number(curOptions.upscaleFactor ?? 4)
+  const upscaleOutputs: VideoOutputRow[] =
+    tool === 'upscale'
+      ? probePaths.map((p) => {
+          const d = vDims[p]
+          const name = baseName(p)
+          // A null probe means ffprobe can't read it (heic, svg…). It still
+          // upscales (magick pre-converts), we just can't predict the size.
+          if (!d) return { path: p, name, from: '…', to: '…' }
+          const o = upscaledSize(d.width, d.height, upscaleFactor)
+          return { path: p, name, from: `${d.width}×${d.height}`, to: `${o.w}×${o.h}` }
+        })
+      : []
+
+  // Files waiting in each category, summed across that category's workspaces, so
+  // the rail shows where work is sitting even while you're looking elsewhere.
+  const counts: Record<string, number> = {}
+  for (const [cat, q] of Object.entries(state.queues)) {
+    counts[cat] = q.items.filter(inInput).length
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <TopBar />
       <div className="flex min-h-0 flex-1">
-        <ToolRail
-          tool={state.tool}
-          onSelect={(t: ToolId) => dispatch({ type: 'setTool', tool: t })}
+        <CategoryRail
+          category={state.category}
+          counts={counts}
+          onSelect={(c) => dispatch({ type: 'setCategory', category: c })}
         />
 
-        <section
-          className="flex min-w-0 flex-1 flex-col gap-4 px-7 pb-5 pt-1"
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragging(true)
-          }}
-          onDragLeave={(e) => {
-            if (e.currentTarget === e.target) setDragging(false)
-          }}
-          onDrop={onDrop}
-        >
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight">{meta.label}</h1>
-            <p className="mt-0.5 text-[13px] text-muted">{meta.blurb}</p>
-          </div>
-          <DropZone dragging={dragging} onBrowse={() => void browse()} />
-          <Queues
-            items={cur.items}
-            tool={state.tool}
-            options={state.options[state.tool]}
-            selected={cur.selected}
-            activeGroup={activeGroup}
-            outThumbs={outThumbs}
-            onItemClick={onItemClick}
-            onOpen={openPreview}
-            onMenu={openMenu}
-          />
-        </section>
+        <>
+            <section
+              className="flex min-w-0 flex-1 flex-col gap-4 px-7 pb-5 pt-1"
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragging(true)
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget === e.target) setDragging(false)
+              }}
+              onDrop={onDrop}
+            >
+              {/* The rail names the file type; the sidebar switcher names (and
+                  colours) the operation. This heading is just a heading. */}
+              <OperationTitle category={category} fileCount={cur.items.filter(inInput).length} />
+              <DropZone
+                dragging={dragging}
+                label={`Drop ${category.label.toLowerCase()} here`}
+                onBrowse={() => void browse()}
+              />
+              <Queues
+                items={cur.items}
+                tool={op.tool}
+                options={curOptions}
+                selected={cur.selected}
+                activeGroup={activeGroup}
+                outThumbs={outThumbs}
+                onItemClick={onItemClick}
+                onOpen={openPreview}
+                onMenu={openMenu}
+              />
+            </section>
 
-        <OptionsPanel
-          tool={state.tool}
-          options={state.options[state.tool]}
-          activeKind={activeKind}
-          runKind={runKind}
-          videoOutputs={videoOutputs}
-          sourceExt={sourceExt}
-          srcExts={srcExts}
-          runCount={runCount}
-          onSet={(k, v) => dispatch({ type: 'setOption', tool: state.tool, key: k, value: v })}
-          onRun={() => void run()}
-        />
+            <OptionsPanel
+              operation={op}
+              operations={operationsFor(state.category)}
+              onPickOperation={(id) => dispatch({ type: 'setOperation', operation: id })}
+              options={curOptions}
+              activeKind={activeKind}
+              runKind={runKind}
+              fallbackKind={category.kinds[0]}
+              videoOutputs={videoOutputs}
+              upscaleOutputs={upscaleOutputs}
+              resizeOutputs={resizeOutputs}
+              sourceExt={sourceExt}
+              srcExts={srcExts}
+              runCount={runCount}
+              onSet={(k, v) => dispatch({ type: 'setOption', key: k, value: v })}
+              onRun={() => void run()}
+            />
+        </>
       </div>
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>
   )
 }

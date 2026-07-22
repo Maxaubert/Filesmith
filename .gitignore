@@ -12,7 +12,13 @@ resources/bin/*
 resources/libreoffice/
 # Bundled Ghostscript tree (~42 MB) — downloaded/extracted by fetch-binaries.
 resources/ghostscript/
+# Bundled Real-ESRGAN tree (~47 MB, exe + dlls + models) — fetch-binaries.
+resources/realesrgan/
 
 # Local Claude settings overrides
 .claude/settings.local.json
 .harness/
+
+# Python bytecode (from sidecar syntax checks)
+__pycache__/
+*.pyc

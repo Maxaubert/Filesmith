@@ -1,0 +1,88 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1d1d1f; --muted:#6e6e73; --dim:#86868b;
+  --canvas:#f4f4f6; --line:#ececef;
+  --accent:#5b5bd6; --accent-hi:#6d6ce4; --accent-soft:#eeeefb;
+  --card:#fff; --hair:rgba(0,0,0,.07);
+  --r-card:16px; --r-ctl:12px;
+}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--ink);
+  font-family:-apple-system,'SF Pro Display','SF Pro Text',Inter,system-ui,'Segoe UI',sans-serif;
+  -webkit-font-smoothing:antialiased; user-select:none;
+}
+.win{width:1400px;height:900px;display:flex;flex-direction:column;overflow:hidden;background:var(--canvas)}
+/* Title bar */
+.titlebar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 0 0 18px;flex:none}
+.brand{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:650}
+.brand .mark{width:22px;height:22px;border-radius:7px;background:var(--accent);display:grid;place-items:center}
+.wctl{display:flex;height:44px}
+.wctl div{width:46px;display:grid;place-items:center;color:var(--muted)}
+.body{flex:1;display:flex;min-height:0}
+/* Left rail */
+.rail{width:212px;flex:none;display:flex;flex-direction:column;gap:2px;padding:6px 12px 16px;border-right:1px solid var(--hair);background:rgba(255,255,255,.4)}
+.sec{font-size:11px;font-weight:660;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);padding:14px 10px 8px}
+.nav{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:var(--r-ctl);font-size:13.5px;font-weight:560;color:#33333a;cursor:default}
+.nav .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:#fff;flex:none;box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.nav .cnt{font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.nav.on{background:var(--accent);color:#fff;box-shadow:0 6px 16px rgba(91,91,214,.28)}
+.nav.on .ic{background:rgba(255,255,255,.22)!important}
+.nav.on .cnt{color:rgba(255,255,255,.75)}
+/* Centre */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px;padding:4px 26px 20px}
+h1{font-size:25px;font-weight:700;letter-spacing:-.02em}
+.sub{font-size:13px;color:var(--muted);margin-top:2px}
+.drop{height:104px;border:1.5px solid #dcdce4;border-radius:18px;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;gap:11px;color:var(--muted);font-size:13.5px}
+.drop b{color:var(--ink);font-weight:640;font-size:15px}
+.drop .link{color:var(--accent);font-weight:640}
+.cols{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:18px;min-height:0}
+.colhead{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:660;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);margin-bottom:9px}
+.colhead .n{font-weight:560;letter-spacing:0;text-transform:none;font-size:11.5px}
+.stack{display:flex;flex-direction:column;gap:9px}
+.item{background:var(--card);border:1px solid var(--hair);border-radius:14px;padding:11px;display:flex;align-items:center;gap:11px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.item.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,91,214,.10)}
+.thumb{width:44px;height:44px;border-radius:9px;flex:none;background-size:cover;background-position:center}
+.nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt{font-size:11.5px;color:var(--dim);margin-top:2px}
+.grow{min-width:0;flex:1}
+.tick{width:20px;height:20px;border-radius:50%;background:#12a150;display:grid;place-items:center;flex:none}
+.pct{font-size:11.5px;font-weight:640;color:var(--accent);font-variant-numeric:tabular-nums}
+.bar{height:3px;border-radius:2px;background:#e8e8ee;margin-top:7px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.empty{border-radius:14px;flex:1;display:grid;place-items:center;color:#a8a8b0;font-size:12.5px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
+/* Right sidebar */
+.side{width:302px;flex:none;display:flex;flex-direction:column;gap:16px;padding:22px;border-left:1px solid var(--hair);background:rgba(255,255,255,.4)}
+.lab{font-size:11px;font-weight:660;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);margin-bottom:9px}
+.sel-ctl{width:100%;height:42px;border:1px solid rgba(0,0,0,.10);background:#fff;border-radius:var(--r-ctl);display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 14px;font-size:13px;font-weight:620}
+.seg{display:flex;background:#ececf2;border-radius:var(--r-ctl);padding:3px}
+.seg div{flex:1;text-align:center;padding:6px 0;font-size:12.5px;font-weight:620;color:var(--muted);border-radius:9px}
+.seg div.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.slider{height:4px;background:#e2e2e9;border-radius:3px;position:relative}
+.slider i{position:absolute;inset:0 40% 0 0;background:var(--accent);border-radius:3px}
+.slider u{position:absolute;left:60%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:600}
+.toggle{width:38px;height:22px;border-radius:11px;background:var(--accent);position:relative;flex:none}
+.toggle i{position:absolute;top:3px;left:19px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.opt-card{border:1px solid rgba(0,0,0,.10);background:#fff;border-radius:var(--r-ctl);padding:11px 13px;display:flex;align-items:center;justify-content:space-between}
+.cta{margin-top:auto;height:52px;border-radius:14px;background:var(--accent);color:#fff;font-size:15px;font-weight:660;display:grid;place-items:center;box-shadow:0 8px 20px rgba(91,91,214,.30)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;font-size:12.5px;font-weight:620;border:1px solid rgba(0,0,0,.10);background:#fff;color:#33333a}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.chip .sw{width:8px;height:8px;border-radius:3px}
+.muted{color:var(--muted);font-size:12.5px;line-height:1.5}
+</style></head><body>
+<div class="win"><div class="titlebar"><div class="brand"><span class="mark"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M4 20h16"/></svg></span>Filesmith</div><div class="wctl"><div>&#8211;</div><div>&#9723;</div><div>&#10005;</div></div></div><div class="body"><div class="rail"><div class="sec">File types</div><div class="nav on"><span class="ic" style="background:#5b5bd6"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 3.5h17v17h-17zM9 9.5a1.4 1.4 0 1 1 0-.1M20.5 15l-4.6-4.6a1.6 1.6 0 0 0-2.3 0L4.5 19.5"/></svg></span><span class="grow">Images</span><span class="cnt">4</span></div><div style="display:flex;flex-direction:column;gap:1px;margin:5px 0 8px 13px;padding-left:13px;border-left:1px solid #e2e2e9"><div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;font-size:12.5px;color:var(--muted);font-weight:540"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#9a9aa2" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h13M14 5.5l3 3-3 3M20 15.5H7M10 12.5l-3 3 3 3"/></svg>Convert</div><div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;font-size:12.5px;background:var(--accent-soft);color:var(--accent);font-weight:640"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#f5920b" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12h17M12 3v6M9 6.5l3 2.5 3-2.5M12 21v-6M9 17.5l3-2.5 3 2.5"/></svg>Compress</div><div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;font-size:12.5px;color:var(--muted);font-weight:540"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#9a9aa2" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3.5h5.5V9M9 20.5H3.5V15M20.5 3.5 14 10M3.5 20.5 10 14"/></svg>Resize</div><div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;font-size:12.5px;color:var(--muted);font-weight:540"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#9a9aa2" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.5h5.5V20H4zM12.5 11.5 20 4M14 4h6v6"/></svg>Image Upscale</div><div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;font-size:12.5px;color:var(--muted);font-weight:540"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#9a9aa2" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 3.5h17v17h-17z" stroke-dasharray="2.6 2.8" stroke="#9a9aa2" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6M7 19c1-2.6 2.8-4 5-4s4 1.4 5 4"/></svg>Remove Background</div></div><div class="nav"><span class="ic" style="background:#e0483d"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5h13v11h-13zM15.5 12l6-3.5v7z"/></svg></span><span class="grow">Video</span><span class="cnt">2</span></div><div class="nav"><span class="ic" style="background:#f5920b"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4M8 6.5v11M12 3.5v17M16 6.5v11M20 10v4"/></svg></span><span class="grow">Audio</span></div><div class="nav"><span class="ic" style="background:#ef4444"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5zM14 3.5v5h5"/></svg></span><span class="grow">PDF</span><span class="cnt">3</span></div><div class="nav"><span class="ic" style="background:#12b3a6"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5zM14 3.5v5h5M8.5 13.5h7M8.5 17h4.5"/></svg></span><span class="grow">Documents</span></div></div>
+<div class="main"><div><h1>Compress</h1><div class="sub">Images, 4 files</div></div>
+<div class="drop"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#5b5bd6" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M4 20h16"/></svg><span><b>Drop files here</b> <span style="opacity:.5">|</span> or <span class="link">browse</span></span></div>
+<div class="cols"><div><div class="colhead"><span>Input</span><span class="n">4 items</span></div><div class="stack"><div class="item"><span class="thumb" style="background-image:linear-gradient(135deg,#8a6a4f,#c8a882)"></span><span class="grow"><div class="nm">IMG_1837.png</div><div class="mt">3.4 MB</div></span><span class="tick"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5 9 17 19.5 6.5"/></svg></span></div><div class="item sel"><span class="thumb" style="background-image:linear-gradient(140deg,#3c4a6b,#7d92bd)"></span><span class="grow"><div class="nm">receipt-scan.jpg</div><div class="mt">1.2 MB</div><div class="bar"><i style="width:62%"></i></div></span><span class="pct"><span class="dot" style="display:inline-block;margin-right:5px"></span>62%</span></div><div class="item"><span class="thumb" style="background-image:linear-gradient(150deg,#6b4a58,#c39ba8)"></span><span class="grow"><div class="nm">product-shot.png</div><div class="mt">5.8 MB</div></span></div><div class="item"><span class="thumb" style="background-image:linear-gradient(135deg,#4a6b52,#9fc7a6)"></span><span class="grow"><div class="nm">logo-draft.png</div><div class="mt">240 KB</div></span></div></div></div><div style="display:flex;flex-direction:column;min-height:0"><div class="colhead"><span>Output</span><span class="n">2 items</span></div><div class="stack"><div class="item"><span class="thumb" style="background-image:linear-gradient(135deg,#8a6a4f,#c8a882)"></span><span class="grow"><div class="nm">IMG_1837 (compressed).png</div><div class="mt">1.1 MB <span style="color:#12a150;font-weight:640">-68%</span></div></span></div><div class="item"><span class="thumb" style="background-image:linear-gradient(140deg,#3c4a6b,#7d92bd)"></span><span class="grow"><div class="nm">receipt-scan (compressed).jpg</div><div class="mt">410 KB <span style="color:#12a150;font-weight:640">-66%</span></div></span></div></div></div></div></div><div class="side">
+  <div><div style="font-size:15px;font-weight:680">Compress options</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:2px">Images, 2 selected</div></div>
+  
+      <div><div class="lab">Format</div><div class="sel-ctl">Keep format <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#86868b" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5 12 15.5l6-6"/></svg></div></div>
+      <div><div class="lab" style="display:flex;justify-content:space-between"><span>Quality</span>
+        <span style="color:var(--accent);font-size:13px">72</span></div>
+        <div class="slider"><i></i><u></u></div></div>
+      <div class="opt-card"><span>Strip metadata</span><span class="toggle"><i></i></span></div>
+  <div class="cta">Compress 2 files</div></div></div></div></body></html>

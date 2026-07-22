@@ -120,9 +120,14 @@ describe('resize', () => {
   it('builds an aspect-preserving dimensions spec', () => {
     expect(buildResizeSpec({ mode: 'dimensions', width: 800, height: 600 })).toBe('800x600')
   })
-  it('appends ! for an exact-fit spec', () => {
-    expect(buildResizeSpec({ mode: 'dimensions', width: 800, height: 600, exact: true })).toBe(
-      '800x600!'
+  it('appends ! when stretching to both numbers', () => {
+    expect(
+      buildResizeSpec({ mode: 'dimensions', width: 800, height: 600, fit: 'stretch' })
+    ).toBe('800x600!')
+  })
+  it('does not stretch against a blank field (nothing to distort to)', () => {
+    expect(buildResizeSpec({ mode: 'dimensions', width: 800, height: '', fit: 'stretch' })).toBe(
+      '800x'
     )
   })
   it('builds magick -resize args', () => {

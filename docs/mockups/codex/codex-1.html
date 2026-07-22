@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filesmith Concept 1, Operation Inspector</title>
+<style>
+:root {
+  --ink:#1d1d1f; --muted:#6e6e73; --dim:#86868b; --canvas:#f4f4f6;
+  --line:#ececef; --accent:#5b5bd6; --accent-hi:#6d6ce4; --accent-soft:#eeeefb;
+  --convert:#5b5bd6; --compress:#f5920b; --resize:#22b364; --upscale:#8b5cf6;
+  --remove:#12b3a6; --pdf:#ef4444; --success:#25a85a;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; width:100%; height:100%; overflow:hidden; }
+body {
+  display:grid; place-items:center; background:#dedee3; color:var(--ink);
+  font-family:-apple-system, 'SF Pro Display', Inter, system-ui, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.app {
+  width:1400px; height:900px; background:var(--canvas); overflow:hidden;
+  box-shadow:0 24px 70px rgba(28,28,36,.18); position:relative;
+}
+.titlebar {
+  height:50px; background:#fff; border-bottom:1px solid var(--line); display:flex;
+  align-items:center; padding:0 0 0 18px; user-select:none;
+}
+.brand { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:670; letter-spacing:-.01em; }
+.mark { width:22px; height:22px; border-radius:7px; background:var(--accent); display:grid; place-items:center; color:#fff; font-size:11px; font-weight:800; }
+.local { margin-left:16px; color:var(--dim); font-size:11px; display:flex; gap:6px; align-items:center; }
+.local i { width:6px; height:6px; border-radius:50%; background:#22b364; }
+.window-controls { height:50px; margin-left:auto; display:flex; }
+.window-controls span { width:46px; display:grid; place-items:center; font:13px 'Segoe UI', sans-serif; color:#4c4c50; }
+.window-controls .close { font-size:17px; }
+.shell { height:850px; display:grid; grid-template-columns:196px minmax(0,1fr) 326px; }
+.rail { background:#fff; border-right:1px solid var(--line); padding:22px 14px 16px; display:flex; flex-direction:column; }
+.section-label { color:var(--dim); font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.04em; }
+.rail .section-label { margin:2px 12px 11px; }
+.file-nav { display:grid; gap:5px; }
+.nav-item { height:42px; border-radius:12px; display:flex; align-items:center; gap:11px; padding:0 12px; color:#4f4f54; font-size:13px; font-weight:570; }
+.nav-icon { width:25px; height:25px; border-radius:8px; background:#f0f0f3; display:grid; place-items:center; color:var(--muted); font-size:12px; }
+.nav-item.active { color:#fff; background:var(--accent); box-shadow:0 7px 16px rgba(91,91,214,.22); }
+.nav-item.active .nav-icon { color:#fff; background:rgba(255,255,255,.18); }
+.rail-note { margin:auto 8px 4px; border-top:1px solid var(--line); padding:16px 4px 0; }
+.rail-note strong { display:block; font-size:12px; margin-bottom:5px; }
+.rail-note p { margin:0; color:var(--dim); font-size:11px; line-height:1.5; }
+.rail-foot { margin-top:14px; display:flex; align-items:center; gap:9px; color:var(--muted); font-size:12px; padding:8px 4px; }
+.gear { width:26px; height:26px; border-radius:8px; background:#f2f2f4; display:grid; place-items:center; }
+.workspace { padding:24px 24px 22px; overflow:hidden; min-width:0; }
+.workspace-head { height:45px; display:flex; justify-content:space-between; align-items:flex-start; }
+.workspace-head h1 { margin:0 0 4px; font-size:21px; line-height:1; letter-spacing:-.025em; font-weight:720; }
+.workspace-head p { margin:0; color:var(--muted); font-size:12px; }
+.privacy { color:var(--dim); font-size:11px; display:flex; gap:7px; align-items:center; padding-top:2px; }
+.privacy b { width:7px; height:7px; background:#22b364; border-radius:50%; }
+.dropzone {
+  height:128px; background:#fff; border:1px dashed rgba(91,91,214,.32); border-radius:16px;
+  display:flex; align-items:center; justify-content:center; gap:15px; box-shadow:0 4px 16px rgba(22,22,35,.035);
+}
+.drop-icon { width:46px; height:46px; border-radius:14px; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center; font-size:22px; }
+.drop-copy strong { display:block; font-size:14px; margin-bottom:5px; }
+.drop-copy span { color:var(--dim); font-size:12px; }
+.browse { margin-left:18px; border:1px solid var(--line); background:#fafafd; color:var(--accent); padding:9px 13px; border-radius:10px; font:600 12px inherit; }
+.queue-title { height:50px; display:flex; align-items:end; justify-content:space-between; padding-bottom:10px; }
+.queue-title .count { font-size:11px; color:var(--dim); }
+.queue-pair { display:grid; grid-template-columns:1fr 1fr; gap:12px; height:526px; }
+.queue-card { background:#fff; border:1px solid rgba(0,0,0,.07); border-radius:16px; box-shadow:0 5px 18px rgba(22,22,35,.04); padding:14px; overflow:hidden; }
+.card-head { height:32px; display:flex; align-items:flex-start; justify-content:space-between; border-bottom:1px solid var(--line); }
+.card-head strong { font-size:12px; }
+.card-head span { color:var(--dim); font-size:10px; }
+.file-row { min-height:102px; padding:14px 2px 12px; border-bottom:1px solid var(--line); }
+.file-row:last-child { border-bottom:0; }
+.file-main { display:grid; grid-template-columns:36px minmax(0,1fr) auto; gap:10px; align-items:center; }
+.file-icon { width:34px; height:38px; border-radius:9px; display:grid; place-items:center; font-size:10px; font-weight:760; background:#fff1f1; color:var(--pdf); border:1px solid #fee1e1; }
+.file-icon.img { background:#eef8f2; color:var(--resize); border-color:#dff2e6; }
+.file-name { min-width:0; }
+.file-name strong { display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:12px; margin-bottom:4px; }
+.file-name span { color:var(--dim); font-size:10px; }
+.status { font-size:10px; color:var(--muted); white-space:nowrap; }
+.status.done { color:var(--success); font-weight:700; display:flex; gap:5px; align-items:center; }
+.check { width:17px; height:17px; border-radius:50%; color:#fff; background:var(--success); display:grid; place-items:center; font-size:10px; }
+.progress-line { height:5px; border-radius:99px; background:#ececf2; margin:12px 0 6px 46px; overflow:hidden; }
+.progress-line i { display:block; height:100%; width:68%; background:var(--accent); border-radius:inherit; }
+.progress-meta { margin-left:46px; display:flex; justify-content:space-between; color:var(--dim); font-size:9px; }
+.output-main { display:grid; grid-template-columns:36px minmax(0,1fr) auto; gap:10px; align-items:center; }
+.saving { min-width:47px; text-align:right; color:var(--success); font-size:11px; font-weight:720; background:#ecf8f0; padding:5px 7px; border-radius:8px; }
+.saving.live { color:var(--accent); background:var(--accent-soft); }
+.output-detail { margin:10px 0 0 46px; padding:8px 9px; border-radius:9px; background:#f7f7f9; color:var(--muted); font-size:10px; display:flex; justify-content:space-between; }
+.inspector { background:#fff; border-left:1px solid var(--line); display:flex; flex-direction:column; min-width:0; }
+.inspector-scroll { padding:22px 20px 14px; overflow:hidden; }
+.inspector-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:17px; }
+.inspector-head h2 { margin:0; font-size:16px; letter-spacing:-.015em; }
+.type-chip { color:var(--pdf); background:#fff0f0; border:1px solid #ffe0e0; padding:5px 8px; border-radius:8px; font-size:10px; font-weight:700; }
+.op-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:9px; }
+.op { min-height:57px; border:1px solid var(--line); border-radius:11px; padding:9px 8px; display:flex; align-items:center; gap:8px; color:#444448; background:#fff; }
+.op .oi { width:27px; height:27px; border-radius:8px; background:#fff0f0; color:var(--pdf); display:grid; place-items:center; font-size:12px; flex:0 0 auto; }
+.op span { font-size:10px; line-height:1.25; font-weight:620; }
+.op.compress .oi { color:var(--compress); background:#fff5e6; }
+.op.active { border-color:rgba(91,91,214,.28); background:var(--accent-soft); box-shadow:inset 0 0 0 1px rgba(91,91,214,.08); }
+.op.active .oi { color:#fff; background:var(--accent); }
+.settings { border-top:1px solid var(--line); margin-top:18px; padding-top:17px; }
+.settings-head { display:flex; justify-content:space-between; align-items:center; margin:8px 0 12px; }
+.settings-head strong { font-size:13px; }
+.settings-head span { font-size:10px; color:var(--dim); }
+.segmented { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; padding:3px; background:#f2f2f5; border-radius:10px; }
+.segmented span { padding:8px 3px; text-align:center; font-size:10px; color:var(--muted); border-radius:8px; }
+.segmented .on { background:#fff; color:var(--ink); font-weight:650; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.field { margin-top:15px; }
+.field label { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; margin-bottom:8px; }
+.slider { height:4px; background:#e8e8ed; border-radius:9px; position:relative; }
+.slider:before { content:""; position:absolute; width:62%; height:100%; background:var(--accent); border-radius:inherit; }
+.slider:after { content:""; position:absolute; left:60%; top:50%; transform:translateY(-50%); width:12px; height:12px; border-radius:50%; background:#fff; border:2px solid var(--accent); }
+.toggle-row { margin-top:17px; display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#4c4c51; }
+.toggle { width:34px; height:19px; border-radius:99px; background:var(--accent); padding:2px; display:flex; justify-content:flex-end; }
+.toggle i { width:15px; height:15px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.action-foot { margin-top:auto; padding:15px 20px 18px; border-top:1px solid var(--line); background:#fff; }
+.estimate { display:flex; justify-content:space-between; margin-bottom:11px; color:var(--dim); font-size:10px; }
+.estimate strong { color:var(--ink); }
+.primary { height:44px; border:0; width:100%; border-radius:12px; background:var(--accent); color:#fff; font:650 12px inherit; box-shadow:0 8px 18px rgba(91,91,214,.24); }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="titlebar">
+    <div class="brand"><span class="mark">F</span>Filesmith</div>
+    <div class="local"><i></i>Processing stays on this PC</div>
+    <div class="window-controls" aria-label="Window controls"><span>─</span><span>□</span><span class="close">×</span></div>
+  </header>
+  <div class="shell">
+    <aside class="rail">
+      <div class="section-label">File types</div>
+      <nav class="file-nav" aria-label="File types">
+        <div class="nav-item"><span class="nav-icon">▧</span>Images</div>
+        <div class="nav-item"><span class="nav-icon">▷</span>Video</div>
+        <div class="nav-item"><span class="nav-icon">♫</span>Audio</div>
+        <div class="nav-item active"><span class="nav-icon">P</span>PDF</div>
+        <div class="nav-item"><span class="nav-icon">T</span>Documents</div>
+      </nav>
+      <div class="rail-note">
+        <strong>PDF workspace</strong>
+        <p>Choose an operation on the right, then add one or more compatible files.</p>
+      </div>
+      <div class="rail-foot"><span class="gear">⚙</span>Settings</div>
+    </aside>
+
+    <section class="workspace">
+      <div class="workspace-head">
+        <div><h1>PDF workspace</h1><p>Prepare, extract, combine, or reduce PDF files.</p></div>
+        <div class="privacy"><b></b>Offline and private</div>
+      </div>
+      <div class="dropzone">
+        <div class="drop-icon">＋</div>
+        <div class="drop-copy"><strong>Drop PDF files here</strong><span>Up to 2 GB per file</span></div>
+        <button class="browse">Choose files</button>
+      </div>
+      <div class="queue-title"><span class="section-label">Queue</span><span class="count">4 files, 40.9 MB total</span></div>
+      <div class="queue-pair">
+        <article class="queue-card">
+          <div class="card-head"><strong>Input</strong><span>Original</span></div>
+          <div class="file-row">
+            <div class="file-main"><div class="file-icon">PDF</div><div class="file-name"><strong>brochure.pdf</strong><span>24.8 MB · 36 pages</span></div><span class="status">Compressing</span></div>
+            <div class="progress-line"><i></i></div><div class="progress-meta"><span>Optimizing images</span><span>68%</span></div>
+          </div>
+          <div class="file-row">
+            <div class="file-main"><div class="file-icon img">JPG</div><div class="file-name"><strong>receipt-scan.jpg</strong><span>4.8 MB · 3024 × 4032</span></div><span class="status done"><i class="check">✓</i>Done</span></div>
+          </div>
+          <div class="file-row">
+            <div class="file-main"><div class="file-icon img">PNG</div><div class="file-name"><strong>IMG_1837.png</strong><span>9.4 MB · 4096 × 2731</span></div><span class="status">Queued</span></div>
+          </div>
+          <div class="file-row">
+            <div class="file-main"><div class="file-icon">PDF</div><div class="file-name"><strong>meeting-notes.pdf</strong><span>1.9 MB · 8 pages</span></div><span class="status done"><i class="check">✓</i>Done</span></div>
+          </div>
+        </article>
+        <article class="queue-card">
+          <div class="card-head"><strong>Output</strong><span>Processed</span></div>
+          <div class="file-row">
+            <div class="output-main"><div class="file-icon">PDF</div><div class="file-name"><strong>brochure-compressed.pdf</strong><span>12.1 MB estimated</span></div><span class="saving live">−51%</span></div>
+            <div class="output-detail"><span>Writing output</span><span>Downloads\Filesmith</span></div>
+          </div>
+          <div class="file-row">
+            <div class="output-main"><div class="file-icon img">JPG</div><div class="file-name"><strong>receipt-scan-small.jpg</strong><span>1.7 MB</span></div><span class="saving">−65%</span></div>
+            <div class="output-detail"><span>Saved</span><span>3.1 MB smaller</span></div>
+          </div>
+          <div class="file-row">
+            <div class="output-main"><div class="file-icon img">PNG</div><div class="file-name"><strong>IMG_1837-small.png</strong><span>Waiting for current file</span></div><span class="saving live">−48%</span></div>
+            <div class="output-detail"><span>Estimated</span><span>4.9 MB output</span></div>
+          </div>
+          <div class="file-row">
+            <div class="output-main"><div class="file-icon">PDF</div><div class="file-name"><strong>meeting-notes-small.pdf</strong><span>1.2 MB</span></div><span class="saving">−37%</span></div>
+            <div class="output-detail"><span>Saved</span><span>0.7 MB smaller</span></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <aside class="inspector">
+      <div class="inspector-scroll">
+        <div class="inspector-head"><h2>PDF operations</h2><span class="type-chip">7 available</span></div>
+        <div class="section-label">Choose an operation</div>
+        <div class="op-grid">
+          <div class="op"><span class="oi">T</span><span>Extract text</span></div>
+          <div class="op"><span class="oi">▦</span><span>Pages to PNG</span></div>
+          <div class="op"><span class="oi">＋</span><span>Merge</span></div>
+          <div class="op"><span class="oi">↔</span><span>Split</span></div>
+          <div class="op"><span class="oi">✣</span><span>Burst</span></div>
+          <div class="op"><span class="oi">▧</span><span>Extract images</span></div>
+          <div class="op compress active"><span class="oi">↓</span><span>Compress</span></div>
+        </div>
+        <div class="settings">
+          <div class="section-label">Compress settings</div>
+          <div class="settings-head"><strong>Balanced</strong><span>Recommended</span></div>
+          <div class="segmented"><span>Smaller</span><span class="on">Balanced</span><span>Sharper</span></div>
+          <div class="field"><label><span>Image quality</span><strong>72%</strong></label><div class="slider"></div></div>
+          <div class="toggle-row"><span>Optimize embedded fonts</span><span class="toggle"><i></i></span></div>
+          <div class="toggle-row"><span>Remove document metadata</span><span class="toggle"><i></i></span></div>
+        </div>
+      </div>
+      <div class="action-foot">
+        <div class="estimate"><span>4 files selected</span><strong>Save about 12.6 MB</strong></div>
+        <button class="primary">Compress 4 files</button>
+      </div>
+    </aside>
+  </div>
+</main>
+</body>
+</html>

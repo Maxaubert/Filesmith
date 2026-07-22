@@ -20,6 +20,9 @@ export type IconName =
   | 'trash'
   | 'dots'
   | 'chevron-left'
+  | 'chevron-down'
+  | 'edit'
+  | 'grip'
   | 'chevron-right'
   | 'play'
   | 'pause'
@@ -28,36 +31,36 @@ export type IconName =
   | 'fullscreen'
   | 'expand'
   | 'music'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'doc'
+  | 'text'
 
 const PATHS: Record<IconName, JSX.Element> = {
-  convert: (
-    <>
-      <path d="M4 7h13l-3-3" />
-      <path d="M20 17H7l3 3" />
-    </>
+  convert: <path d="M4 8.5h13M14 5.5l3 3-3 3M20 15.5H7M10 12.5l-3 3 3 3" />,
+  compress: <path d="M3.5 12h17M12 3v6M9 6.5l3 2.5 3-2.5M12 21v-6M9 17.5l3-2.5 3 2.5" />,
+  image: (
+    <path d="M3.5 3.5h17v17h-17zM9 9.5a1.4 1.4 0 1 1 0-.1M20.5 15l-4.6-4.6a1.6 1.6 0 0 0-2.3 0L4.5 19.5" />
   ),
-  compress: <path d="M9 3v6M15 21v-6M4 9h5M15 15h5M6 6 3 9l3 3M18 18l3-3-3-3" />,
-  resize: <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />,
-  upscale: <path d="M12 20V8M6 14l6-6 6 6M4 4h16" />,
+  video: <path d="M2.5 6.5h13v11h-13zM15.5 12l6-3.5v7z" />,
+  audio: <path d="M4 10v4M8 6.5v11M12 3.5v17M16 6.5v11M20 10v4" />,
+  doc: <path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5zM14 3.5v5h5M8.5 13.5h7M8.5 17h4.5" />,
+  text: <path d="M5 6.5h14M5 12h14M5 17.5h9" />,
+  'chevron-down': <path d="m6 9 6 6 6-6" />,
+  edit: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />,
+  grip: <path d="M4 7h16M4 12h16M4 17h16" />,
+  resize: <path d="M15 3.5h5.5V9M9 20.5H3.5V15M20.5 3.5 14 10M3.5 20.5 10 14" />,
+  upscale: <path d="M4 14.5h5.5V20H4zM12.5 11.5 20 4M14 4h6v6" />,
   removebg: (
     <>
-      <path d="M12 3a9 9 0 1 0 9 9" />
-      <path d="M3 3l18 18" />
+      <path d="M3.5 3.5h17v17h-17z" strokeDasharray="2.6 2.8" />
+      <path d="M12 7.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6M7 19c1-2.6 2.8-4 5-4s4 1.4 5 4" />
     </>
   ),
-  pdf: (
-    <>
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
-    </>
-  ),
-  upload: (
-    <>
-      <path d="M12 15V3M7 8l5-5 5 5" />
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    </>
-  ),
-  check: <path d="m5 13 4 4L19 7" />,
+  pdf: <path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5zM14 3.5v5h5" />,
+  upload: <path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M4 20h16" />,
+  check: <path d="M4.5 12.5 9 17 19.5 6.5" />,
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

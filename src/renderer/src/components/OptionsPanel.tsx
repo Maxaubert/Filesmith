@@ -1,5 +1,5 @@
-import type { JSX } from 'react'
-import type { FileKind, JobOptions, ToolId } from '@shared/types'
+import { useEffect, type CSSProperties, type JSX } from 'react'
+import type { FileKind, JobOptions } from '@shared/types'
 import { familyFormats, isSameFormat } from '@shared/convert'
 import {
   AUDIO_BITRATES,
@@ -9,10 +9,22 @@ import {
   SCALE_MAX,
   SCALE_MIN,
   SCALE_STEP,
+  UPSCALE_COMFY,
+  UPSCALE_FACTORS,
+  UPSCALE_GPU_MODES,
+  UPSCALE_MODELS,
   VIDEO_CODECS,
   type Choice
 } from '@shared/compress'
-import { toolMeta } from '../lib/tools'
+import { RESIZE_FITS, type ResizeFit } from '@shared/resize'
+import { BG_DEFAULTS, BG_FILLS, type BgFill } from '@shared/removebg'
+import type { Operation } from '@shared/catalog'
+import { Icon } from './Icon'
+import { OperationSwitcher } from './OperationSwitcher'
+import { PidInstallCard } from './PidUpscale'
+import { usePidStatus } from './usePidStatus'
+import { ComfyImportCard } from './ComfyImport'
+import { useComfyModels } from './useComfyModels'
 
 /** A live "input → output" resolution row for the video resolution preview. */
 export interface VideoOutputRow {
@@ -91,7 +103,7 @@ function ConvertOptions({
                 onClick={() => set('format', f.ext)}
                 className={`rounded-xl border py-2.5 text-[13px] font-semibold transition ${
                   sel
-                    ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(91,91,214,.10)]'
+                    ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(0,0,0,.06)]'
                     : disabled
                       ? 'cursor-not-allowed border-black/[.06] bg-white text-[#c4c4cc]'
                       : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
@@ -121,7 +133,7 @@ function ConvertOptions({
   )
 }
 
-/** A styled single-select dropdown (label plus an optional short descriptor). */
+/** A styled single-select dropdown. */
 function ChoiceSelect<T extends string>({
   value,
   choices,
@@ -141,7 +153,6 @@ function ChoiceSelect<T extends string>({
         {choices.map((c) => (
           <option key={c.value} value={c.value}>
             {c.label}
-            {c.sub ? ` (${c.sub})` : ''}
           </option>
         ))}
       </select>
@@ -226,10 +237,6 @@ function CompressOptions({
             />
           </span>
         </button>
-        <p className="text-[12.5px] leading-relaxed text-muted">
-          Lossless keeps images untouched; the other levels downsample embedded images
-          (~300/150/72 dpi).
-        </p>
       </>
     )
   }
@@ -314,7 +321,7 @@ function CompressOptions({
                   onClick={() => set('audioBitrate', b)}
                   className={`rounded-xl border py-2 text-[12.5px] font-semibold transition ${
                     sel
-                      ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(91,91,214,.10)]'
+                      ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(0,0,0,.06)]'
                       : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
                   }`}
                 >
@@ -344,14 +351,192 @@ function CompressOptions({
   )
 }
 
-function ResizeOptions({
+/**
+ * Image Upscale (Real-ESRGAN). Deliberately a separate tool from Resize: this
+ * reconstructs detail with a neural net rather than interpolating, so the only
+ * choices that matter are how much bigger and which model. The output list is
+ * the whole explanation the panel needs — no prose about GPUs or file formats.
+ */
+function UpscaleOptions({
   options,
+  outputs,
   set
 }: {
   options: JobOptions
+  outputs?: VideoOutputRow[]
+  set: (k: string, v: string | number) => void
+}): JSX.Element {
+  const factor = Number(options.upscaleFactor ?? 4)
+  const comfy = useComfyModels()
+  const { status: pid, refresh: refreshPid } = usePidStatus()
+
+  // Two-level picker: Photo / Anime / "AI models" (NVIDIA-only). The AI-models
+  // category holds a SECOND picker of every AI upscaler — the user's imported
+  // ComfyUI ESRGAN models AND PiD (diffusion). Stored value is 'photo' | 'anime'
+  // | 'pid' | 'comfy' (category placeholder) | 'comfy:<path>'.
+  const rawModel = String(options.upscaleModel ?? 'photo')
+  const hasNvidia = Boolean(comfy.status?.nvidia || pid?.nvidia)
+  const comfyModels = comfy.status?.models ?? []
+  const comfyChoices = comfyModels.map((m) => ({
+    value: `comfy:${m.path}`,
+    // Verified models read clean; only flag the unvetted ones, so the marker
+    // isn't mistaken for a "selected" checkmark.
+    label: `${m.name} · ${m.scale}×${m.badge === 'experimental' ? ' · experimental' : ''}`
+  }))
+  const isPid = rawModel === 'pid'
+  const isComfyPath = rawModel.startsWith('comfy:')
+  const inAi = isPid || isComfyPath || rawModel === 'comfy'
+  const category = inAi ? 'comfy' : rawModel === 'anime' ? 'anime' : 'photo'
+  const categoryChoices = [...UPSCALE_MODELS, ...(hasNvidia ? [UPSCALE_COMFY] : [])]
+  // PiD is only offered when it's actually attainable: already installed, or its
+  // weights are reusable from the user's ComfyUI (so setup is quick). Otherwise
+  // it isn't listed — it shouldn't look available when it isn't.
+  const showPid = hasNvidia && Boolean(pid?.installed || comfy.status?.pidReusable)
+  // The AI-models sub-picker: imported ESRGAN models first, then PiD.
+  const subChoices = [
+    ...comfyChoices,
+    ...(showPid ? [{ value: 'pid', label: 'PiD (diffusion) · 4×' }] : [])
+  ]
+  const subDefault = comfyChoices[0]?.value ?? (showPid ? 'pid' : 'comfy')
+  const subValue = isPid ? 'pid' : isComfyPath ? rawModel : subDefault
+  const pidNeedsInstall = isPid && pid != null && !pid.installed
+  const vramMb = pid?.nvidia?.vramMb ?? null
+  const lowVram = isPid && vramMb != null && vramMb < 12_000
+
+  const pickCategory = (v: string): void => {
+    // "AI models" jumps to the first available upscaler (an imported model, else
+    // PiD); the sub-picker then swaps between them.
+    if (v === 'comfy') set('upscaleModel', subDefault)
+    else set('upscaleModel', v)
+  }
+
+  // Keep the stored value valid once both statuses have loaded: an AI choice with
+  // no GPU falls back to Photo; a comfy:<path> that's gone, or PiD that isn't
+  // showable, falls back to the first available AI model (or the empty category).
+  useEffect(() => {
+    if (pid == null || comfy.status == null) return
+    if (inAi && !hasNvidia) set('upscaleModel', 'photo')
+    else if (isComfyPath && !comfyChoices.some((c) => c.value === rawModel))
+      set('upscaleModel', subDefault)
+    else if (isPid && !showPid) set('upscaleModel', subDefault)
+  }, [pid, comfy.status, hasNvidia, inAi, isComfyPath, isPid, showPid, rawModel, comfyChoices, subDefault, set])
+
+  return (
+    <>
+      <div>
+        <Label>Scale</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {UPSCALE_FACTORS.map((f) => {
+            const sel = factor === f
+            return (
+              <button
+                key={f}
+                onClick={() => set('upscaleFactor', f)}
+                className={`rounded-xl border py-2.5 text-[13px] font-semibold transition ${
+                  sel
+                    ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(0,0,0,.06)]'
+                    : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
+                }`}
+              >
+                {f}×
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div>
+        <Label>Model</Label>
+        <ChoiceSelect value={category} choices={categoryChoices} onChange={pickCategory} />
+        {category === 'comfy' && (
+          <>
+            {/* Second picker: which AI upscaler (imported ESRGAN models + PiD). */}
+            {subChoices.length > 0 && (
+              <div className="mt-2.5">
+                <ChoiceSelect
+                  value={subValue}
+                  choices={subChoices}
+                  onChange={(v) => set('upscaleModel', v)}
+                />
+              </div>
+            )}
+            {pidNeedsInstall && (
+              <div className="mt-3">
+                <PidInstallCard onInstalled={refreshPid} />
+              </div>
+            )}
+            {comfy.status && (
+              <div className="mt-3">
+                <ComfyImportCard status={comfy.status} refresh={comfy.refresh} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      {/* GPU usage: the tiled engines (Real-ESRGAN / ComfyUI) can leave headroom;
+          PiD's diffusion runs in one pass, so it's shown but explained there. */}
+      <div>
+        <Label>GPU usage</Label>
+        {isPid ? (
+          <>
+            <p className="text-[12px] text-dim">
+              PiD runs at full GPU — its diffusion can&apos;t be paced. Use a ComfyUI, Photo, or
+              Anime model for a Background option.
+            </p>
+            {lowVram && (
+              <p className="mt-1.5 text-[11px] text-dim">
+                Your GPU reports ~{Math.round((vramMb as number) / 1024)} GB — PiD will
+                auto-reduce resolution on large images to fit.
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <Segmented
+              value={String(options.gpuMode ?? 'full')}
+              onChange={(v) => set('gpuMode', v)}
+              options={UPSCALE_GPU_MODES.map((o) => ({ value: o.value, label: o.label }))}
+            />
+            {String(options.gpuMode ?? 'full') === 'background' && (
+              <p className="mt-1.5 text-[11px] text-dim">
+                Slower, but caps VRAM and paces the work so the GPU stays free for other apps.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+      {outputs && outputs.length > 0 && (
+        <div>
+          <Label>Output</Label>
+          <div className="scroll-thin max-h-32 space-y-1 overflow-auto rounded-xl border border-black/[.08] bg-white p-2.5">
+            {outputs.map((r) => (
+              <div key={r.path} className="flex items-center gap-1.5 text-[11px]">
+                <span className="min-w-0 flex-1 truncate text-dim" title={r.name}>
+                  {r.name}
+                </span>
+                <span className="shrink-0 font-mono text-[10.5px] text-muted">
+                  {r.from}
+                  {r.to !== r.from && <span className="text-accent"> → {r.to}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function ResizeOptions({
+  options,
+  outputs,
+  set
+}: {
+  options: JobOptions
+  outputs?: VideoOutputRow[]
   set: (k: string, v: string | number) => void
 }): JSX.Element {
   const mode = String(options.mode ?? 'percent')
+  const fit = (options.fit === 'stretch' ? 'stretch' : 'contain') as ResizeFit
   return (
     <>
       <div>
@@ -408,48 +593,100 @@ function ResizeOptions({
           </div>
         </div>
       )}
+      {mode === 'dimensions' && (
+        <div>
+          <Label>Fit</Label>
+          <Segmented
+            value={fit}
+            onChange={(v) => set('fit', v)}
+            options={RESIZE_FITS.map((f) => ({ value: f.value, label: f.label }))}
+          />
+        </div>
+      )}
+      {/* The resulting size, per file. Without it, "Keep aspect" silently
+          discards whichever of width/height isn't the limiting one, and the
+          resize looks broken when a changed number does nothing. */}
+      {outputs && outputs.length > 0 && (
+        <div>
+          <Label>Output</Label>
+          <div className="scroll-thin max-h-32 space-y-1 overflow-auto rounded-xl border border-black/[.08] bg-white p-2.5">
+            {outputs.map((r) => (
+              <div key={r.path} className="flex items-center gap-1.5 text-[11px]">
+                <span className="min-w-0 flex-1 truncate text-dim" title={r.name}>
+                  {r.name}
+                </span>
+                <span className="shrink-0 font-mono text-[10.5px] text-muted">
+                  {r.from}
+                  {r.to !== r.from && <span className="text-accent"> → {r.to}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   )
 }
 
-// Every PDF operation, with a short grid label + tooltip + descriptive hint.
-const PDF_OPS: { value: string; label: string; title: string; hint: string }[] = [
-  {
-    value: 'extract-text',
-    label: 'Text',
-    title: 'Extract the text layer',
-    hint: 'Save the PDF’s text layer as a .txt file next to it.'
-  },
-  {
-    value: 'pages-to-images',
-    label: 'Pages → PNG',
-    title: 'Render each page to a PNG image',
-    hint: 'Render every page to a PNG in a new folder.'
-  },
-  {
-    value: 'merge',
-    label: 'Merge',
-    title: 'Combine the selected PDFs into one',
-    hint: 'Combine the selected PDFs, in queue order, into one new PDF.'
-  },
-  {
-    value: 'split-range',
-    label: 'Split',
-    title: 'Keep only certain pages',
-    hint: 'Keep only the pages you list, in a new PDF.'
-  },
-  {
-    value: 'split-pages',
-    label: 'Burst',
-    title: 'Save every page as its own PDF',
-    hint: 'Save every page as its own PDF in a new folder.'
-  },
-  {
-    value: 'extract-images',
-    label: 'Extract imgs',
-    title: 'Pull embedded images out of the PDF',
-    hint: 'Pull every embedded image into a new folder.'
-  }
+/**
+ * Remove Background (rembg): one dropdown and three toggles.
+ *
+ * There is no model picker. The engine supports four licence-vetted models, but
+ * birefnet-general beats the others by a wide margin (IoU 0.87 vs 0.82 isnet and
+ * 0.39 u2net on the one independent benchmark), so offering the weaker ones is
+ * offering a worse cutout. Same reasoning for the alpha-matting trimap
+ * thresholds: tuning knobs, not decisions, left at rembg's defaults.
+ */
+function RemoveBgOptions({
+  options,
+  set
+}: {
+  options: JobOptions
+  set: (k: string, v: string | number | boolean) => void
+}): JSX.Element {
+  const fill = String(options.bgFill ?? BG_DEFAULTS.bgFill) as BgFill
+  const bgImage = String(options.bgImagePath ?? '')
+  return (
+    <div>
+      <Label>Background</Label>
+      <ChoiceSelect value={fill} choices={BG_FILLS} onChange={(v) => set('bgFill', v)} />
+      {fill === 'custom' && (
+        <input
+          type="color"
+          value={String(options.bgCustomColor ?? BG_DEFAULTS.bgCustomColor)}
+          onChange={(e) => set('bgCustomColor', e.target.value)}
+          className="mt-2 h-9 w-full cursor-pointer rounded-xl border border-black/[.10] bg-white p-1"
+        />
+      )}
+      {fill === 'image' && (
+        <button
+          onClick={() =>
+            void window.filesmith.pickImage().then((p) => {
+              if (p) set('bgImagePath', p)
+            })
+          }
+          className="mt-2 flex w-full items-center gap-2 rounded-xl border border-black/[.10] bg-white px-3 py-2.5 text-left text-[12.5px] font-semibold transition hover:border-[#b9b9c8]"
+        >
+          <Icon name="upload" className="h-4 w-4 shrink-0 text-accent" />
+          <span className={`min-w-0 flex-1 truncate ${bgImage ? 'text-ink' : 'text-dim'}`}>
+            {bgImage ? bgImage.split(/[\\/]/).pop() : 'Choose image…'}
+          </span>
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Every PDF operation. The explanation lives in the hover tooltip, not on the
+// panel: "Burst" and "Extract imgs" need a gloss, but not one taking up space
+// permanently for the users who already know what they mean.
+const PDF_OPS: { value: string; label: string; title: string }[] = [
+  { value: 'extract-text', label: 'Text', title: 'Extract the text layer to a .txt file' },
+  { value: 'pages-to-images', label: 'Pages → PNG', title: 'Render each page to a PNG' },
+  { value: 'merge', label: 'Merge', title: 'Combine the selected PDFs, in queue order, into one' },
+  { value: 'split-range', label: 'Split', title: 'Keep only the pages you list' },
+  { value: 'split-pages', label: 'Burst', title: 'Save every page as its own PDF' },
+  { value: 'extract-images', label: 'Extract imgs', title: 'Pull out every embedded image' }
 ]
 
 function PdfOptions({
@@ -462,7 +699,6 @@ function PdfOptions({
   set: (k: string, v: string | number) => void
 }): JSX.Element {
   const op = String(options.op ?? 'extract-text')
-  const current = PDF_OPS.find((o) => o.value === op)
   return (
     <>
       <div>
@@ -477,7 +713,7 @@ function PdfOptions({
                 onClick={() => set('op', o.value)}
                 className={`rounded-xl border py-2.5 text-[12.5px] font-semibold transition ${
                   sel
-                    ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(91,91,214,.10)]'
+                    ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(0,0,0,.06)]'
                     : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
                 }`}
               >
@@ -518,93 +754,110 @@ function PdfOptions({
           />
         </div>
       )}
-      {op === 'merge' ? (
-        <p className="text-[12.5px] leading-relaxed text-muted">
-          {runCount >= 2
-            ? `${runCount} PDFs will be merged, in queue order, into one new PDF.`
-            : 'Select 2 or more PDFs (in the queue) to merge them.'}
-        </p>
-      ) : (
-        <p className="text-[12.5px] leading-relaxed text-muted">{current?.hint}</p>
+      {/* Merge is the one op whose requirement isn't visible in the UI (it needs
+          2+ files), so it keeps a line. Every other op's name says enough. */}
+      {op === 'merge' && runCount < 2 && (
+        <p className="text-[12.5px] text-muted">Select 2 or more PDFs.</p>
       )}
     </>
   )
 }
 
 export function OptionsPanel({
-  tool,
+  operation,
+  operations,
+  onPickOperation,
   options,
   activeKind,
   runKind,
+  fallbackKind,
   videoOutputs,
+  upscaleOutputs,
+  resizeOutputs,
   sourceExt,
   srcExts,
   runCount,
   onSet,
   onRun
 }: {
-  tool: ToolId
+  /** The operation this workspace performs, plus its siblings for the switcher. */
+  operation: Operation
+  operations: Operation[]
+  onPickOperation: (id: string) => void
   options: JobOptions
   activeKind: FileKind | null
   runKind: FileKind | null
+  /** The kind to show options for when nothing is selected: the category's own. */
+  fallbackKind: FileKind
   videoOutputs?: VideoOutputRow[]
+  upscaleOutputs?: VideoOutputRow[]
+  resizeOutputs?: VideoOutputRow[]
   sourceExt: string | null
   srcExts: string[]
   runCount: number
   onSet: (k: string, v: string | number | boolean) => void
   onRun: () => void
 }): JSX.Element {
-  const meta = toolMeta(tool)
   return (
-    <aside className="scroll-thin flex w-[300px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-black/[.06] bg-white/40 px-[22px] py-6">
-      <div>
-        <h3 className="text-base font-bold">{meta.label} options</h3>
-        <p className="mt-0.5 text-[12.5px] text-muted">
-          {runCount > 0
-            ? `Applies to ${runCount} file${runCount === 1 ? '' : 's'}.`
-            : 'Select files to begin.'}
-        </p>
-      </div>
+    // Every option control (slider, toggle, run button, selected chip) reads the
+    // accent variables, so overriding them here themes the whole panel black in
+    // one place, without touching the rail or the coloured switcher above.
+    <aside
+      className="scroll-thin flex w-[300px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-black/[.06] bg-white/40 px-[22px] py-6"
+      style={
+        {
+          '--color-accent': '#000000',
+          '--color-accent-hi': '#242424',
+          '--color-accent-soft': '#efeff1'
+        } as CSSProperties
+      }
+    >
+      {/* The one coloured control: the primary choice. No "Options" header below
+          it: the option groups (Target format, Quality) are their own headers. */}
+      <OperationSwitcher operation={operation} operations={operations} onPick={onPickOperation} />
+      <div className="-my-1 h-px bg-black/[.07]" />
 
-      {activeKind === null ? (
-        // Nothing selected: don't assume a kind or show bogus choices (e.g. a
-        // format grid). Reveal the real options once a file is selected.
-        <div className="flex flex-1 items-center justify-center px-4 text-center">
-          <span className="text-[13px] font-medium text-[#a2a2ac]">No files selected</span>
-        </div>
-      ) : (
-        <>
-          {tool === 'convert' && (
-            <ConvertOptions
-              options={options}
-              activeKind={activeKind}
-              sourceExt={sourceExt}
-              srcExts={srcExts}
-              set={onSet}
-            />
-          )}
-          {tool === 'compress' && (
-            <CompressOptions
-              options={options}
-              activeKind={runKind}
-              videoOutputs={videoOutputs}
-              set={onSet}
-            />
-          )}
-          {tool === 'resize' && <ResizeOptions options={options} set={onSet} />}
-          {tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
-        </>
-      )}
+      {/* The options are always shown: every file in this category takes the
+          same operation, so its options are known before anything is selected.
+          Falls back to the category's kind when there's no selection to read
+          one from. Only the run button reflects whether files are ready. */}
+      <>
+        {operation.tool === 'convert' && (
+          <ConvertOptions
+            options={options}
+            activeKind={activeKind ?? fallbackKind}
+            sourceExt={sourceExt}
+            srcExts={srcExts}
+            set={onSet}
+          />
+        )}
+        {operation.tool === 'compress' && (
+          <CompressOptions
+            options={options}
+            activeKind={runKind ?? fallbackKind}
+            videoOutputs={videoOutputs}
+            set={onSet}
+          />
+        )}
+        {operation.tool === 'resize' && (
+          <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
+        )}
+        {operation.tool === 'upscale' && (
+          <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
+        )}
+        {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
+        {operation.tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
+      </>
+      <div className="flex-1" />
 
       <button
         onClick={onRun}
         disabled={runCount === 0}
-        className="mt-auto rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(91,91,214,.32)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+        className="mt-auto rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(0,0,0,.20)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
       >
-        {meta.verb}
+        {operation.label}
         {runCount > 0 ? ` ${runCount} file${runCount === 1 ? '' : 's'}` : ''}
       </button>
-      <div className="-mt-3 text-center text-[11.5px] text-dim">Saved next to each original</div>
     </aside>
   )
 }

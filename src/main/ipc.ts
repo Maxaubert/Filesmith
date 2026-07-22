@@ -1,4 +1,5 @@
 import { open, readFile, stat } from 'fs/promises'
+import { existsSync } from 'fs'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type {
   FileInfo,
@@ -13,10 +14,16 @@ import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
 import { toolAvailable } from './toolResolver'
-import { probeDimensions } from './probe'
+import { probeDimensions, probeImageDimensions } from './probe'
 import { makeThumbnail } from './thumbnail'
 import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
 import { targetsFor, toolsFor } from './tools/registry'
+import { detectNvidia } from './pid/gpu'
+import { basename } from 'path'
+import { pidInstalled, comfyEngineReady, pidEnvMarker, PID_BACKBONES } from './pid/paths'
+import { installPid, installComfyEngine } from './pid/install'
+import { scanComfy, guessComfyFolder, findComfyPidWeights } from './comfy/discover'
+import { readComfyStore, writeComfyStore, usableComfyModels } from './comfy/store'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
 // is hidden from the picker and dropped from drag-and-drop.
@@ -84,6 +91,15 @@ export function registerIpc(win: BrowserWindow): void {
   ipcMain.handle('files:classify', (_e, paths: string[]) =>
     paths.map(fileInfoFromPath).filter(isSupported)
   )
+  // A single image, for the Remove Background backdrop. Separate from
+  // files:pick because it feeds an option, not the queue.
+  ipcMain.handle('image:pick', async () => {
+    const r = await dialog.showOpenDialog(win, {
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: bare(IMAGE_EXTS) }]
+    })
+    return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
+  })
   ipcMain.handle('files:pick', async () => {
     const r = await dialog.showOpenDialog(win, {
       properties: ['openFile', 'multiSelections'],
@@ -140,6 +156,84 @@ export function registerIpc(win: BrowserWindow): void {
   })
   // Video DISPLAY dimensions (rotation-aware) for the compress scale preview.
   ipcMain.handle('video:dimensions', (_e, p: string) => probeDimensions(p))
+  // Images go through ImageMagick instead: ffprobe rejects very large ones and
+  // can't read svg/jxl/heic at all.
+  ipcMain.handle('image:dimensions', (_e, p: string) => probeImageDimensions(p))
   ipcMain.handle('tools:for', (_e, file: FileInfo) => toolsFor(file))
   ipcMain.handle('tool:targets', (_e, id: ToolId, file: FileInfo) => targetsFor(id, file))
+
+  // --- PiD Advanced (NVIDIA) upscaler tier -----------------------------------
+  // Status drives the gated model option; install runs the one-click download,
+  // streaming progress so the renderer can show a modal.
+  ipcMain.handle('pid:status', async () => {
+    const gpu = await detectNvidia()
+    return { nvidia: gpu, installed: pidInstalled('flux') }
+  })
+  ipcMain.handle('pid:install', async () => {
+    try {
+      await installPid('flux', (step, pct) => win.webContents.send('pid:progress', { step, pct }))
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  // --- ComfyUI-imported upscale models ---------------------------------------
+  // status: GPU + whether the spandrel engine is ready + the remembered folder
+  // and usable model count. install: builds the shared torch env + spandrel (no
+  // PiD weights). pick+scan: choose a ComfyUI folder, classify its upscalers,
+  // remember them. list: the usable models for the picker.
+  ipcMain.handle('comfy:status', async () => {
+    // Never reject: a rejected status leaves the renderer's comfy.status null,
+    // which would hide the whole "ComfyUI models" option.
+    try {
+      const gpu = await detectNvidia()
+      const store = readComfyStore()
+      return {
+        nvidia: gpu,
+        engineReady: comfyEngineReady(),
+        // The heavy torch env already present (e.g. PiD installed) means setup is
+        // just adding the spandrel loader — seconds, not a multi-GB download.
+        envExists: existsSync(pidEnvMarker()),
+        // Whether the user's ComfyUI has PiD weights we can reuse — the UI only
+        // offers PiD when it's reusable (or already installed).
+        pidReusable: findComfyPidWeights(basename(PID_BACKBONES.flux.checkpointDir)) != null,
+        folder: store?.folder ?? null,
+        models: usableComfyModels()
+      }
+    } catch (e) {
+      console.error('[comfy:status] failed:', e)
+      return { nvidia: null, engineReady: false, envExists: false, folder: null, models: [] }
+    }
+  })
+  ipcMain.handle('comfy:install', async () => {
+    try {
+      await installComfyEngine((step, pct) => win.webContents.send('comfy:progress', { step, pct }))
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle('comfy:pick-folder', async () => {
+    // Open at the remembered folder (if it still exists), else the best guess at
+    // a ComfyUI install, so a moved folder doesn't drop them in a blank Explorer.
+    const stored = readComfyStore()?.folder
+    const defaultPath = stored && existsSync(stored) ? stored : guessComfyFolder()
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Select your ComfyUI folder',
+      properties: ['openDirectory'],
+      ...(defaultPath ? { defaultPath } : {})
+    })
+    return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
+  })
+  ipcMain.handle('comfy:scan', async (_e, folder: string) => {
+    try {
+      const models = await scanComfy(folder)
+      writeComfyStore({ folder, models })
+      return { ok: true, models }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle('comfy:list', () => usableComfyModels())
 }

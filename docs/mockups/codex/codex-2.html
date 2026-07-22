@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filesmith Concept 2, Command Shelf</title>
+<style>
+:root {
+  --ink:#1d1d1f; --muted:#6e6e73; --dim:#86868b; --canvas:#f4f4f6;
+  --line:#ececef; --accent:#5b5bd6; --accent-hi:#6d6ce4; --accent-soft:#eeeefb;
+  --convert:#5b5bd6; --compress:#f5920b; --resize:#22b364; --upscale:#8b5cf6;
+  --remove:#12b3a6; --pdf:#ef4444; --success:#22a75a;
+}
+* { box-sizing:border-box; }
+html,body { width:100%; height:100%; margin:0; overflow:hidden; }
+body { display:grid; place-items:center; background:#dedee3; color:var(--ink); font-family:-apple-system,'SF Pro Display',Inter,system-ui,'Segoe UI',sans-serif; -webkit-font-smoothing:antialiased; }
+.app { width:1400px; height:900px; background:var(--canvas); overflow:hidden; box-shadow:0 24px 70px rgba(28,28,36,.18); }
+.titlebar { height:50px; display:flex; align-items:center; background:#fff; border-bottom:1px solid var(--line); padding-left:18px; }
+.brand { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:680; }
+.mark { width:22px; height:22px; border-radius:7px; background:var(--accent); color:#fff; display:grid; place-items:center; font-size:11px; font-weight:800; }
+.crumb { margin-left:20px; padding-left:20px; border-left:1px solid var(--line); color:var(--dim); font-size:11px; }
+.controls { margin-left:auto; height:50px; display:flex; }
+.controls span { width:46px; display:grid; place-items:center; color:#4c4c50; font:13px 'Segoe UI',sans-serif; }
+.controls .x { font-size:17px; }
+.shell { height:850px; display:grid; grid-template-columns:196px 1fr; }
+.rail { background:#fff; border-right:1px solid var(--line); padding:22px 14px 16px; display:flex; flex-direction:column; }
+.section-label { color:var(--dim); font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.04em; }
+.rail .section-label { margin:2px 12px 11px; }
+.file-nav { display:grid; gap:5px; }
+.nav { height:42px; padding:0 12px; border-radius:12px; display:flex; align-items:center; gap:11px; color:#4f4f54; font-size:13px; font-weight:570; }
+.nav i { width:25px; height:25px; border-radius:8px; background:#f0f0f3; display:grid; place-items:center; font-size:11px; font-style:normal; color:var(--muted); }
+.nav.active { background:var(--accent); color:#fff; box-shadow:0 7px 16px rgba(91,91,214,.22); }
+.nav.active i { background:rgba(255,255,255,.18); color:#fff; }
+.recent { margin-top:25px; border-top:1px solid var(--line); padding-top:18px; }
+.recent .section-label { margin-left:12px; }
+.mini-job { margin-top:10px; padding:10px 12px; border-radius:11px; background:#f7f7f9; }
+.mini-job strong { display:block; font-size:11px; margin-bottom:5px; }
+.mini-job span { color:var(--dim); font-size:10px; }
+.offline { margin:auto 8px 0; font-size:10px; color:var(--dim); line-height:1.5; }
+.offline b { display:inline-block; width:6px; height:6px; background:#22b364; border-radius:50%; margin-right:6px; }
+.settings-link { margin:13px 4px 0; padding-top:13px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); display:flex; gap:9px; align-items:center; }
+.content { min-width:0; display:grid; grid-template-rows:154px 696px; }
+.top-zone { padding:20px 22px 16px; background:#fafafd; border-bottom:1px solid var(--line); }
+.top-line { height:35px; display:flex; justify-content:space-between; align-items:flex-start; }
+.top-line h1 { margin:0; font-size:20px; line-height:1; letter-spacing:-.025em; }
+.top-line p { margin:4px 0 0; color:var(--muted); font-size:11px; }
+.type-note { color:var(--dim); font-size:10px; padding-top:2px; }
+.command-shelf { height:82px; background:#fff; border:1px solid rgba(0,0,0,.07); border-radius:15px; box-shadow:0 5px 17px rgba(22,22,35,.045); display:flex; align-items:stretch; padding:9px; gap:2px; }
+.command-group { display:flex; gap:3px; padding-right:7px; margin-right:5px; border-right:1px solid var(--line); }
+.command-group:last-child { border-right:0; margin-right:0; padding-right:0; flex:1; }
+.cmd { width:91px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:#4b4b50; }
+.cmd.wide { width:104px; }
+.cmd .ico { width:28px; height:28px; border-radius:8px; display:grid; place-items:center; background:#fff0f0; color:var(--pdf); font-size:12px; font-weight:700; }
+.cmd span { font-size:10px; font-weight:620; white-space:nowrap; }
+.cmd.compress .ico { color:var(--compress); background:#fff5e6; }
+.cmd.active { background:var(--accent-soft); color:var(--accent); }
+.cmd.active .ico { background:var(--accent); color:#fff; box-shadow:0 4px 9px rgba(91,91,214,.2); }
+.workbody { display:grid; grid-template-columns:minmax(0,1fr) 286px; min-width:0; }
+.main { padding:18px 18px 20px 22px; min-width:0; }
+.drop { height:90px; border:1px dashed rgba(91,91,214,.3); border-radius:15px; background:#fff; display:flex; align-items:center; padding:0 18px; box-shadow:0 4px 15px rgba(22,22,35,.03); }
+.drop-plus { width:42px; height:42px; border-radius:13px; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center; font-size:20px; margin-right:13px; }
+.drop strong { display:block; font-size:13px; margin-bottom:4px; }
+.drop small { color:var(--dim); font-size:10px; }
+.choose { margin-left:auto; border:1px solid var(--line); border-radius:10px; background:#fafafd; color:var(--accent); padding:9px 13px; font:650 11px inherit; }
+.queue-head { height:45px; display:flex; align-items:end; justify-content:space-between; padding-bottom:9px; }
+.queue-head span:last-child { color:var(--dim); font-size:10px; }
+.columns { height:522px; display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+.card { background:#fff; border:1px solid rgba(0,0,0,.07); border-radius:15px; box-shadow:0 5px 18px rgba(22,22,35,.04); padding:13px; overflow:hidden; }
+.card-head { height:30px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--line); }
+.card-head strong { font-size:12px; }
+.card-head span { color:var(--dim); font-size:10px; }
+.row { min-height:106px; padding:14px 2px 11px; border-bottom:1px solid var(--line); }
+.row:last-child { border-bottom:0; }
+.row-main { display:grid; grid-template-columns:34px minmax(0,1fr) auto; gap:9px; align-items:center; }
+.doc { width:32px; height:37px; border-radius:9px; background:#fff0f0; border:1px solid #ffe0e0; color:var(--pdf); display:grid; place-items:center; font-size:9px; font-weight:760; }
+.doc.jpg,.doc.png { background:#eef8f2; border-color:#def1e4; color:var(--resize); }
+.name { min-width:0; }
+.name strong { display:block; font-size:11px; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.name span { color:var(--dim); font-size:9px; }
+.state { color:var(--muted); font-size:9px; white-space:nowrap; }
+.state.done { color:var(--success); font-weight:700; display:flex; align-items:center; gap:5px; }
+.ok { width:16px; height:16px; background:var(--success); color:#fff; border-radius:50%; display:grid; place-items:center; font-size:9px; }
+.bar { height:5px; border-radius:99px; background:#ececf2; margin:11px 0 5px 43px; overflow:hidden; }
+.bar i { display:block; width:54%; height:100%; background:var(--accent); border-radius:inherit; }
+.bar-meta { margin-left:43px; display:flex; justify-content:space-between; color:var(--dim); font-size:9px; }
+.cut { font-size:10px; font-weight:730; color:var(--success); background:#ebf8f0; padding:5px 7px; border-radius:8px; }
+.cut.live { color:var(--accent); background:var(--accent-soft); }
+.saved { margin:10px 0 0 43px; background:#f7f7f9; border-radius:8px; padding:7px 8px; font-size:9px; color:var(--muted); display:flex; justify-content:space-between; }
+.panel { background:#fff; border-left:1px solid var(--line); display:flex; flex-direction:column; min-width:0; }
+.panel-body { padding:20px 19px; }
+.panel-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+.panel h2 { font-size:15px; margin:0; }
+.badge { color:var(--compress); background:#fff5e6; border-radius:8px; padding:5px 7px; font-size:9px; font-weight:700; }
+.panel-sub { color:var(--dim); font-size:10px; line-height:1.4; margin-bottom:20px; }
+.setting-block { padding:15px 0; border-top:1px solid var(--line); }
+.setting-title { display:flex; justify-content:space-between; font-size:11px; margin-bottom:10px; }
+.setting-title span { color:var(--dim); }
+.quality { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; padding:3px; border-radius:10px; background:#f2f2f5; }
+.quality span { padding:8px 2px; text-align:center; font-size:9px; color:var(--muted); border-radius:8px; }
+.quality .selected { background:#fff; color:var(--ink); font-weight:650; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.path { padding:10px; border:1px solid var(--line); border-radius:10px; background:#fafafd; font-size:10px; color:var(--muted); line-height:1.4; }
+.checkline { margin-top:12px; display:flex; justify-content:space-between; align-items:center; color:#4c4c51; font-size:10px; }
+.switch { width:32px; height:18px; background:var(--accent); border-radius:99px; padding:2px; display:flex; justify-content:flex-end; }
+.switch i { width:14px; height:14px; border-radius:50%; background:#fff; }
+.summary { margin-top:16px; background:#f7f7f9; border-radius:11px; padding:12px; }
+.summary div { display:flex; justify-content:space-between; font-size:10px; margin-bottom:8px; color:var(--muted); }
+.summary div:last-child { margin:0; }
+.summary strong { color:var(--ink); }
+.panel-foot { margin-top:auto; padding:15px 19px 18px; border-top:1px solid var(--line); }
+.panel-foot small { display:block; color:var(--dim); font-size:9px; margin-bottom:9px; }
+.primary { height:44px; border:0; border-radius:12px; width:100%; background:var(--accent); color:#fff; font:650 12px inherit; box-shadow:0 8px 18px rgba(91,91,214,.24); }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="titlebar">
+    <div class="brand"><span class="mark">F</span>Filesmith</div>
+    <div class="crumb">PDF workspace</div>
+    <div class="controls" aria-label="Window controls"><span>─</span><span>□</span><span class="x">×</span></div>
+  </header>
+  <div class="shell">
+    <aside class="rail">
+      <div class="section-label">File types</div>
+      <nav class="file-nav">
+        <div class="nav"><i>▧</i>Images</div>
+        <div class="nav"><i>▷</i>Video</div>
+        <div class="nav"><i>♫</i>Audio</div>
+        <div class="nav active"><i>P</i>PDF</div>
+        <div class="nav"><i>T</i>Documents</div>
+      </nav>
+      <div class="recent">
+        <div class="section-label">Recent batch</div>
+        <div class="mini-job"><strong>Product launch assets</strong><span>8 files · 73 MB saved</span></div>
+      </div>
+      <div class="offline"><b></b>Files never leave your computer.</div>
+      <div class="settings-link"><span>⚙</span>Settings</div>
+    </aside>
+
+    <section class="content">
+      <div class="top-zone">
+        <div class="top-line">
+          <div><h1>What should Filesmith do?</h1><p>PDF operations stay within reach while settings remain focused.</p></div>
+          <span class="type-note">7 PDF operations</span>
+        </div>
+        <div class="command-shelf" aria-label="PDF operations">
+          <div class="command-group">
+            <div class="cmd"><span class="ico">T</span><span>Extract text</span></div>
+            <div class="cmd wide"><span class="ico">▦</span><span>Pages to PNG</span></div>
+            <div class="cmd wide"><span class="ico">▧</span><span>Extract images</span></div>
+          </div>
+          <div class="command-group">
+            <div class="cmd"><span class="ico">＋</span><span>Merge</span></div>
+            <div class="cmd"><span class="ico">↔</span><span>Split</span></div>
+            <div class="cmd"><span class="ico">✣</span><span>Burst</span></div>
+          </div>
+          <div class="command-group">
+            <div class="cmd compress active"><span class="ico">↓</span><span>Compress</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="workbody">
+        <section class="main">
+          <div class="drop">
+            <div class="drop-plus">＋</div>
+            <div><strong>Add files to Compress</strong><small>PDF, PNG, and JPG files are accepted in this batch</small></div>
+            <button class="choose">Choose files</button>
+          </div>
+          <div class="queue-head"><span class="section-label">Current queue</span><span>4 files · 40.9 MB</span></div>
+          <div class="columns">
+            <article class="card">
+              <div class="card-head"><strong>Input</strong><span>Original size</span></div>
+              <div class="row">
+                <div class="row-main"><div class="doc">PDF</div><div class="name"><strong>brochure.pdf</strong><span>24.8 MB · 36 pages</span></div><span class="state">Compressing</span></div>
+                <div class="bar"><i></i></div><div class="bar-meta"><span>Repacking images</span><span>54%</span></div>
+              </div>
+              <div class="row"><div class="row-main"><div class="doc jpg">JPG</div><div class="name"><strong>receipt-scan.jpg</strong><span>4.8 MB · 3024 × 4032</span></div><span class="state done"><i class="ok">✓</i>Done</span></div></div>
+              <div class="row"><div class="row-main"><div class="doc png">PNG</div><div class="name"><strong>IMG_1837.png</strong><span>9.4 MB · 4096 × 2731</span></div><span class="state">Queued</span></div></div>
+              <div class="row"><div class="row-main"><div class="doc">PDF</div><div class="name"><strong>travel-expenses.pdf</strong><span>1.9 MB · 8 pages</span></div><span class="state done"><i class="ok">✓</i>Done</span></div></div>
+            </article>
+            <article class="card">
+              <div class="card-head"><strong>Output</strong><span>Size reduction</span></div>
+              <div class="row">
+                <div class="row-main"><div class="doc">PDF</div><div class="name"><strong>brochure-compressed.pdf</strong><span>12.1 MB estimated</span></div><span class="cut live">−51%</span></div>
+                <div class="saved"><span>Processing</span><span>12.7 MB smaller</span></div>
+              </div>
+              <div class="row"><div class="row-main"><div class="doc jpg">JPG</div><div class="name"><strong>receipt-scan-small.jpg</strong><span>1.7 MB</span></div><span class="cut">−65%</span></div><div class="saved"><span>Saved</span><span>3.1 MB smaller</span></div></div>
+              <div class="row"><div class="row-main"><div class="doc png">PNG</div><div class="name"><strong>IMG_1837-small.png</strong><span>4.9 MB estimated</span></div><span class="cut live">−48%</span></div><div class="saved"><span>Queued</span><span>4.5 MB smaller</span></div></div>
+              <div class="row"><div class="row-main"><div class="doc">PDF</div><div class="name"><strong>travel-expenses-small.pdf</strong><span>1.2 MB</span></div><span class="cut">−37%</span></div><div class="saved"><span>Saved</span><span>0.7 MB smaller</span></div></div>
+            </article>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <div class="panel-body">
+            <div class="panel-title"><h2>Compress settings</h2><span class="badge">Active</span></div>
+            <div class="panel-sub">Settings follow the operation selected on the shelf.</div>
+            <div class="setting-block">
+              <div class="setting-title"><strong>Quality</strong><span>Balanced</span></div>
+              <div class="quality"><span>Smaller</span><span class="selected">Balanced</span><span>Sharper</span></div>
+            </div>
+            <div class="setting-block">
+              <div class="setting-title"><strong>Save to</strong><span>Change</span></div>
+              <div class="path">Downloads\Filesmith<br>Keep original filenames</div>
+              <div class="checkline"><span>Replace existing files</span><span class="switch"><i></i></span></div>
+              <div class="checkline"><span>Remove PDF metadata</span><span class="switch"><i></i></span></div>
+            </div>
+            <div class="summary">
+              <div><span>Input</span><strong>40.9 MB</strong></div>
+              <div><span>Estimated output</span><strong>19.9 MB</strong></div>
+              <div><span>Space saved</span><strong>21.0 MB</strong></div>
+            </div>
+          </div>
+          <div class="panel-foot"><small>4 compatible files are ready</small><button class="primary">Compress 4 files</button></div>
+        </aside>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

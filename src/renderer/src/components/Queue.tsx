@@ -10,8 +10,11 @@ const extOf = (p: string): string => {
   return i > 0 ? b.slice(i + 1).toUpperCase() : ''
 }
 
-function inputSub(item: QueueItem, tool: ToolId, options: JobOptions): string {
+function inputSub(item: QueueItem, tool: ToolId, panelOptions: JobOptions): string {
   const src = item.file.ext.replace('.', '').toUpperCase()
+  // Once a row has run, describe what IT did; only a not-yet-run row previews
+  // the current panel settings.
+  const options = item.runOptions ?? panelOptions
   if (tool === 'convert') {
     const to = String(options.format ?? '.webp')
       .replace('.', '')
@@ -19,9 +22,10 @@ function inputSub(item: QueueItem, tool: ToolId, options: JobOptions): string {
     return `${src} → ${to}`
   }
   if (tool === 'resize') {
-    return options.mode === 'percent'
-      ? `Resize ${options.percent}%`
-      : `Resize ${options.width ?? ''}×${options.height ?? ''}`
+    if (options.mode === 'percent') return `Resize ${options.percent}%`
+    const w = options.width === '' || options.width == null ? 'auto' : options.width
+    const h = options.height === '' || options.height == null ? 'auto' : options.height
+    return `Resize ${w}×${h}${options.fit === 'stretch' ? ' stretched' : ''}`
   }
   return `Compress ${src}`
 }
@@ -51,34 +55,31 @@ function StatusCell({ item }: { item: QueueItem }): JSX.Element | null {
   return <Icon name="clock" className="h-5 w-5 text-[#b7b7c1]" strokeWidth={1.8} />
 }
 
+function ColumnHead({ title }: { title: string }): JSX.Element {
+  // shrink-0, never flex-1: inside a vertical Column a growing header would push
+  // the cards to the bottom of the column instead of stacking them at the top.
+  return (
+    <div className="mb-2 min-w-0 shrink-0 px-0.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">{title}</span>
+    </div>
+  )
+}
+
 function Column({
   title,
-  count,
-  children,
-  empty
+  children
 }: {
   title: string
-  count: number
   children: JSX.Element[] | JSX.Element
-  empty: string
 }): JSX.Element {
+  // Each column keeps its header so the area below the drop zone reads as
+  // "inputs here, outputs there". That header is the only label: no item count.
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="mb-2 flex shrink-0 items-center justify-between px-0.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">{title}</span>
-        <span className="text-xs text-muted">
-          {count} {count === 1 ? 'item' : 'items'}
-        </span>
+      <ColumnHead title={title} />
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-2 overflow-auto pr-0.5">
+        {children}
       </div>
-      {count === 0 ? (
-        <div className="grid flex-1 place-items-center rounded-2xl border border-dashed border-black/[.06]">
-          <div className="text-[13.5px] font-medium text-[#a2a2ac]">{empty}</div>
-        </div>
-      ) : (
-        <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-2 overflow-auto pr-0.5">
-          {children}
-        </div>
-      )}
     </div>
   )
 }
@@ -274,9 +275,28 @@ export function Queues({
 }): JSX.Element {
   const inputs = items.filter(inInput)
   const done = items.filter(inOutput)
+  // A single "No items in queue" centred under the two headers, rather than a
+  // separate placeholder per column, so the empty state reads as one message.
+  if (items.length === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex gap-5">
+          <div className="flex-1">
+            <ColumnHead title="Input" />
+          </div>
+          <div className="flex-1">
+            <ColumnHead title="Output" />
+          </div>
+        </div>
+        <div className="grid flex-1 place-items-center">
+          <span className="text-[13.5px] font-medium text-[#a2a2ac]">No items in queue</span>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="flex min-h-0 flex-1 gap-5">
-      <Column title="Input" count={inputs.length} empty="No files yet">
+      <Column title="Input">
         {inputs.map((i) => (
           <InputCard
             key={i.id}
@@ -291,7 +311,7 @@ export function Queues({
           />
         ))}
       </Column>
-      <Column title="Output" count={done.length} empty="No results yet">
+      <Column title="Output">
         {done.map((i) => (
           <OutputCard
             key={i.id}

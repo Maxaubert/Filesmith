@@ -22,6 +22,19 @@ extraResources:
   - from: resources/ghostscript
     to: ghostscript
     filter: ['**/*']
+  - from: resources/realesrgan
+    to: realesrgan
+    filter: ['**/*']
+  # PiD (NVIDIA) upscaler sidecar script. The heavy torch env + weights are
+  # downloaded on first use to userData; only this launcher ships in the app.
+  - from: resources/pid
+    to: pid
+    filter: ['**/*']
+  # spandrel upscale sidecar (ComfyUI-imported models). Runs in the shared PiD
+  # torch env; only this launcher ships in the app.
+  - from: resources/spandrel
+    to: spandrel
+    filter: ['**/*']
 win:
   target:
     - nsis

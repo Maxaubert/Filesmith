@@ -1,0 +1,332 @@
+import {
+  copyFileSync,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from 'fs'
+import { basename, dirname, join } from 'path'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { run } from '../run'
+import { resolveUv } from '../toolResolver'
+import { findComfyPidWeights } from '../comfy/discover'
+import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from './paths'
+
+// The one-click PiD install. Everything the Advanced tier needs is public and
+// ungated, so this runs unattended: vendor the nv-tlabs/PiD source, build a
+// torch(cu128)+diffusers env with uv, and pull the nvidia/PiD weights. These are
+// the exact steps proven in the feasibility spike.
+//
+// It is a multi-GB download (~3GB env + ~3GB weights), so every step reports
+// progress for a modal. Idempotent and interruption-safe: downloads are atomic
+// (write to .part, rename on success), and each phase is gated on a marker that
+// is written only AFTER the phase fully completes — so a killed install always
+// resumes cleanly and never mistakes a half-done step for a finished one.
+
+const PID_REPO_ZIP = 'https://github.com/nv-tlabs/PiD/archive/refs/heads/main.zip'
+const HF_BASE = 'https://huggingface.co/nvidia/PiD/resolve/main'
+
+// Written at the very end of ensureRepo (after the pin is relaxed), so an
+// interruption mid-extract/mid-relax is never seen as a finished repo.
+const REPO_MARKER = '.filesmith-repo-ready'
+
+// PiD's pyproject requires a recent uv. We can't rely on the user having one (a
+// one-click install must work on a bare machine), and a stale system uv — e.g.
+// an old winget 0.11.15 — is worse than none: it's found first but can't satisfy
+// the version floor. So bootstrap a known-good uv into the PiD dir when the
+// resolved one is missing or too old.
+const UV_VERSION = '0.11.30'
+const UV_MIN = [0, 11, 28] as const
+const UV_ZIP = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-pc-windows-msvc.zip`
+
+export interface InstallProgress {
+  (step: string, pct: number | null): void
+}
+
+/**
+ * Windows' bundled bsdtar (System32\tar.exe, Win10 1809+). Used for zip
+ * extraction because, unlike PowerShell's Expand-Archive, it handles long
+ * (>260-char) paths — the vendored PiD tree is deep. Called by its full path so
+ * a GNU `tar` earlier on PATH (e.g. Git's) can't intercept it: GNU tar treats a
+ * `C:\...` destination as a remote host and fails.
+ */
+function winTar(): string {
+  return join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+}
+
+/**
+ * Download a URL to `dest`, atomically. Streams to `<dest>.part` (honouring
+ * backpressure and surfacing disk errors via pipeline), verifies the transfer is
+ * complete against Content-Length, then renames into place. A truncated or failed
+ * transfer leaves no file at `dest`, so the existsSync() skip guards can never
+ * mistake a partial download for a finished one.
+ */
+const STALL_MS = 60_000
+
+async function download(url: string, dest: string, onPct?: (pct: number) => void): Promise<void> {
+  mkdirSync(dirname(dest), { recursive: true })
+  // Idle watchdog: a half-open / stalled socket must not hang the install modal
+  // forever. Abort if no bytes arrive for STALL_MS; the timer re-arms per chunk.
+  const ac = new AbortController()
+  let idle: ReturnType<typeof setTimeout> | null = null
+  const arm = (): void => {
+    if (idle) clearTimeout(idle)
+    idle = setTimeout(() => ac.abort(new Error(`Download stalled: ${url}`)), STALL_MS)
+    idle.unref?.()
+  }
+  arm()
+  try {
+    const res = await fetch(url, { signal: ac.signal })
+    if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}): ${url}`)
+    const total = Number(res.headers.get('content-length')) || 0
+    const part = `${dest}.part`
+    rmSync(part, { force: true })
+
+    let got = 0
+    const counter = new Transform({
+      transform(chunk: Buffer, _enc, cb) {
+        got += chunk.length
+        arm()
+        if (total && onPct) onPct(Math.min(99, Math.round((got / total) * 100)))
+        cb(null, chunk)
+      }
+    })
+    try {
+      await pipeline(
+        Readable.fromWeb(res.body as unknown as Parameters<typeof Readable.fromWeb>[0]),
+        counter,
+        createWriteStream(part),
+        { signal: ac.signal }
+      )
+    } catch (e) {
+      rmSync(part, { force: true })
+      throw e
+    }
+    // Reject a truncated transfer rather than leaving a partial file that the
+    // existsSync() guards would later accept as complete.
+    if (total && got < total) {
+      rmSync(part, { force: true })
+      throw new Error(`Download incomplete: got ${got} of ${total} bytes from ${url}`)
+    }
+    rmSync(dest, { force: true })
+    renameSync(part, dest)
+  } finally {
+    if (idle) clearTimeout(idle)
+  }
+}
+
+/** Copy a file into place atomically (temp + rename), so an interrupted copy
+ * never leaves a truncated file that the existsSync guards accept as complete. */
+function copyAtomic(src: string, dest: string): void {
+  mkdirSync(dirname(dest), { recursive: true })
+  const part = `${dest}.part`
+  rmSync(part, { force: true })
+  copyFileSync(src, part)
+  rmSync(dest, { force: true })
+  renameSync(part, dest)
+}
+
+/** Ensure the PiD source is vendored (downloaded zip, extracted, pyproject relaxed). */
+async function ensureRepo(onProgress: InstallProgress): Promise<void> {
+  if (existsSync(join(pidRepoDir(), REPO_MARKER))) return
+  onProgress('Downloading PiD source', null)
+  const tmpZip = join(pidRoot(), 'pid-src.zip')
+  await download(PID_REPO_ZIP, tmpZip, (p) => onProgress('Downloading PiD source', p))
+
+  onProgress('Extracting PiD source', null)
+  // Extract with bsdtar (long-path safe); the zip unpacks to PiD-main/, which we
+  // then rename into repoDir with Node (same volume, no PowerShell needed). Args
+  // are passed as an array, so paths with spaces/quotes are safe.
+  const extractTo = join(pidRoot(), '_extract')
+  rmSync(extractTo, { recursive: true, force: true })
+  mkdirSync(extractTo, { recursive: true })
+  const ex = await run(winTar(), ['-xf', tmpZip, '-C', extractTo])
+  if (ex.code !== 0) throw new Error(`PiD source extract failed: ${ex.stderr.slice(-400)}`)
+
+  const inner = join(extractTo, 'PiD-main')
+  if (!existsSync(inner)) throw new Error('PiD source extract produced no PiD-main folder')
+  rmSync(pidRepoDir(), { recursive: true, force: true })
+  renameSync(inner, pidRepoDir())
+  rmSync(extractTo, { recursive: true, force: true })
+  rmSync(tmpZip, { force: true })
+
+  // The repo pins an exact uv version and declares a Linux-only lockfile env;
+  // relax the pin so a current uv can install for Windows via `uv pip`. Assert
+  // the relax actually took: a silent regex no-op that left an exact pin would
+  // make a stale uv fail confusingly later.
+  const pyproj = join(pidRepoDir(), 'pyproject.toml')
+  const relaxed = readFileSync(pyproj, 'utf-8').replace(
+    /required-version = "==[\d.]+"/,
+    'required-version = ">=0.11.28"'
+  )
+  writeFileSync(pyproj, relaxed)
+  if (/required-version = "==/.test(relaxed))
+    throw new Error('Failed to relax PiD uv version pin (unexpected pyproject format)')
+
+  writeFileSync(join(pidRepoDir(), REPO_MARKER), '')
+}
+
+/** True when `uv --version` reports a version at or above UV_MIN. */
+async function uvVersionOk(uv: string): Promise<boolean> {
+  try {
+    const { code, stdout } = await run(uv, ['--version'])
+    if (code !== 0) return false
+    const m = /uv (\d+)\.(\d+)\.(\d+)/.exec(stdout)
+    if (!m) return false
+    const v = [Number(m[1]), Number(m[2]), Number(m[3])] as const
+    for (let i = 0; i < 3; i += 1) {
+      if (v[i] > UV_MIN[i]) return true
+      if (v[i] < UV_MIN[i]) return false
+    }
+    return true // exactly the floor
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A uv new enough to install PiD. Prefers an already-installed, new-enough uv;
+ * otherwise downloads a pinned standalone uv into `<pidRoot>/uv` so the install
+ * works on a machine with no uv (or only a stale one).
+ */
+async function ensureUv(onProgress: InstallProgress): Promise<string> {
+  const found = resolveUv()
+  if (found && (await uvVersionOk(found))) return found
+
+  const uvDir = join(pidRoot(), 'uv')
+  const uvExe = join(uvDir, 'uv.exe')
+  if (existsSync(uvExe) && (await uvVersionOk(uvExe))) return uvExe
+
+  onProgress('Downloading uv', null)
+  const zip = join(pidRoot(), 'uv.zip')
+  await download(UV_ZIP, zip, (p) => onProgress('Downloading uv', p))
+  rmSync(uvDir, { recursive: true, force: true })
+  mkdirSync(uvDir, { recursive: true })
+  const ex = await run(winTar(), ['-xf', zip, '-C', uvDir])
+  if (ex.code !== 0) throw new Error(`uv extract failed: ${ex.stderr.slice(-400)}`)
+  rmSync(zip, { force: true })
+  if (!existsSync(uvExe)) throw new Error('uv bootstrap failed (no uv.exe after extract)')
+  return uvExe
+}
+
+/** Build the torch(cu128)+diffusers venv inside the repo. */
+async function ensureEnv(onProgress: InstallProgress): Promise<void> {
+  // The marker is written ONLY after every package install succeeds. Gating on
+  // it (rather than on python.exe, which `uv venv` creates up front, before the
+  // ~3GB torch install) means an interrupted install is never mistaken for a
+  // finished env — a re-run rebuilds it instead of skipping to a torch-less venv.
+  const marker = pidEnvMarker()
+  if (existsSync(marker)) return
+  const uv = await ensureUv(onProgress)
+  const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')
+
+  onProgress('Creating Python environment', null)
+  const venvRes = await run(uv, ['venv', '--python', '3.12'], { cwd: pidRepoDir() })
+  if (venvRes.code !== 0) throw new Error(`venv creation failed: ${venvRes.stderr.slice(-400)}`)
+
+  // torch first, from the CUDA 12.8 index (Blackwell-compatible), then the rest.
+  onProgress('Installing PyTorch (CUDA), ~3 GB', null)
+  const torchRes = await run(
+    uv,
+    [
+      'pip',
+      'install',
+      '--python',
+      python,
+      'torch==2.10.0',
+      'torchvision==0.25.0',
+      '--index-url',
+      'https://download.pytorch.org/whl/cu128'
+    ],
+    { cwd: pidRepoDir() }
+  )
+  if (torchRes.code !== 0) throw new Error(`PyTorch install failed: ${torchRes.stderr.slice(-400)}`)
+
+  onProgress('Installing PiD dependencies', null)
+  const depRes = await run(uv, ['pip', 'install', '--python', python, '-e', '.'], {
+    cwd: pidRepoDir()
+  })
+  if (depRes.code !== 0) throw new Error(`PiD dependency install failed: ${depRes.stderr.slice(-400)}`)
+
+  writeFileSync(marker, '')
+}
+
+/** Pull the nvidia/PiD weights for a backbone (checkpoint + VAE). */
+async function ensureWeights(backbone: string, onProgress: InstallProgress): Promise<void> {
+  const bb = PID_BACKBONES[backbone]
+  if (!bb) throw new Error(`Unknown PiD backbone: ${backbone}`)
+
+  // Weights land INSIDE the repo (see paths.ts): PiD reads ./checkpoints/... from
+  // the repo CWD. bb.vaeFile / bb.checkpointDir are 'checkpoints/…' paths that
+  // double as the HF repo layout, so they join cleanly onto both URL and repoDir.
+  // download() is atomic, so a present file is always a complete file.
+  //
+  // Reuse an existing ComfyUI PiD if the user has one on disk: copying the local
+  // files skips the ~3 GB download entirely.
+  const existing = findComfyPidWeights(basename(bb.checkpointDir))
+
+  const vaeDest = join(pidRepoDir(), bb.vaeFile)
+  if (!existsSync(vaeDest)) {
+    if (existing) {
+      onProgress('Reusing ComfyUI VAE', null)
+      copyAtomic(existing.vae, vaeDest)
+    } else {
+      await download(`${HF_BASE}/${bb.vaeFile}`, vaeDest, (p) => onProgress('Downloading VAE (320 MB)', p))
+    }
+  }
+  const ckptDest = join(pidRepoDir(), bb.checkpointDir, 'model_ema_bf16.pth')
+  if (!existsSync(ckptDest)) {
+    if (existing) {
+      onProgress('Reusing ComfyUI PiD model', null)
+      copyAtomic(existing.checkpoint, ckptDest)
+    } else {
+      await download(`${HF_BASE}/${bb.checkpointDir}/model_ema_bf16.pth`, ckptDest, (p) =>
+        onProgress('Downloading model (2.6 GB)', p)
+      )
+    }
+  }
+}
+
+/** Full one-click PiD install (idempotent, interruption-safe). */
+export async function installPid(backbone: string, onProgress: InstallProgress): Promise<void> {
+  mkdirSync(pidRoot(), { recursive: true })
+  await ensureRepo(onProgress)
+  await ensureEnv(onProgress)
+  await ensureWeights(backbone, onProgress)
+  onProgress('Ready', 100)
+}
+
+/** Add `spandrel` to the shared torch venv (self-heals an env built before this
+ * feature existed). Fast when already present. */
+async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
+  if (existsSync(spandrelMarker())) return
+  const uv = await ensureUv(onProgress)
+  const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')
+
+  onProgress('Installing spandrel', null)
+  // spandrel is the loader; Pillow/numpy the image IO. All are small and are
+  // usually already present from the PiD deps, so this is quick when so.
+  const res = await run(
+    uv,
+    ['pip', 'install', '--python', python, 'spandrel>=0.4.1', 'pillow', 'numpy'],
+    { cwd: pidRepoDir() }
+  )
+  if (res.code !== 0) throw new Error(`spandrel install failed: ${res.stderr.slice(-400)}`)
+  writeFileSync(spandrelMarker(), '')
+}
+
+/**
+ * Install just what ComfyUI-imported upscalers need: the shared torch venv plus
+ * spandrel. No PiD weights (~3 GB) — the env alone runs ESRGAN-family models.
+ */
+export async function installComfyEngine(onProgress: InstallProgress): Promise<void> {
+  mkdirSync(pidRoot(), { recursive: true })
+  await ensureRepo(onProgress)
+  await ensureEnv(onProgress)
+  await ensureSpandrel(onProgress)
+  onProgress('Ready', 100)
+}

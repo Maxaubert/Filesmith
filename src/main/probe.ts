@@ -43,6 +43,35 @@ export async function probeDimensions(path: string): Promise<Dimensions | null> 
   }
 }
 
+/**
+ * Pixel dimensions of an IMAGE, via ImageMagick rather than ffprobe.
+ * ffprobe is wrong for this job in both directions: it rejects very large images
+ * outright ("Picture size 24000x16000 is invalid"), which is exactly the case
+ * the upscale size warning exists for, and it can't read svg/jxl/heic at all.
+ *
+ * `-ping` is load-bearing, not a micro-optimization: without it ImageMagick
+ * decodes the whole image, which took 9 SECONDS on a 384 MP PNG. The size
+ * preview sat on "…" that entire time and the oversize warning never fired,
+ * because the UI had no dimensions to warn about. With -ping it's 0.03s.
+ * Multi-frame sources (.ico, .gif) print one line per frame, so take the first.
+ */
+export async function probeImageDimensions(path: string): Promise<Dimensions | null> {
+  try {
+    const { code, stdout } = await run(resolveTool('magick'), [
+      'identify',
+      '-ping',
+      '-format',
+      '%w %h\n',
+      path
+    ])
+    const m = /^(\d+) (\d+)/.exec(stdout.trim())
+    if (code !== 0 || !m) return null
+    return { width: Number(m[1]), height: Number(m[2]) }
+  } catch {
+    return null
+  }
+}
+
 /** Duration in seconds of a media file, or null. Used to turn ffmpeg's
  * `time=` output into a real percentage for long encodes. */
 export async function probeDuration(path: string): Promise<number | null> {

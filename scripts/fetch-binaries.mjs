@@ -246,12 +246,81 @@ async function bundleGhostscript() {
   }
 }
 
+/**
+ * Real-ESRGAN (ncnn/Vulkan): the AI upscaler behind the Image Upscale tab. Like
+ * Ghostscript it's a tree (exe + vcomp dlls + models/), so it lives in
+ * resources/realesrgan. Only the two models the app exposes are kept; the
+ * release also ships animevideo/realesrnet variants we don't offer.
+ */
+const REALESRGAN_MODELS = ['realesrgan-x4plus', 'realesrgan-x4plus-anime']
+
+async function bundleRealesrgan() {
+  const dest = join(ROOT, 'resources', 'realesrgan')
+  const EXE = 'realesrgan-ncnn-vulkan.exe'
+  if (existsSync(join(dest, EXE))) {
+    log('  ✓ Real-ESRGAN: already bundled')
+    return
+  }
+  // Take the tree apart rather than copying it whole: the models we skip are
+  // ~65 MB of installer weight for features the UI doesn't expose.
+  const copySubset = (root) => {
+    rmSync(dest, { recursive: true, force: true })
+    mkdirSync(join(dest, 'models'), { recursive: true })
+    for (const f of readdirSync(root))
+      if (f === EXE || f.endsWith('.dll')) cpSync(join(root, f), join(dest, f))
+    const src = join(root, 'models')
+    for (const m of REALESRGAN_MODELS)
+      for (const ext of ['.bin', '.param'])
+        if (existsSync(join(src, m + ext))) cpSync(join(src, m + ext), join(dest, 'models', m + ext))
+  }
+  // (a) a local copy (RCMM installs the same binary on demand) or $REALESRGAN_DIR
+  const local = [
+    join(process.env.LOCALAPPDATA || '', 'RCMM', 'tools', 'realesrgan'),
+    process.env.REALESRGAN_DIR || ''
+  ]
+    .filter(Boolean)
+    .find((d) => existsSync(join(d, EXE)))
+  if (local) {
+    copySubset(local)
+    log(`  ✓ Real-ESRGAN: copied from ${local}`)
+    return
+  }
+  // (b) the official release zip
+  const url =
+    'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip'
+  const tmp = join(tmpdir(), 'filesmith-resrgan')
+  rmSync(tmp, { recursive: true, force: true })
+  mkdirSync(tmp, { recursive: true })
+  const zip = join(tmp, 'r.zip')
+  try {
+    log('  … downloading Real-ESRGAN (~120 MB)…')
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
+    execFileSync(
+      'powershell',
+      ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${join(tmp, 'x')}' -Force`],
+      { stdio: 'ignore' }
+    )
+    copySubset(join(tmp, 'x'))
+    if (!existsSync(join(dest, EXE)))
+      throw new Error(`${EXE} missing after extract (unexpected release layout)`)
+    log('  ✓ Real-ESRGAN: downloaded + extracted')
+  } catch (e) {
+    log(`  ! Real-ESRGAN failed (${e.message}) — the Image Upscale tab needs it`)
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
 // `--lo-only` bundles just LibreOffice (the big download), leaving the fast
-// resources/bin tools untouched. `--gs-only` bundles just Ghostscript.
+// resources/bin tools untouched. `--gs-only` / `--esrgan-only` likewise.
 if (process.argv.includes('--lo-only')) {
   bundleLibreOffice()
 } else if (process.argv.includes('--gs-only')) {
   await bundleGhostscript()
+} else if (process.argv.includes('--esrgan-only')) {
+  await bundleRealesrgan()
 } else {
   log('Populating resources/bin …')
   bundleImageMagick()
@@ -259,6 +328,7 @@ if (process.argv.includes('--lo-only')) {
   await bundleFfmpeg()
   bundleMutool()
   await bundleGhostscript()
+  await bundleRealesrgan()
   bundleLibreOffice()
 
   const bundled = readdirSync(BIN).filter((f) => f !== '.gitkeep')

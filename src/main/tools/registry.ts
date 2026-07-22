@@ -12,11 +12,31 @@ import {
 } from 'fs'
 import { tmpdir } from 'os'
 import type { FileInfo, ToolId, ToolTarget } from '@shared/types'
-import type { AudioCodec, ImageFormat, PdfLevel, VideoCodec } from '@shared/compress'
-import { resolveGhostscript, resolveSoffice, resolveTool } from '../toolResolver'
+import type {
+  AudioCodec,
+  ImageFormat,
+  PdfLevel,
+  UpscaleModel,
+  VideoCodec
+} from '@shared/compress'
+import {
+  realesrganDir,
+  resolveGhostscript,
+  resolveRealesrgan,
+  resolveRembg,
+  resolveSoffice,
+  resolveTool
+} from '../toolResolver'
 import { run } from '../run'
+import { estimateProgress, estimateSecForBytes } from './estimate'
 import { reserveOutPath, uniqueOutDir } from '../output'
-import { ffmpegProgress, probeDuration } from '../probe'
+import { ffmpegProgress, probeDuration, probeImageDimensions } from '../probe'
+import { buildUpscaleArgs, needsPreConvert, upscaleProgress } from './upscale'
+import { buildCompositeArgs, buildRembgArgs, rembgPhase } from './removebg'
+import { pidSidecar } from '../pid/sidecar'
+import { pidInstalled } from '../pid/paths'
+import { spandrelSidecar } from '../comfy/sidecar'
+import { comfyModelByPath } from '../comfy/store'
 import type { ToolContext, ToolModule } from './tool'
 import {
   buildFfmpegArgs,
@@ -69,8 +89,13 @@ async function runToOutput(
   ctx: ToolContext,
   label: string,
   requireNonEmpty = true,
-  onStderr?: (chunk: string) => void
+  onStderr?: (chunk: string) => void,
+  estimateSec?: number
 ): Promise<string> {
+  // If the tool reports no real progress (no onStderr parser) but the caller
+  // gave an expected duration, drive an estimated bar so the % always moves.
+  const est =
+    !onStderr && estimateSec ? estimateProgress(estimateSec, (p) => ctx.onProgress(p)) : null
   try {
     const { code, stderr } = await run(tool, args, { signal: ctx.signal, onStderr })
     const wrote = existsSync(output) && (!requireNonEmpty || statSync(output).size > 0)
@@ -87,6 +112,8 @@ async function runToOutput(
       /* best effort */
     }
     throw e
+  } finally {
+    est?.stop()
   }
 }
 
@@ -145,7 +172,9 @@ const convertTool: ToolModule = {
         output,
         ctx,
         'mutool',
-        false
+        false,
+        undefined,
+        estimateSecForBytes(file.size, 0.04)
       )
     }
 
@@ -229,7 +258,16 @@ const convertTool: ToolModule = {
         : `${file.path}[0]`
       args = buildMagickArgs(src, output, extra)
     }
-    return runToOutput(resolveTool(kindTool), args, output, ctx, kindTool)
+    return runToOutput(
+      resolveTool(kindTool),
+      args,
+      output,
+      ctx,
+      kindTool,
+      true,
+      undefined,
+      estimateSecForBytes(file.size, 0.08)
+    )
   }
 }
 
@@ -247,7 +285,16 @@ const pdfTool: ToolModule = {
       if (inputs.length < 2) throw new Error('Select at least two PDFs to merge')
       const output = reserveOutPath(file.path, '.pdf', 'merged')
       ctx.onProgress(undefined, `Merging ${inputs.length} PDFs…`)
-      return runToOutput(mutool, buildPdfMergeArgs(inputs, output), output, ctx, 'mutool')
+      return runToOutput(
+        mutool,
+        buildPdfMergeArgs(inputs, output),
+        output,
+        ctx,
+        'mutool',
+        true,
+        undefined,
+        0.6 + inputs.length * 0.4
+      )
     }
 
     // Split (range): keep only the given pages/ranges in a new PDF.
@@ -256,7 +303,16 @@ const pdfTool: ToolModule = {
       if (!pages) throw new Error('Enter pages to keep, e.g. 1-3,5')
       const output = reserveOutPath(file.path, '.pdf', 'pages')
       ctx.onProgress(undefined, `Extracting pages ${pages}…`)
-      return runToOutput(mutool, buildPdfPagesArgs(file.path, output, pages), output, ctx, 'mutool')
+      return runToOutput(
+        mutool,
+        buildPdfPagesArgs(file.path, output, pages),
+        output,
+        ctx,
+        'mutool',
+        true,
+        undefined,
+        estimateSecForBytes(file.size, 0.04)
+      )
     }
 
     // Split (every page): one single-page PDF per page in a new folder.
@@ -337,9 +393,15 @@ const pdfTool: ToolModule = {
       const dir = uniqueOutDir(dirname(file.path), basename(file.path, extname(file.path)) + ' (pages)')
       mkdirSync(dir, { recursive: true })
       ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)
-      const { code, stderr } = await run(mutool, buildPdfImagesArgs(file.path, dir, dpi), {
-        signal: ctx.signal
-      })
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p) => ctx.onProgress(p))
+      let code: number, stderr: string
+      try {
+        ;({ code, stderr } = await run(mutool, buildPdfImagesArgs(file.path, dir, dpi), {
+          signal: ctx.signal
+        }))
+      } finally {
+        est.stop()
+      }
       if (code !== 0) throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
       return dir
     }
@@ -347,7 +409,16 @@ const pdfTool: ToolModule = {
     // extract-text
     const output = reserveOutPath(file.path, '.txt', 'text')
     ctx.onProgress(undefined, 'Extracting text…')
-    return runToOutput(mutool, buildPdfTextArgs(file.path, output), output, ctx, 'mutool', false)
+    return runToOutput(
+      mutool,
+      buildPdfTextArgs(file.path, output),
+      output,
+      ctx,
+      'mutool',
+      false,
+      undefined,
+      estimateSecForBytes(file.size, 0.04)
+    )
   }
 }
 
@@ -363,7 +434,10 @@ const resizeTool: ToolModule = {
       buildResizeArgs(file.path, output, spec, animated),
       output,
       ctx,
-      'magick'
+      'magick',
+      true,
+      undefined,
+      estimateSecForBytes(file.size, 0.08)
     )
   }
 }
@@ -381,7 +455,16 @@ const compressTool: ToolModule = {
       const output = reserveOutPath(file.path, '.pdf', 'compressed')
       if (level === 'lossless') {
         ctx.onProgress(undefined, 'Compressing PDF (lossless)…')
-        return runToOutput(resolveTool('mutool'), buildPdfCompressArgs(file.path, output), output, ctx, 'mutool')
+        return runToOutput(
+          resolveTool('mutool'),
+          buildPdfCompressArgs(file.path, output),
+          output,
+          ctx,
+          'mutool',
+          true,
+          undefined,
+          estimateSecForBytes(file.size, 0.08)
+        )
       }
       ctx.onProgress(undefined, `Compressing PDF (${level}${gray ? ', gray' : ''})…`)
       return runToOutput(
@@ -389,7 +472,10 @@ const compressTool: ToolModule = {
         buildGsCompressArgs(file.path, output, level, gray),
         output,
         ctx,
-        'ghostscript'
+        'ghostscript',
+        true,
+        undefined,
+        estimateSecForBytes(file.size, 0.2)
       )
     }
 
@@ -443,6 +529,7 @@ const compressTool: ToolModule = {
       // Declared outside try so the catch can clean the placeholder; reserved
       // INSIDE try so a throw there still hits the finally that removes tmp.
       let output: string | undefined
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.08), (p) => ctx.onProgress(p))
       try {
         output = reserveOutPath(file.path, file.ext, 'compressed')
         const { code, stderr } = await run(
@@ -464,6 +551,7 @@ const compressTool: ToolModule = {
         }
         throw e
       } finally {
+        est.stop()
         rmSync(tmp, { recursive: true, force: true })
       }
     }
@@ -477,15 +565,405 @@ const compressTool: ToolModule = {
       buildMagickCompressArgs(file.path, output, quality),
       output,
       ctx,
-      'magick'
+      'magick',
+      true,
+      undefined,
+      estimateSecForBytes(file.size, 0.08)
     )
   }
+}
+
+/**
+ * Real-ESRGAN's models are RGB-only: it silently returns a 3-channel PNG, so a
+ * logo or a cutout comes back with its transparency flattened. Re-attach the
+ * alpha by scaling the source's alpha channel to the result's exact size and
+ * compositing it back. The mask is scaled with Lanczos rather than run through
+ * the network — an alpha channel is a smooth matte with no detail to invent, and
+ * it costs another full GPU pass.
+ *
+ * Verified by measurement: the raw binary turns srgba into srgb on
+ * transparent.png; with this pass the output keeps its 4 channels, and the
+ * restored mask's mean matches the source's to 5 decimal places.
+ *
+ * `src` is the ORIGINAL file, not the pre-converted PNG: converting an .ico to
+ * PNG clears the alpha flag, so an icon checked at that stage looks opaque.
+ */
+async function restoreAlpha(
+  src: string,
+  output: string,
+  ctx: ToolContext,
+  tmp: string
+): Promise<void> {
+  const magick = resolveTool('magick')
+  const frame = `${src}[0]` // multi-frame sources (.ico, .gif) match the upscaled frame
+  const { code, stdout } = await run(magick, ['identify', '-format', '%A', frame], {
+    signal: ctx.signal
+  })
+  // "Undefined" means no alpha channel; anything else (Blend/On/True) has one.
+  if (code !== 0 || /^undefined/i.test(stdout.trim())) return
+
+  // The mask must match the result exactly, so take the size from the result
+  // itself rather than recomputing it from the factor.
+  const { code: dc, stdout: dim } = await run(magick, ['identify', '-format', '%wx%h', output], {
+    signal: ctx.signal
+  })
+  const size = dim.trim()
+  if (dc !== 0 || !/^\d+x\d+$/.test(size)) return
+
+  const merged = join(tmp, 'alpha-merged.png')
+  const { code: mc } = await run(
+    magick,
+    [
+      output,
+      '(',
+      frame,
+      '-alpha',
+      'extract',
+      '-resize',
+      // '!' forces the exact pixel size, so the mask can't drift by a
+      // rounding pixel against the upscaled RGB.
+      `${size}!`,
+      ')',
+      '-alpha',
+      'off',
+      '-compose',
+      'CopyOpacity',
+      '-composite',
+      merged
+    ],
+    { signal: ctx.signal }
+  )
+  // Best effort: a failure here means a flattened (but otherwise correct)
+  // upscale, which beats failing the whole job.
+  if (mc === 0 && existsSync(merged) && statSync(merged).size > 0) copyFileSync(merged, output)
+}
+
+/**
+ * Upscale via the PiD diffusion sidecar (NVIDIA only). Pre-converts exotic
+ * inputs to PNG, then hands the warm sidecar the image. The first run of a
+ * session is slow (model load + one-time kernel compile); every one after is
+ * warm. A missing install throws a clear error here as a backstop; the UI's own
+ * pid:status check (not this error) is what drives the one-click download prompt.
+ */
+async function upscaleWithPid(
+  file: FileInfo,
+  factor: number,
+  ctx: ToolContext
+): Promise<string> {
+  if (!pidInstalled('flux'))
+    throw new Error('PiD is not installed. Pick PiD in the options panel and click Download first.')
+  const tmp = mkdtempSync(join(tmpdir(), 'filesmith-pid-'))
+  let output: string | undefined
+  // PiD reports phases, not a percentage, so drive an estimated bar whose pace
+  // matches the phase: the slow first-run model load, then sampling (cold first
+  // run compiles kernels; warm is ~1s). `lastPct` carries the % across phase
+  // changes so the bar never jumps backward. See [[filesmith-pid-upscaler]].
+  let est: ReturnType<typeof estimateProgress> | null = null
+  let lastPct = 0
+  const drive = (expectedSec: number): void => {
+    est?.stop()
+    est = estimateProgress(
+      expectedSec,
+      (p) => {
+        lastPct = p
+        ctx.onProgress(p)
+      },
+      { startPct: lastPct }
+    )
+  }
+  const stopEst = (): void => est?.stop()
+  try {
+    let src = file.path
+    if (needsPreConvert(file.ext)) {
+      src = join(tmp, 'src.png')
+      const { code, stderr } = await run(resolveTool('magick'), [`${file.path}[0]`, src], {
+        signal: ctx.signal
+      })
+      if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
+    }
+    output = reserveOutPath(file.path, '.png', 'upscaled')
+    ctx.onProgress(undefined, 'Starting PiD…')
+    const { output: out } = await pidSidecar.upscale(
+      src,
+      output,
+      factor,
+      (phase, detail) => {
+        if (phase === 'starting' || phase === 'loading') {
+          ctx.onProgress(undefined, 'Loading PiD (first run of the session is slow)…')
+          drive(18)
+        } else if (phase === 'running') {
+          const cold = detail === 'cold'
+          ctx.onProgress(
+            undefined,
+            cold
+              ? 'Upscaling with PiD (first run compiles GPU kernels, this is slow)…'
+              : 'Upscaling with PiD…'
+          )
+          drive(cold ? 6 : 1.5)
+        }
+      },
+      ctx.signal
+    )
+    stopEst()
+    if (!existsSync(out) || statSync(out).size === 0) throw new Error('PiD produced no output')
+    // Diffusion output is RGB; carry the source's transparency across like the
+    // Real-ESRGAN path does, so a transparent PNG doesn't come back opaque.
+    await restoreAlpha(file.path, out, ctx, tmp)
+    return out
+  } catch (e) {
+    try {
+      if (output && existsSync(output)) rmSync(output, { force: true })
+    } catch {
+      /* best effort */
+    }
+    throw e
+  } finally {
+    stopEst()
+    rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Upscale with a user-imported ComfyUI model via the spandrel sidecar (NVIDIA).
+ * Pre-converts exotic inputs to PNG, runs a tiled upscale at the model's native
+ * scale (resampling to the requested factor if different), restores alpha, and
+ * reports MEASURED per-tile progress.
+ */
+async function upscaleWithComfy(
+  file: FileInfo,
+  modelPath: string,
+  factor: number,
+  background: boolean,
+  ctx: ToolContext
+): Promise<string> {
+  const model = comfyModelByPath(modelPath)
+  if (!model)
+    throw new Error('That imported model is no longer available. Rescan your ComfyUI folder.')
+  const tmp = mkdtempSync(join(tmpdir(), 'filesmith-comfy-'))
+  let output: string | undefined
+  try {
+    let src = file.path
+    if (needsPreConvert(file.ext)) {
+      src = join(tmp, 'src.png')
+      const { code, stderr } = await run(resolveTool('magick'), [`${file.path}[0]`, src], {
+        signal: ctx.signal
+      })
+      if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
+    }
+    output = reserveOutPath(file.path, '.png', 'upscaled')
+    const label = background ? `Upscaling with ${model.name} (background)…` : `Upscaling with ${model.name}…`
+    ctx.onProgress(0, label)
+    // Background: smaller tiles + a VRAM cap + inter-tile pacing so the GPU stays
+    // free for other apps, at the cost of speed.
+    const { output: out } = await spandrelSidecar.upscale(model.path, src, output, factor, {
+      tile: background ? 256 : 512,
+      memFraction: background ? 0.3 : 0,
+      paceMs: background ? 150 : 0,
+      onProgress: (pct) => ctx.onProgress(pct, label),
+      signal: ctx.signal
+    })
+    if (!existsSync(out) || statSync(out).size === 0) throw new Error('The upscaler produced no output')
+    await restoreAlpha(file.path, out, ctx, tmp)
+    return out
+  } catch (e) {
+    try {
+      if (output && existsSync(output)) rmSync(output, { force: true })
+    } catch {
+      /* best effort */
+    }
+    throw e
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+/**
+ * AI image upscaling via Real-ESRGAN. Deliberately separate from Resize: it
+ * reconstructs detail rather than interpolating, needs a Vulkan GPU, and costs
+ * seconds per image. Formats the binary can't read are converted to PNG in a
+ * temp dir first, so the tool accepts any image Filesmith recognises.
+ */
+const upscaleTool: ToolModule = {
+  async run(file, options, ctx) {
+    if (file.kind !== 'image') throw new Error(`Can't upscale ${file.kind} files`)
+    const model = String(options.upscaleModel ?? 'photo') as UpscaleModel
+    const factor = Number(options.upscaleFactor ?? 4)
+    // Background mode leaves GPU headroom for other apps (tiled engines only).
+    const background = String(options.gpuMode ?? 'full') === 'background'
+
+    // The PiD flagship is a separate NVIDIA-only diffusion engine served by a
+    // resident sidecar, not the bundled Real-ESRGAN binary. (PiD's diffusion
+    // can't be paced, so background mode doesn't apply to it.)
+    if (model === 'pid') return upscaleWithPid(file, factor, ctx)
+    // The ComfyUI category with no specific model chosen yet.
+    if (model === 'comfy')
+      throw new Error('Pick one of your ComfyUI models from the list first.')
+    // A user-imported ComfyUI model, keyed by its absolute path.
+    if (model.startsWith('comfy:'))
+      return upscaleWithComfy(file, model.slice(6), factor, background, ctx)
+
+    // No size ceiling: an absurdly large upscale is the user's call to make, and
+    // the UI warns them with an estimated output size before it gets here.
+    const tmp = mkdtempSync(join(tmpdir(), 'filesmith-up-'))
+    let output: string | undefined
+    try {
+      // Real-ESRGAN reads png/jpg/webp; anything else goes through magick first.
+      let src = file.path
+      if (needsPreConvert(file.ext)) {
+        src = join(tmp, 'src.png')
+        const { code, stderr } = await run(
+          resolveTool('magick'),
+          [`${file.path}[0]`, src],
+          { signal: ctx.signal }
+        )
+        if (code !== 0 || !existsSync(src))
+          throw new Error(describeToolError(stderr, 'magick', code))
+      }
+
+      output = reserveOutPath(file.path, '.png', 'upscaled')
+      const label = background ? `Upscaling ${factor}× (${model}, background)…` : `Upscaling ${factor}× (${model})…`
+      ctx.onProgress(0, label)
+      // Background: a small tile caps peak VRAM so other GPU apps keep their
+      // memory (ncnn can't be duty-cycled, so this is the lever we have).
+      const args = [
+        ...buildUpscaleArgs(src, output, { model, factor, tile: background ? 128 : 0 }),
+        '-m',
+        join(realesrganDir(), 'models')
+      ]
+      const { code, stderr } = await run(resolveRealesrgan(), args, {
+        signal: ctx.signal,
+        onStderr: upscaleProgress((pct) => ctx.onProgress(pct, label))
+      })
+      if (code !== 0 || !existsSync(output) || statSync(output).size === 0) {
+        // The usual cause is no usable Vulkan device.
+        const msg = describeToolError(stderr, 'realesrgan', code)
+        throw new Error(
+          /vulkan|device|gpu/i.test(msg)
+            ? 'No compatible GPU found. AI upscaling needs a Vulkan-capable graphics card with up-to-date drivers.'
+            : msg
+        )
+      }
+      await restoreAlpha(file.path, output, ctx, tmp)
+      return output
+    } catch (e) {
+      try {
+        if (output && existsSync(output)) rmSync(output, { force: true })
+      } catch {
+        /* best effort */
+      }
+      throw e
+    } finally {
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  }
+}
+
+/**
+ * AI background removal via rembg. Output is always PNG (a cutout needs an alpha
+ * channel), except when compositing onto a solid colour, which still writes PNG
+ * for consistency.
+ *
+ * Unlike the bundled binaries, rembg is fetched on demand through uv, so a
+ * missing toolchain is an expected state that has to produce an actionable
+ * message rather than a spawn error.
+ */
+const removebgTool: ToolModule = {
+  async run(file, options, ctx) {
+    if (file.kind !== 'image') throw new Error(`Can't remove the background of ${file.kind} files`)
+    const rembg = resolveRembg()
+    if (!rembg) {
+      throw new Error(
+        'Background removal needs uv (which installs the AI model on first use). Install it with: winget install astral-sh.uv, then restart Filesmith.'
+      )
+    }
+
+    const tmp = mkdtempSync(join(tmpdir(), 'filesmith-bg-'))
+    let output: string | undefined
+    // rembg emits phase labels but no percentage; drive an estimated bar under
+    // them (model inference is a few seconds; the phase text keeps the label).
+    let est: ReturnType<typeof estimateProgress> | null = null
+    try {
+      // rembg reads common raster formats but not svg/heic/jxl; normalise
+      // anything exotic to PNG first so the tool accepts any image.
+      let src = file.path
+      if (needsPreConvert(file.ext)) {
+        src = join(tmp, 'src.png')
+        const { code, stderr } = await run(resolveTool('magick'), [`${file.path}[0]`, src], {
+          signal: ctx.signal
+        })
+        if (code !== 0 || !existsSync(src))
+          throw new Error(describeToolError(stderr, 'magick', code))
+      }
+
+      output = reserveOutPath(file.path, '.png', 'no-bg')
+      // The first run of a model pays a download; every run pays a load. Say so,
+      // because a silent multi-second wait reads as a hang.
+      ctx.onProgress(undefined, 'Loading model…')
+      est = estimateProgress(6, (p) => ctx.onProgress(p))
+      const { code, stderr } = await run(
+        rembg.cmd,
+        [...rembg.prefix, ...buildRembgArgs(src, output, options)],
+        {
+          signal: ctx.signal,
+          onStderr: rembgPhase((message) => ctx.onProgress(undefined, message))
+        }
+      )
+      if (code !== 0 || !existsSync(output) || statSync(output).size === 0) {
+        throw new Error(describeRembgError(stderr, code))
+      }
+
+      // A backdrop image is a second pass: rembg can only fill with a solid
+      // colour, so the cutout comes back transparent and ImageMagick puts the
+      // chosen image behind it.
+      const bgImage = String(options.bgImagePath ?? '')
+      if (options.bgFill === 'image' && bgImage) {
+        if (!existsSync(bgImage)) throw new Error('The chosen background image no longer exists.')
+        ctx.onProgress(undefined, 'Adding background…')
+        const dims = await probeImageDimensions(output)
+        if (!dims) throw new Error('Could not read the cutout to size the background.')
+        const merged = join(tmp, 'composited.png')
+        const { code: cc, stderr: cerr } = await run(
+          resolveTool('magick'),
+          buildCompositeArgs(bgImage, output, merged, dims.width, dims.height),
+          { signal: ctx.signal }
+        )
+        if (cc !== 0 || !existsSync(merged) || statSync(merged).size === 0)
+          throw new Error(describeToolError(cerr, 'magick', cc))
+        copyFileSync(merged, output)
+      }
+      return output
+    } catch (e) {
+      try {
+        if (output && existsSync(output)) rmSync(output, { force: true })
+      } catch {
+        /* best effort */
+      }
+      throw e
+    } finally {
+      est?.stop()
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  }
+}
+
+/** Turn rembg/uv failures into something a user can act on. */
+function describeRembgError(stderr: string, code: number): string {
+  if (/No onnxruntime backend found/i.test(stderr))
+    return 'The background-removal engine is missing its runtime. Reinstall it, or report this.'
+  if (/Cannot install on Python version|Failed to build/i.test(stderr))
+    return "The background-removal engine couldn't be installed on this machine's Python."
+  if (/ConnectError|failed to fetch|Network|getaddrinfo/i.test(stderr))
+    return 'Could not download the background-removal model. Check your internet connection (only the first run needs it).'
+  if (/No such file|cannot identify image/i.test(stderr)) return 'This image could not be read.'
+  return describeToolError(stderr, 'rembg', code)
 }
 
 const TOOLS: Partial<Record<ToolId, ToolModule>> = {
   convert: convertTool,
   compress: compressTool,
   resize: resizeTool,
+  upscale: upscaleTool,
+  removebg: removebgTool,
   pdf: pdfTool
 }
 

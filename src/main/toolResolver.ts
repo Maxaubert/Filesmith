@@ -81,6 +81,86 @@ export function resolveGhostscript(): string {
   return exe.replace('.exe', '') // hope it's on PATH
 }
 
+/**
+ * Resolve Real-ESRGAN's binary. Like Ghostscript it's a small tree (exe + dlls
+ * + models/), so it lives in resources/realesrgan and the binary finds its
+ * models via the -m flag pointing at the sibling folder.
+ */
+export function realesrganDir(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'realesrgan')
+    : join(app.getAppPath(), 'resources', 'realesrgan')
+}
+
+export function resolveRealesrgan(): string {
+  const exe = process.platform === 'win32' ? 'realesrgan-ncnn-vulkan.exe' : 'realesrgan-ncnn-vulkan'
+  const bundled = join(realesrganDir(), exe)
+  if (existsSync(bundled)) return bundled
+  return exe.replace('.exe', '') // fall back to PATH
+}
+
+/**
+ * How to invoke rembg (the Remove Background engine). rembg is Python, so unlike
+ * every other tool here it can't be a bundled exe; it runs through uv, which
+ * fetches a private Python + rembg on first use.
+ *
+ * The exact invocation is load-bearing and was arrived at by measurement, not
+ * documentation:
+ *  - The version MUST be pinned. Unpinned `uv tool run rembg` resolves a
+ *    pymatting that needs numba 0.53.1, which refuses to build on Python 3.13+
+ *    ("Cannot install on Python version 3.13.13") — the plain command fails
+ *    outright on a current machine.
+ *  - `--python 3.11` for the same reason: uv otherwise picks the system Python.
+ *  - The `cpu` extra is required. `rembg[cli]` alone installs no onnxruntime and
+ *    exits with "No onnxruntime backend found" at run time.
+ * Cold start (downloading 84 packages) took ~39s; afterwards uv serves it from
+ * cache. A locally installed `rembg` is preferred when present since it skips
+ * that entirely.
+ */
+const REMBG_SPEC = 'rembg[cli,cpu]==2.0.75'
+
+export interface RembgCommand {
+  cmd: string
+  /** Prefix args before rembg's own arguments. */
+  prefix: string[]
+}
+
+export function resolveRembg(): RembgCommand | null {
+  // (a) an existing uv tool install (what a returning user will have)
+  const installed = join(
+    process.env.APPDATA ?? '',
+    'uv',
+    'tools',
+    'rembg',
+    'Scripts',
+    'rembg' + EXE
+  )
+  if (existsSync(installed)) return { cmd: installed, prefix: [] }
+
+  // (b) uv itself, which fetches Python + rembg on demand
+  const uv = resolveUv()
+  if (uv) return { cmd: uv, prefix: ['tool', 'run', '--python', '3.11', '--from', REMBG_SPEC, 'rembg'] }
+  return null
+}
+
+/** uv, from winget's package dir, the standard user install, or PATH. */
+export function resolveUv(): string | null {
+  const candidates = [
+    join(
+      process.env.LOCALAPPDATA ?? '',
+      'Microsoft',
+      'WinGet',
+      'Packages',
+      'astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe',
+      'uv' + EXE
+    ),
+    join(process.env.USERPROFILE ?? '', '.local', 'bin', 'uv' + EXE),
+    join(process.env.LOCALAPPDATA ?? '', 'Programs', 'uv', 'uv' + EXE)
+  ]
+  const found = candidates.find((p) => existsSync(p))
+  return found ?? null
+}
+
 /** True if the tool is bundled or answers a version probe on PATH. */
 export async function toolAvailable(name: string): Promise<boolean> {
   const bundled = join(bundledDir(), name + EXE)

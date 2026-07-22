@@ -4,6 +4,8 @@ import { createReadStream, readdirSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { Readable } from 'stream'
 import { registerIpc } from './ipc'
+import { pidSidecar } from './pid/sidecar'
+import { spandrelSidecar } from './comfy/sidecar'
 
 // Remove temp dirs orphaned by a previous HARD crash (normal runs delete their
 // own in a finally). Guarded by age so a concurrent second instance's in-use
@@ -168,4 +170,11 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+// Free the PiD process (and its ~10 GB of VRAM) when the app exits; it's a warm
+// long-lived child that won't die with us otherwise.
+app.on('before-quit', () => {
+  pidSidecar.stop()
+  spandrelSidecar.stop()
 })

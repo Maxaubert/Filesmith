@@ -1,5 +1,13 @@
 import type { FileInfo, JobEvent, JobOptions, ToolId } from '@shared/types'
 import { convertGroup } from '@shared/convert'
+import { BG_DEFAULTS } from '@shared/removebg'
+import {
+  defaultOperation,
+  findOperation,
+  workspaceKey,
+  type CategoryId,
+  type WorkspaceKey
+} from '@shared/catalog'
 
 /** The batch group a file belongs to (files that convert together). */
 export const groupOf = (f: FileInfo): string => convertGroup(f.kind, f.ext)
@@ -24,6 +32,11 @@ export interface QueueItem {
   /** Size of the produced file, for the Output card's size + reduction. */
   outputSize?: number
   error?: string
+  /** The options this item was actually RUN with. The card's subtitle used to
+   * render the CURRENT panel options for every row, so two runs at different
+   * sizes both claimed the latest one and identical-looking rows hid a real
+   * difference (or, worse, made two identical runs look intentional). */
+  runOptions?: JobOptions
   /** True for a produced result (Output column) vs a source file (Input column).
    * A source item is re-runnable and stays put; each successful run appends a
    * fresh result item, so running one source twice yields two results. */
@@ -52,10 +65,23 @@ export interface QueueState {
 }
 
 export interface AppState {
-  tool: ToolId
-  /** Each tool tab keeps its own input/output history. */
-  queues: Record<ToolId, QueueState>
-  options: Record<ToolId, JobOptions>
+  /** The file type selected in the left rail. */
+  category: CategoryId
+  /** The operation this workspace performs. Always set: a category opens
+   * directly on its default operation, with no intermediate chooser. */
+  operation: string
+  /** One queue per FILE TYPE, shared across that type's operations. Files added
+   * while converting images are still there after switching to compress: the
+   * queue belongs to the category, not the operation. */
+  queues: Partial<Record<CategoryId, QueueState>>
+  /** Options are per (category, operation): converting and compressing images
+   * are configured separately even though they share the same files. */
+  options: Record<WorkspaceKey, JobOptions>
+}
+
+/** The queue key (the file type) and the options key (file type + operation). */
+export function optionsKey(state: AppState): WorkspaceKey {
+  return workspaceKey(state.category, state.operation)
 }
 
 export const TOOL_IDS: ToolId[] = ['convert', 'compress', 'resize', 'upscale', 'removebg', 'pdf']
@@ -72,18 +98,36 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
     pdfLevel: 'balanced',
     pdfGray: false
   },
-  resize: { mode: 'percent', percent: 50 },
-  upscale: {},
-  removebg: {},
+  resize: { mode: 'percent', percent: 50, fit: 'contain' },
+  upscale: { upscaleFactor: 4, upscaleModel: 'photo' },
+  removebg: { ...BG_DEFAULTS },
   pdf: { op: 'extract-text', dpi: 150, range: '' }
 }
 
-const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })
+export const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })
+
+/** A fresh workspace's options: its tool's defaults, plus the PDF verb when the
+ * operation is one of the several the pdf tool carries. */
+export function defaultOptionsFor(category: CategoryId, opId: string): JobOptions {
+  const op = findOperation(category, opId)
+  if (!op) return {}
+  const base = DEFAULT_OPTIONS[op.tool] ?? {}
+  return op.opKey ? { ...base, op: op.opKey } : { ...base }
+}
+
+const FIRST_CATEGORY: CategoryId = 'images'
+const FIRST_OPERATION = defaultOperation(FIRST_CATEGORY)
 
 export const initialState: AppState = {
-  tool: 'convert',
-  queues: Object.fromEntries(TOOL_IDS.map((t) => [t, emptyQueue()])) as Record<ToolId, QueueState>,
-  options: DEFAULT_OPTIONS
+  category: FIRST_CATEGORY,
+  operation: FIRST_OPERATION,
+  queues: { [FIRST_CATEGORY]: emptyQueue() },
+  options: {
+    [workspaceKey(FIRST_CATEGORY, FIRST_OPERATION)]: defaultOptionsFor(
+      FIRST_CATEGORY,
+      FIRST_OPERATION
+    )
+  }
 }
 
 let counter = 0
@@ -93,20 +137,23 @@ export function newId(): string {
 }
 
 export type Action =
-  | { type: 'setTool'; tool: ToolId }
-  | { type: 'setOption'; tool: ToolId; key: string; value: string | number | boolean }
+  | { type: 'setCategory'; category: CategoryId }
+  | { type: 'setOperation'; operation: string }
+  | { type: 'setOption'; key: string; value: string | number | boolean }
   | { type: 'addItems'; files: FileInfo[] }
   | { type: 'addSources'; items: QueueItem[] }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'dismiss'; id: string; column: 'input' | 'output' }
-  | { type: 'markQueued'; ids: string[] }
+  | { type: 'markQueued'; ids: string[]; options?: JobOptions }
   | { type: 'jobEvent'; event: JobEvent }
   | { type: 'select'; id: string; mode: SelectMode }
   | { type: 'clearSelection' }
 
-/** Replace the current tool's queue via `fn`. */
+/** Replace the current workspace's queue via `fn`. A no-op on the operation
+ * grid, where no workspace is open. */
 function mapQueue(state: AppState, fn: (q: QueueState) => QueueState): AppState {
-  return { ...state, queues: { ...state.queues, [state.tool]: fn(state.queues[state.tool]) } }
+  const key = state.category
+  return { ...state, queues: { ...state.queues, [key]: fn(state.queues[key] ?? emptyQueue()) } }
 }
 
 /**
@@ -120,10 +167,9 @@ function mapItemById(
   fn: (i: QueueItem) => QueueItem
 ): AppState {
   const queues = { ...state.queues }
-  for (const t of TOOL_IDS) {
-    const q = queues[t]
+  for (const [k, q] of Object.entries(queues) as [CategoryId, QueueState][]) {
     if (q.items.some((i) => i.id === id)) {
-      queues[t] = { ...q, items: q.items.map((i) => (i.id === id ? fn(i) : i)) }
+      queues[k] = { ...q, items: q.items.map((i) => (i.id === id ? fn(i) : i)) }
     }
   }
   return { ...state, queues }
@@ -160,18 +206,42 @@ function selectInQueue(q: QueueState, id: string, mode: SelectMode): QueueState 
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case 'setTool':
-      return { ...state, tool: action.tool }
-    case 'setOption':
+    case 'setCategory': {
+      // Operation ids differ per category, so a switch lands on the new type's
+      // default rather than trying to carry the current operation across.
+      const opId = defaultOperation(action.category)
+      const key = workspaceKey(action.category, opId)
       return {
         ...state,
+        category: action.category,
+        operation: opId,
+        queues: { ...state.queues, [action.category]: state.queues[action.category] ?? emptyQueue() },
         options: {
           ...state.options,
-          [action.tool]: { ...state.options[action.tool], [action.key]: action.value }
+          [key]: state.options[key] ?? defaultOptionsFor(action.category, opId)
         }
       }
+    }
+    case 'setOperation': {
+      const key = workspaceKey(state.category, action.operation)
+      return {
+        ...state,
+        operation: action.operation,
+        options: {
+          ...state.options,
+          [key]: state.options[key] ?? defaultOptionsFor(state.category, action.operation)
+        }
+      }
+    }
+    case 'setOption': {
+      const key = optionsKey(state)
+      return {
+        ...state,
+        options: { ...state.options, [key]: { ...state.options[key], [action.key]: action.value } }
+      }
+    }
     case 'addItems': {
-      const q = state.queues[state.tool]
+      const q = state.queues[state.category] ?? emptyQueue()
       // Ignore input-dismissed items so re-dropping a removed file re-adds it.
       const seen = new Set(q.items.filter(inInput).map((i) => i.file.path))
       const add = action.files
@@ -230,6 +300,7 @@ export function reducer(state: AppState, action: Action): AppState {
                 status: 'queued',
                 percent: 0,
                 hasProgress: false,
+                runOptions: action.options ?? i.runOptions,
                 error: undefined,
                 outputPath: undefined,
                 hiddenOutput: false
@@ -245,8 +316,7 @@ export function reducer(state: AppState, action: Action): AppState {
       // checkmark persists until the next run replaces it with a progress bar.
       if (e.status === 'done' && e.outputPath) {
         const queues = { ...state.queues }
-        for (const t of TOOL_IDS) {
-          const q = queues[t]
+        for (const [k, q] of Object.entries(queues) as [CategoryId, QueueState][]) {
           const src = q.items.find((i) => i.id === e.id && !i.isResult)
           if (!src) continue
           const result: QueueItem = {
@@ -259,7 +329,7 @@ export function reducer(state: AppState, action: Action): AppState {
             outputSize: e.outputSize,
             isResult: true
           }
-          queues[t] = {
+          queues[k] = {
             ...q,
             items: [
               ...q.items.map((i) =>
@@ -281,7 +351,9 @@ export function reducer(state: AppState, action: Action): AppState {
         // Only a real reported percentage flips the bar to determinate.
         hasProgress: e.percent != null || i.hasProgress,
         etaSec: e.etaSec ?? i.etaSec,
-        message: e.message,
+        // Keep the last label on a percent-only update: the estimated-progress
+        // ticker drives the % without resending the message every tick.
+        message: e.message ?? i.message,
         outputPath: e.outputPath ?? i.outputPath,
         error: e.error
       }))

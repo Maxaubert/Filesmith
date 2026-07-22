@@ -9,6 +9,7 @@ import type {
   ToolId,
   ToolTarget
 } from '@shared/types'
+import type { ComfyModel } from '@shared/comfy'
 
 // The typed bridge the renderer talks to. The renderer never touches Node/fs/
 // child_process directly; every privileged action goes through these channels.
@@ -24,6 +25,8 @@ const api = {
 
   // files
   pickFiles: (): Promise<FileInfo[]> => ipcRenderer.invoke('files:pick'),
+  /** Pick one image to use as a Remove Background backdrop. */
+  pickImage: (): Promise<string | null> => ipcRenderer.invoke('image:pick'),
   classify: (paths: string[]): Promise<FileInfo[]> => ipcRenderer.invoke('files:classify', paths),
   /** Resolve the absolute path of a dropped File (Electron removed File.path). */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
@@ -41,6 +44,9 @@ const api = {
   /** Video pixel dimensions (via ffprobe) for the resolution-preview list. */
   videoDimensions: (path: string): Promise<{ width: number; height: number } | null> =>
     ipcRenderer.invoke('video:dimensions', path),
+  /** Image pixel dimensions (via ImageMagick) for the upscale output preview. */
+  imageDimensions: (path: string): Promise<{ width: number; height: number } | null> =>
+    ipcRenderer.invoke('image:dimensions', path),
   /** Open (or reuse + refocus) the standalone preview window. */
   openPreviewWindow: (files: PreviewItem[], index: number): Promise<void> =>
     ipcRenderer.invoke('preview:open', { files, index }),
@@ -69,6 +75,46 @@ const api = {
   toolsFor: (file: FileInfo): Promise<ToolId[]> => ipcRenderer.invoke('tools:for', file),
   targets: (tool: ToolId, file: FileInfo): Promise<ToolTarget[]> =>
     ipcRenderer.invoke('tool:targets', tool, file),
+
+  // PiD Advanced (NVIDIA) upscaler tier
+  /** NVIDIA GPU presence + whether the PiD engine is installed. */
+  pidStatus: (): Promise<{ nvidia: { name: string; vramMb: number | null } | null; installed: boolean }> =>
+    ipcRenderer.invoke('pid:status'),
+  /** Run the one-click PiD download/install; resolves when done. */
+  pidInstall: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('pid:install'),
+  /** Install progress updates (step label + percent, or null while indeterminate). */
+  onPidProgress: (cb: (p: { step: string; pct: number | null }) => void): (() => void) => {
+    const listener = (_: unknown, p: { step: string; pct: number | null }): void => cb(p)
+    ipcRenderer.on('pid:progress', listener)
+    return () => ipcRenderer.removeListener('pid:progress', listener)
+  },
+
+  // ComfyUI-imported upscale models
+  /** GPU + spandrel-engine readiness + remembered folder + usable models. */
+  comfyStatus: (): Promise<{
+    nvidia: { name: string; vramMb: number | null } | null
+    engineReady: boolean
+    envExists: boolean
+    pidReusable: boolean
+    folder: string | null
+    models: ComfyModel[]
+  }> => ipcRenderer.invoke('comfy:status'),
+  /** Build the shared torch env + spandrel (no PiD weights). */
+  comfyInstall: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('comfy:install'),
+  /** Open a folder picker; resolves to the chosen path or null. */
+  comfyPickFolder: (): Promise<string | null> => ipcRenderer.invoke('comfy:pick-folder'),
+  /** Scan a folder for upscale models, classify + remember them. */
+  comfyScan: (folder: string): Promise<{ ok: boolean; models?: ComfyModel[]; error?: string }> =>
+    ipcRenderer.invoke('comfy:scan', folder),
+  /** The remembered, still-on-disk usable models. */
+  comfyList: (): Promise<ComfyModel[]> => ipcRenderer.invoke('comfy:list'),
+  /** Engine-install progress updates. */
+  onComfyProgress: (cb: (p: { step: string; pct: number | null }) => void): (() => void) => {
+    const listener = (_: unknown, p: { step: string; pct: number | null }): void => cb(p)
+    ipcRenderer.on('comfy:progress', listener)
+    return () => ipcRenderer.removeListener('comfy:progress', listener)
+  },
 
   // window controls (frameless)
   minimize: (): void => ipcRenderer.send('window:minimize'),
