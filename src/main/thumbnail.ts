@@ -87,7 +87,9 @@ function audioCover(path: string, size: number): Promise<string | null> {
 
 /** Run a tool that writes one PNG (appended as the last arg); return a data URL. */
 async function toolPng(tool: string, args: string[]): Promise<string | null> {
-  const out = join(tmpdir(), `fs-thumb-${randomUUID()}.png`)
+  // `filesmith-` prefix so the stale-temp sweeper (index.ts) collects it if a
+  // hard crash skips the finally cleanup.
+  const out = join(tmpdir(), `filesmith-thumb-${randomUUID()}.png`)
   try {
     const { code } = await withLimit(() => run(resolveTool(tool), [...args, out]))
     if (code !== 0 || !existsSync(out)) return null

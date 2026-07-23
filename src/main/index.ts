@@ -6,6 +6,7 @@ import { Readable } from 'stream'
 import { registerIpc } from './ipc'
 import { pidSidecar } from './pid/sidecar'
 import { spandrelSidecar } from './comfy/sidecar'
+import { stopComfyServer } from './generate'
 
 // Remove temp dirs orphaned by a previous HARD crash (normal runs delete their
 // own in a finally). Guarded by age so a concurrent second instance's in-use
@@ -69,7 +70,13 @@ const mimeFor = (p: string): string => MIME[extname(p).toLowerCase()] ?? 'applic
 // (and Accept-Ranges), the browser can't seek within large videos — it registers
 // the timeline click but the seek never completes.
 function serveMedia(request: Request): Response {
-  const filePath = decodeURIComponent(new URL(request.url).pathname).slice(1)
+  let filePath: string
+  try {
+    filePath = decodeURIComponent(new URL(request.url).pathname).slice(1)
+  } catch {
+    // Malformed percent-encoding must yield a Response, not throw out of the handler.
+    return new Response(null, { status: 400 })
+  }
   let size: number
   try {
     size = statSync(filePath).size
@@ -77,6 +84,13 @@ function serveMedia(request: Request): Response {
     return new Response(null, { status: 404 })
   }
   const type = mimeFor(filePath)
+  // A read stream that errors mid-flight (file deleted while streaming) must not
+  // crash the process; destroy quietly so the request just ends.
+  const openStream = (opts?: { start: number; end: number }): NodeJS.ReadableStream => {
+    const s = createReadStream(filePath, opts)
+    s.on('error', () => s.destroy())
+    return s
+  }
   const asBody = (s: NodeJS.ReadableStream): ReadableStream =>
     Readable.toWeb(s as Readable) as unknown as ReadableStream
 
@@ -88,7 +102,7 @@ function serveMedia(request: Request): Response {
     if (!Number.isFinite(start) || start < 0) start = 0
     if (!Number.isFinite(end) || end >= size) end = size - 1
     if (start > end) start = end
-    return new Response(asBody(createReadStream(filePath, { start, end })), {
+    return new Response(asBody(openStream({ start, end })), {
       status: 206,
       headers: {
         'Content-Type': type,
@@ -101,7 +115,7 @@ function serveMedia(request: Request): Response {
       }
     })
   }
-  return new Response(asBody(createReadStream(filePath)), {
+  return new Response(asBody(openStream()), {
     status: 200,
     headers: {
       'Content-Type': type,
@@ -131,7 +145,7 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => mainWindow.show())
 
-  registerIpc(mainWindow)
+  jobQueue = registerIpc(mainWindow)
 
   // Open external links in the OS browser, never in-app.
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -156,25 +170,44 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  sweepStaleTempDirs()
+// The running job queue, so app quit can cancel in-flight tool runs.
+let jobQueue: import('./jobQueue').JobQueue | null = null
 
-  // Serve local files for the preview: fsmedia://local/<encoded-abs-path>.
-  protocol.handle(MEDIA_SCHEME, (request) => serveMedia(request))
-
-  createWindow()
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+// Single-instance: a second launch must not spawn a rival process that races the
+// same session.json and duplicates windows. Hand focus to the existing window.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
   })
-})
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
-})
+  app.whenReady().then(() => {
+    sweepStaleTempDirs()
 
-// Free the PiD process (and its ~10 GB of VRAM) when the app exits; it's a warm
-// long-lived child that won't die with us otherwise.
-app.on('before-quit', () => {
-  pidSidecar.stop()
-  spandrelSidecar.stop()
-})
+    // Serve local files for the preview: fsmedia://local/<encoded-abs-path>.
+    protocol.handle(MEDIA_SCHEME, (request) => serveMedia(request))
+
+    createWindow()
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+  })
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit()
+  })
+
+  // On quit, cancel in-flight jobs (so ffmpeg/magick/etc. don't keep running
+  // headless) and free the warm AI sidecars (PiD holds ~10 GB of VRAM).
+  app.on('before-quit', () => {
+    jobQueue?.cancelAll()
+    pidSidecar.stop()
+    spandrelSidecar.stop()
+    stopComfyServer()
+  })
+}

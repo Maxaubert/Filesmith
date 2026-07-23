@@ -23,6 +23,13 @@ function hasTorchSpandrel(py: string): boolean {
   return existsSync(join(sp, 'torch')) && existsSync(join(sp, 'spandrel'))
 }
 
+// Just torch — all that LAUNCHING ComfyUI for generation needs (spandrel is only
+// for the ESRGAN upscale sidecar, so gating generation on it wrongly hides a
+// perfectly capable ComfyUI that simply hasn't installed spandrel).
+function hasTorch(py: string): boolean {
+  return existsSync(join(envDirOf(py), 'Lib', 'site-packages', 'torch'))
+}
+
 /** Candidate ComfyUI "code root" dirs (where a venv/embedded python would live),
  * checked at a few nesting depths near the remembered + common install spots. */
 function comfyCodeRoots(): string[] {
@@ -36,6 +43,10 @@ function comfyCodeRoots(): string[] {
   const bases = [home, join(home, 'Desktop'), join(home, 'Documents'), join(home, 'Downloads'), 'C:\\', 'D:\\', 'E:\\']
   const names = ['ComfyUI', 'ComfyUI-Installs', 'ComfyUI_windows_portable', 'comfyui', 'ComfyUI-Shared']
   for (const b of bases) for (const n of names) add(join(b, n))
+  // ComfyUI Desktop keeps its uv-managed venv under %APPDATA%\ComfyUI and its app
+  // under %LOCALAPPDATA%\Programs\@comfyorgcomfyui-electron.
+  if (process.env.APPDATA) add(join(process.env.APPDATA, 'ComfyUI'))
+  if (process.env.LOCALAPPDATA) add(join(process.env.LOCALAPPDATA, 'Programs', '@comfyorgcomfyui-electron'))
   return roots
 }
 
@@ -63,6 +74,18 @@ export function findComfyPython(): string | null {
     }
   cached = { py: found }
   return found
+}
+
+/** A ComfyUI interpreter capable of LAUNCHING ComfyUI (torch present) under a
+ * code root that has main.py — for generation. Does NOT require spandrel. Falls
+ * back to the spandrel-capable python if no torch-only match is found. */
+export function findComfyLaunchPython(): string | null {
+  for (const root of comfyCodeRoots())
+    for (const sub of PY_SUBS) {
+      const py = join(root, ...sub)
+      if (existsSync(py) && hasTorch(py) && existsSync(join(root, 'main.py'))) return py
+    }
+  return findComfyPython()
 }
 
 /** Re-probe on next call (e.g. after the user points at a new ComfyUI folder). */

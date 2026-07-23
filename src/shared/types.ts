@@ -1,6 +1,13 @@
 // Shared types crossing the main <-> renderer boundary. No Node or DOM imports.
 
-export type ToolId = 'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'pdf'
+export type ToolId =
+  | 'convert'
+  | 'compress'
+  | 'resize'
+  | 'upscale'
+  | 'removebg'
+  | 'pdf'
+  | 'generate'
 
 export type FileKind = 'image' | 'video' | 'audio' | 'pdf' | 'document' | 'text' | 'other'
 

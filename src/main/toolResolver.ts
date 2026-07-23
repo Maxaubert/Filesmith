@@ -125,16 +125,28 @@ export interface RembgCommand {
   prefix: string[]
 }
 
+/** Where an already-installed rembg tool lives (a returning user's cache). */
+function rembgInstalledPath(): string {
+  return join(process.env.APPDATA ?? '', 'uv', 'tools', 'rembg', 'Scripts', 'rembg' + EXE)
+}
+
+export interface RembgStatus {
+  /** rembg + its model are already installed — no download on next run. */
+  ready: boolean
+  /** uv is present, so a first-use install/download can proceed. */
+  uvAvailable: boolean
+}
+
+/** Proactive Remove-Background availability, so the panel can DISCLOSE the AI
+ * model + one-time download (and the uv requirement) before the user commits
+ * files — rather than failing mid-run. */
+export function removebgStatus(): RembgStatus {
+  return { ready: existsSync(rembgInstalledPath()), uvAvailable: resolveUv() != null }
+}
+
 export function resolveRembg(): RembgCommand | null {
   // (a) an existing uv tool install (what a returning user will have)
-  const installed = join(
-    process.env.APPDATA ?? '',
-    'uv',
-    'tools',
-    'rembg',
-    'Scripts',
-    'rembg' + EXE
-  )
+  const installed = rembgInstalledPath()
   if (existsSync(installed)) return { cmd: installed, prefix: [] }
 
   // (b) uv itself, which fetches Python + rembg on demand

@@ -128,12 +128,9 @@ function resolveExtraPaths(cfgPath: string): string[] {
  * nesting depths) as guessComfyFolder. Returns both files only when both exist
  * and are non-empty.
  */
-export function findComfyPidWeights(
-  checkpointDirName: string
-): { checkpoint: string; vae: string } | null {
-  // Candidate "models" base dirs to look for nvidia_pid under. We check the
-  // folder the user actually browsed to FIRST (covers non-standard installs),
-  // then the usual auto-detected locations.
+/** Candidate ComfyUI "models" base dirs (holding checkpoints/, nvidia_pid/, …),
+ * from the browsed folder first, then the usual auto-detected locations. */
+export function comfyModelsBases(): string[] {
   const bases: string[] = []
   const addBases = (dir: string): void => {
     bases.push(
@@ -150,6 +147,74 @@ export function findComfyPidWeights(
   const roots = [home, join(home, 'Desktop'), join(home, 'Documents'), join(home, 'Downloads'), 'C:\\', 'D:\\', 'E:\\']
   const names = ['ComfyUI', 'ComfyUI-Shared', 'ComfyUI-Installs', 'ComfyUI_windows_portable', 'comfyui']
   for (const root of roots) for (const name of names) addBases(join(root, name))
+  // ComfyUI Desktop (the official installer): its user data + configured model
+  // base live under %APPDATA%\ComfyUI; read its config for the real base_path.
+  for (const b of comfyDesktopBases()) addBases(b)
+  return bases
+}
+
+/** Model base dirs for a ComfyUI Desktop install: %APPDATA%\ComfyUI itself and
+ * whatever base_path its config records (best-effort, no YAML dependency). */
+export function comfyDesktopBases(): string[] {
+  const out: string[] = []
+  const appdata = process.env.APPDATA
+  if (!appdata) return out
+  const userData = join(appdata, 'ComfyUI')
+  if (existsSync(userData)) out.push(userData)
+  for (const cfg of [
+    join(userData, 'extra_models_config.yaml'),
+    join(userData, 'config.json'),
+    join(userData, 'basePath')
+  ]) {
+    if (!existsSync(cfg)) continue
+    try {
+      const text = readFileSync(cfg, 'utf-8')
+      // Match a JSON "basePath": "..." or a YAML base_path: ... entry.
+      for (const m of text.matchAll(/(?:"?base[_ ]?path"?\s*[:=]\s*)"?([^"\r\n]+)"?/gi)) {
+        const p = m[1].trim().replace(/[",]+$/, '')
+        if (p && existsSync(p)) out.push(p, join(p, 'models'))
+      }
+    } catch {
+      /* ignore unreadable config */
+    }
+  }
+  return out
+}
+
+/** Checkpoint filenames ComfyUI can see (for the generation model picker).
+ * Returned as ComfyUI names them: relative to models/checkpoints, forward slashes. */
+export function findComfyCheckpoints(): string[] {
+  const found = new Set<string>()
+  const walk = (dir: string, rel: string): void => {
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      const p = join(dir, e)
+      let st
+      try {
+        st = statSync(p)
+      } catch {
+        continue
+      }
+      const r = rel ? `${rel}/${e}` : e
+      if (st.isDirectory()) walk(p, r)
+      // Show every checkpoint — name-based filtering was unreliable (it hid
+      // usable models). A checkpoint that can't generate is handled by Cancel.
+      else if (/\.(safetensors|ckpt)$/i.test(e)) found.add(r)
+    }
+  }
+  for (const base of comfyModelsBases()) walk(join(base, 'checkpoints'), '')
+  return [...found].sort()
+}
+
+export function findComfyPidWeights(
+  checkpointDirName: string
+): { checkpoint: string; vae: string } | null {
+  const bases = comfyModelsBases()
 
   // Require roughly the real sizes so a truncated / still-downloading ComfyUI
   // weight isn't reused and trusted (the checkpoint is ~2.6 GB, the VAE ~320 MB).

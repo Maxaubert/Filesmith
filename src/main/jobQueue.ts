@@ -43,6 +43,13 @@ export class JobQueue {
     if (this.queue.length !== before) this.emit({ id, status: 'canceled' })
   }
 
+  /** Abort every active job and drop the pending queue — used on app quit so a
+   * heavy encode isn't left running headless after the window is gone. */
+  cancelAll(): void {
+    this.queue = []
+    for (const ctrl of this.controllers.values()) ctrl.abort()
+  }
+
   private pump(): void {
     while (this.active < this.concurrency && this.queue.length > 0) {
       const req = this.queue.shift()

@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import type { FileKind, JobOptions } from '@shared/types'
 import { familyFormats, isSameFormat } from '@shared/convert'
 import {
@@ -18,6 +18,8 @@ import {
 } from '@shared/compress'
 import { RESIZE_FITS, type ResizeFit } from '@shared/resize'
 import { BG_DEFAULTS, BG_FILLS, type BgFill } from '@shared/removebg'
+import { GEN_SIZES, GEN_STYLES, GEN_MAX_COUNT, clampDim } from '@shared/generate'
+import { ARCH_INFO, type GenArch, type GenModel } from '@shared/genArch'
 import type { Operation } from '@shared/catalog'
 import { Icon } from './Icon'
 import { OperationSwitcher } from './OperationSwitcher'
@@ -25,6 +27,7 @@ import { PidInstallCard } from './PidUpscale'
 import { usePidStatus } from './usePidStatus'
 import { ComfyImportCard } from './ComfyImport'
 import { useComfyModels } from './useComfyModels'
+import { useGenerateStatus } from './useGenerateStatus'
 
 /** A live "input → output" resolution row for the video resolution preview. */
 export interface VideoOutputRow {
@@ -39,6 +42,18 @@ function Label({ children }: { children: string }): JSX.Element {
     <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
       {children}
     </div>
+  )
+}
+
+/** A small "?" badge whose hover tooltip explains an option. */
+function HelpTip({ text }: { text: string }): JSX.Element {
+  return (
+    <span
+      title={text}
+      className="grid h-[15px] w-[15px] cursor-help place-items-center rounded-full border border-black/25 text-[9px] font-bold leading-none text-dim"
+    >
+      ?
+    </span>
   )
 }
 
@@ -646,8 +661,28 @@ function RemoveBgOptions({
 }): JSX.Element {
   const fill = String(options.bgFill ?? BG_DEFAULTS.bgFill) as BgFill
   const bgImage = String(options.bgImagePath ?? '')
+  // Disclose up front that background removal is AI-powered and, on first use,
+  // downloads a model — so a user who doesn't want AI can simply not use it,
+  // and one who does knows what to expect instead of hitting a mid-run error.
+  const [rembg, setRembg] = useState<{ ready: boolean; uvAvailable: boolean } | null>(null)
+  useEffect(() => {
+    void window.filesmith.removebgStatus().then(setRembg)
+  }, [])
   return (
     <div>
+      {rembg && !rembg.ready && (
+        <div className="mb-3 rounded-xl border border-black/[.10] bg-white p-3 text-[12px] leading-relaxed text-muted">
+          {rembg.uvAvailable ? (
+            <>Background removal uses an AI model. The first run downloads it once (a few hundred MB); after that it&apos;s instant and offline.</>
+          ) : (
+            <>
+              Background removal uses an AI model and needs the free <span className="font-semibold text-ink">uv</span>{' '}
+              tool. Install it with <span className="font-mono text-ink">winget install astral-sh.uv</span>, then reopen
+              Filesmith.
+            </>
+          )}
+        </div>
+      )}
       <Label>Background</Label>
       <ChoiceSelect value={fill} choices={BG_FILLS} onChange={(v) => set('bgFill', v)} />
       {fill === 'custom' && (
@@ -763,6 +798,385 @@ function PdfOptions({
   )
 }
 
+/** A checkpoint whose name marks it as restoration/refiner/inpaint — a valid
+ * model but not text-to-image, so we never auto-select it as the default. */
+function isRestoreName(name: string): boolean {
+  return /supir|refiner|inpaint|upscal|controlnet/i.test(name)
+}
+
+/** Model dropdown grouped by architecture (Checkpoints / Flux / Z-Image / …).
+ * Non-runnable models stay selectable and are annotated, so picking one reveals
+ * the download card rather than being a dead, greyed-out row. */
+function ModelPicker({
+  models,
+  value,
+  onChange
+}: {
+  models: GenModel[]
+  value: string
+  onChange: (v: string) => void
+}): JSX.Element {
+  const groups: string[] = []
+  for (const m of models) if (!groups.includes(m.group)) groups.push(m.group)
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full cursor-pointer appearance-none rounded-xl border border-black/[.10] bg-white py-2.5 pl-3.5 pr-9 text-[13px] font-semibold text-ink outline-none transition hover:border-[#b9b9c8] focus:border-accent"
+      >
+        {groups.map((g) => (
+          <optgroup key={g} label={g}>
+            {models
+              .filter((m) => m.group === g)
+              .map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.label}
+                  {m.runnable ? '' : ' — needs download'}
+                </option>
+              ))}
+          </optgroup>
+        ))}
+      </select>
+      <svg
+        viewBox="0 0 24 24"
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dim"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </div>
+  )
+}
+
+/** Shown when the selected model is missing its text-encoder / VAE files. Fetches
+ * them into the user's ComfyUI folders, then refreshes so the model goes runnable
+ * — the "works for anyone" path, not just a machine that already has the files. */
+function CompanionDownload({ model, onDone }: { model: GenModel; onDone: () => void }): JSX.Element {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [pct, setPct] = useState<number | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const missing = model.missing ?? []
+
+  const start = async (): Promise<void> => {
+    setBusy(true)
+    setErr(null)
+    const id = `dl-${model.name}`
+    const off = window.filesmith.onGenerateDownloadProgress((p) => {
+      if (p.id !== id) return
+      setMsg(`${p.label} (${p.index}/${p.total})`)
+      setPct(p.pct)
+    })
+    try {
+      const r = await window.filesmith.generateDownload(id, model.name)
+      if (!r.ok) setErr(r.error ?? 'Download failed.')
+      else onDone()
+    } finally {
+      off()
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-accent/40 bg-accent-soft/40 p-3 text-[12px] leading-relaxed">
+      <p className="font-semibold text-ink">
+        This model needs {missing.length} file{missing.length === 1 ? '' : 's'} you don&apos;t have yet:
+      </p>
+      <ul className="mt-1.5 space-y-0.5 text-muted">
+        {missing.map((m) => (
+          <li key={m.filename}>
+            • {m.label} <span className="text-dim">({m.approxSize})</span>
+          </li>
+        ))}
+      </ul>
+      {busy ? (
+        <div className="mt-2.5">
+          <div className="mb-1 flex items-center justify-between text-[11px] text-dim">
+            <span>{msg ?? 'Starting…'}</span>
+            <span>{pct == null ? '' : `${pct}%`}</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/[.08]">
+            <div
+              className="h-full rounded-full bg-accent transition-[width]"
+              style={{ width: `${pct ?? 8}%` }}
+            />
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={start}
+          className="mt-2.5 w-full rounded-xl bg-accent px-3 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-110"
+        >
+          Download required files
+        </button>
+      )}
+      {err && <p className="mt-2 text-[11.5px] font-medium text-red-600">{err}</p>}
+    </div>
+  )
+}
+
+/**
+ * Text-to-image generation options. The prompt lives in the center PromptBox;
+ * this panel carries the model + sampling settings and the availability notice.
+ */
+function GenerateOptions({
+  options,
+  set
+}: {
+  options: JobOptions
+  set: (k: string, v: string | number) => void
+}): JSX.Element {
+  const { status, refresh } = useGenerateStatus()
+  const model = String(options.model ?? '')
+  const w = Number(options.width ?? 1024)
+  const h = Number(options.height ?? 1024)
+  const seed = Number(options.seed ?? -1)
+  const sizeValue = GEN_SIZES.some((s) => s.width === w && s.height === h) ? `${w}x${h}` : 'custom'
+
+  const models = useMemo(() => status?.models ?? [], [status])
+  const selected = models.find((m) => m.name === model)
+  const arch: GenArch = selected?.arch ?? 'sdxl'
+  const info = ARCH_INFO[arch]
+
+  // Default to a runnable text-to-image model once the list loads, and steer away
+  // from a restoration checkpoint (SUPIR) or a vanished selection.
+  useEffect(() => {
+    if (!models.length) return
+    if (!selected) {
+      const good =
+        models.find((m) => m.runnable && !isRestoreName(m.label)) ??
+        models.find((m) => m.runnable) ??
+        models[0]
+      if (good && good.name !== model) set('model', good.name)
+    }
+  }, [model, models, selected, set])
+
+  // When the architecture changes, reset the sampler knobs to that arch's sane
+  // defaults (cfg MUST be 1 for Flux/Z-Image/Krea; steps differ per family).
+  const prevArch = useRef<GenArch | null>(null)
+  useEffect(() => {
+    if (prevArch.current === arch) return
+    prevArch.current = arch
+    set('steps', info.steps)
+    set('cfg', info.cfg)
+    if (info.hasGuidance) set('guidance', info.guidance)
+  }, [arch, info, set])
+
+  return (
+    <>
+      {status && !status.available && (
+        <p className="rounded-xl border border-black/[.10] bg-white p-3 text-[12px] leading-relaxed text-muted">
+          ComfyUI wasn&apos;t found. Open ComfyUI once so Filesmith can locate it, then reopen this.
+        </p>
+      )}
+      <div>
+        <Label>Model</Label>
+        {models.length ? (
+          <ModelPicker models={models} value={model} onChange={(v) => set('model', v)} />
+        ) : (
+          <p className="text-[12px] text-dim">No image models found in your ComfyUI models folder.</p>
+        )}
+        {selected && !selected.runnable && selected.missing?.length ? (
+          <div className="mt-2.5">
+            <CompanionDownload model={selected} onDone={refresh} />
+          </div>
+        ) : selected && !selected.runnable && selected.reason ? (
+          <p className="mt-2 text-[11.5px] leading-relaxed text-muted">{selected.reason}</p>
+        ) : null}
+        {status && status.unrecognized > 0 && (
+          <p className="mt-2 text-[11px] leading-relaxed text-dim">
+            {status.unrecognized} unrecognized model{status.unrecognized === 1 ? '' : 's'} in your folder{' '}
+            {status.unrecognized === 1 ? "isn't" : "aren't"} shown.
+          </p>
+        )}
+      </div>
+      {/* Negative prompt only affects arches that use real CFG (SDXL). Flux / Z-Image
+          / Krea run at cfg 1, where the negative branch is inert — so hide it there
+          rather than let it look like it does something. */}
+      {info.cfg !== 1 && (
+        <div>
+          <Label>Negative prompt</Label>
+          <input
+            type="text"
+            value={String(options.negative ?? '')}
+            onChange={(e) => set('negative', e.target.value)}
+            className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+        </div>
+      )}
+      <div>
+        <Label>Style</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {GEN_STYLES.map((s) => {
+            const sel = String(options.style ?? 'none') === s.id
+            return (
+              <button
+                key={s.id}
+                onClick={() => set('style', s.id)}
+                className={`rounded-xl border py-2 text-[12px] font-semibold transition ${
+                  sel
+                    ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(0,0,0,.06)]'
+                    : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
+                }`}
+              >
+                {s.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div>
+        <div className="mb-2.5 flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">Images</span>
+          <span className="text-sm font-semibold text-accent">{Number(options.count ?? 1)}</span>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={GEN_MAX_COUNT}
+          value={Number(options.count ?? 1)}
+          onChange={(e) => set('count', Number(e.target.value))}
+          className="w-full accent-accent"
+        />
+      </div>
+      <div>
+        <Label>Size</Label>
+        <ChoiceSelect
+          value={sizeValue}
+          choices={[
+            ...GEN_SIZES.map((s) => ({ value: `${s.width}x${s.height}`, label: s.label })),
+            { value: 'custom', label: 'Custom…' }
+          ]}
+          onChange={(v) => {
+            if (v === 'custom') return
+            const [ww, hh] = v.split('x').map(Number)
+            set('width', ww)
+            set('height', hh)
+          }}
+        />
+        {sizeValue === 'custom' && (
+          <div className="mt-2 grid grid-cols-2 gap-3">
+            <div>
+              <Label>Width</Label>
+              <input
+                type="number"
+                value={w}
+                step={64}
+                onChange={(e) => set('width', clampDim(Number(e.target.value)))}
+                className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <Label>Height</Label>
+              <input
+                type="number"
+                value={h}
+                step={64}
+                onChange={(e) => set('height', clampDim(Number(e.target.value)))}
+                className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      {/* Power-user knobs. The defaults are good for almost everything, so they
+          live in a collapsed section with a one-line explanation on each. */}
+      <details className="rounded-xl border border-black/[.08] bg-white/50 px-3.5 py-2.5">
+        <summary className="cursor-pointer select-none text-[12.5px] font-semibold text-ink">
+          Advanced
+        </summary>
+        <div className="mt-3 space-y-4">
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
+                Steps
+                <HelpTip text="How many refinement passes the model makes. More adds a little detail but is slower. Turbo models (Z-Image, Krea, Flux 2) need only a handful; SDXL and Flux 1 like ~20-30." />
+              </span>
+              <span className="text-sm font-semibold text-accent">{Number(options.steps ?? info.steps)}</span>
+            </div>
+            <input
+              type="range"
+              min={arch === 'sdxl' || arch === 'flux1' ? 8 : 1}
+              max={50}
+              value={Number(options.steps ?? info.steps)}
+              onChange={(e) => set('steps', Number(e.target.value))}
+              className="w-full accent-accent"
+            />
+          </div>
+          {arch === 'sdxl' ? (
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
+                  Guidance (CFG)
+                  <HelpTip text="How closely it follows your prompt. About 7 is balanced; lower is looser and more natural, higher sticks to the prompt but can look harsh." />
+                </span>
+                <span className="text-sm font-semibold text-accent">{Number(options.cfg ?? 7)}</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={15}
+                step={0.5}
+                value={Number(options.cfg ?? 7)}
+                onChange={(e) => set('cfg', Number(e.target.value))}
+                className="w-full accent-accent"
+              />
+            </div>
+          ) : info.hasGuidance ? (
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
+                  Guidance
+                  <HelpTip text="Flux's prompt-adherence dial. Around 3.5 is the sweet spot for Flux 1; lower is more natural, higher follows the prompt harder." />
+                </span>
+                <span className="text-sm font-semibold text-accent">{Number(options.guidance ?? info.guidance)}</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={0.5}
+                value={Number(options.guidance ?? info.guidance)}
+                onChange={(e) => set('guidance', Number(e.target.value))}
+                className="w-full accent-accent"
+              />
+            </div>
+          ) : null}
+          <div>
+            <div className="mb-2.5 flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">Seed</span>
+              <HelpTip text="The random starting point. The same seed with the same settings makes the exact same image — leave it on Random for variety, or fix it to reproduce a result." />
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={seed}
+                onChange={(e) => set('seed', e.target.value === '' ? -1 : Number(e.target.value))}
+                className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              <button
+                onClick={() => set('seed', -1)}
+                className={`rounded-xl border px-3.5 py-2 text-[12.5px] font-semibold transition ${
+                  seed < 0
+                    ? 'border-accent bg-accent-soft text-accent'
+                    : 'border-black/[.12] bg-white text-ink hover:border-[#b9b9c8]'
+                }`}
+              >
+                Random
+              </button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </>
+  )
+}
+
 export function OptionsPanel({
   operation,
   operations,
@@ -847,6 +1261,7 @@ export function OptionsPanel({
         )}
         {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
         {operation.tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
+        {operation.tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
       </>
       <div className="flex-1" />
 
@@ -856,7 +1271,9 @@ export function OptionsPanel({
         className="mt-auto rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(0,0,0,.20)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
       >
         {operation.label}
-        {runCount > 0 ? ` ${runCount} file${runCount === 1 ? '' : 's'}` : ''}
+        {operation.tool !== 'generate' && runCount > 0
+          ? ` ${runCount} file${runCount === 1 ? '' : 's'}`
+          : ''}
       </button>
     </aside>
   )

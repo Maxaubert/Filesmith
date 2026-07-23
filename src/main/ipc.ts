@@ -13,7 +13,7 @@ import type {
 import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
-import { toolAvailable } from './toolResolver'
+import { toolAvailable, removebgStatus } from './toolResolver'
 import { probeDimensions, probeImageDimensions } from './probe'
 import { makeThumbnail } from './thumbnail'
 import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
@@ -25,6 +25,14 @@ import { installPid, installComfyEngine } from './pid/install'
 import { scanComfy, guessComfyFolder, findComfyPidWeights } from './comfy/discover'
 import { readComfyStore, writeComfyStore, usableComfyModels } from './comfy/store'
 import { comfyPythonReady, clearComfyPythonCache } from './comfy/pythonEnv'
+import { loadSession, saveSession, filesExist } from './session'
+import {
+  generateImages,
+  comfyGenerationAvailable,
+  scanGenerationModels,
+  downloadCompanions
+} from './generate'
+import type { GenerateOptions } from '@shared/generate'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
 // is hidden from the picker and dropped from drag-and-drop.
@@ -34,7 +42,7 @@ function isSupported(f: FileInfo): boolean {
 }
 
 /** Wire the renderer <-> engine channels for one window. */
-export function registerIpc(win: BrowserWindow): void {
+export function registerIpc(win: BrowserWindow): JobQueue {
   const queue = new JobQueue((e: JobEvent) => win.webContents.send('job:event', e))
 
   // Custom (frameless) window controls — act on the sender's window so both the
@@ -89,6 +97,7 @@ export function registerIpc(win: BrowserWindow): void {
     return true
   })
   ipcMain.handle('tool:check', (_e, name: string) => toolAvailable(name))
+  ipcMain.handle('removebg:status', () => removebgStatus())
   ipcMain.handle('files:classify', (_e, paths: string[]) =>
     paths.map(fileInfoFromPath).filter(isSupported)
   )
@@ -242,4 +251,45 @@ export function registerIpc(win: BrowserWindow): void {
     }
   })
   ipcMain.handle('comfy:list', () => usableComfyModels())
+
+  // --- Text-to-image generation (via headless ComfyUI) -----------------------
+  ipcMain.handle('generate:status', async () => {
+    const scan = scanGenerationModels()
+    return { available: comfyGenerationAvailable(), ...scan }
+  })
+  ipcMain.handle('generate:download', async (_e, id: string, model: string) => {
+    try {
+      await downloadCompanions(model, (p) => win.webContents.send('generate:download-progress', { id, ...p }))
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  const genControllers = new Map<string, AbortController>()
+  ipcMain.handle('generate:run', async (_e, id: string, opts: GenerateOptions) => {
+    const ctrl = new AbortController()
+    genControllers.set(id, ctrl)
+    try {
+      await generateImages(
+        opts,
+        (index, path) => win.webContents.send('generate:image', { id, index, path }),
+        (index, pct) => win.webContents.send('generate:progress', { id, index, pct }),
+        (message) => win.webContents.send('generate:progress', { id, index: -1, message }),
+        ctrl.signal
+      )
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    } finally {
+      genControllers.delete(id)
+    }
+  })
+  ipcMain.on('generate:cancel', (_e, id: string) => genControllers.get(id)?.abort())
+
+  // --- Session persistence (queues, produced files, options) -----------------
+  ipcMain.handle('session:load', () => loadSession())
+  ipcMain.on('session:save', (_e, data: unknown) => saveSession(data))
+  ipcMain.handle('files:exist', (_e, paths: string[]) => filesExist(paths))
+
+  return queue
 }

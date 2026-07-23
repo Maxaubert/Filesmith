@@ -78,20 +78,28 @@ export const OPERATIONS: Record<CategoryId, Operation[]> = {
       tool: 'resize'
     },
     {
+      id: 'removebg',
+      label: 'Remove Background',
+      desc: 'Cut the subject out with AI',
+      color: '#12b3a6',
+      icon: 'removebg',
+      tool: 'removebg'
+    },
+    {
       id: 'upscale',
-      label: 'Image Upscale',
+      label: 'Upscale',
       desc: 'Enlarge 2x to 4x with AI',
       color: '#8b5cf6',
       icon: 'upscale',
       tool: 'upscale'
     },
     {
-      id: 'removebg',
-      label: 'Remove Background',
-      desc: 'Cut the subject out',
-      color: '#12b3a6',
-      icon: 'removebg',
-      tool: 'removebg'
+      id: 'generate',
+      label: 'Generate',
+      desc: 'Create an image from a text prompt',
+      color: '#d6409f',
+      icon: 'image',
+      tool: 'generate'
     }
   ],
   video: [CONVERT('Change container or codec'), COMPRESS('Shrink file size')],

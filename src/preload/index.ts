@@ -10,6 +10,8 @@ import type {
   ToolTarget
 } from '@shared/types'
 import type { ComfyModel } from '@shared/comfy'
+import type { GenerateOptions } from '@shared/generate'
+import type { GenModelScan } from '@shared/genArch'
 
 // The typed bridge the renderer talks to. The renderer never touches Node/fs/
 // child_process directly; every privileged action goes through these channels.
@@ -115,6 +117,59 @@ const api = {
     ipcRenderer.on('comfy:progress', listener)
     return () => ipcRenderer.removeListener('comfy:progress', listener)
   },
+
+  // Text-to-image generation (headless ComfyUI)
+  /** Whether generation is available + the models to offer (checkpoints + Flux/
+   * Z-Image/Krea, each tagged runnable or with what to download). */
+  generateStatus: (): Promise<{ available: boolean } & GenModelScan> =>
+    ipcRenderer.invoke('generate:status'),
+  /** Run one generation; resolves with the saved image path (or an error). */
+  generateRun: (id: string, opts: GenerateOptions): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('generate:run', id, opts),
+  /** Cancel an in-flight generation. */
+  generateCancel: (id: string): void => ipcRenderer.send('generate:cancel', id),
+  /** Download the missing text-encoder/VAE files a model needs. */
+  generateDownload: (id: string, model: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('generate:download', id, model),
+  /** Progress of an in-flight companion download. */
+  onGenerateDownloadProgress: (
+    cb: (p: { id: string; index: number; total: number; label: string; filename: string; pct: number | null }) => void
+  ): (() => void) => {
+    const listener = (
+      _: unknown,
+      p: { id: string; index: number; total: number; label: string; filename: string; pct: number | null }
+    ): void => cb(p)
+    ipcRenderer.on('generate:download-progress', listener)
+    return () => ipcRenderer.removeListener('generate:download-progress', listener)
+  },
+  /** Per-image progress (index >= 0) or a status message (index -1). */
+  onGenerateProgress: (
+    cb: (p: { id: string; index: number; pct?: number; message?: string }) => void
+  ): (() => void) => {
+    const listener = (
+      _: unknown,
+      p: { id: string; index: number; pct?: number; message?: string }
+    ): void => cb(p)
+    ipcRenderer.on('generate:progress', listener)
+    return () => ipcRenderer.removeListener('generate:progress', listener)
+  },
+  /** An image in the batch finished (index + saved path). */
+  onGenerateImage: (
+    cb: (p: { id: string; index: number; path: string }) => void
+  ): (() => void) => {
+    const listener = (_: unknown, p: { id: string; index: number; path: string }): void => cb(p)
+    ipcRenderer.on('generate:image', listener)
+    return () => ipcRenderer.removeListener('generate:image', listener)
+  },
+
+  // Remove Background availability (discloses the AI model + one-time download).
+  removebgStatus: (): Promise<{ ready: boolean; uvAvailable: boolean }> =>
+    ipcRenderer.invoke('removebg:status'),
+
+  // Session persistence (queues + produced files survive close/reopen)
+  sessionLoad: (): Promise<unknown> => ipcRenderer.invoke('session:load'),
+  sessionSave: (data: unknown): void => ipcRenderer.send('session:save', data),
+  filesExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('files:exist', paths),
 
   // window controls (frameless)
   minimize: (): void => ipcRenderer.send('window:minimize'),

@@ -1,9 +1,11 @@
 import type { FileInfo, JobEvent, JobOptions, ToolId } from '@shared/types'
 import { convertGroup } from '@shared/convert'
 import { BG_DEFAULTS } from '@shared/removebg'
+import { GEN_DEFAULTS } from '@shared/generate'
 import {
   defaultOperation,
   findOperation,
+  operationsFor,
   workspaceKey,
   type CategoryId,
   type WorkspaceKey
@@ -77,6 +79,9 @@ export interface AppState {
   /** Options are per (category, operation): converting and compressing images
    * are configured separately even though they share the same files. */
   options: Record<WorkspaceKey, JobOptions>
+  /** The last operation chosen in each category, so switching away and back
+   * returns to the mode you were using instead of the category default. */
+  lastOperation: Partial<Record<CategoryId, string>>
 }
 
 /** The queue key (the file type) and the options key (file type + operation). */
@@ -101,7 +106,20 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   resize: { mode: 'percent', percent: 50, fit: 'contain' },
   upscale: { upscaleFactor: 4, upscaleModel: 'photo' },
   removebg: { ...BG_DEFAULTS },
-  pdf: { op: 'extract-text', dpi: 150, range: '' }
+  pdf: { op: 'extract-text', dpi: 150, range: '' },
+  generate: {
+    prompt: '',
+    model: '',
+    negative: GEN_DEFAULTS.negative,
+    style: GEN_DEFAULTS.style,
+    width: GEN_DEFAULTS.width,
+    height: GEN_DEFAULTS.height,
+    count: GEN_DEFAULTS.count,
+    steps: GEN_DEFAULTS.steps,
+    cfg: GEN_DEFAULTS.cfg,
+    guidance: GEN_DEFAULTS.guidance ?? 3.5,
+    seed: GEN_DEFAULTS.seed
+  }
 }
 
 export const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })
@@ -127,7 +145,8 @@ export const initialState: AppState = {
       FIRST_CATEGORY,
       FIRST_OPERATION
     )
-  }
+  },
+  lastOperation: {}
 }
 
 let counter = 0
@@ -148,6 +167,148 @@ export type Action =
   | { type: 'jobEvent'; event: JobEvent }
   | { type: 'select'; id: string; mode: SelectMode }
   | { type: 'clearSelection' }
+  | { type: 'hydrate'; state: AppState }
+
+// --- Session persistence ---------------------------------------------------
+
+/** Bump when AppState's persisted shape changes so old sessions are discarded. */
+const SESSION_VERSION = 1
+
+/** Normalize a queue item for persistence/restore: drop the (reloadable) thumb
+ * and settle any in-flight status, since a run doesn't survive a restart. */
+function normalizeItem(i: QueueItem): QueueItem {
+  const settled =
+    i.status === 'running' || i.status === 'queued' ? { status: 'ready' as const, percent: 0 } : {}
+  return {
+    ...i,
+    thumb: null,
+    hasProgress: false,
+    etaSec: undefined,
+    message: undefined,
+    ...settled
+  }
+}
+
+/** How many produced results / generated images to keep per queue when saving,
+ * so a heavy user's history can't grow the session file (and startup) without
+ * bound. Source (input) items are always kept. */
+const MAX_RESULTS = 100
+const MAX_GEN = 100
+
+/** A serializable snapshot of the session to persist. Selection/anchor are
+ * intentionally omitted (not restored), and produced history is capped. */
+export function sessionSnapshot(state: AppState, genResults: string[]): unknown {
+  const queues: Record<string, { items: QueueItem[] }> = {}
+  for (const [cat, q] of Object.entries(state.queues)) {
+    if (!q) continue
+    // Keep every source item; keep only the most recent MAX_RESULTS results.
+    const sources = q.items.filter((i) => !i.isResult)
+    const results = q.items.filter((i) => i.isResult).slice(-MAX_RESULTS)
+    const kept = q.items.filter((i) => sources.includes(i) || results.includes(i))
+    queues[cat] = { items: kept.map(normalizeItem) }
+  }
+  return {
+    version: SESSION_VERSION,
+    category: state.category,
+    operation: state.operation,
+    lastOperation: state.lastOperation,
+    options: state.options,
+    queues,
+    genResults: genResults.slice(0, MAX_GEN)
+  }
+}
+
+interface PersistedSession {
+  category: CategoryId
+  operation: string
+  lastOperation: Partial<Record<CategoryId, string>>
+  options: Record<WorkspaceKey, JobOptions>
+  queues: AppState['queues']
+  genResults: string[]
+}
+
+/** Parse a persisted blob into an AppState + genResults, or null if unusable.
+ * Trusts nothing: falls back to defaults on any missing/mismatched field. */
+export function parseSession(raw: unknown): { state: AppState; genResults: string[] } | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (r.version !== SESSION_VERSION) return null
+  const p = r as unknown as PersistedSession
+  try {
+    const validCat = (c: string): boolean => {
+      try {
+        return operationsFor(c as CategoryId).length > 0
+      } catch {
+        return false
+      }
+    }
+    const category = validCat(p.category) && findOperation(p.category, p.operation) ? p.category : FIRST_CATEGORY
+    const operation = findOperation(category, p.operation) ? p.operation : defaultOperation(category)
+    // Drop queues for categories no longer in the catalog (a removed/renamed tool).
+    const queues: AppState['queues'] = {}
+    for (const [cat, q] of Object.entries(p.queues ?? {})) {
+      if (!q || !validCat(cat)) continue
+      queues[cat as CategoryId] = {
+        items: (q.items ?? []).map(normalizeItem),
+        selected: [],
+        anchor: null
+      }
+    }
+    // Keep only options whose (category:operation) key still resolves to a real op.
+    const options: Record<WorkspaceKey, JobOptions> = {}
+    for (const [k, v] of Object.entries(p.options ?? {})) {
+      const idx = k.indexOf(':')
+      const c = idx >= 0 ? k.slice(0, idx) : ''
+      const o = idx >= 0 ? k.slice(idx + 1) : ''
+      if (validCat(c) && findOperation(c as CategoryId, o)) options[k as WorkspaceKey] = v as JobOptions
+    }
+    const key = workspaceKey(category, operation)
+    if (!options[key]) options[key] = defaultOptionsFor(category, operation)
+    // Keep only valid lastOperation entries.
+    const lastOperation: Partial<Record<CategoryId, string>> = {}
+    for (const [c, o] of Object.entries(p.lastOperation ?? {}))
+      if (validCat(c) && o && findOperation(c as CategoryId, o)) lastOperation[c as CategoryId] = o
+    const state: AppState = { category, operation, lastOperation, queues, options }
+    return { state, genResults: Array.isArray(p.genResults) ? p.genResults.filter((x) => typeof x === 'string') : [] }
+  } catch {
+    return null
+  }
+}
+
+/** Every on-disk file path referenced by the state (for existence pruning). */
+export function sessionPaths(state: AppState, genResults: string[]): string[] {
+  const paths = new Set<string>()
+  for (const q of Object.values(state.queues)) {
+    if (!q) continue
+    for (const it of q.items) {
+      if (it.isResult) {
+        if (it.outputPath) paths.add(it.outputPath)
+      } else if (it.file?.path) paths.add(it.file.path)
+    }
+  }
+  for (const p of genResults) paths.add(p)
+  return [...paths]
+}
+
+/** Drop queue items and generated results whose backing file is gone. */
+export function pruneMissing(
+  state: AppState,
+  genResults: string[],
+  exists: Set<string>
+): { state: AppState; genResults: string[] } {
+  const queues: AppState['queues'] = {}
+  for (const [cat, q] of Object.entries(state.queues)) {
+    if (!q) continue
+    const items = q.items.filter((it) =>
+      it.isResult ? !!it.outputPath && exists.has(it.outputPath) : !!it.file?.path && exists.has(it.file.path)
+    )
+    queues[cat as CategoryId] = { items, selected: [], anchor: null }
+  }
+  return {
+    state: { ...state, queues },
+    genResults: genResults.filter((p) => exists.has(p))
+  }
+}
 
 /** Replace the current workspace's queue via `fn`. A no-op on the operation
  * grid, where no workspace is open. */
@@ -206,10 +367,14 @@ function selectInQueue(q: QueueState, id: string, mode: SelectMode): QueueState 
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'hydrate':
+      return action.state
     case 'setCategory': {
-      // Operation ids differ per category, so a switch lands on the new type's
-      // default rather than trying to carry the current operation across.
-      const opId = defaultOperation(action.category)
+      // Return to the mode last used in this category (if still valid), so
+      // Images→Video→Images lands back on your chosen operation, not the default.
+      const remembered = state.lastOperation[action.category]
+      const opId =
+        remembered && findOperation(action.category, remembered) ? remembered : defaultOperation(action.category)
       const key = workspaceKey(action.category, opId)
       return {
         ...state,
@@ -227,6 +392,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         operation: action.operation,
+        lastOperation: { ...state.lastOperation, [state.category]: action.operation },
         options: {
           ...state.options,
           [key]: state.options[key] ?? defaultOptionsFor(state.category, action.operation)

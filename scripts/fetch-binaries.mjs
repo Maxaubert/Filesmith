@@ -334,6 +334,16 @@ if (process.argv.includes('--lo-only')) {
   const bundled = readdirSync(BIN).filter((f) => f !== '.gitkeep')
   const total = bundled.reduce((s, f) => s + statSync(join(BIN, f)).size, 0)
   log(`\nresources/bin: ${bundled.length} files, ${(total / MB).toFixed(1)} MB total`)
-  if (!existsSync(join(BIN, 'magick.exe')))
-    log('  ⚠ magick.exe missing — image convert/resize will need PATH')
+
+  // Fail the build loudly if a core tool didn't get bundled, so `npm run package`
+  // can never ship an installer whose convert/compress/PDF tools are broken. The
+  // copy-sourced tools (magick/caesium/mutool) only warn-and-return when absent,
+  // so without this a clean machine would silently produce a broken installer.
+  const required = ['magick.exe', 'ffmpeg.exe', 'ffprobe.exe', 'caesiumclt.exe', 'mutool.exe']
+  const missing = required.filter((f) => !existsSync(join(BIN, f)))
+  if (missing.length) {
+    log(`\n❌ Missing core binaries in resources/bin: ${missing.join(', ')}`)
+    log('   Install them (winget: ImageMagick.ImageMagick, Gyan.FFmpeg, ArtifexSoftware.mutool) and re-run.')
+    process.exit(1)
+  }
 }

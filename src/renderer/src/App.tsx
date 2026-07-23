@@ -27,6 +27,10 @@ import {
   inOutput,
   groupOf,
   newId,
+  parseSession,
+  sessionSnapshot,
+  sessionPaths,
+  pruneMissing,
   type QueueItem,
   type SelectMode
 } from './state'
@@ -35,6 +39,40 @@ import { TopBar } from './components/TopBar'
 import { CategoryRail } from './components/CategoryRail'
 import { OperationTitle } from './components/OperationTitle'
 import { DropZone } from './components/DropZone'
+import { PromptBox } from './components/PromptBox'
+import type { GenerateOptions } from '@shared/generate'
+
+/** One generated-image thumbnail: click to preview, right-click for the menu. */
+function GenTile({
+  path,
+  aspect,
+  onPreview,
+  onMenu
+}: {
+  path: string
+  aspect: string
+  onPreview: (path: string) => void
+  onMenu: (path: string, x: number, y: number) => void
+}): JSX.Element {
+  return (
+    <button
+      onClick={() => onPreview(path)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onMenu(path, e.clientX, e.clientY)
+      }}
+      title={path}
+      style={{ aspectRatio: aspect }}
+      className="overflow-hidden rounded-xl border border-black/[.08] bg-white transition hover:border-accent"
+    >
+      <img
+        src={`fsmedia://local/${encodeURIComponent(path)}`}
+        alt=""
+        className="h-full w-full object-cover"
+      />
+    </button>
+  )
+}
 import { Queues } from './components/Queue'
 import { OptionsPanel, type VideoOutputRow } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
@@ -92,6 +130,17 @@ function toPreviewFiles(
 export default function App(): JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [dragging, setDragging] = useState(false)
+  // Text-to-image generation is not file-driven, so it lives outside the queue:
+  // a persistent list of produced images, plus the in-flight run's per-image
+  // slots (each with live progress, filled in as it finishes).
+  const [genResults, setGenResults] = useState<string[]>([])
+  const [genRun, setGenRun] = useState<{
+    running: boolean
+    slots: { pct: number; path?: string }[]
+    message?: string
+  }>({ running: false, slots: [] })
+  const genIdRef = useRef(0)
+  const genActiveId = useRef<string | null>(null)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
@@ -107,6 +156,57 @@ export default function App(): JSX.Element {
   // Oversize-upscale confirmation, and the flag that lets the confirmed run through.
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const confirmedHuge = useRef(false)
+  // Session persistence: restore the last session (queues + produced files) on
+  // launch, pruning anything whose file was deleted since; then save on change.
+  const hydrated = useRef(false)
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const parsed = parseSession(await window.filesmith.sessionLoad())
+        if (!parsed || !alive) {
+          hydrated.current = true
+          return
+        }
+        const paths = sessionPaths(parsed.state, parsed.genResults)
+        const flags = paths.length ? await window.filesmith.filesExist(paths) : []
+        const existing = new Set(paths.filter((_, i) => flags[i]))
+        const pruned = pruneMissing(parsed.state, parsed.genResults, existing)
+        if (!alive) return
+        dispatch({ type: 'hydrate', state: pruned.state })
+        setGenResults(pruned.genResults)
+      } finally {
+        hydrated.current = true
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // Debounced save. Skipped until the initial hydrate lands so we never overwrite
+  // a saved session with the empty initial state during the async load.
+  useEffect(() => {
+    if (!hydrated.current) return
+    const t = setTimeout(() => window.filesmith.sessionSave(sessionSnapshot(state, genResults)), 400)
+    return () => clearTimeout(t)
+  }, [state, genResults])
+
+  // Flush synchronously on window close so work done in the last debounce window
+  // (up to 400ms) isn't lost. A ref carries the latest state to the listener.
+  const latest = useRef({ state, genResults })
+  useEffect(() => {
+    latest.current = { state, genResults }
+  }, [state, genResults])
+  useEffect(() => {
+    const flush = (): void => {
+      if (hydrated.current)
+        window.filesmith.sessionSave(sessionSnapshot(latest.current.state, latest.current.genResults))
+    }
+    window.addEventListener('beforeunload', flush)
+    return () => window.removeEventListener('beforeunload', flush)
+  }, [])
 
   // The queue belongs to the file type and is shared across its operations, so
   // switching Convert -> Compress keeps the same files. Options are per
@@ -361,7 +461,101 @@ export default function App(): JSX.Element {
       : `The largest result will be roughly ${formatBytes(worst)} (about ${formatBytes(total)} in total), and may take a long time.`
   }
 
+  /** The images currently on screen, for preview navigation: the finished tiles
+   * of an in-flight run, else the saved results. */
+  function genVisible(): string[] {
+    const running = genRun.slots.filter((s) => s.path).map((s) => s.path as string)
+    return running.length ? running : genResults
+  }
+
+  /** Open a generated image in Filesmith's standalone preview window, with all
+   * the on-screen generated images navigable alongside it. */
+  function previewGen(path: string): void {
+    const list = genVisible()
+    const files: PreviewItem[] = list.map((p) => ({
+      path: p,
+      name: p.split(/[\\/]/).pop() ?? p,
+      kind: 'image'
+    }))
+    void window.filesmith.openPreviewWindow(files, Math.max(0, list.indexOf(path)))
+  }
+
+  function openGenMenu(path: string, x: number, y: number): void {
+    setMenu({
+      x,
+      y,
+      items: [
+        { label: 'Preview', icon: 'eye', onClick: () => previewGen(path) },
+        {
+          label: 'Open in default app',
+          icon: 'upload',
+          onClick: () => window.filesmith.openFile(path)
+        },
+        { label: 'Reveal in Explorer', icon: 'folder', onClick: () => window.filesmith.reveal(path) },
+        { sep: true },
+        {
+          label: 'Delete file',
+          icon: 'trash',
+          danger: true,
+          onClick: () => {
+            void window.filesmith.trashFile(path)
+            setGenResults((prev) => prev.filter((p) => p !== path))
+          }
+        }
+      ]
+    })
+  }
+
+  async function generate(): Promise<void> {
+    const opts = curOptions
+    if (!String(opts.prompt ?? '').trim() || genRun.running) return
+    const id = `gen-${(genIdRef.current += 1)}`
+    genActiveId.current = id
+    const count = Math.max(1, Math.min(8, Number(opts.count ?? 1)))
+    setGenRun({ running: true, slots: Array.from({ length: count }, () => ({ pct: 0 })), message: 'Starting…' })
+    const finished: (string | undefined)[] = []
+    const unsubP = window.filesmith.onGenerateProgress((p) => {
+      if (p.id !== id) return
+      if (p.index < 0) {
+        setGenRun((r) => ({ ...r, message: p.message }))
+        return
+      }
+      const pct = p.pct ?? 0
+      setGenRun((r) => ({
+        ...r,
+        slots: r.slots.map((s, i) => (i === p.index ? { ...s, pct } : s))
+      }))
+    })
+    const unsubI = window.filesmith.onGenerateImage((p) => {
+      if (p.id !== id) return
+      finished[p.index] = p.path
+      setGenRun((r) => ({
+        ...r,
+        slots: r.slots.map((s, i) => (i === p.index ? { pct: 100, path: p.path } : s))
+      }))
+    })
+    try {
+      const r = await window.filesmith.generateRun(id, opts as unknown as GenerateOptions)
+      // Keep whatever finished, even on a mid-run cancel/error.
+      if (finished.some(Boolean))
+        setGenResults((prev) => [...finished.filter((x): x is string => !!x), ...prev])
+      if (!r.ok && !/cancel/i.test(r.error ?? ''))
+        setConfirm({
+          title: 'Generation failed',
+          body: r.error ?? 'Unknown error',
+          confirmLabel: 'OK',
+          onConfirm: () => {}
+        })
+    } finally {
+      unsubP()
+      unsubI()
+      genActiveId.current = null
+      setGenRun({ running: false, slots: [] })
+    }
+  }
+
   async function run(): Promise<void> {
+    if (op.tool === 'generate') return generate()
     if (!runList.length) return
     const opts = curOptions
 
@@ -432,7 +626,16 @@ export default function App(): JSX.Element {
 
   // Merge needs 2+ PDFs before it can run; every other op runs per selected file.
   const isMerge = op.tool === 'pdf' && String(curOptions.op) === 'merge'
-  const runCount = isMerge && runList.length < 2 ? 0 : runList.length
+  const promptFilled = String(curOptions.prompt ?? '').trim().length > 0
+  const genAspect = `${Number(curOptions.width ?? 1024)} / ${Number(curOptions.height ?? 1024)}`
+  const runCount =
+    op.tool === 'generate'
+      ? promptFilled && !genRun.running
+        ? 1
+        : 0
+      : isMerge && runList.length < 2
+        ? 0
+        : runList.length
   // The kind the options panel should key off is what will actually RUN, not the
   // anchor item: a PDF co-selected with a non-compressible doc (same group)
   // leaves the anchor 'document' while only the PDF runs. All-same-kind -> that
@@ -551,22 +754,105 @@ export default function App(): JSX.Element {
               {/* The rail names the file type; the sidebar switcher names (and
                   colours) the operation. This heading is just a heading. */}
               <OperationTitle category={category} fileCount={cur.items.filter(inInput).length} />
-              <DropZone
-                dragging={dragging}
-                label={`Drop ${category.label.toLowerCase()} here`}
-                onBrowse={() => void browse()}
-              />
-              <Queues
-                items={cur.items}
-                tool={op.tool}
-                options={curOptions}
-                selected={cur.selected}
-                activeGroup={activeGroup}
-                outThumbs={outThumbs}
-                onItemClick={onItemClick}
-                onOpen={openPreview}
-                onMenu={openMenu}
-              />
+              {op.tool === 'generate' ? (
+                <>
+                  <PromptBox
+                    value={String(curOptions.prompt ?? '')}
+                    onChange={(v) => dispatch({ type: 'setOption', key: 'prompt', value: v })}
+                  />
+                  {genRun.running && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => {
+                          if (genActiveId.current)
+                            window.filesmith.generateCancel(genActiveId.current)
+                        }}
+                        className="rounded-lg border border-black/[.12] bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-ink transition hover:border-[#e0483d] hover:text-[#e0483d]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                  {/* Startup indicator only ("Starting ComfyUI…" / "Connecting…").
+                      Once images are sampling, the per-tile bars carry it, so the
+                      redundant "Generating X of Y" line is dropped. */}
+                  {genRun.running &&
+                    genRun.message &&
+                    !genRun.message.startsWith('Generating') && (
+                      <div className="rounded-xl border border-black/[.06] bg-white/70 px-4 py-3">
+                        <div className="mb-2 text-[13px] font-medium text-ink">{genRun.message}</div>
+                        <div className="h-1 overflow-hidden rounded-full bg-[#ececf2]">
+                          <div className="fs-indet h-full w-1/4 rounded-full bg-accent" />
+                        </div>
+                      </div>
+                    )}
+                  {(genRun.running || genResults.length > 0) && (
+                    <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+                      {/* This run's tiles first (each fills as it finishes)… */}
+                      {genRun.running &&
+                        genRun.slots.map((slot, i) =>
+                          slot.path ? (
+                            <GenTile
+                              key={`slot-${i}`}
+                              path={slot.path}
+                              aspect={genAspect}
+                              onPreview={previewGen}
+                              onMenu={openGenMenu}
+                            />
+                          ) : (
+                            <div
+                              key={`slot-${i}`}
+                              style={{ aspectRatio: genAspect }}
+                              className="relative overflow-hidden rounded-xl border border-black/[.08] bg-[#eeeef4]"
+                            >
+                              <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-[#eeeef4] to-[#e0e0ec]" />
+                              <div className="absolute inset-x-3 bottom-3">
+                                <div className="mb-1 text-center text-[11px] font-semibold text-dim">
+                                  {slot.pct > 0 ? `${slot.pct}%` : 'Generating…'}
+                                </div>
+                                <div className="h-1.5 overflow-hidden rounded-full bg-white/70">
+                                  <div
+                                    className="h-full rounded-full bg-accent transition-[width] duration-300"
+                                    style={{ width: `${slot.pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      {/* …then everything generated earlier stays visible. */}
+                      {genResults.map((path) => (
+                        <GenTile
+                          key={path}
+                          path={path}
+                          aspect={genAspect}
+                          onPreview={previewGen}
+                          onMenu={openGenMenu}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <DropZone
+                    dragging={dragging}
+                    label={`Drop ${category.label.toLowerCase()} here`}
+                    onBrowse={() => void browse()}
+                  />
+                  <Queues
+                    items={cur.items}
+                    tool={op.tool}
+                    options={curOptions}
+                    selected={cur.selected}
+                    activeGroup={activeGroup}
+                    outThumbs={outThumbs}
+                    onItemClick={onItemClick}
+                    onOpen={openPreview}
+                    onMenu={openMenu}
+                  />
+                </>
+              )}
             </section>
 
             <OptionsPanel

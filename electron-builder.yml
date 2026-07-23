@@ -9,6 +9,13 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,.prettierrc.yaml,.prettierignore,eslint.config.js,tsconfig*.json}'
   - '!{.git,.claude,docs,test}/*'
+  # resources/ ships via extraResources below; without these excludes electron-
+  # builder's default **/* also packs the whole 1.4 GB tree INTO app.asar,
+  # doubling the installer. scripts/ and build/ are dev-only.
+  - '!resources/**'
+  - '!scripts/**'
+  - '!build/**'
+  - '!dist/**'
 # Bundled core CLI tools (ffmpeg, ImageMagick, mutool, CaesiumCLT) ship in
 # resources/bin; LibreOffice (document conversion) ships in resources/libreoffice.
 # Both are populated by scripts/fetch-binaries.mjs before packaging.
