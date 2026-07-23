@@ -15,19 +15,23 @@
 ---
 
 <p align="center">
-  <img src="docs/screenshots/convert.png" alt="Filesmith — converting images" width="840">
+  <img src="docs/screenshots/queue.png" alt="Filesmith — batch converting images with an input / output queue" width="860">
 </p>
 
 <table align="center">
   <tr>
-    <td align="center"><img src="docs/screenshots/generate.png" alt="Generate" width="412"><br><sub><b>Generate</b> — text to image</sub></td>
-    <td align="center"><img src="docs/screenshots/upscale.png" alt="Upscale" width="412"><br><sub><b>Upscale</b> — 2–4× with a GPU model</sub></td>
+    <td align="center"><img src="docs/screenshots/generate.png" alt="Generate" width="410"><br><sub><b>Generate</b> — text to image</sub></td>
+    <td align="center"><img src="docs/screenshots/upscale.png" alt="Upscale" width="410"><br><sub><b>Upscale</b> — 2–4× with a GPU model</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/image-preview.png" alt="Image viewer" width="410"><br><sub><b>Image viewer</b> — zoom, pan, page through the batch</sub></td>
+    <td align="center"><img src="docs/screenshots/document-preview.png" alt="Document viewer" width="410"><br><sub><b>Document viewer</b> — flip through PDFs and documents</sub></td>
   </tr>
 </table>
 
 <p align="center">
-  <img src="docs/screenshots/viewer.png" alt="Filesmith — built-in media viewer with audio visualizer" width="840"><br>
-  <sub><b>Built-in viewer</b> — preview images, video, and audio (with a live visualizer)</sub>
+  <img src="docs/screenshots/viewer.png" alt="Audio viewer with a live circular visualizer" width="720"><br>
+  <sub><b>Audio viewer</b> — a live circular visualizer while it plays</sub>
 </p>
 
 ## What it is
