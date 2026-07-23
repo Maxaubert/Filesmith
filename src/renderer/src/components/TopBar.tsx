@@ -1,5 +1,6 @@
 import type { JSX, ReactNode } from 'react'
 import { Icon } from './Icon'
+import fmark from '../assets/fmark.png'
 
 function WinBtn({ children, onClick }: { children: ReactNode; onClick: () => void }): JSX.Element {
   return (
@@ -19,8 +20,8 @@ export function TopBar(): JSX.Element {
   return (
     <div className="drag flex h-10 shrink-0 items-stretch">
       <div className="flex flex-1 items-center gap-2.5 pl-3.5">
-        <div className="grid h-6 w-6 place-items-center rounded-[7px] bg-accent text-white shadow-[0_3px_8px_rgba(91,91,214,.35)]">
-          <Icon name="logo" className="h-3.5 w-3.5" />
+        <div className="grid h-6 w-6 place-items-center rounded-[7px] bg-white shadow-[0_2px_6px_rgba(0,0,0,.14)] ring-1 ring-black/[.06]">
+          <img src={fmark} alt="Filesmith" className="h-4 w-4" />
         </div>
         <span className="text-[13px] font-bold tracking-tight">Filesmith</span>
       </div>
