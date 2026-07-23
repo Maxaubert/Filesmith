@@ -25,6 +25,11 @@
   </tr>
 </table>
 
+<p align="center">
+  <img src="docs/screenshots/viewer.png" alt="Filesmith — built-in media viewer with audio visualizer" width="840"><br>
+  <sub><b>Built-in viewer</b> — preview images, video, and audio (with a live visualizer)</sub>
+</p>
+
 ## What it is
 
 Filesmith puts the everyday file jobs behind one clean window: convert, compress, resize, and more, across **images, video, audio, PDFs, and documents**. Drop a pile of files, pick a tool, and it runs the batch with thumbnails, live per-file progress, rich previews, and collision-safe output that never overwrites your originals.
@@ -38,7 +43,7 @@ Everything runs **locally on your machine**, and your queue and produced files a
 - **PDF** — extract text, PDF to images, and compress.
 - **Documents** — convert office documents to PDF.
 
-Plus batch queues, thumbnails for every kind (images, video frames, audio cover art), in-app previews, per-file progress with ETA, and cancel.
+Plus batch queues, thumbnails for every kind (images, video frames, audio cover art), a **built-in viewer** for images, video, and audio (with a live circular visualizer), per-file progress with ETA, and cancel.
 
 ## AI is optional
 
