@@ -1,57 +1,79 @@
-# Filesmith
+<div align="center">
+  <img src="docs/logo.png" alt="Filesmith" width="116">
 
-A desktop file toolkit for Windows. Drop files, pick a tool, get results — with batch
-queues, thumbnails, live progress, and rich previews. Everything runs locally on your
-machine.
+  # Filesmith
 
-**Tools**
+  A local file toolkit for Windows. Drop files, pick a tool, get results.
 
-- **Images** — convert (PNG / WebP / AVIF / JPG…), compress, resize, remove background, upscale, and **generate** (text‑to‑image).
-- **Video / Audio** — convert (container / codec) and compress.
-- **PDF** — extract text, PDF → images, compress.
+  [![Latest release](https://img.shields.io/github/v/release/Maxaubert/Filesmith?style=flat-square&color=5b5bd6)](https://github.com/Maxaubert/Filesmith/releases/latest)
+  [![Downloads](https://img.shields.io/github/downloads/Maxaubert/Filesmith/total?style=flat-square&color=5b5bd6)](https://github.com/Maxaubert/Filesmith/releases)
+  [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=flat-square)](https://github.com/Maxaubert/Filesmith/releases/latest)
+  [![Built with](https://img.shields.io/badge/Electron%20·%20React%20·%20TypeScript-2b2e3a?style=flat-square)](#build-from-source)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-22b364?style=flat-square)](LICENSE)
+</div>
+
+---
+
+<p align="center">
+  <img src="docs/screenshots/convert.png" alt="Filesmith — converting images" width="840">
+</p>
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="docs/screenshots/generate.png" alt="Generate" width="412"><br><sub><b>Generate</b> — text to image</sub></td>
+    <td align="center"><img src="docs/screenshots/upscale.png" alt="Upscale" width="412"><br><sub><b>Upscale</b> — 2–4× with a GPU model</sub></td>
+  </tr>
+</table>
+
+## What it is
+
+Filesmith puts the everyday file jobs behind one clean window: convert, compress, resize, and more, across **images, video, audio, PDFs, and documents**. Drop a pile of files, pick a tool, and it runs the batch with thumbnails, live per-file progress, rich previews, and collision-safe output that never overwrites your originals.
+
+Everything runs **locally on your machine**, and your queue and produced files are **remembered across restarts**, so you can close the app mid-batch and pick up where you left off.
+
+## Tools
+
+- **Images** — convert (PNG / WebP / AVIF / JPG / JXL / TIFF / BMP / GIF / ICO), compress, resize, remove background, upscale (2–4×), and **generate** from a text prompt.
+- **Video / Audio** — convert (container / codec) and compress, with live `ffmpeg` progress and a resolution preview.
+- **PDF** — extract text, PDF to images, and compress.
 - **Documents** — convert office documents to PDF.
 
-Your queue and produced files are **remembered across restarts** — close the app and reopen
-it, and your work is still there (files that were deleted in the meantime are dropped).
+Plus batch queues, thumbnails for every kind (images, video frames, audio cover art), in-app previews, per-file progress with ETA, and cancel.
 
-## Download & install
+## AI is optional
 
-Grab the latest `Filesmith-Setup-x64-<version>.exe` from
-[Releases](https://github.com/Maxaubert/Filesmith/releases) and run it.
+The everyday tools (convert, compress, resize, and all PDF / video / audio / document operations) run **fully offline** from bundled binaries, with no AI and no downloads. The AI features are **opt-in**, and nothing AI runs unless you choose it:
 
-The installer is **unsigned**, so Windows SmartScreen may warn on first run
-("Windows protected your PC"). Click **More info → Run anyway** to proceed. Updates are
-manual — download and run the newer installer when a new release is out. No admin rights
-are required for the tools; installing to `Program Files` prompts for admin as usual.
-
-## What needs the internet / AI (and what doesn't)
-
-Filesmith works **fully offline** for the everyday tools — convert, compress, resize, and
-all PDF/video/audio/document operations run from bundled binaries with no downloads and no
-AI.
-
-The **AI features are optional and opt‑in** — nothing AI runs unless you choose it:
-
-| Feature | Needs |
+| Feature | What it needs |
 |---|---|
-| **Remove Background** | The free [`uv`](https://docs.astral.sh/uv/) tool; downloads a small AI model on first use (one time, then offline). The panel tells you before you commit files. |
-| **Upscale** | Downloads an upscaling model on first use. NVIDIA (PiD) mode needs an NVIDIA GPU. |
-| **Generate** | An existing [ComfyUI](https://github.com/comfyanonymous/ComfyUI) install (Filesmith drives it headlessly). If ComfyUI or a model is missing, the panel says exactly what to do; missing text‑encoders/VAEs can be downloaded from the panel. |
+| **Remove Background** | The free [`uv`](https://docs.astral.sh/uv/) tool; a small AI model is downloaded on first use (once, then offline). The panel tells you before you commit files. |
+| **Upscale** | An upscaling model, downloaded on first use. NVIDIA (PiD) mode needs an NVIDIA GPU. |
+| **Generate** | An existing [ComfyUI](https://github.com/comfyanonymous/ComfyUI) install, which Filesmith drives headlessly. Supports SDXL, Flux 1, Flux 2 (klein), Z-Image, and Krea 2 models; missing text-encoders / VAEs can be downloaded from the panel. If something is missing, the panel says exactly what to do. |
 
-If you don't want AI, just use the core tools — the AI tools stay out of your way.
+Don't want AI? Just use the core tools, and the AI features stay out of your way.
 
-## Stack
+## Install
 
-Electron + TypeScript, React + Vite + Tailwind v4 renderer. Operations are performed by
-external tools (ffmpeg, ImageMagick, mutool, Ghostscript, CaesiumCLT, LibreOffice,
-Real‑ESRGAN, rembg, ComfyUI) that the app orchestrates. Core tools are bundled; AI tools are
-resolved from your machine or fetched on first use.
+Download **`Filesmith-Setup-x64-<version>.exe`** from the [latest release](https://github.com/Maxaubert/Filesmith/releases/latest) and run it. It installs per-user, so no admin rights are required.
 
-## Develop
+> The installer is **unsigned**, so Windows SmartScreen may warn on first run ("Windows protected your PC"). Click **More info → Run anyway** to proceed. Updates are manual: download and run the newer installer when a new release is out.
+
+## Use
+
+1. Open **Filesmith** from the Start menu.
+2. Pick a file type in the left rail (Images, Video, Audio, PDF, Documents).
+3. Choose a tool from the top-right (Convert, Compress, Resize, …), set its options.
+4. Drop files onto the drop zone (or click **browse**), then run.
+
+Produced files land next to your inputs with a safe name (`photo (converted).webp`), never overwriting anything. Right-click a result to preview, reveal, or delete it.
+
+## Build from source
+
+Requires Node.js 20+ and Windows.
 
 ```bash
 npm install
-npm run dev        # launch with HMR
+npm run dev        # launch with hot reload
 npm run typecheck  # tsc project checks
 npm run lint       # eslint
 npm test           # unit tests (vitest)
@@ -59,4 +81,8 @@ npm run binaries   # populate resources/ with the bundled tools (once, before pa
 npm run package    # build the Windows installer into dist/
 ```
 
-See `CLAUDE.md` for scope and architecture.
+Stack: Electron + TypeScript, with a React + Vite + Tailwind renderer. Operations are performed by external tools (ffmpeg, ImageMagick, mutool, Ghostscript, CaesiumCLT, LibreOffice, Real-ESRGAN, rembg, ComfyUI) that the app orchestrates; the core tools are bundled and the AI tools are resolved from your machine or fetched on first use. See `CLAUDE.md` for architecture and scope.
+
+## License
+
+[MIT](LICENSE)
