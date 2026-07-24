@@ -25,14 +25,9 @@
   </tr>
   <tr>
     <td align="center"><img src="docs/screenshots/image-preview.png" alt="Image viewer" width="410"><br><sub><b>Image viewer</b> — zoom, pan, page through the batch</sub></td>
-    <td align="center"><img src="docs/screenshots/document-preview.png" alt="Document viewer" width="410"><br><sub><b>Document viewer</b> — flip through PDFs and documents</sub></td>
+    <td align="center"><img src="docs/screenshots/viewer.png" alt="Audio viewer with a live visualizer" width="410"><br><sub><b>Audio viewer</b> — a live circular visualizer</sub></td>
   </tr>
 </table>
-
-<p align="center">
-  <img src="docs/screenshots/viewer.png" alt="Audio viewer with a live circular visualizer" width="720"><br>
-  <sub><b>Audio viewer</b> — a live circular visualizer while it plays</sub>
-</p>
 
 ## What it is
 
