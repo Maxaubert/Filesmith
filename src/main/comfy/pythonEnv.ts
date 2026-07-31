@@ -33,7 +33,10 @@ function hasTorch(py: string): boolean {
  * checked at a few nesting depths near the remembered + common install spots. */
 export function comfyCodeRoots(): string[] {
   const roots: string[] = []
-  for (const d of comfyCandidateDirs()) roots.push(...comfyNestedDirs(d))
+  // `trusted` — this list ends in SPAWNING a python.exe, and a non-elevated
+  // process can create C:\ComfyUI\ on a default Windows install. The folder
+  // picker (Phase 2) is the supported route for a ComfyUI anywhere else.
+  for (const d of comfyCandidateDirs({ trusted: true })) roots.push(...comfyNestedDirs(d))
   return [...new Set(roots)]
 }
 

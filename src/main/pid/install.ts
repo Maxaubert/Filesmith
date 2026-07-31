@@ -1,7 +1,9 @@
+import { statfsSync } from 'fs'
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -107,14 +109,15 @@ function markerSays(path: string, want: string): boolean {
 async function ensureRepo(onProgress: InstallProgress): Promise<void> {
   if (markerSays(join(pidRepoDir(), REPO_MARKER), PID_REPO_REF)) return
   onProgress('Downloading PiD source', null)
-  const tmpZip = join(pidRoot(), 'pid-src.zip')
+  const tmpDir = mkdtempSync(join(pidRoot(), 'src-'))
+  const tmpZip = join(tmpDir, 'pid-src.zip')
   await download(PID_REPO_ZIP, tmpZip, (p) => onProgress('Downloading PiD source', p))
 
   onProgress('Extracting PiD source', null)
   // Extract with bsdtar (long-path safe); the zip unpacks to PiD-main/, which we
   // then rename into repoDir with Node (same volume, no PowerShell needed). Args
   // are passed as an array, so paths with spaces/quotes are safe.
-  const extractTo = join(pidRoot(), '_extract')
+  const extractTo = join(tmpDir, 'extract')
   rmSync(extractTo, { recursive: true, force: true })
   mkdirSync(extractTo, { recursive: true })
   const ex = await run(winTar(), ['-xf', tmpZip, '-C', extractTo])
@@ -175,13 +178,14 @@ async function ensureUv(onProgress: InstallProgress): Promise<string> {
   if (existsSync(uvExe) && (await uvVersionOk(uvExe))) return uvExe
 
   onProgress('Downloading uv', null)
-  const zip = join(pidRoot(), 'uv.zip')
+  const uvTmp = mkdtempSync(join(pidRoot(), 'uv-'))
+  const zip = join(uvTmp, 'uv.zip')
   await download(UV_ZIP, zip, (p) => onProgress('Downloading uv', p))
   rmSync(uvDir, { recursive: true, force: true })
   mkdirSync(uvDir, { recursive: true })
   const ex = await run(winTar(), ['-xf', zip, '-C', uvDir])
   if (ex.code !== 0) throw new Error(`uv extract failed: ${ex.stderr.slice(-400)}`)
-  rmSync(zip, { force: true })
+  rmSync(uvTmp, { recursive: true, force: true })
   if (!existsSync(uvExe)) throw new Error('uv bootstrap failed (no uv.exe after extract)')
   return uvExe
 }
@@ -275,9 +279,87 @@ async function ensureWeights(backbone: string, onProgress: InstallProgress): Pro
   }
 }
 
+/**
+ * One install at a time, process-wide.
+ *
+ * Neither pid:install nor comfy:install had any dedupe, and they write the SAME
+ * temp paths and rmSync the same repo dir — so two concurrent runs destroyed
+ * each other. The only guards were renderer-local React flags, and the card is
+ * conditionally mounted, so navigating away and back mid-install reset the flag
+ * and re-enabled the button. A second caller now JOINS the running install
+ * rather than starting a rival one.
+ */
+let inFlight: Promise<void> | null = null
+
+export function installInProgress(): boolean {
+  return inFlight != null
+}
+
+function withInstallLock(fn: () => Promise<void>): Promise<void> {
+  if (inFlight) return inFlight
+  inFlight = fn().finally(() => {
+    inFlight = null
+  })
+  return inFlight
+}
+
+/**
+ * Refuse before a multi-GB download that cannot fit. `bb.approxBytes` was
+ * populated and read by nothing; the env itself is ~3 GB on top. A full disk
+ * otherwise surfaces as whatever the write stream happens to throw, several
+ * gigabytes in.
+ */
+const ENV_APPROX_BYTES = 3_000_000_000
+
+export function checkDiskSpace(
+  needBytes: number,
+  dir?: string
+): { ok: boolean; reason?: string } {
+  if (!(needBytes > 0)) return { ok: true }
+  try {
+    // statfs is Node 18.15+; absent or failing, we simply don't block — refusing
+    // to install because we couldn't measure is worse than not measuring.
+    if (typeof statfsSync !== 'function') return { ok: true }
+    const st = statfsSync(dir ?? pidRoot())
+    const free = Number(st.bavail) * Number(st.bsize)
+    if (!Number.isFinite(free) || free <= 0) return { ok: true }
+    if (free >= needBytes) return { ok: true }
+    const gb = (n: number): string => `${(n / 1e9).toFixed(1)} GB`
+    return {
+      ok: false,
+      reason: `Not enough disk space: this needs about ${gb(needBytes)} free, and there is ${gb(free)} available where Filesmith stores its data.`
+    }
+  } catch {
+    return { ok: true } // never block an install on a failed probe
+  }
+}
+
+/**
+ * Delete the AI install so a poisoned one can be recovered. There was no reset
+ * action anywhere in src/, and pidInstalled() returns true on mere existsSync —
+ * so a corrupt weight (e.g. a captive-portal page whose Content-Length matched
+ * its body) was permanently unrecoverable from the UI.
+ */
+export function removePidInstall(): { ok: boolean; error?: string } {
+  if (inFlight) return { ok: false, error: 'An install is running. Wait for it to finish first.' }
+  try {
+    rmSync(pidRoot(), { recursive: true, force: true })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 /** Full one-click PiD install (idempotent, interruption-safe). */
 export async function installPid(backbone: string, onProgress: InstallProgress): Promise<void> {
+  return withInstallLock(() => installPidInner(backbone, onProgress))
+}
+
+async function installPidInner(backbone: string, onProgress: InstallProgress): Promise<void> {
   mkdirSync(pidRoot(), { recursive: true })
+  const bbForSpace = PID_BACKBONES[backbone]
+  const space = checkDiskSpace((bbForSpace?.approxBytes ?? 0) + ENV_APPROX_BYTES)
+  if (!space.ok) throw new Error(space.reason)
   await ensureRepo(onProgress)
   await ensureEnv(onProgress)
   await ensureWeights(backbone, onProgress)
@@ -313,9 +395,15 @@ async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
  * spandrel. No PiD weights (~3 GB) — the env alone runs ESRGAN-family models.
  */
 export async function installComfyEngine(onProgress: InstallProgress): Promise<void> {
-  mkdirSync(pidRoot(), { recursive: true })
-  await ensureRepo(onProgress)
-  await ensureEnv(onProgress)
-  await ensureSpandrel(onProgress)
-  onProgress('Ready', 100)
+  // Shares the lock with installPid: both run ensureRepo/ensureEnv, write the
+  // same temp paths and rmSync the same repo dir.
+  return withInstallLock(async () => {
+    mkdirSync(pidRoot(), { recursive: true })
+    const space = checkDiskSpace(ENV_APPROX_BYTES)
+    if (!space.ok) throw new Error(space.reason)
+    await ensureRepo(onProgress)
+    await ensureEnv(onProgress)
+    await ensureSpandrel(onProgress)
+    onProgress('Ready', 100)
+  })
 }

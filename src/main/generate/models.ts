@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync } from 'fs'
-import { basename, join } from 'path'
+import { basename, join, resolve } from 'path'
 import type { ArchInfo, GenArch, GenModel, GenModelScan } from '@shared/genArch'
 import { archInfoFor } from '@shared/genArch'
 import type { ProbedFile } from '@shared/registry'
@@ -73,10 +73,21 @@ function fileSize(p: string): number {
 
 /** Recursively list model files (ComfyUI-relative name + abs path + models base)
  * under a given subdir across every ComfyUI base, de-duped by relative name. */
+// A recursive walk MUST guard against a symlink/junction cycle and bound its
+// depth. Junctioning a shared models folder is routine when two ComfyUI installs
+// share weights, and the previous `seen` set was keyed on the RELATIVE name — it
+// grew forever and never stopped the recursion, so that layout hung the app.
+const MAX_WALK_DEPTH = 4
+
 function walkModels(subdirs: string[], exts: RegExp): { rel: string; abs: string; base: string }[] {
   const out: { rel: string; abs: string; base: string }[] = []
   const seen = new Set<string>()
-  const walk = (dir: string, rel: string, base: string): void => {
+  const visited = new Set<string>()
+  const walk = (dir: string, rel: string, base: string, depth = 0): void => {
+    if (depth > MAX_WALK_DEPTH) return
+    const key = resolve(dir)
+    if (visited.has(key)) return
+    visited.add(key)
     let entries: string[]
     try {
       entries = readdirSync(dir)
@@ -92,7 +103,7 @@ function walkModels(subdirs: string[], exts: RegExp): { rel: string; abs: string
         continue
       }
       const r = rel ? `${rel}/${e}` : e
-      if (st.isDirectory()) walk(p, r, base)
+      if (st.isDirectory()) walk(p, r, base, depth + 1)
       else if (exts.test(e) && !seen.has(r.toLowerCase())) {
         seen.add(r.toLowerCase())
         out.push({ rel: r, abs: p, base })

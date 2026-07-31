@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { parseNvidiaSmi } from '../src/main/pid/gpu'
+import { cudaTierSupport, parseNvidiaSmi } from '../src/main/pid/gpu'
 import { classifySidecarLine } from '../src/main/pid/sidecar'
 
 describe('parseNvidiaSmi', () => {
   it('parses name and VRAM from the first line', () => {
+    // An older nvidia-smi reports only these two fields; the rest must come back
+    // as null (unknown), never as a value that would fail a floor check.
     expect(parseNvidiaSmi('NVIDIA GeForce RTX 5090, 32607\n')).toEqual({
       name: 'NVIDIA GeForce RTX 5090',
-      vramMb: 32607
+      vramMb: 32607,
+      computeCap: null,
+      driver: null
     })
   })
 
@@ -16,7 +20,7 @@ describe('parseNvidiaSmi', () => {
   })
 
   it('returns null VRAM when the field is not a number', () => {
-    expect(parseNvidiaSmi('NVIDIA T4, [N/A]')).toEqual({ name: 'NVIDIA T4', vramMb: null })
+    expect(parseNvidiaSmi('NVIDIA T4, [N/A]')).toMatchObject({ name: 'NVIDIA T4', vramMb: null })
   })
 
   it('returns null for empty output (no NVIDIA GPU)', () => {
@@ -93,5 +97,40 @@ describe('classifySidecarLine', () => {
 
   it('ignores a JSON object that is neither handshake nor reply', () => {
     expect(classifySidecarLine('{"info": "warming up"}')).toEqual({ kind: 'ignore' })
+  })
+})
+
+describe('cudaTierSupport (the gate before a ~3 GB cu128 download)', () => {
+  it('reads compute capability and driver when nvidia-smi reports them', () => {
+    const g = parseNvidiaSmi('NVIDIA GeForce RTX 5090, 32607, 12.0, 581.15')
+    expect(g).toMatchObject({ computeCap: 12, driver: '581.15' })
+  })
+
+  it('refuses a Pascal card BEFORE the download instead of after it', () => {
+    // A GTX 10xx owner used to sit through the whole install and then hit a CUDA
+    // kernel-image error. `nvidia-smi answered` was the only gate.
+    const r = cudaTierSupport(parseNvidiaSmi('NVIDIA GeForce GTX 1080, 8192, 6.1, 552.22'))
+    expect(r.ok).toBe(false)
+    expect(r.reason).toMatch(/GTX 1080/)
+  })
+
+  it('accepts an RTX-class card', () => {
+    expect(cudaTierSupport(parseNvidiaSmi('NVIDIA GeForce RTX 4070, 12282, 8.9, 581.15')).ok).toBe(true)
+  })
+
+  it('refuses a driver below the floor', () => {
+    const r = cudaTierSupport(parseNvidiaSmi('NVIDIA GeForce RTX 4070, 12282, 8.9, 470.10'))
+    expect(r.ok).toBe(false)
+    expect(r.reason).toMatch(/driver/i)
+  })
+
+  it('treats UNKNOWN fields as acceptable, never as too old', () => {
+    // An older nvidia-smi doesn't report compute_cap; refusing on missing
+    // information would lock out hardware that works perfectly well.
+    expect(cudaTierSupport(parseNvidiaSmi('NVIDIA GeForce RTX 3060, 12288')).ok).toBe(true)
+  })
+
+  it('reports no GPU as unsupported with a reason', () => {
+    expect(cudaTierSupport(null)).toMatchObject({ ok: false })
   })
 })

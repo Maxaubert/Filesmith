@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { createWriteStream, mkdirSync, renameSync, rmSync } from 'fs'
+import { createWriteStream, mkdirSync, renameSync, rmSync, statSync } from 'fs'
 import { dirname } from 'path'
 import { Readable, Transform } from 'stream'
 import { pipeline } from 'stream/promises'
@@ -132,13 +132,34 @@ async function downloadOne(
     idle.unref?.()
   }
   arm()
+  const part = `${dest}.part`
+  // Resume where we left off. Neither downloader sent a Range header or reused
+  // an existing part file — both opened with rmSync — so a 2.6 GB checkpoint
+  // that dropped at 95% restarted from zero, every time. Only attempted when no
+  // hash is expected for the whole file, since a partial body can't be verified
+  // against one without re-reading what is already on disk.
+  let resumeAt = 0
+  if (!opts.sha256) {
+    try {
+      const st = statSync(part)
+      if (st.isFile() && st.size > 0) resumeAt = st.size
+    } catch {
+      /* no part file — a fresh start */
+    }
+  }
   try {
     let res: Response
     try {
-      res = await httpFetch(url, { signal: ac.signal, redirect: 'follow' })
+      res = await httpFetch(url, {
+        signal: ac.signal,
+        redirect: 'follow',
+        ...(resumeAt ? { headers: { Range: `bytes=${resumeAt}-` } } : {})
+      })
     } catch (e) {
       throw describeNetworkError(e, url)
     }
+    // 206 means the server honoured the range; anything else means start over.
+    const resuming = resumeAt > 0 && res.status === 206
     // Gated / license-required repos answer 401/403 — say so actionably.
     if (res.status === 401 || res.status === 403)
       throw new Error(
@@ -149,15 +170,18 @@ async function downloadOne(
     const ctype = (res.headers.get('content-type') || '').toLowerCase()
     if (/text\/html|application\/json/.test(ctype))
       throw new Error(`Download did not return a file (got ${ctype || 'an error page'}): ${url}`)
-    const total = Number(res.headers.get('content-length')) || 0
+    const body = Number(res.headers.get('content-length')) || 0
+    const total = resuming ? body + resumeAt : body
     if (opts.minBytes && total && total < opts.minBytes)
       throw new Error(
         `Download looks wrong: server reports ${total} bytes, expected at least ${opts.minBytes}. ${url}`
       )
-    const part = `${dest}.part`
-    rmSync(part, { force: true })
+    if (!resuming) {
+      rmSync(part, { force: true })
+      resumeAt = 0
+    }
 
-    let got = 0
+    let got = resumeAt
     // Hash WHILE streaming — a second pass over a 2.6 GB file just to verify it
     // would double the I/O of every install.
     const hash = createHash('sha256')
@@ -174,14 +198,16 @@ async function downloadOne(
       await pipeline(
         Readable.fromWeb(res.body as unknown as Parameters<typeof Readable.fromWeb>[0]),
         counter,
-        createWriteStream(part),
+        createWriteStream(part, resuming ? { flags: 'a' } : undefined),
         { signal: ac.signal }
       )
     } catch (e) {
       rmSync(part, { force: true })
       throw describeNetworkError(e, url)
     }
-    const digest = hash.digest('hex')
+    // A resumed transfer only hashed the tail, so the digest is meaningless —
+    // report it as empty rather than as a wrong-but-confident value.
+    const digest = resuming ? '' : hash.digest('hex')
     const fail = (msg: string): never => {
       rmSync(part, { force: true })
       throw new Error(msg)
@@ -191,7 +217,7 @@ async function downloadOne(
     // Final size sanity check even when Content-Length was absent.
     if (opts.minBytes && got < opts.minBytes)
       fail(`Download looks wrong: got only ${got} bytes, expected at least ${opts.minBytes}. ${url}`)
-    if (opts.sha256 && digest.toLowerCase() !== opts.sha256.toLowerCase())
+    if (opts.sha256 && digest && digest.toLowerCase() !== opts.sha256.toLowerCase())
       fail(
         `This download does not match its expected checksum and was discarded. Expected ${opts.sha256.slice(0, 16)}…, got ${digest.slice(0, 16)}… (${url})`
       )
