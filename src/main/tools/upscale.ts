@@ -1,5 +1,4 @@
 import { normalizeExt } from '@shared/convert'
-import type { UpscaleModel } from '@shared/compress'
 
 // Real-ESRGAN (ncnn/Vulkan) argument building. No Electron.
 //
@@ -8,12 +7,6 @@ import type { UpscaleModel } from '@shared/compress'
 // though it scores WORSE on pixel-fidelity metrics like SSIM (it doesn't
 // reproduce the original pixels, it produces convincing new ones). Verified
 // visually against a 4x reference before choosing it.
-
-/** Model file names shipped in resources/realesrgan/models. */
-const MODEL_NAME: Record<'photo' | 'anime', string> = {
-  photo: 'realesrgan-x4plus',
-  anime: 'realesrgan-x4plus-anime'
-}
 
 /**
  * Formats the bundled binary reads reliably. Anything else (heic, jxl, svg,
@@ -28,7 +21,9 @@ export function needsPreConvert(ext: string): boolean {
 }
 
 export interface UpscaleOpts {
-  model: UpscaleModel
+  /** The ncnn model basename (`-n`), discovered on disk rather than hardcoded —
+   * the binary runs any .param/.bin pair in the folder it is given with `-m`. */
+  model: string
   /** 2, 3 or 4. All three are supported natively by the binary. */
   factor: number
   /** Per-tile size passed to `-t`. 0 = the binary's auto (largest that fits).
@@ -50,8 +45,7 @@ export function buildUpscaleArgs(input: string, output: string, o: UpscaleOpts):
     '-o',
     output,
     '-n',
-    // 'pid'/'comfy' never reach here (routed to a sidecar); default to photo.
-    o.model === 'anime' ? MODEL_NAME.anime : MODEL_NAME.photo,
+    o.model,
     '-s',
     String(factor),
     '-f',

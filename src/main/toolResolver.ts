@@ -132,7 +132,12 @@ export function resolveRealesrgan(): string {
  * cache. A locally installed `rembg` is preferred when present since it skips
  * that entirely.
  */
-const REMBG_SPEC = 'rembg[cli,cpu]==2.0.75'
+// A RANGE, not an exact pin. `==2.0.75` froze the session catalogue at that
+// release forever, so a newly-published matting model was unreachable even
+// though rembg itself supported it. The floor keeps the numba/Python-3.13
+// resolution fix that made the exact pin necessary in the first place; the
+// ceiling keeps a major release from changing the CLI under us.
+const REMBG_SPEC = 'rembg[cli,cpu]>=2.0.75,<3'
 
 export interface RembgCommand {
   cmd: string

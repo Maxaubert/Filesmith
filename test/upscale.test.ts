@@ -10,7 +10,7 @@ import {
 
 describe('buildUpscaleArgs', () => {
   it('passes the model, factor and png output format', () => {
-    const args = buildUpscaleArgs('in.png', 'out.png', { model: 'photo', factor: 4 })
+    const args = buildUpscaleArgs('in.png', 'out.png', { model: 'realesrgan-x4plus', factor: 4 })
     expect(args).toEqual([
       '-i',
       'in.png',
@@ -25,21 +25,22 @@ describe('buildUpscaleArgs', () => {
     ])
   })
 
-  it('selects the anime model', () => {
-    expect(buildUpscaleArgs('a.png', 'b.png', { model: 'anime', factor: 2 })).toContain(
-      'realesrgan-x4plus-anime'
-    )
+  it('passes the model name through verbatim (any ncnn model, not a fixed two)', () => {
+    // The binary runs whatever .param/.bin pair it is pointed at, so the arg
+    // builder must not translate a closed set of ids.
+    for (const n of ['realesrgan-x4plus-anime', 'realesrgan-animevideov3', '4x-Whatever-2026'])
+      expect(buildUpscaleArgs('a.png', 'b.png', { model: n, factor: 2 })).toContain(n)
   })
 
   it('supports every factor the UI offers', () => {
     for (const f of UPSCALE_FACTORS) {
-      const args = buildUpscaleArgs('a.png', 'b.png', { model: 'photo', factor: f })
+      const args = buildUpscaleArgs('a.png', 'b.png', { model: 'realesrgan-x4plus', factor: f })
       expect(args[args.indexOf('-s') + 1]).toBe(String(f))
     }
   })
 
   it('falls back to 4x for a factor the binary cannot do', () => {
-    const args = buildUpscaleArgs('a.png', 'b.png', { model: 'photo', factor: 7 })
+    const args = buildUpscaleArgs('a.png', 'b.png', { model: 'realesrgan-x4plus', factor: 7 })
     expect(args[args.indexOf('-s') + 1]).toBe('4')
   })
 })
