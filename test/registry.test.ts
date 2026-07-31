@@ -83,6 +83,26 @@ describe('the shipped registry pack', () => {
     }
   })
 
+  it('carries a real sha256 and an immutable pinned URL for every download', () => {
+    // The hashes are Hugging Face git-LFS object ids, which ARE the content
+    // sha256 — fetched by scripts/registry-hashes.mjs, never invented. Pinning
+    // matters as much: a `resolve/main` primary points at a moving branch, so a
+    // baked-in hash would eventually fail for everyone.
+    for (const e of registryEntries('generate')) {
+      const all = [...(e.companions ?? []), ...(e.companionSets ?? []).flatMap((s) => s.companions)]
+      for (const c of all) {
+        expect(c.download.sha256, `${e.id}/${c.label} has no hash`).toMatch(/^[0-9a-f]{64}$/)
+        expect(c.download.urls[0], `${e.id}/${c.label} primary is not pinned`).toMatch(
+          /\/resolve\/[0-9a-f]{40}\//
+        )
+        // The branch URL survives as a fallback for the day the pin disappears.
+        expect(c.download.urls.length).toBeGreaterThan(1)
+        expect(c.download.urls[c.download.urls.length - 1]).toMatch(/\/resolve\/main\//)
+        expect(c.download.bytes ?? 0).toBeGreaterThan(0)
+      }
+    }
+  })
+
   it('ships the same companion filenames the hardcoded table had', () => {
     const files = (id: string, size?: number): string[] =>
       selectCompanions(registryEntry(id)!, 'm.safetensors', size).map((c) => c.download.filename)

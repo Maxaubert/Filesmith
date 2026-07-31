@@ -155,3 +155,58 @@ the registry keeps working — a bad file can never brick the app.
 Launch Filesmith and open the Generate panel. Problems with any registry file are reported there.
 Your models appear alongside the built-in families; unrecognized files are listed too, so you can
 always tell whether Filesmith saw the file at all.
+
+---
+
+# For the maintainer
+
+## Keeping the shipped hashes current
+
+Every download in `resources/registry/gen-archs.json` carries a real `sha256` and a URL pinned to
+an immutable commit revision, with the `resolve/main` branch URL kept after it as a fallback mirror.
+
+The hashes are not invented: Hugging Face stores large files in git-LFS, and an LFS object id *is*
+the sha256 of the content, exposed per file by the repo tree API.
+
+```
+node scripts/registry-hashes.mjs           # refresh hashes + pins from upstream
+node scripts/registry-hashes.mjs --check   # CI-friendly: fails if the pack is stale
+```
+
+A pinned URL and its hash agree forever, so verification can be strict. The declared hash is
+deliberately **not** enforced against the fallback mirror — the branch copy may legitimately hold
+different bytes, and rejecting it would defeat the rescue the mirror exists for. A fallback falls
+back to trust-on-first-use.
+
+If a repo is gated or renamed, that one entry is left untouched and reported; it simply keeps
+trust-on-first-use, which is where everything was before.
+
+## Publishing a channel update
+
+Every companion URL points into someone else's repo. When one is reorganized, every *installed*
+copy of Filesmith gets a 404 and stays broken until a new release ships. The channel fixes that
+without a release: publish a signed pack, and every install picks it up within a day.
+
+It is **off** until a signing key exists, which is the safe default — an unsigned channel would mean
+trusting whatever the network returns, and a registry entry can name files to download.
+
+To turn it on, once:
+
+```
+node scripts/registry-channel.mjs keygen
+```
+
+That writes `channel-private.pem` (gitignored — back it up; losing it means no existing install will
+ever accept another update) and prints the public key to paste into `CHANNEL_PUBLIC_KEY_B64` in
+`src/main/registry/channel.ts`. Then, whenever something upstream moves:
+
+```
+node scripts/registry-hashes.mjs                                   # pick up the new location
+node scripts/registry-channel.mjs sign resources/registry/gen-archs.json
+node scripts/registry-channel.mjs verify channel.json <publicKeyB64>
+```
+
+Publish the resulting `channel.json` at the URL the app checks (`FILESMITH_CHANNEL_URL`; a GitHub
+Pages file is enough). Installs check at most once a day, in the background. A bad signature, a
+malformed pack or no network all leave the previous cache in place — offline is a first-class state,
+never an error.

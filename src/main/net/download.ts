@@ -103,9 +103,13 @@ export async function downloadFile(
   const urls = (Array.isArray(url) ? url : [url]).filter(Boolean)
   if (!urls.length) throw new Error('No download URL was given.')
   let lastErr: unknown
-  for (const u of urls) {
+  for (const [i, u] of urls.entries()) {
     try {
-      return await downloadOne(u, dest, opts)
+      // A declared sha256 belongs to urls[0] — the pinned, immutable revision.
+      // Enforcing it against a FALLBACK mirror would reject the very rescue the
+      // mirror exists for, since the branch copy can legitimately differ. A
+      // fallback falls back to trust-on-first-use instead.
+      return await downloadOne(u, dest, i === 0 ? opts : { ...opts, sha256: undefined })
     } catch (e) {
       lastErr = e
       // A license wall is not a broken mirror — retrying every mirror would just

@@ -80,10 +80,17 @@ export interface DownloadSpec {
   filename: string
   /** Human size for the UI ("4.9 GB"). */
   approxSize: string
-  /** Mandatory for builtin/channel entries once Phase 5 lands; absent blocks the
-   * download rather than silently allowing an unverified one. */
+  /** Exact size in bytes, when known. */
+  bytes?: number
+  /**
+   * sha256 of the file at `urls[0]`. For Hugging Face this is the git-LFS
+   * object id, which IS the content hash — fetched by scripts/registry-hashes.mjs
+   * rather than guessed. Absent means the download falls back to
+   * trust-on-first-use. It is NOT enforced against a fallback mirror, which may
+   * legitimately hold different bytes.
+   */
   sha256?: string
-  /** Tried in order. Pin a commit sha first, a moving branch last. */
+  /** Tried in order: a pinned commit revision first, a moving branch last. */
   urls: string[]
 }
 

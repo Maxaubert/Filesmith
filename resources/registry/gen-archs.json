@@ -15,7 +15,9 @@
       "kind": "generate",
       "label": "SDXL / single-file checkpoint",
       "group": "Checkpoints",
-      "provenance": { "source": "builtin" },
+      "provenance": {
+        "source": "builtin"
+      },
       "capabilities": {
         "task": "text-to-image",
         "minDim": 256,
@@ -31,7 +33,13 @@
         "hasGuidance": false
       },
       "requires": {
-        "nodes": ["CLIPTextEncode", "EmptyLatentImage", "KSampler", "VAEDecode", "SaveImage"]
+        "nodes": [
+          "CLIPTextEncode",
+          "EmptyLatentImage",
+          "KSampler",
+          "VAEDecode",
+          "SaveImage"
+        ]
       },
       "checkpointWorkflow": {
         "format": "comfy-api-v1",
@@ -45,35 +53,99 @@
               "sampler_name": "${sampler}",
               "scheduler": "${scheduler}",
               "denoise": 1,
-              "model": ["4", 0],
-              "positive": ["6", 0],
-              "negative": ["7", 0],
-              "latent_image": ["5", 0]
+              "model": [
+                "4",
+                0
+              ],
+              "positive": [
+                "6",
+                0
+              ],
+              "negative": [
+                "7",
+                0
+              ],
+              "latent_image": [
+                "5",
+                0
+              ]
             }
           },
-          "4": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "${model}" } },
+          "4": {
+            "class_type": "CheckpointLoaderSimple",
+            "inputs": {
+              "ckpt_name": "${model}"
+            }
+          },
           "5": {
             "class_type": "EmptyLatentImage",
-            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+            "inputs": {
+              "width": "${width}",
+              "height": "${height}",
+              "batch_size": "${batch}"
+            }
           },
-          "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["4", 1] } },
-          "7": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["4", 1] } },
-          "8": { "class_type": "VAEDecode", "inputs": { "samples": ["3", 0], "vae": ["4", 2] } },
+          "6": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${prompt}",
+              "clip": [
+                "4",
+                1
+              ]
+            }
+          },
+          "7": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${negative}",
+              "clip": [
+                "4",
+                1
+              ]
+            }
+          },
+          "8": {
+            "class_type": "VAEDecode",
+            "inputs": {
+              "samples": [
+                "3",
+                0
+              ],
+              "vae": [
+                "4",
+                2
+              ]
+            }
+          },
           "9": {
             "class_type": "SaveImage",
-            "inputs": { "filename_prefix": "${prefix}", "images": ["8", 0] }
+            "inputs": {
+              "filename_prefix": "${prefix}",
+              "images": [
+                "8",
+                0
+              ]
+            }
           }
         }
       }
     },
-
     {
       "id": "flux1",
       "kind": "generate",
       "label": "Flux 1",
       "group": "Flux",
-      "provenance": { "source": "builtin", "host": "huggingface.co" },
-      "capabilities": { "task": "text-to-image", "minDim": 256, "maxDim": 2048, "dimStep": 8 },
+      "provenance": {
+        "source": "builtin",
+        "host": "huggingface.co"
+      },
+      "capabilities": {
+        "task": "text-to-image",
+        "minDim": 256,
+        "maxDim": 2048,
+        "dimStep": 8
+      },
       "sampler": {
         "name": "euler",
         "scheduler": "simple",
@@ -91,67 +163,128 @@
           "VAEDecode",
           "SaveImage"
         ],
-        "clipLoader": { "node": "DualCLIPLoader", "type": "flux" }
+        "clipLoader": {
+          "node": "DualCLIPLoader",
+          "type": "flux"
+        }
       },
       "companions": [
         {
           "role": "clip",
           "label": "T5-XXL text encoder",
           "subdir": "text_encoders",
-          "identify": { "nameHint": "t5xxl" },
+          "identify": {
+            "nameHint": "t5xxl"
+          },
           "download": {
             "filename": "t5xxl_fp8_e4m3fn_scaled.safetensors",
             "approxSize": "4.9 GB",
             "urls": [
+              "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/6af2a98e3f615bdfa612fbd85da93d1ed5f69ef5/t5xxl_fp8_e4m3fn_scaled.safetensors",
               "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors"
-            ]
+            ],
+            "sha256": "a498f0485dc9536735258018417c3fd7758dc3bccc0a645feaa472b34955557a",
+            "bytes": 5157348688
           }
         },
         {
           "role": "clip2",
           "label": "CLIP-L text encoder",
           "subdir": "text_encoders",
-          "identify": { "nameHint": "clip_l" },
+          "identify": {
+            "nameHint": "clip_l"
+          },
           "download": {
             "filename": "clip_l.safetensors",
             "approxSize": "246 MB",
             "urls": [
+              "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/6af2a98e3f615bdfa612fbd85da93d1ed5f69ef5/clip_l.safetensors",
               "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors"
-            ]
+            ],
+            "sha256": "660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd",
+            "bytes": 246144152
           }
         },
         {
           "role": "vae",
           "label": "Flux VAE (ae.safetensors)",
           "subdir": "vae",
-          "identify": { "nameHint": "^ae([._-][^/\\\\]*)?\\.(safetensors|sft)$" },
+          "identify": {
+            "nameHint": "^ae([._-][^/\\\\]*)?\\.(safetensors|sft)$"
+          },
           "download": {
             "filename": "ae.safetensors",
             "approxSize": "335 MB",
             "urls": [
+              "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/d24c4cf2a0cd98a42f23467e27e3d76ee9438b8e/split_files/vae/ae.safetensors",
               "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors"
-            ]
+            ],
+            "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+            "bytes": 335304388
           }
         }
       ],
       "workflow": {
         "format": "comfy-api-v1",
         "template": {
-          "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
+          "1": {
+            "class_type": "UNETLoader",
+            "inputs": {
+              "unet_name": "${unet}",
+              "weight_dtype": "default"
+            }
+          },
           "2": {
             "class_type": "DualCLIPLoader",
-            "inputs": { "clip_name1": "${clip}", "clip_name2": "${clip2}", "type": "flux" }
+            "inputs": {
+              "clip_name1": "${clip}",
+              "clip_name2": "${clip2}",
+              "type": "flux"
+            }
           },
-          "3": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
-          "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["2", 0] } },
+          "3": {
+            "class_type": "VAELoader",
+            "inputs": {
+              "vae_name": "${vae}"
+            }
+          },
+          "4": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${prompt}",
+              "clip": [
+                "2",
+                0
+              ]
+            }
+          },
           "5": {
             "class_type": "FluxGuidance",
-            "inputs": { "conditioning": ["4", 0], "guidance": "${guidance}" }
+            "inputs": {
+              "conditioning": [
+                "4",
+                0
+              ],
+              "guidance": "${guidance}"
+            }
           },
-          "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["2", 0] } },
+          "6": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${negative}",
+              "clip": [
+                "2",
+                0
+              ]
+            }
+          },
           "7": {
             "class_type": "EmptySD3LatentImage",
-            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+            "inputs": {
+              "width": "${width}",
+              "height": "${height}",
+              "batch_size": "${batch}"
+            }
           },
           "8": {
             "class_type": "KSampler",
@@ -162,32 +295,95 @@
               "sampler_name": "${sampler}",
               "scheduler": "${scheduler}",
               "denoise": 1,
-              "model": ["1", 0],
-              "positive": ["5", 0],
-              "negative": ["6", 0],
-              "latent_image": ["7", 0]
+              "model": [
+                "1",
+                0
+              ],
+              "positive": [
+                "5",
+                0
+              ],
+              "negative": [
+                "6",
+                0
+              ],
+              "latent_image": [
+                "7",
+                0
+              ]
             }
           },
-          "9": { "class_type": "VAEDecode", "inputs": { "samples": ["8", 0], "vae": ["3", 0] } },
+          "9": {
+            "class_type": "VAEDecode",
+            "inputs": {
+              "samples": [
+                "8",
+                0
+              ],
+              "vae": [
+                "3",
+                0
+              ]
+            }
+          },
           "10": {
             "class_type": "SaveImage",
-            "inputs": { "filename_prefix": "${prefix}", "images": ["9", 0] }
+            "inputs": {
+              "filename_prefix": "${prefix}",
+              "images": [
+                "9",
+                0
+              ]
+            }
           }
         }
       },
       "checkpointWorkflow": {
         "format": "comfy-api-v1",
         "template": {
-          "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "${model}" } },
-          "2": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["1", 1] } },
+          "1": {
+            "class_type": "CheckpointLoaderSimple",
+            "inputs": {
+              "ckpt_name": "${model}"
+            }
+          },
+          "2": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${prompt}",
+              "clip": [
+                "1",
+                1
+              ]
+            }
+          },
           "3": {
             "class_type": "FluxGuidance",
-            "inputs": { "conditioning": ["2", 0], "guidance": "${guidance}" }
+            "inputs": {
+              "conditioning": [
+                "2",
+                0
+              ],
+              "guidance": "${guidance}"
+            }
           },
-          "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["1", 1] } },
+          "4": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${negative}",
+              "clip": [
+                "1",
+                1
+              ]
+            }
+          },
           "5": {
             "class_type": "EmptySD3LatentImage",
-            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+            "inputs": {
+              "width": "${width}",
+              "height": "${height}",
+              "batch_size": "${batch}"
+            }
           },
           "6": {
             "class_type": "KSampler",
@@ -198,28 +394,65 @@
               "sampler_name": "${sampler}",
               "scheduler": "${scheduler}",
               "denoise": 1,
-              "model": ["1", 0],
-              "positive": ["3", 0],
-              "negative": ["4", 0],
-              "latent_image": ["5", 0]
+              "model": [
+                "1",
+                0
+              ],
+              "positive": [
+                "3",
+                0
+              ],
+              "negative": [
+                "4",
+                0
+              ],
+              "latent_image": [
+                "5",
+                0
+              ]
             }
           },
-          "7": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["1", 2] } },
+          "7": {
+            "class_type": "VAEDecode",
+            "inputs": {
+              "samples": [
+                "6",
+                0
+              ],
+              "vae": [
+                "1",
+                2
+              ]
+            }
+          },
           "8": {
             "class_type": "SaveImage",
-            "inputs": { "filename_prefix": "${prefix}", "images": ["7", 0] }
+            "inputs": {
+              "filename_prefix": "${prefix}",
+              "images": [
+                "7",
+                0
+              ]
+            }
           }
         }
       }
     },
-
     {
       "id": "flux2",
       "kind": "generate",
       "label": "Flux 2 [klein]",
       "group": "Flux 2",
-      "provenance": { "source": "builtin", "host": "huggingface.co" },
-      "capabilities": { "task": "text-to-image", "minDim": 256, "maxDim": 2048, "dimStep": 8 },
+      "provenance": {
+        "source": "builtin",
+        "host": "huggingface.co"
+      },
+      "capabilities": {
+        "task": "text-to-image",
+        "minDim": 256,
+        "maxDim": 2048,
+        "dimStep": 8
+      },
       "sampler": {
         "name": "euler",
         "scheduler": "simple",
@@ -237,39 +470,55 @@
           "VAEDecode",
           "SaveImage"
         ],
-        "clipLoader": { "node": "CLIPLoader", "type": "flux2" },
+        "clipLoader": {
+          "node": "CLIPLoader",
+          "type": "flux2"
+        },
         "minComfyNote": "Flux 2 needs a ComfyUI from late November 2025 or newer."
       },
       "companionSets": [
         {
           "id": "9b",
           "$comment": "4B fp8 ~3.8 GB, 9B fp8 ~8.8 GB — byte size separates them even when the filename carries no size token. The name is only consulted when the size is unknown.",
-          "when": { "minBytes": 6000000000, "nameHint": "9b" },
+          "when": {
+            "minBytes": 6000000000,
+            "nameHint": "9b"
+          },
           "companions": [
             {
               "role": "clip",
               "label": "Qwen3-8B text encoder (for 9B)",
               "subdir": "text_encoders",
-              "identify": { "nameHint": "qwen_3_8b" },
+              "identify": {
+                "nameHint": "qwen_3_8b"
+              },
               "download": {
                 "filename": "qwen_3_8b_fp8mixed.safetensors",
                 "approxSize": "8.7 GB",
                 "urls": [
+                  "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/23fbc8aa8b621f29f2249cd1bd9c47e5d0eebd83/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors",
                   "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors"
-                ]
+                ],
+                "sha256": "abad16806e0cbabc54e0325d6565847443fe396d5f0be38bb3cd3fe75a1201d6",
+                "bytes": 8664848742
               }
             },
             {
               "role": "vae",
               "label": "Flux 2 VAE",
               "subdir": "vae",
-              "identify": { "nameHint": "flux2[-_]?vae" },
+              "identify": {
+                "nameHint": "flux2[-_]?vae"
+              },
               "download": {
                 "filename": "flux2-vae.safetensors",
                 "approxSize": "160 MB",
                 "urls": [
+                  "https://huggingface.co/Comfy-Org/flux2-dev/resolve/03d6521e6f6a47396b3f951cbea50f7e6c2f482e/split_files/vae/flux2-vae.safetensors",
                   "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
-                ]
+                ],
+                "sha256": "d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5",
+                "bytes": 336213556
               }
             }
           ]
@@ -281,26 +530,36 @@
               "role": "clip",
               "label": "Qwen3-4B text encoder (for 4B)",
               "subdir": "text_encoders",
-              "identify": { "nameHint": "qwen_3_4b" },
+              "identify": {
+                "nameHint": "qwen_3_4b"
+              },
               "download": {
                 "filename": "qwen_3_4b.safetensors",
                 "approxSize": "8 GB",
                 "urls": [
+                  "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/d24c4cf2a0cd98a42f23467e27e3d76ee9438b8e/split_files/text_encoders/qwen_3_4b.safetensors",
                   "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors"
-                ]
+                ],
+                "sha256": "6c671498573ac2f7a5501502ccce8d2b08ea6ca2f661c458e708f36b36edfc5a",
+                "bytes": 8044982048
               }
             },
             {
               "role": "vae",
               "label": "Flux 2 VAE",
               "subdir": "vae",
-              "identify": { "nameHint": "flux2[-_]?vae" },
+              "identify": {
+                "nameHint": "flux2[-_]?vae"
+              },
               "download": {
                 "filename": "flux2-vae.safetensors",
                 "approxSize": "160 MB",
                 "urls": [
+                  "https://huggingface.co/Comfy-Org/flux2-dev/resolve/03d6521e6f6a47396b3f951cbea50f7e6c2f482e/split_files/vae/flux2-vae.safetensors",
                   "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
-                ]
+                ],
+                "sha256": "d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5",
+                "bytes": 336213556
               }
             }
           ]
@@ -309,18 +568,63 @@
       "workflow": {
         "format": "comfy-api-v1",
         "template": {
-          "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
-          "2": { "class_type": "CLIPLoader", "inputs": { "clip_name": "${clip}", "type": "flux2" } },
-          "3": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
-          "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["2", 0] } },
+          "1": {
+            "class_type": "UNETLoader",
+            "inputs": {
+              "unet_name": "${unet}",
+              "weight_dtype": "default"
+            }
+          },
+          "2": {
+            "class_type": "CLIPLoader",
+            "inputs": {
+              "clip_name": "${clip}",
+              "type": "flux2"
+            }
+          },
+          "3": {
+            "class_type": "VAELoader",
+            "inputs": {
+              "vae_name": "${vae}"
+            }
+          },
+          "4": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${prompt}",
+              "clip": [
+                "2",
+                0
+              ]
+            }
+          },
           "5": {
             "class_type": "FluxGuidance",
-            "inputs": { "conditioning": ["4", 0], "guidance": "${guidance}" }
+            "inputs": {
+              "conditioning": [
+                "4",
+                0
+              ],
+              "guidance": "${guidance}"
+            }
           },
-          "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["2", 0] } },
+          "6": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${negative}",
+              "clip": [
+                "2",
+                0
+              ]
+            }
+          },
           "7": {
             "class_type": "EmptySD3LatentImage",
-            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+            "inputs": {
+              "width": "${width}",
+              "height": "${height}",
+              "batch_size": "${batch}"
+            }
           },
           "8": {
             "class_type": "KSampler",
@@ -331,28 +635,65 @@
               "sampler_name": "${sampler}",
               "scheduler": "${scheduler}",
               "denoise": 1,
-              "model": ["1", 0],
-              "positive": ["5", 0],
-              "negative": ["6", 0],
-              "latent_image": ["7", 0]
+              "model": [
+                "1",
+                0
+              ],
+              "positive": [
+                "5",
+                0
+              ],
+              "negative": [
+                "6",
+                0
+              ],
+              "latent_image": [
+                "7",
+                0
+              ]
             }
           },
-          "9": { "class_type": "VAEDecode", "inputs": { "samples": ["8", 0], "vae": ["3", 0] } },
+          "9": {
+            "class_type": "VAEDecode",
+            "inputs": {
+              "samples": [
+                "8",
+                0
+              ],
+              "vae": [
+                "3",
+                0
+              ]
+            }
+          },
           "10": {
             "class_type": "SaveImage",
-            "inputs": { "filename_prefix": "${prefix}", "images": ["9", 0] }
+            "inputs": {
+              "filename_prefix": "${prefix}",
+              "images": [
+                "9",
+                0
+              ]
+            }
           }
         }
       }
     },
-
     {
       "id": "z-image",
       "kind": "generate",
       "label": "Z-Image Turbo",
       "group": "Z-Image",
-      "provenance": { "source": "builtin", "host": "huggingface.co" },
-      "capabilities": { "task": "text-to-image", "minDim": 256, "maxDim": 2048, "dimStep": 8 },
+      "provenance": {
+        "source": "builtin",
+        "host": "huggingface.co"
+      },
+      "capabilities": {
+        "task": "text-to-image",
+        "minDim": 256,
+        "maxDim": 2048,
+        "dimStep": 8
+      },
       "sampler": {
         "name": "res_multistep",
         "scheduler": "simple",
@@ -371,7 +712,10 @@
           "VAEDecode",
           "SaveImage"
         ],
-        "clipLoader": { "node": "CLIPLoader", "type": "lumina2" },
+        "clipLoader": {
+          "node": "CLIPLoader",
+          "type": "lumina2"
+        },
         "minComfyNote": "Z-Image needs a recent ComfyUI (v0.6.0+, late November 2025)."
       },
       "companions": [
@@ -380,41 +724,98 @@
           "label": "Qwen3-4B text encoder",
           "subdir": "text_encoders",
           "$comment": "Underscore form only — must NOT match krea2's qwen3vl_4b_fp8_scaled.",
-          "identify": { "nameHint": "qwen_3_4b" },
+          "identify": {
+            "nameHint": "qwen_3_4b"
+          },
           "download": {
             "filename": "qwen_3_4b.safetensors",
             "approxSize": "8 GB",
             "urls": [
+              "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/d24c4cf2a0cd98a42f23467e27e3d76ee9438b8e/split_files/text_encoders/qwen_3_4b.safetensors",
               "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors"
-            ]
+            ],
+            "sha256": "6c671498573ac2f7a5501502ccce8d2b08ea6ca2f661c458e708f36b36edfc5a",
+            "bytes": 8044982048
           }
         },
         {
           "role": "vae",
           "label": "Flux VAE (ae.safetensors)",
           "subdir": "vae",
-          "identify": { "nameHint": "^ae([._-][^/\\\\]*)?\\.(safetensors|sft)$" },
+          "identify": {
+            "nameHint": "^ae([._-][^/\\\\]*)?\\.(safetensors|sft)$"
+          },
           "download": {
             "filename": "ae.safetensors",
             "approxSize": "335 MB",
             "urls": [
+              "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/d24c4cf2a0cd98a42f23467e27e3d76ee9438b8e/split_files/vae/ae.safetensors",
               "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors"
-            ]
+            ],
+            "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+            "bytes": 335304388
           }
         }
       ],
       "workflow": {
         "format": "comfy-api-v1",
         "template": {
-          "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
-          "2": { "class_type": "ModelSamplingAuraFlow", "inputs": { "model": ["1", 0], "shift": 3 } },
-          "3": { "class_type": "CLIPLoader", "inputs": { "clip_name": "${clip}", "type": "lumina2" } },
-          "4": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
-          "5": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["3", 0] } },
-          "6": { "class_type": "ConditioningZeroOut", "inputs": { "conditioning": ["5", 0] } },
+          "1": {
+            "class_type": "UNETLoader",
+            "inputs": {
+              "unet_name": "${unet}",
+              "weight_dtype": "default"
+            }
+          },
+          "2": {
+            "class_type": "ModelSamplingAuraFlow",
+            "inputs": {
+              "model": [
+                "1",
+                0
+              ],
+              "shift": 3
+            }
+          },
+          "3": {
+            "class_type": "CLIPLoader",
+            "inputs": {
+              "clip_name": "${clip}",
+              "type": "lumina2"
+            }
+          },
+          "4": {
+            "class_type": "VAELoader",
+            "inputs": {
+              "vae_name": "${vae}"
+            }
+          },
+          "5": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${prompt}",
+              "clip": [
+                "3",
+                0
+              ]
+            }
+          },
+          "6": {
+            "class_type": "ConditioningZeroOut",
+            "inputs": {
+              "conditioning": [
+                "5",
+                0
+              ]
+            }
+          },
           "7": {
             "class_type": "EmptySD3LatentImage",
-            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+            "inputs": {
+              "width": "${width}",
+              "height": "${height}",
+              "batch_size": "${batch}"
+            }
           },
           "8": {
             "class_type": "KSampler",
@@ -425,28 +826,65 @@
               "sampler_name": "${sampler}",
               "scheduler": "${scheduler}",
               "denoise": 1,
-              "model": ["2", 0],
-              "positive": ["5", 0],
-              "negative": ["6", 0],
-              "latent_image": ["7", 0]
+              "model": [
+                "2",
+                0
+              ],
+              "positive": [
+                "5",
+                0
+              ],
+              "negative": [
+                "6",
+                0
+              ],
+              "latent_image": [
+                "7",
+                0
+              ]
             }
           },
-          "9": { "class_type": "VAEDecode", "inputs": { "samples": ["8", 0], "vae": ["4", 0] } },
+          "9": {
+            "class_type": "VAEDecode",
+            "inputs": {
+              "samples": [
+                "8",
+                0
+              ],
+              "vae": [
+                "4",
+                0
+              ]
+            }
+          },
           "10": {
             "class_type": "SaveImage",
-            "inputs": { "filename_prefix": "${prefix}", "images": ["9", 0] }
+            "inputs": {
+              "filename_prefix": "${prefix}",
+              "images": [
+                "9",
+                0
+              ]
+            }
           }
         }
       }
     },
-
     {
       "id": "krea2",
       "kind": "generate",
       "label": "Krea 2 Turbo",
       "group": "Krea 2",
-      "provenance": { "source": "builtin", "host": "huggingface.co" },
-      "capabilities": { "task": "text-to-image", "minDim": 256, "maxDim": 2048, "dimStep": 8 },
+      "provenance": {
+        "source": "builtin",
+        "host": "huggingface.co"
+      },
+      "capabilities": {
+        "task": "text-to-image",
+        "minDim": 256,
+        "maxDim": 2048,
+        "dimStep": 8
+      },
       "sampler": {
         "name": "euler",
         "scheduler": "simple",
@@ -463,7 +901,10 @@
           "VAEDecode",
           "SaveImage"
         ],
-        "clipLoader": { "node": "CLIPLoader", "type": "krea2" },
+        "clipLoader": {
+          "node": "CLIPLoader",
+          "type": "krea2"
+        },
         "minComfyNote": "Krea 2 needs an up-to-date ComfyUI (nightly, mid-2026) for the krea2 encoder type."
       },
       "companions": [
@@ -471,26 +912,36 @@
           "role": "clip",
           "label": "Qwen3-VL 4B text encoder",
           "subdir": "text_encoders",
-          "identify": { "nameHint": "qwen3vl.*4b" },
+          "identify": {
+            "nameHint": "qwen3vl.*4b"
+          },
           "download": {
             "filename": "qwen3vl_4b_fp8_scaled.safetensors",
             "approxSize": "5.2 GB",
             "urls": [
+              "https://huggingface.co/Comfy-Org/Krea-2/resolve/952f49d49653cb42e7d6cf7cbfad74738073ec7d/text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
               "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors"
-            ]
+            ],
+            "sha256": "54bd5144df0bbc25dd6ccadfcb826b521445a1b06ae5a42570bdd2974ca87094",
+            "bytes": 5242467968
           }
         },
         {
           "role": "vae",
           "label": "Qwen-Image VAE",
           "subdir": "vae",
-          "identify": { "nameHint": "qwen_image_vae" },
+          "identify": {
+            "nameHint": "qwen_image_vae"
+          },
           "download": {
             "filename": "qwen_image_vae.safetensors",
             "approxSize": "254 MB",
             "urls": [
+              "https://huggingface.co/Comfy-Org/Krea-2/resolve/952f49d49653cb42e7d6cf7cbfad74738073ec7d/vae/qwen_image_vae.safetensors",
               "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/vae/qwen_image_vae.safetensors"
-            ]
+            ],
+            "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f",
+            "bytes": 253806246
           }
         }
       ],
@@ -498,14 +949,53 @@
         "format": "comfy-api-v1",
         "$comment": "Krea 2 is a Qwen-Image-lineage MMDiT on a 16-channel latent — it needs EmptySD3LatentImage (16ch), NOT EmptyLatentImage (4ch, SD1.x/SDXL).",
         "template": {
-          "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
-          "2": { "class_type": "CLIPLoader", "inputs": { "clip_name": "${clip}", "type": "krea2" } },
-          "3": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
-          "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["2", 0] } },
-          "5": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["2", 0] } },
+          "1": {
+            "class_type": "UNETLoader",
+            "inputs": {
+              "unet_name": "${unet}",
+              "weight_dtype": "default"
+            }
+          },
+          "2": {
+            "class_type": "CLIPLoader",
+            "inputs": {
+              "clip_name": "${clip}",
+              "type": "krea2"
+            }
+          },
+          "3": {
+            "class_type": "VAELoader",
+            "inputs": {
+              "vae_name": "${vae}"
+            }
+          },
+          "4": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${prompt}",
+              "clip": [
+                "2",
+                0
+              ]
+            }
+          },
+          "5": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+              "text": "${negative}",
+              "clip": [
+                "2",
+                0
+              ]
+            }
+          },
           "6": {
             "class_type": "EmptySD3LatentImage",
-            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+            "inputs": {
+              "width": "${width}",
+              "height": "${height}",
+              "batch_size": "${batch}"
+            }
           },
           "7": {
             "class_type": "KSampler",
@@ -516,16 +1006,46 @@
               "sampler_name": "${sampler}",
               "scheduler": "${scheduler}",
               "denoise": 1,
-              "model": ["1", 0],
-              "positive": ["4", 0],
-              "negative": ["5", 0],
-              "latent_image": ["6", 0]
+              "model": [
+                "1",
+                0
+              ],
+              "positive": [
+                "4",
+                0
+              ],
+              "negative": [
+                "5",
+                0
+              ],
+              "latent_image": [
+                "6",
+                0
+              ]
             }
           },
-          "8": { "class_type": "VAEDecode", "inputs": { "samples": ["7", 0], "vae": ["3", 0] } },
+          "8": {
+            "class_type": "VAEDecode",
+            "inputs": {
+              "samples": [
+                "7",
+                0
+              ],
+              "vae": [
+                "3",
+                0
+              ]
+            }
+          },
           "9": {
             "class_type": "SaveImage",
-            "inputs": { "filename_prefix": "${prefix}", "images": ["8", 0] }
+            "inputs": {
+              "filename_prefix": "${prefix}",
+              "images": [
+                "8",
+                0
+              ]
+            }
           }
         }
       }
