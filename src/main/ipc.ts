@@ -14,6 +14,7 @@ import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
 import { toolAvailable, removebgStatus } from './toolResolver'
+import { ensureUserNcnnDir, listNcnnModels, userNcnnDir } from './tools/ncnnModels'
 import { probeDimensions, probeImageDimensions } from './probe'
 import { makeThumbnail } from './thumbnail'
 import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
@@ -101,6 +102,17 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   })
   ipcMain.handle('tool:check', (_e, name: string) => toolAvailable(name))
   ipcMain.handle('removebg:status', () => removebgStatus())
+  // The AI upscalers actually present on disk (bundled + the user's overlay),
+  // so the picker reflects what is installed instead of a build-time literal.
+  ipcMain.handle('upscale:models', () => {
+    ensureUserNcnnDir()
+    return listNcnnModels().map((m) => ({ value: `esrgan:${m.name}`, label: m.label, user: m.user }))
+  })
+  ipcMain.handle('upscale:open-models-folder', async () => {
+    ensureUserNcnnDir()
+    await shell.openPath(userNcnnDir())
+    return true
+  })
   ipcMain.handle('files:classify', (_e, paths: string[]) =>
     paths.map(fileInfoFromPath).filter(isSupported)
   )
@@ -178,13 +190,16 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // --- PiD Advanced (NVIDIA) upscaler tier -----------------------------------
   // Status drives the gated model option; install runs the one-click download,
   // streaming progress so the renderer can show a modal.
-  ipcMain.handle('pid:status', async () => {
+  // The backbone id comes from the caller (defaulting to the only wired one)
+  // rather than being the literal 'flux' at the IPC boundary — that literal
+  // appeared in four files and made a second backbone an app-wide edit.
+  ipcMain.handle('pid:status', async (_e, backbone = 'flux') => {
     const gpu = await detectNvidia()
-    return { nvidia: gpu, installed: pidInstalled('flux') }
+    return { nvidia: gpu, installed: pidInstalled(backbone), backbone }
   })
-  ipcMain.handle('pid:install', async () => {
+  ipcMain.handle('pid:install', async (_e, backbone = 'flux') => {
     try {
-      await installPid('flux', (step, pct) => win.webContents.send('pid:progress', { step, pct }))
+      await installPid(backbone, (step, pct) => win.webContents.send('pid:progress', { step, pct }))
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }

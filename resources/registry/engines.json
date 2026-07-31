@@ -1,0 +1,85 @@
+{
+  "$comment": [
+    "Engines and their models: background removal, the PiD backbone, and the spandrel loader floor.",
+    "Everything here used to be a compile-time constant, so a new matting model or a new PiD",
+    "checkpoint required an app release. Overriding an entry from %APPDATA%/Filesmith/registry/user",
+    "works exactly as it does for generation models.",
+    "",
+    "IMPORTANT — the removebg list is a LICENCE boundary, not a menu. rembg exposes 19 sessions and",
+    "gives no per-model licence warning, so shipping its catalogue wholesale would quietly",
+    "redistribute non-commercial weights. Verified against primary sources: bria-rmbg resolves to",
+    "RMBG-2.0 (CC BY-NC 4.0); u2net_human_seg is trained on Supervisely Person (non-commercial);",
+    "isnet-anime has scraped fandom provenance; sam produces prompt-driven binary masks and is the",
+    "wrong tool for a cutout. Those stay out. What changed is WHERE the vetted list lives, not",
+    "whether there is one."
+  ],
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "birefnet-general",
+      "kind": "removebg",
+      "label": "BiRefNet General",
+      "runner": "rembg",
+      "provenance": { "source": "builtin" },
+      "capabilities": { "task": "remove-background" }
+    },
+    {
+      "id": "birefnet-general-lite",
+      "kind": "removebg",
+      "label": "BiRefNet General (lite)",
+      "runner": "rembg",
+      "provenance": { "source": "builtin" },
+      "capabilities": { "task": "remove-background" }
+    },
+    {
+      "id": "u2net",
+      "kind": "removebg",
+      "label": "U2-Net",
+      "runner": "rembg",
+      "provenance": { "source": "builtin" },
+      "capabilities": { "task": "remove-background" }
+    },
+    {
+      "id": "isnet-general-use",
+      "kind": "removebg",
+      "label": "IS-Net (general use)",
+      "runner": "rembg",
+      "provenance": { "source": "builtin" },
+      "capabilities": { "task": "remove-background" }
+    },
+
+    {
+      "id": "flux",
+      "kind": "pid-backbone",
+      "label": "PiD (Flux distilled, 4-step)",
+      "runner": "pid",
+      "provenance": { "source": "builtin", "host": "huggingface.co" },
+      "$comment": [
+        "repoRef pins the nv-tlabs/PiD source. It used to be archive/refs/heads/main.zip — the head",
+        "of a MOVING branch — recorded in an EMPTY marker file, so two users installing a month",
+        "apart ran different code with no way to tell which, and neither could ever receive a fix.",
+        "The ref is now written into the marker and a mismatch forces a re-vendor."
+      ],
+      "files": [
+        { "path": "checkpoints/PiD_res2k_sr4x_official_flux_distill_4step/model_ema_bf16.pth" },
+        { "path": "checkpoints/ae.safetensors" }
+      ],
+      "engineSpec": "torch==2.10.0"
+    },
+
+    {
+      "id": "spandrel",
+      "kind": "upscale",
+      "label": "spandrel model loader",
+      "runner": "spandrel",
+      "provenance": { "source": "builtin" },
+      "$comment": [
+        "The version floor for the ComfyUI-upscaler loader. install.ts recorded an EMPTY marker, so",
+        "whatever spandrel resolved on the day the user set up was frozen forever: a model with a",
+        "newer architecture then reported 'could not be read' with no UI anywhere to update the",
+        "loader. The installed version is now written into the marker and compared against this."
+      ],
+      "engineSpec": "spandrel>=0.4.1"
+    }
+  ]
+}

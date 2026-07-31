@@ -20,7 +20,6 @@ import type {
   VideoCodec
 } from '@shared/compress'
 import {
-  realesrganDir,
   resolveGhostscript,
   resolveRealesrgan,
   resolveRembg,
@@ -33,6 +32,7 @@ import { estimateProgress, estimateSecForBytes } from './estimate'
 import { reserveOutPath, uniqueOutDir } from '../output'
 import { ffmpegProgress, probeDuration, probeImageDimensions } from '../probe'
 import { buildUpscaleArgs, needsPreConvert, upscaleProgress } from './upscale'
+import { resolveNcnnModel } from './ncnnModels'
 import { buildCompositeArgs, buildRembgArgs, rembgPhase } from './removebg'
 import { pidSidecar } from '../pid/sidecar'
 import { pidInstalled } from '../pid/paths'
@@ -824,15 +824,25 @@ const upscaleTool: ToolModule = {
           throw new Error(describeToolError(stderr, 'magick', code))
       }
 
+      // Which ncnn model to run, and which folder it lives in, both come from
+      // disk: the bundled models/ dir OR the user's own overlay in userData. The
+      // binary runs any .param/.bin pair, so a new upscaler is a file drop.
+      const ncnn = resolveNcnnModel(model)
+      if (!ncnn)
+        throw new Error(
+          'No AI upscale models are installed. Reinstall Filesmith, or add a Real-ESRGAN .param/.bin pair to your models folder.'
+        )
       output = reserveOutPath(file.path, '.png', 'upscaled')
-      const label = background ? `Upscaling ${factor}× (${model}, background)…` : `Upscaling ${factor}× (${model})…`
+      const label = background
+        ? `Upscaling ${factor}× (${ncnn.label}, background)…`
+        : `Upscaling ${factor}× (${ncnn.label})…`
       ctx.onProgress(0, label)
       // Background: a small tile caps peak VRAM so other GPU apps keep their
       // memory (ncnn can't be duty-cycled, so this is the lever we have).
       const args = [
-        ...buildUpscaleArgs(src, output, { model, factor, tile: background ? 128 : 0 }),
+        ...buildUpscaleArgs(src, output, { model: ncnn.name, factor, tile: background ? 128 : 0 }),
         '-m',
-        join(realesrganDir(), 'models')
+        ncnn.dir
       ]
       const { code, stderr } = await run(resolveRealesrgan(), args, {
         signal: ctx.signal,

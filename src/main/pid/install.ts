@@ -13,6 +13,7 @@ import { downloadFile } from '../net/download'
 import { resolveUv } from '../toolResolver'
 import { findComfyPidWeights } from '../comfy/discover'
 import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from './paths'
+import { registryEntry } from '../registry/load'
 
 // The one-click PiD install. Everything the Advanced tier needs is public and
 // ungated, so this runs unattended: vendor the nv-tlabs/PiD source, build a
@@ -29,7 +30,13 @@ import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from
  * remainder. Both come from the catalog rather than being re-guessed here. */
 const VAE_APPROX_BYTES = 335_000_000
 
-const PID_REPO_ZIP = 'https://github.com/nv-tlabs/PiD/archive/refs/heads/main.zip'
+// The vendored nv-tlabs/PiD source ref. This WAS the head of a moving branch,
+// recorded in an empty marker: two users installing a month apart ran different
+// code, neither could tell which, and neither could ever receive a fix, because
+// the marker's mere existence counted as "up to date". The ref is now written
+// into the marker and a mismatch forces a re-vendor.
+const PID_REPO_REF = 'main'
+const PID_REPO_ZIP = `https://github.com/nv-tlabs/PiD/archive/refs/heads/${PID_REPO_REF}.zip`
 const HF_BASE = 'https://huggingface.co/nvidia/PiD/resolve/main'
 
 // Written at the very end of ensureRepo (after the pin is relaxed), so an
@@ -89,8 +96,16 @@ function copyAtomic(src: string, dest: string): void {
 }
 
 /** Ensure the PiD source is vendored (downloaded zip, extracted, pyproject relaxed). */
+function markerSays(path: string, want: string): boolean {
+  try {
+    return existsSync(path) && readFileSync(path, 'utf-8').trim() === want
+  } catch {
+    return false
+  }
+}
+
 async function ensureRepo(onProgress: InstallProgress): Promise<void> {
-  if (existsSync(join(pidRepoDir(), REPO_MARKER))) return
+  if (markerSays(join(pidRepoDir(), REPO_MARKER), PID_REPO_REF)) return
   onProgress('Downloading PiD source', null)
   const tmpZip = join(pidRoot(), 'pid-src.zip')
   await download(PID_REPO_ZIP, tmpZip, (p) => onProgress('Downloading PiD source', p))
@@ -125,7 +140,7 @@ async function ensureRepo(onProgress: InstallProgress): Promise<void> {
   if (/required-version = "==/.test(relaxed))
     throw new Error('Failed to relax PiD uv version pin (unexpected pyproject format)')
 
-  writeFileSync(join(pidRepoDir(), REPO_MARKER), '')
+  writeFileSync(join(pidRepoDir(), REPO_MARKER), PID_REPO_REF)
 }
 
 /** True when `uv --version` reports a version at or above UV_MIN. */
@@ -272,7 +287,12 @@ export async function installPid(backbone: string, onProgress: InstallProgress):
 /** Add `spandrel` to the shared torch venv (self-heals an env built before this
  * feature existed). Fast when already present. */
 async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
-  if (existsSync(spandrelMarker())) return
+  // Compare the RECORDED spec, not mere existence. The marker used to be empty,
+  // so whatever spandrel resolved on setup day was frozen forever — and a model
+  // with a newer architecture then reported "could not be read" with no way in
+  // the UI to update the loader.
+  const spec = registryEntry('spandrel')?.engineSpec ?? 'spandrel>=0.4.1'
+  if (markerSays(spandrelMarker(), spec)) return
   const uv = await ensureUv(onProgress)
   const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')
 
@@ -281,11 +301,11 @@ async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
   // usually already present from the PiD deps, so this is quick when so.
   const res = await run(
     uv,
-    ['pip', 'install', '--python', python, 'spandrel>=0.4.1', 'pillow', 'numpy'],
+    ['pip', 'install', '--python', python, '--upgrade', spec, 'pillow', 'numpy'],
     { cwd: pidRepoDir() }
   )
   if (res.code !== 0) throw new Error(`spandrel install failed: ${res.stderr.slice(-400)}`)
-  writeFileSync(spandrelMarker(), '')
+  writeFileSync(spandrelMarker(), spec)
 }
 
 /**

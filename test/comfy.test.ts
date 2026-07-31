@@ -86,10 +86,16 @@ describe('classifyModel', () => {
     expect(m).toMatchObject({ name: '4x-UltraSharpV2', badge: 'verified', arch: 'ESRGAN', scale: 4 })
   })
 
-  it('marks an unknown-but-loadable model experimental', () => {
-    const m = classifyModel({ path: '/m/SomeRandomUpscaler.pth', ok: true, arch: 'DAT', scale: 2 })
+  it('marks a model experimental only when BOTH its name and its arch are unknown', () => {
+    // A recognized architecture now verifies on its own — spandrel read it out
+    // of the file, which is stronger evidence than any filename. `DAT` used to
+    // land here purely because nobody had listed that name.
+    expect(
+      classifyModel({ path: '/m/SomeRandomUpscaler.pth', ok: true, arch: 'DAT', scale: 2 }).badge
+    ).toBe('verified')
+    const m = classifyModel({ path: '/m/SomeRandomUpscaler.pth', ok: true, arch: 'BrandNew', scale: 2 })
     expect(m.badge).toBe('experimental')
-    expect(m.scale).toBe(2)
+    expect(m.scale).toBe(2) // and it stays fully usable either way
   })
 
   it('marks an unloadable file unsupported with the reason', () => {

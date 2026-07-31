@@ -7,6 +7,7 @@ import {
   type BgFill,
   type BgModel
 } from '@shared/removebg'
+import { registryEntries } from '../registry/load'
 
 // rembg argument building. Pure, no Electron.
 //
@@ -14,10 +15,30 @@ import {
 //   -m MODEL  -a  -af INT  -ab INT  -ae INT  -om  -ppm  -bgc R G B A
 // with -bgc taking four BARE space-separated ints (not a comma list, not hex).
 
-/** Only emit models from the licence-vetted allowlist, whatever the UI sends. */
+/**
+ * Only emit models from the licence-vetted allowlist, whatever the UI sends.
+ *
+ * The list now comes from the registry (resources/registry/engines.json) rather
+ * than a compiled union — but it is STILL an allowlist, and deliberately so.
+ * rembg exposes 19 sessions with no per-model licence warning, and several are
+ * non-commercial or scraped. Phase 6 moved where the vetted list lives; it did
+ * not open it up. The compiled values remain the fallback so a damaged registry
+ * degrades to the vetted set rather than to "anything goes".
+ */
 export function bgModelOf(options: JobOptions): BgModel {
   const m = String(options.bgModel ?? BG_DEFAULTS.bgModel) as BgModel
-  return BG_MODEL_VALUES.includes(m) ? m : BG_DEFAULTS.bgModel
+  return allowedBgModels().includes(m) ? m : BG_DEFAULTS.bgModel
+}
+
+/** The vetted session ids: the registry's, else the compiled fallback. */
+export function allowedBgModels(): string[] {
+  try {
+    const ids = registryEntries('removebg').map((e) => e.id)
+    if (ids.length) return ids
+  } catch {
+    /* registry unavailable (tests) — fall through */
+  }
+  return BG_MODEL_VALUES
 }
 
 export function buildRembgArgs(input: string, output: string, options: JobOptions): string[] {

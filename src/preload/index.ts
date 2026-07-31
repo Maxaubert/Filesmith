@@ -75,6 +75,12 @@ const api = {
   // tools
   checkTool: (name: string): Promise<boolean> => ipcRenderer.invoke('tool:check', name),
   toolsFor: (file: FileInfo): Promise<ToolId[]> => ipcRenderer.invoke('tools:for', file),
+  /** AI upscale models present on disk (bundled + the user's own overlay). */
+  upscaleModels: (): Promise<{ value: string; label: string; user: boolean }[]> =>
+    ipcRenderer.invoke('upscale:models'),
+  /** Open the folder where the user can drop their own Real-ESRGAN models. */
+  upscaleOpenModelsFolder: (): Promise<boolean> =>
+    ipcRenderer.invoke('upscale:open-models-folder'),
   targets: (tool: ToolId, file: FileInfo): Promise<ToolTarget[]> =>
     ipcRenderer.invoke('tool:targets', tool, file),
 

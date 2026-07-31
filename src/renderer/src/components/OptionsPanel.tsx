@@ -14,7 +14,8 @@ import {
   UPSCALE_GPU_MODES,
   UPSCALE_MODELS,
   VIDEO_CODECS,
-  type Choice
+  type Choice,
+  type UpscaleModel
 } from '@shared/compress'
 import { RESIZE_FITS, type ResizeFit } from '@shared/resize'
 import { BG_DEFAULTS, BG_FILLS, type BgFill } from '@shared/removebg'
@@ -391,6 +392,13 @@ function UpscaleOptions({
   // | 'pid' | 'comfy' (category placeholder) | 'comfy:<path>'.
   const rawModel = String(options.upscaleModel ?? 'photo')
   const hasNvidia = Boolean(comfy.status?.nvidia || pid?.nvidia)
+  // Which Real-ESRGAN models exist is read from disk, not frozen at build time.
+  // This is the only AI upscaler an AMD/Intel user has, and it used to be locked
+  // to the two names the build script happened to copy.
+  const [ncnn, setNcnn] = useState<{ value: string; label: string; user: boolean }[] | null>(null)
+  useEffect(() => {
+    void window.filesmith.upscaleModels().then(setNcnn)
+  }, [])
   const comfyModels = comfy.status?.models ?? []
   const comfyChoices = comfyModels.map((m) => ({
     value: `comfy:${m.path}`,
@@ -398,11 +406,23 @@ function UpscaleOptions({
     // isn't mistaken for a "selected" checkmark.
     label: `${m.name} · ${m.scale}×${m.badge === 'experimental' ? ' · experimental' : ''}`
   }))
+  // Fall back to the legacy Photo/Anime aliases until the disk scan returns, so
+  // the picker is never empty for a frame.
+  const ncnnChoices: Choice<UpscaleModel>[] = ncnn?.length
+    ? ncnn.map((m) => ({
+        value: m.value as UpscaleModel,
+        label: m.user ? `${m.label} · added by you` : m.label
+      }))
+    : UPSCALE_MODELS
   const isPid = rawModel === 'pid'
   const isComfyPath = rawModel.startsWith('comfy:')
   const inAi = isPid || isComfyPath || rawModel === 'comfy'
-  const category = inAi ? 'comfy' : rawModel === 'anime' ? 'anime' : 'photo'
-  const categoryChoices = [...UPSCALE_MODELS, ...(hasNvidia ? [UPSCALE_COMFY] : [])]
+  const category = inAi
+    ? 'comfy'
+    : ncnnChoices.some((c) => c.value === rawModel)
+      ? rawModel
+      : (ncnnChoices[0]?.value ?? 'photo')
+  const categoryChoices = [...ncnnChoices, ...(hasNvidia ? [UPSCALE_COMFY] : [])]
   // PiD is only offered when it's actually attainable: already installed, or its
   // weights are reusable from the user's ComfyUI (so setup is quick). Otherwise
   // it isn't listed — it shouldn't look available when it isn't.
