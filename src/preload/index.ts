@@ -106,6 +106,9 @@ const api = {
     ipcRenderer.invoke('comfy:install'),
   /** Open a folder picker; resolves to the chosen path or null. */
   comfyPickFolder: (): Promise<string | null> => ipcRenderer.invoke('comfy:pick-folder'),
+  /** Remember where ComfyUI is, without needing the upscale engine installed. */
+  comfySetFolder: (folder: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('comfy:set-folder', folder),
   /** Scan a folder for upscale models, classify + remember them. */
   comfyScan: (folder: string): Promise<{ ok: boolean; models?: ComfyModel[]; error?: string }> =>
     ipcRenderer.invoke('comfy:scan', folder),

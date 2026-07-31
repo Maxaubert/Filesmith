@@ -1,10 +1,77 @@
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { classifyModel, normalizeModelName } from '../src/shared/comfy'
 import { classifySpandrelLine } from '../src/main/comfy/sidecar'
 import { resolveUpscaleDirs, scanModelFiles } from '../src/main/comfy/discover'
+import { candidateComfyUrls } from '../src/main/generate/comfy'
+import {
+  COMFY_DIR_NAMES,
+  comfyCandidateDirs,
+  comfyNestedDirs,
+  comfySearchRoots
+} from '../src/main/comfy/roots'
+
+describe('ComfyUI search roots (one list, used everywhere)', () => {
+  it('probes real drive letters instead of a hardcoded C:/D:/E:', () => {
+    const roots = comfySearchRoots()
+    // Every drive root returned must actually exist — the point of enumerating.
+    const drives = roots.filter((r) => /^[A-Z]:\\$/.test(r))
+    expect(drives.length).toBeGreaterThan(0)
+    for (const d of drives) expect(existsSync(d)).toBe(true)
+  })
+
+  it('includes the OneDrive-redirected Documents/Desktop when set', () => {
+    const prev = process.env.OneDrive
+    process.env.OneDrive = 'C:\\Users\\x\\OneDrive - Contoso'
+    try {
+      const roots = comfySearchRoots()
+      expect(roots).toContain('C:\\Users\\x\\OneDrive - Contoso')
+      expect(roots).toContain(join('C:\\Users\\x\\OneDrive - Contoso', 'Documents'))
+    } finally {
+      if (prev === undefined) delete process.env.OneDrive
+      else process.env.OneDrive = prev
+    }
+  })
+
+  it('yields deduplicated candidates covering every known folder name', () => {
+    const dirs = comfyCandidateDirs()
+    expect(new Set(dirs).size).toBe(dirs.length)
+    for (const n of COMFY_DIR_NAMES) expect(dirs.some((d) => d.endsWith(n))).toBe(true)
+  })
+
+  it('nests into the ComfyUI Desktop layouts, not just <root>/ComfyUI', () => {
+    // Desktop keeps its venv in the user's base dir and the source under the
+    // Electron app's resources/, so these depths are what make it findable.
+    const nested = comfyNestedDirs('D:\\AI')
+    expect(nested).toContain('D:\\AI')
+    expect(nested).toContain(join('D:\\AI', 'ComfyUI'))
+    expect(nested).toContain(join('D:\\AI', 'resources', 'ComfyUI'))
+    expect(nested).toContain(join('D:\\AI', 'resources', 'app', 'ComfyUI'))
+  })
+})
+
+describe('ComfyUI server URLs', () => {
+  it('tries an explicit override before the default port', () => {
+    const prev = process.env.FILESMITH_COMFY_URL
+    process.env.FILESMITH_COMFY_URL = 'http://10.0.0.4:8188/'
+    try {
+      const urls = candidateComfyUrls()
+      expect(urls[0]).toBe('http://10.0.0.4:8188') // trailing slash trimmed
+      expect(urls).toContain('http://127.0.0.1:8188')
+    } finally {
+      if (prev === undefined) delete process.env.FILESMITH_COMFY_URL
+      else process.env.FILESMITH_COMFY_URL = prev
+    }
+  })
+
+  it('always includes ComfyUI’s default, with no duplicates', () => {
+    const urls = candidateComfyUrls()
+    expect(urls).toContain('http://127.0.0.1:8188')
+    expect(new Set(urls).size).toBe(urls.length)
+  })
+})
 
 describe('normalizeModelName', () => {
   it('lowercases, drops the extension, and strips non-alphanumerics', () => {

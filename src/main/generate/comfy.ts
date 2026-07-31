@@ -1,18 +1,54 @@
 import { spawn, type ChildProcess } from 'child_process'
+import { createServer } from 'net'
 import { existsSync, writeFileSync } from 'fs'
 import { dirname, join, resolve } from 'path'
 import { app } from 'electron'
-import { findComfyLaunchPython } from '../comfy/pythonEnv'
+import { findComfyLaunchPython, findComfyMainPy } from '../comfy/pythonEnv'
 import { comfyModelsBases } from '../comfy/discover'
+import { readComfyStore } from '../comfy/store'
 
 // A headless ComfyUI, driven over its HTTP API. We connect to an already-running
 // instance when there is one, otherwise launch our own on a dedicated port using
 // the user's ComfyUI Python. This is the "run generation through ComfyUI" path:
 // ComfyUI owns all the model-loading/sampling complexity; we just POST a workflow.
 
-const FS_PORT = 8199 // our dedicated headless port (8188 is ComfyUI's default)
 let proc: ChildProcess | null = null
 let ourUrl: string | null = null
+/** Tail of the launched ComfyUI's output, so a failure can say what it said. */
+let procTail = ''
+let procExit: { code: number | null } | null = null
+
+/**
+ * URLs to try before launching anything: an explicit override, whatever the user
+ * recorded when locating their ComfyUI, then ComfyUI's default port. A server
+ * that is running RIGHT NOW used to be reported "not found", because availability
+ * was a pure filesystem walk while `ensureComfyServer` happily reused a live one.
+ */
+export function candidateComfyUrls(): string[] {
+  const out: string[] = []
+  const env = process.env.FILESMITH_COMFY_URL?.trim()
+  if (env) out.push(env.replace(/\/+$/, ''))
+  const stored = readComfyStore()?.serverUrl?.trim()
+  if (stored) out.push(stored.replace(/\/+$/, ''))
+  out.push('http://127.0.0.1:8188')
+  if (ourUrl) out.push(ourUrl)
+  return [...new Set(out)]
+}
+
+/** An OS-assigned free port. The old code pinned our launch to 8199, which fails
+ * outright when anything else already holds it (a second Filesmith, a dev
+ * server, another ComfyUI) with no way for the user to change it. */
+function freePort(): Promise<number> {
+  return new Promise((res, rej) => {
+    const srv = createServer()
+    srv.on('error', rej)
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address()
+      const port = typeof addr === 'object' && addr ? addr.port : 0
+      srv.close(() => (port ? res(port) : rej(new Error('no free port'))))
+    })
+  })
+}
 
 /** The ComfyUI code root (dir with main.py) + its Python, derived from the
  * detected interpreter. Null if we can't locate a launchable ComfyUI. */
@@ -20,13 +56,18 @@ export function findComfyLaunch(): { python: string; cwd: string } | null {
   // Generation only needs a torch-capable ComfyUI, not the spandrel (upscale) env.
   const py = findComfyLaunchPython()
   if (!py) return null
-  const candidates = [
+  // Prefer a main.py near the interpreter (a portable/venv install keeps them
+  // together), but fall back to any main.py we can find. ComfyUI Desktop puts
+  // the venv and the source in completely different trees, so requiring them to
+  // be adjacent made every Desktop install permanently unlaunchable.
+  const near = [
     dirname(dirname(dirname(py))), // <root>/.venv/Scripts/python.exe -> <root>
     join(dirname(dirname(py)), 'ComfyUI'), // <portable>/python_embeded -> sibling ComfyUI
     dirname(dirname(py))
   ]
-  for (const c of candidates) if (existsSync(join(c, 'main.py'))) return { python: py, cwd: c }
-  return null
+  for (const c of near) if (existsSync(join(c, 'main.py'))) return { python: py, cwd: c }
+  const anywhere = findComfyMainPy()
+  return anywhere ? { python: py, cwd: anywhere } : null
 }
 
 /**
@@ -69,43 +110,75 @@ async function alive(baseUrl: string): Promise<boolean> {
   }
 }
 
-/** Returns whether we could reach or launch a ComfyUI at all (for status/UI). */
-export function comfyGenerationAvailable(): boolean {
+/**
+ * Whether we could reach OR launch a ComfyUI (for status/UI). A live server wins:
+ * this used to be a pure filesystem walk, so a ComfyUI running right now — the
+ * exact user the old "open ComfyUI once so Filesmith can locate it" notice was
+ * addressed to — was reported as not found.
+ */
+export async function comfyGenerationAvailable(): Promise<boolean> {
+  for (const url of candidateComfyUrls()) if (await alive(url)) return true
   return findComfyLaunch() != null
 }
 
 /** A ready ComfyUI base URL — reuse a running one, else launch ours and wait. */
 export async function ensureComfyServer(onStatus?: (s: string) => void): Promise<string> {
-  for (const p of [8188, FS_PORT]) {
-    const url = `http://127.0.0.1:${p}`
-    if (await alive(url)) return url
-  }
+  for (const url of candidateComfyUrls()) if (await alive(url)) return url
   const launch = findComfyLaunch()
   if (!launch)
-    throw new Error('Could not find ComfyUI to run generation. Open ComfyUI once so Filesmith can find it.')
+    throw new Error(
+      'Could not find ComfyUI to run generation. Point Filesmith at your ComfyUI folder, or start ComfyUI and try again.'
+    )
 
   if (!proc) {
     onStatus?.('Starting ComfyUI (first run of the session)…')
-    const args = ['main.py', '--port', String(FS_PORT), '--listen', '127.0.0.1', '--disable-auto-launch']
+    const port = await freePort()
+    const args = ['main.py', '--port', String(port), '--listen', '127.0.0.1', '--disable-auto-launch']
     const extraPaths = writeExtraModelPaths()
     if (extraPaths) args.push('--extra-model-paths-config', extraPaths)
+    procTail = ''
+    procExit = null
     proc = spawn(launch.python, args, {
       cwd: launch.cwd,
       windowsHide: true,
       env: { ...process.env, PYTHONUTF8: '1' }
     })
-    proc.on('exit', () => {
+    // MUST drain both pipes. `spawn` with no stdio option defaults to pipes, and
+    // nothing read them — so once the OS pipe buffer filled (tens of KB, which
+    // ComfyUI's model-loading logs and per-step progress pass easily) the child
+    // BLOCKED ON WRITE mid-generation. That is a deadlock, not a missing log.
+    proc.stdout?.resume()
+    proc.stderr?.on('data', (d: Buffer) => {
+      procTail = (procTail + d.toString()).slice(-2000)
+    })
+    proc.on('exit', (code) => {
+      procExit = { code }
       proc = null
       ourUrl = null
     })
+    ourUrl = `http://127.0.0.1:${port}`
   }
-  ourUrl = `http://127.0.0.1:${FS_PORT}`
+  if (!ourUrl) throw new Error('ComfyUI could not be started.')
   const started = Date.now()
   while (Date.now() - started < 240_000) {
     if (await alive(ourUrl)) return ourUrl
+    // Bail the moment the child dies. Polling the full 240s after an instant
+    // exit told the user "did not become ready in time" with nothing to act on.
+    if (procExit) throw new Error(comfyStartError(`ComfyUI exited (code ${procExit.code}).`))
     await new Promise((r) => setTimeout(r, 1500))
   }
-  throw new Error('ComfyUI did not become ready in time.')
+  throw new Error(comfyStartError('ComfyUI did not become ready in time.'))
+}
+
+/** Append whatever ComfyUI actually said, so a start failure is diagnosable. */
+function comfyStartError(headline: string): string {
+  const tail = procTail
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(-6)
+    .join('\n')
+  return tail ? `${headline}\n${tail}` : headline
 }
 
 /** Stop the ComfyUI instance WE launched (leave a user-run one alone). */

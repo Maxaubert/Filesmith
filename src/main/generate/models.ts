@@ -104,12 +104,42 @@ export function scanGenerationModels(): GenModelScan {
       continue
     }
     const { arch, excluded: isExcluded } = inspectModelFile(abs)
+    // Nothing on disk is invisible. Both of these used to `continue`, so a user
+    // with a folder full of next month's architecture saw "No image models
+    // found" and had no way to tell whether the app had even seen the files.
+    // They are listed, named, and marked why they can't run.
     if (isExcluded) {
       excluded += 1
-      continue // video / 3D / audio — never an image model
+      models.push({
+        name: rel,
+        label: label(rel),
+        arch: 'sdxl',
+        group: 'Not image models',
+        source: 'diffusion',
+        runnable: false,
+        baseDir: base,
+        detectedArch: arch,
+        notImage: true,
+        reason: 'Looks like a video/3D/audio model, not a text-to-image one.'
+      })
+      continue
     }
     if (!SUPPORTED.includes(arch as GenArch)) {
       unrecognized += 1
+      models.push({
+        name: rel,
+        label: label(rel),
+        arch: 'sdxl',
+        group: 'Unrecognized',
+        source: 'diffusion',
+        runnable: false,
+        baseDir: base,
+        detectedArch: arch,
+        reason:
+          arch === 'unknown'
+            ? "Filesmith doesn't recognize this architecture yet."
+            : `Detected as ${arch}, which Filesmith can't build a workflow for yet.`
+      })
       continue
     }
     const ga = arch as GenArch

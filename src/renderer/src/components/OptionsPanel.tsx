@@ -921,6 +921,44 @@ function CompanionDownload({ model, onDone }: { model: GenModel; onDone: () => v
 }
 
 /**
+ * "ComfyUI wasn't found" — with a way out. This used to be a dead end: static
+ * text telling the user to "open ComfyUI once so Filesmith can locate it", which
+ * nothing in the code implements (availability is a filesystem walk, not a probe
+ * of a running server). Discovery is path guessing, so a ComfyUI on F:, on a NAS,
+ * under C:\AI\comfy or in a OneDrive-redirected Documents was simply unreachable
+ * and the notice never cleared. Locating it writes the same store that generate,
+ * upscale and companion discovery all read first, so one pick fixes all three.
+ */
+function LocateComfy({ onLocated }: { onLocated: () => void }): JSX.Element {
+  const [err, setErr] = useState<string | null>(null)
+  const pick = (): void => {
+    setErr(null)
+    void window.filesmith.comfyPickFolder().then((folder) => {
+      if (!folder) return
+      void window.filesmith.comfySetFolder(folder).then((r) => {
+        if (r.ok) onLocated()
+        else setErr(r.error ?? "Couldn't use that folder")
+      })
+    })
+  }
+  return (
+    <div className="space-y-2.5 rounded-xl border border-black/[.10] bg-white p-3">
+      <p className="text-[12px] leading-relaxed text-muted">
+        ComfyUI wasn&apos;t found automatically. If you already have it, point Filesmith at the
+        folder — that also enables your own models everywhere else in the app.
+      </p>
+      <button
+        onClick={pick}
+        className="w-full rounded-xl bg-accent px-3 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-110"
+      >
+        Locate my ComfyUI folder
+      </button>
+      {err && <p className="text-[11.5px] font-medium text-red-600">{err}</p>}
+    </div>
+  )
+}
+
+/**
  * Text-to-image generation options. The prompt lives in the center PromptBox;
  * this panel carries the model + sampling settings and the availability notice.
  */
@@ -969,11 +1007,7 @@ function GenerateOptions({
 
   return (
     <>
-      {status && !status.available && (
-        <p className="rounded-xl border border-black/[.10] bg-white p-3 text-[12px] leading-relaxed text-muted">
-          ComfyUI wasn&apos;t found. Open ComfyUI once so Filesmith can locate it, then reopen this.
-        </p>
-      )}
+      {status && !status.available && <LocateComfy onLocated={refresh} />}
       <div>
         <Label>Model</Label>
         {models.length ? (
@@ -988,10 +1022,21 @@ function GenerateOptions({
         ) : selected && !selected.runnable && selected.reason ? (
           <p className="mt-2 text-[11.5px] leading-relaxed text-muted">{selected.reason}</p>
         ) : null}
-        {status && status.unrecognized > 0 && (
+        {/* Say what we saw. `gguf` and `excluded` were computed, sent to the
+            renderer, and then never rendered — so a user whose diffusion_models
+            folder is full of GGUF files was told "No image models found" with no
+            hint that the app had seen anything at all. */}
+        {status && (status.gguf > 0 || status.excluded > 0 || status.unrecognized > 0) && (
           <p className="mt-2 text-[11px] leading-relaxed text-dim">
-            {status.unrecognized} unrecognized model{status.unrecognized === 1 ? '' : 's'} in your folder{' '}
-            {status.unrecognized === 1 ? "isn't" : "aren't"} shown.
+            {[
+              status.unrecognized > 0 &&
+                `${status.unrecognized} unrecognized (listed at the bottom)`,
+              status.excluded > 0 && `${status.excluded} video/3D/audio`,
+              status.gguf > 0 && `${status.gguf} GGUF (not supported yet)`
+            ]
+              .filter(Boolean)
+              .join(' · ')}{' '}
+            also found in your models folder.
           </p>
         )}
       </div>

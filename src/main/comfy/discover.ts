@@ -1,11 +1,10 @@
 import { spawn } from 'child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
-import { homedir } from 'os'
 import { basename, dirname, isAbsolute, join, resolve } from 'path'
 import type { ComfyModel, ComfyProbe } from '@shared/comfy'
 import { classifyModel } from '@shared/comfy'
 import { pidKernelCache, spandrelServerScript } from '../pid/paths'
-import { readComfyStore } from './store'
+import { comfyCandidateDirs, comfyNestedDirs } from './roots'
 import { resolveSpandrelPython } from './pythonEnv'
 
 const MODEL_EXTS = ['.pth', '.safetensors', '.pt', '.ckpt']
@@ -17,23 +16,6 @@ const MODEL_EXTS = ['.pth', '.safetensors', '.pt', '.ckpt']
  * Returns undefined if nothing plausible is found (the picker opens at default).
  */
 export function guessComfyFolder(): string | undefined {
-  const home = homedir()
-  const roots = [
-    home,
-    join(home, 'Desktop'),
-    join(home, 'Documents'),
-    join(home, 'Downloads'),
-    'C:\\',
-    'D:\\',
-    'E:\\'
-  ]
-  const names = [
-    'ComfyUI',
-    'ComfyUI-Shared',
-    'ComfyUI-Installs',
-    'ComfyUI_windows_portable',
-    'comfyui'
-  ]
   const dirExists = (d: string): boolean => {
     try {
       return existsSync(d) && statSync(d).isDirectory()
@@ -42,16 +24,11 @@ export function guessComfyFolder(): string | undefined {
     }
   }
   const hasUpscale = (d: string): boolean =>
-    dirExists(join(d, 'models', 'upscale_models')) ||
-    dirExists(join(d, 'ComfyUI', 'models', 'upscale_models')) ||
-    dirExists(join(d, 'ComfyUI', 'ComfyUI', 'models', 'upscale_models'))
+    comfyNestedDirs(d).some((n) => dirExists(join(n, 'models', 'upscale_models')))
   const looksLikeComfy = (d: string): boolean =>
-    dirExists(join(d, 'models')) ||
-    existsSync(join(d, 'main.py')) ||
-    dirExists(join(d, 'ComfyUI'))
+    comfyNestedDirs(d).some((n) => dirExists(join(n, 'models')) || existsSync(join(n, 'main.py')))
 
-  const candidates: string[] = []
-  for (const root of roots) for (const name of names) candidates.push(join(root, name))
+  const candidates = comfyCandidateDirs()
 
   // First a strong match (has upscale_models), then a weak one (looks like Comfy).
   return (
@@ -73,17 +50,11 @@ export function resolveUpscaleDirs(picked: string): string[] {
   }
 
   if (basename(picked).toLowerCase() === 'upscale_models') add(picked)
-  // Common layouts under the picked folder (matching guessComfyFolder's depths).
-  add(join(picked, 'upscale_models'))
-  add(join(picked, 'models', 'upscale_models'))
-  add(join(picked, 'ComfyUI', 'models', 'upscale_models'))
-  add(join(picked, 'ComfyUI', 'ComfyUI', 'models', 'upscale_models'))
-
-  // extra_model_paths.yaml can live at the root or one level in.
-  for (const cfg of [
-    join(picked, 'extra_model_paths.yaml'),
-    join(picked, 'ComfyUI', 'extra_model_paths.yaml')
-  ]) {
+  // Common layouts under the picked folder (the shared nesting depths).
+  for (const n of comfyNestedDirs(picked)) {
+    add(join(n, 'upscale_models'))
+    add(join(n, 'models', 'upscale_models'))
+    const cfg = join(n, 'extra_model_paths.yaml')
     if (existsSync(cfg)) resolveExtraPaths(cfg).forEach(add)
   }
   return [...dirs]
@@ -133,24 +104,14 @@ function resolveExtraPaths(cfgPath: string): string[] {
 export function comfyModelsBases(): string[] {
   const bases: string[] = []
   const addBases = (dir: string): void => {
-    bases.push(
-      dir,
-      join(dir, 'models'),
-      join(dir, 'ComfyUI', 'models'),
-      join(dir, 'ComfyUI', 'ComfyUI', 'models'),
-      dirname(dir) // if `dir` is …/models/upscale_models
-    )
+    for (const nested of comfyNestedDirs(dir)) bases.push(nested, join(nested, 'models'))
+    bases.push(dirname(dir)) // if `dir` is …/models/upscale_models
   }
-  const remembered = readComfyStore()?.folder
-  if (remembered) addBases(remembered)
-  const home = homedir()
-  const roots = [home, join(home, 'Desktop'), join(home, 'Documents'), join(home, 'Downloads'), 'C:\\', 'D:\\', 'E:\\']
-  const names = ['ComfyUI', 'ComfyUI-Shared', 'ComfyUI-Installs', 'ComfyUI_windows_portable', 'comfyui']
-  for (const root of roots) for (const name of names) addBases(join(root, name))
+  for (const dir of comfyCandidateDirs()) addBases(dir)
   // ComfyUI Desktop (the official installer): its user data + configured model
   // base live under %APPDATA%\ComfyUI; read its config for the real base_path.
   for (const b of comfyDesktopBases()) addBases(b)
-  return bases
+  return [...new Set(bases)]
 }
 
 /** Model base dirs for a ComfyUI Desktop install: %APPDATA%\ComfyUI itself and

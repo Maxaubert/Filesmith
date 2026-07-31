@@ -95,6 +95,12 @@ export interface GenModel {
   wiring?: DiffusionWiring
   /** The ComfyUI models/ dir this model lives under (companion downloads target it). */
   baseDir?: string
+  /** What the file actually probed as, when that is not a family we can wire up
+   * ('unknown', 'sd3', a video DiT, …). Present only on non-runnable models, and
+   * shown to the user — a file we cannot run is still worth naming. */
+  detectedArch?: string
+  /** Probed as a non-image model (video/3D/audio). Listed, but discouraged. */
+  notImage?: boolean
 }
 
 /** Result of scanning for generation models, with counts for models we saw but
