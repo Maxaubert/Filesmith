@@ -33,7 +33,8 @@ import {
   registryArchInfo,
   downloadCompanions
 } from './generate'
-import { loadRegistry } from './registry/load'
+import { loadRegistry, layerDir, ensureUserLayers } from './registry/load'
+import { importRegistryJson } from './registry/userLayer'
 import type { GenerateOptions } from '@shared/generate'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
@@ -307,6 +308,45 @@ export function registerIpc(win: BrowserWindow): JobQueue {
     }
   })
   ipcMain.on('generate:cancel', (_e, id: string) => genControllers.get(id)?.abort())
+
+  // --- The user's own model registry -----------------------------------------
+  // "Add a model without waiting for a release": import a registry entry or a
+  // ComfyUI "Export (API)" workflow, or just open the folder and edit by hand.
+  ipcMain.handle('registry:import', async () => {
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Add a model (registry entry or ComfyUI API workflow)',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (r.canceled || !r.filePaths.length) return { ok: false }
+    const path = r.filePaths[0]
+    try {
+      return importRegistryJson(path, await readFile(path, 'utf-8'))
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle('registry:open-folder', async () => {
+    ensureUserLayers()
+    const dir = layerDir('user')
+    if (!dir) return false
+    await shell.openPath(dir)
+    return true
+  })
+  ipcMain.handle('registry:info', () => {
+    const { entries, warnings } = loadRegistry()
+    return {
+      folder: layerDir('user'),
+      warnings,
+      entries: entries.map((e) => ({
+        id: e.id,
+        kind: e.kind,
+        label: e.label,
+        source: e.provenance.source,
+        host: e.provenance.host ?? null
+      }))
+    }
+  })
 
   // --- Session persistence (queues, produced files, options) -----------------
   ipcMain.handle('session:load', () => loadSession())

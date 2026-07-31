@@ -106,6 +106,24 @@ const api = {
     ipcRenderer.invoke('comfy:install'),
   /** Open a folder picker; resolves to the chosen path or null. */
   comfyPickFolder: (): Promise<string | null> => ipcRenderer.invoke('comfy:pick-folder'),
+  // The user's own model registry (add a model with no app release).
+  /** Pick a registry entry / ComfyUI API workflow JSON and register it. */
+  registryImport: (): Promise<{
+    ok: boolean
+    error?: string
+    ids?: string[]
+    path?: string
+    notes?: string[]
+  }> => ipcRenderer.invoke('registry:import'),
+  /** Open the user registry folder in the OS file manager. */
+  registryOpenFolder: (): Promise<boolean> => ipcRenderer.invoke('registry:open-folder'),
+  /** Every known model entry with its layer + source host (provenance). */
+  registryInfo: (): Promise<{
+    folder: string | null
+    warnings: string[]
+    entries: { id: string; kind: string; label: string; source: string; host: string | null }[]
+  }> => ipcRenderer.invoke('registry:info'),
+
   /** Remember where ComfyUI is, without needing the upscale engine installed. */
   comfySetFolder: (folder: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('comfy:set-folder', folder),

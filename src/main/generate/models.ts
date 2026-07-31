@@ -207,6 +207,8 @@ export function scanGenerationModels(): GenModelScan {
           label: m.label,
           filename: m.download.filename,
           url: m.download.url,
+          urls: m.download.urls,
+          sha256: m.download.sha256,
           approxSize: m.download.approxSize,
           subdir: m.download.subdir
         }))
