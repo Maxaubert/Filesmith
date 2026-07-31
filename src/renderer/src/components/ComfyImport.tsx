@@ -63,6 +63,19 @@ export function ComfyImportCard({
     })
   }, [scan])
 
+  // Record the folder without a scan: the scan needs the engine we don't have
+  // yet, but remembering the location is exactly what lets the engine be found.
+  const locateOnly = useCallback((): void => {
+    setError(null)
+    void window.filesmith.comfyPickFolder().then((folder) => {
+      if (!folder) return
+      void window.filesmith.comfySetFolder(folder).then((r) => {
+        if (r.ok) refresh()
+        else setError(r.error ?? "Couldn't use that folder")
+      })
+    })
+  }, [refresh])
+
   const installEngine = useCallback((): void => {
     setBusy('install')
     setError(null)
@@ -95,12 +108,31 @@ export function ComfyImportCard({
           {busy === 'install' ? (
             <ProgressBar pct={progress?.pct ?? null} step={progress?.step ?? 'Preparing…'} />
           ) : (
-            <button
-              onClick={installEngine}
-              className="w-full rounded-xl bg-accent py-2.5 text-[13px] font-semibold text-white transition hover:bg-accent-hi"
-            >
-              Set up upscale engine
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={installEngine}
+                className="w-full rounded-xl bg-accent py-2.5 text-[13px] font-semibold text-white transition hover:bg-accent-hi"
+              >
+                Set up upscale engine
+              </button>
+              {/* Browse is deliberately available BEFORE the engine exists. It
+                  used to render only when engineReady, and engineReady depends
+                  on finding a ComfyUI Python — so a user whose ComfyUI was not
+                  in the guessed paths had to download 3 GB before the app would
+                  let them point at the ComfyUI they already had. Pointing at the
+                  folder is what makes discovery work, so it has to come first. */}
+              <button
+                onClick={locateOnly}
+                className="w-full rounded-xl border border-black/[.12] bg-white py-2.5 text-[13px] font-semibold text-ink transition hover:border-[#b9b9c8]"
+              >
+                {status.folder ? 'Change ComfyUI folder' : 'I already have ComfyUI — locate it'}
+              </button>
+              {status.folder && (
+                <p className="truncate text-[11.5px] text-dim" title={status.folder}>
+                  Using {status.folder}
+                </p>
+              )}
+            </div>
           )}
         </>
       ) : busy === 'scan' ? (

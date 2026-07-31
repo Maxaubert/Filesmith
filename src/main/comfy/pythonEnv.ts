@@ -1,8 +1,7 @@
 import { existsSync } from 'fs'
-import { homedir } from 'os'
 import { basename, dirname, join } from 'path'
 import { pidVenvPython } from '../pid/paths'
-import { readComfyStore } from './store'
+import { comfyCandidateDirs, comfyNestedDirs } from './roots'
 
 // Reuse ComfyUI's own Python for the spandrel (ESRGAN) upscale path. ComfyUI
 // already ships torch + spandrel + numpy + PIL — everything our sidecar needs —
@@ -32,22 +31,10 @@ function hasTorch(py: string): boolean {
 
 /** Candidate ComfyUI "code root" dirs (where a venv/embedded python would live),
  * checked at a few nesting depths near the remembered + common install spots. */
-function comfyCodeRoots(): string[] {
+export function comfyCodeRoots(): string[] {
   const roots: string[] = []
-  const add = (d: string): void => {
-    roots.push(d, join(d, 'ComfyUI'), join(d, 'ComfyUI', 'ComfyUI'))
-  }
-  const remembered = readComfyStore()?.folder
-  if (remembered) add(remembered)
-  const home = homedir()
-  const bases = [home, join(home, 'Desktop'), join(home, 'Documents'), join(home, 'Downloads'), 'C:\\', 'D:\\', 'E:\\']
-  const names = ['ComfyUI', 'ComfyUI-Installs', 'ComfyUI_windows_portable', 'comfyui', 'ComfyUI-Shared']
-  for (const b of bases) for (const n of names) add(join(b, n))
-  // ComfyUI Desktop keeps its uv-managed venv under %APPDATA%\ComfyUI and its app
-  // under %LOCALAPPDATA%\Programs\@comfyorgcomfyui-electron.
-  if (process.env.APPDATA) add(join(process.env.APPDATA, 'ComfyUI'))
-  if (process.env.LOCALAPPDATA) add(join(process.env.LOCALAPPDATA, 'Programs', '@comfyorgcomfyui-electron'))
-  return roots
+  for (const d of comfyCandidateDirs()) roots.push(...comfyNestedDirs(d))
+  return [...new Set(roots)]
 }
 
 // Common interpreter locations within a ComfyUI code root.
@@ -76,16 +63,39 @@ export function findComfyPython(): string | null {
   return found
 }
 
-/** A ComfyUI interpreter capable of LAUNCHING ComfyUI (torch present) under a
- * code root that has main.py — for generation. Does NOT require spandrel. Falls
- * back to the spandrel-capable python if no torch-only match is found. */
-export function findComfyLaunchPython(): string | null {
+/** Every torch-capable interpreter we can find, best-first. Does NOT require
+ * spandrel (that is only the upscale sidecar) and does NOT require main.py to
+ * sit beside it — see findComfyMainPy for why those two are now independent. */
+export function findComfyTorchPythons(): string[] {
+  const out: string[] = []
   for (const root of comfyCodeRoots())
     for (const sub of PY_SUBS) {
       const py = join(root, ...sub)
-      if (existsSync(py) && hasTorch(py) && existsSync(join(root, 'main.py'))) return py
+      if (existsSync(py) && hasTorch(py)) out.push(py)
     }
-  return findComfyPython()
+  return [...new Set(out)]
+}
+
+/**
+ * A ComfyUI source tree (a directory containing main.py), searched independently
+ * of where the interpreter lives.
+ *
+ * These MUST be decoupled. ComfyUI **Desktop** puts its uv venv in the base dir
+ * the user chose during setup, while ComfyUI's own source ships inside the
+ * Electron app under `resources/ComfyUI`. The old rule — interpreter and main.py
+ * in the same root — could never be satisfied by that layout, so every Desktop
+ * install was reported "ComfyUI wasn't found" forever, no matter what the user
+ * did. Desktop is the official installer, i.e. exactly the non-technical user.
+ */
+export function findComfyMainPy(): string | null {
+  for (const root of comfyCodeRoots()) if (existsSync(join(root, 'main.py'))) return root
+  return null
+}
+
+/** A ComfyUI interpreter capable of LAUNCHING ComfyUI (torch present), for
+ * generation. Falls back to the spandrel-capable python if none is found. */
+export function findComfyLaunchPython(): string | null {
+  return findComfyTorchPythons()[0] ?? findComfyPython()
 }
 
 /** Re-probe on next call (e.g. after the user points at a new ComfyUI folder). */

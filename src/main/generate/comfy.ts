@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'child_process'
 import { existsSync, writeFileSync } from 'fs'
 import { dirname, join, resolve } from 'path'
 import { app } from 'electron'
-import { findComfyLaunchPython } from '../comfy/pythonEnv'
+import { findComfyLaunchPython, findComfyMainPy } from '../comfy/pythonEnv'
 import { comfyModelsBases } from '../comfy/discover'
 
 // A headless ComfyUI, driven over its HTTP API. We connect to an already-running
@@ -20,13 +20,18 @@ export function findComfyLaunch(): { python: string; cwd: string } | null {
   // Generation only needs a torch-capable ComfyUI, not the spandrel (upscale) env.
   const py = findComfyLaunchPython()
   if (!py) return null
-  const candidates = [
+  // Prefer a main.py near the interpreter (a portable/venv install keeps them
+  // together), but fall back to any main.py we can find. ComfyUI Desktop puts
+  // the venv and the source in completely different trees, so requiring them to
+  // be adjacent made every Desktop install permanently unlaunchable.
+  const near = [
     dirname(dirname(dirname(py))), // <root>/.venv/Scripts/python.exe -> <root>
     join(dirname(dirname(py)), 'ComfyUI'), // <portable>/python_embeded -> sibling ComfyUI
     dirname(dirname(py))
   ]
-  for (const c of candidates) if (existsSync(join(c, 'main.py'))) return { python: py, cwd: c }
-  return null
+  for (const c of near) if (existsSync(join(c, 'main.py'))) return { python: py, cwd: c }
+  const anywhere = findComfyMainPy()
+  return anywhere ? { python: py, cwd: anywhere } : null
 }
 
 /**

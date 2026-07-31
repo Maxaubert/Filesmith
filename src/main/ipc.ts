@@ -238,6 +238,21 @@ export function registerIpc(win: BrowserWindow): JobQueue {
     })
     return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
   })
+  // Record where ComfyUI is WITHOUT running a spandrel scan. The scan needs the
+  // torch/spandrel engine, so routing every "here is my ComfyUI" through it made
+  // the folder unsettable for anyone who hadn't done the ~3 GB engine download —
+  // including generation users, who need no such engine. One pick from anywhere
+  // now feeds generate, upscale and companion discovery alike.
+  ipcMain.handle('comfy:set-folder', (_e, folder: string) => {
+    try {
+      if (!folder || !existsSync(folder)) return { ok: false, error: 'That folder no longer exists.' }
+      writeComfyStore({ folder, models: readComfyStore()?.models ?? [] })
+      clearComfyPythonCache()
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
   ipcMain.handle('comfy:scan', async (_e, folder: string) => {
     try {
       // A newly-picked folder may bring its own ComfyUI Python into scope.
