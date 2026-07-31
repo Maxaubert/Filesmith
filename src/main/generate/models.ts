@@ -8,7 +8,14 @@ import { scoreDetect } from '@shared/registry'
 import { comfyModelsBases } from '../comfy/discover'
 import { registryEntries, registryEntry } from '../registry/load'
 import type { SafetensorsHeader } from './archScan'
-import { classifyModelFile, inspectModelFile, readSafetensorsHeader } from './archScan'
+import {
+  classifyArch,
+  classifyModelFile,
+  inspectModelFile,
+  isExcludedNonImage,
+  readSafetensorsHeader
+} from './archScan'
+import { readGgufHeader } from './ggufScan'
 import { resolveArch } from './archRegistry'
 
 // The generation model list the UI shows: single-file checkpoints AND recognized
@@ -35,6 +42,17 @@ function supportedArches(): string[] {
  * their previous behaviour while a user- or channel-added family becomes
  * recognizable without touching the classifier.
  */
+/** inspectModelFile's shape, for a GGUF. Unreadable => unrecognized, as before. */
+function inspectGgufFile(path: string): {
+  arch: string
+  excluded: boolean
+  header: SafetensorsHeader | null
+} {
+  const h = readGgufHeader(path)
+  if (!h) return { arch: 'unknown', excluded: false, header: null }
+  return { arch: classifyArch(h), excluded: isExcludedNonImage(h), header: h }
+}
+
 function registryArch(header: SafetensorsHeader | null, probe: ProbedFile): string | null {
   let best: string | null = null
   let bestScore = 0
@@ -158,25 +176,14 @@ export function scanGenerationModels(): GenModelScan {
 
   // --- Bare diffusion models (UNETLoader + separate encoders/VAE) ----------
   for (const { rel, abs, base } of walkModels(['diffusion_models', 'unet'], /\.(safetensors|sft|gguf)$/i)) {
-    if (/\.gguf$/i.test(rel)) {
-      // Listed, not counted. A counter line under the picker said "1 GGUF" and
-      // nothing else; the file itself in the list says the same thing and says
-      // WHICH file. Nothing on disk is invisible, and nothing needs a caption.
-      gguf += 1
-      models.push({
-        name: rel,
-        label: label(rel),
-        arch: 'sdxl',
-        group: 'Unrecognized',
-        source: 'diffusion',
-        runnable: false,
-        baseDir: base,
-        detectedArch: 'gguf',
-        reason: 'GGUF models are not supported yet.'
-      })
-      continue
-    }
-    const inspected = inspectModelFile(abs)
+    // GGUF is the quantized container (a 24 GB Flux at ~7 GB, which is how it
+    // fits a smaller card). Its tensor names are the same ones the safetensors
+    // build uses, so reading its header lets the ORDINARY classifier identify
+    // it — no new rules, no filename guessing. It loads through UnetLoaderGGUF
+    // instead of UNETLoader, which is the only real difference downstream.
+    const isGguf = /\.gguf$/i.test(rel)
+    if (isGguf) gguf += 1
+    const inspected = isGguf ? inspectGgufFile(abs) : inspectModelFile(abs)
     const isExcluded = inspected.excluded
     // Registry-declared detection only fills the gap the classifier left, so the
     // shipped families behave exactly as before.
@@ -221,8 +228,9 @@ export function scanGenerationModels(): GenModelScan {
         baseDir: base,
         detectedArch: arch,
         tryAnyway: true,
-        reason:
-          arch === 'unknown'
+        reason: isGguf
+          ? "Filesmith couldn't read this GGUF's architecture."
+          : arch === 'unknown'
             ? "Filesmith doesn't recognize this architecture yet."
             : `Detected as ${arch}, which Filesmith can't build a workflow for yet.`
       })
@@ -230,7 +238,14 @@ export function scanGenerationModels(): GenModelScan {
     }
     const ga = arch as GenArch
     const { missing, wiring } = resolveArch(ga, rel, fileSize(abs))
-    const common = { name: rel, label: label(rel), arch: ga, group: archGroup(ga), source: 'diffusion' as const, baseDir: base }
+    const common = {
+      name: rel,
+      label: label(rel),
+      arch: ga,
+      group: archGroup(ga),
+      source: (isGguf ? 'gguf' : 'diffusion') as 'gguf' | 'diffusion',
+      baseDir: base
+    }
     if (!missing.length && wiring) {
       models.push({ ...common, runnable: true, wiring })
     } else {

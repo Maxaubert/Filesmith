@@ -145,6 +145,10 @@ export interface RegistryEntry {
   workflow?: WorkflowSpec
   /** Graph for the same family as an all-in-one single-file checkpoint. */
   checkpointWorkflow?: WorkflowSpec
+  /** Graph for the quantized GGUF build. Optional: when absent it is DERIVED
+   * from `workflow` by swapping the UNET loader, so a family gets GGUF support
+   * for free and an entry only supplies this if its GGUF wiring differs. */
+  ggufWorkflow?: WorkflowSpec
   /** Non-downloaded files that must sit beside the runner (ncnn .param/.bin). */
   files?: { path: string; sha256?: string }[]
   /** 'comfy' | 'realesrgan-ncnn' | 'spandrel' | 'rembg' | 'pid'. */
@@ -396,7 +400,7 @@ export function validateEntry(e: RegistryEntry): string[] {
   for (const c of e.companions ?? []) checkCompanion(c)
   for (const s of e.companionSets ?? []) for (const c of s.companions ?? []) checkCompanion(c)
 
-  for (const wf of [e.workflow, e.checkpointWorkflow]) {
+  for (const wf of [e.workflow, e.checkpointWorkflow, e.ggufWorkflow]) {
     if (!wf) continue
     if (wf.format !== 'comfy-api-v1') errs.push(`${e.id}: unknown workflow format "${wf.format}"`)
     for (const [nid, node] of Object.entries(wf.template ?? {})) {

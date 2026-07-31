@@ -1,5 +1,6 @@
 import type { GenModel, DiffusionWiring, GenArch } from '@shared/genArch'
 import { registryEntry } from '../registry/load'
+import { GGUF_UNET_NODE } from './workflow'
 
 // Before queueing, reconcile with the ACTUAL ComfyUI on the other end via
 // /object_info, instead of trusting filesystem-derived names and assuming node
@@ -62,6 +63,12 @@ export interface Resolved {
 }
 
 function missingNodeError(arch: GenArch, node: string): Error {
+  // The GGUF loader is not part of ComfyUI — telling the user to "update
+  // ComfyUI" would send them somewhere that can never fix it.
+  if (node === GGUF_UNET_NODE)
+    return new Error(
+      'Running a GGUF model needs the ComfyUI-GGUF custom node. Install it in ComfyUI (github.com/city96/ComfyUI-GGUF), restart ComfyUI, then try again.'
+    )
   const note = registryEntry(arch)?.requires?.minComfyNote
   return new Error(
     note ?? `Your ComfyUI is missing the "${node}" node — update ComfyUI to the latest version and try again.`
@@ -98,7 +105,9 @@ export async function resolveAgainstComfy(
   }
 
   // Diffusion model: UNET + CLIP(+2) + VAE, all resolved to ComfyUI's own names.
-  need('UNETLoader')
+  // A quantized model loads through ComfyUI-GGUF's node instead.
+  const unetNode = gm.source === 'gguf' ? GGUF_UNET_NODE : 'UNETLoader'
+  need(unetNode)
   need('VAELoader')
   if (!tryAnyway) for (const n of extraNodes(gm.arch)) need(n)
   const clip = clipReq(gm.arch) ?? (tryAnyway ? { loader: 'CLIPLoader' as const, type: '' } : null)
@@ -116,7 +125,7 @@ export async function resolveAgainstComfy(
   const w = gm.wiring
   if (!w) throw new Error('This model has no resolved loader wiring; rescan and try again.')
 
-  const unet = resolveName(acceptedValues(oi, 'UNETLoader', 'unet_name'), w.unet)
+  const unet = resolveName(acceptedValues(oi, unetNode, 'unet_name'), w.unet)
   const vae = resolveName(acceptedValues(oi, 'VAELoader', 'vae_name'), w.vae)
   const clipInput = clip.loader === 'DualCLIPLoader' ? 'clip_name1' : 'clip_name'
   const clipList = acceptedValues(oi, clip.loader, clipInput).concat(

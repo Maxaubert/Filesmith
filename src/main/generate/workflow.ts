@@ -121,6 +121,32 @@ function genericWorkflow(gm: GenModel): WorkflowSpec {
   }
 }
 
+/** The ComfyUI-GGUF loader that replaces UNETLoader for a quantized model. */
+export const GGUF_UNET_NODE = 'UnetLoaderGGUF'
+
+/**
+ * A family's GGUF graph, derived from its normal one by swapping the UNET
+ * loader. Deriving beats duplicating four near-identical graphs in the shipped
+ * pack: the copies would drift, and every future family would have to remember
+ * to add one. An entry can still supply `ggufWorkflow` explicitly when its GGUF
+ * wiring genuinely differs.
+ */
+export function deriveGgufWorkflow(spec: WorkflowSpec): WorkflowSpec {
+  const template: Record<string, WorkflowNode> = {}
+  for (const [id, node] of Object.entries(spec.template)) {
+    if (node.class_type !== 'UNETLoader') {
+      template[id] = node
+      continue
+    }
+    // UnetLoaderGGUF takes unet_name only — weight_dtype is meaningless for an
+    // already-quantized file and the node rejects the extra input.
+    const inputs = { ...node.inputs }
+    delete inputs.weight_dtype
+    template[id] = { class_type: GGUF_UNET_NODE, inputs }
+  }
+  return { format: spec.format, template }
+}
+
 /**
  * Build the graph for one model + options. Throws with a message a user can act
  * on when the registry has no workflow for this architecture (the old `default:`
@@ -134,7 +160,12 @@ export function buildWorkflow(
   tryAnyway = false
 ): Record<string, WorkflowNode> {
   const entry = registryEntry(gm.arch)
-  let spec = gm.source === 'checkpoint' ? entry?.checkpointWorkflow : entry?.workflow
+  let spec =
+    gm.source === 'checkpoint'
+      ? entry?.checkpointWorkflow
+      : gm.source === 'gguf'
+        ? (entry?.ggufWorkflow ?? (entry?.workflow ? deriveGgufWorkflow(entry.workflow) : undefined))
+        : entry?.workflow
   // "Try anyway": no known workflow, so send the generic one and let ComfyUI
   // give its own verdict. The user learns something either way — which beats a
   // model that is simply invisible or refused with no route forward.

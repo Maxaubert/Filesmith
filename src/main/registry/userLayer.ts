@@ -95,6 +95,7 @@ export function entryFromApiWorkflow(
   const template: Record<string, WorkflowNode> = {}
   let clipLoader: { node: 'CLIPLoader' | 'DualCLIPLoader'; type: string } | undefined
   let sawUnet = false
+  let sawGguf = false
   let sawCheckpoint = false
   let positiveDone = false
 
@@ -105,6 +106,11 @@ export function entryFromApiWorkflow(
       case 'UNETLoader':
         inputs.unet_name = '${unet}'
         sawUnet = true
+        break
+      // A workflow exported from a GGUF setup loads through ComfyUI-GGUF's node.
+      case 'UnetLoaderGGUF':
+        inputs.unet_name = '${unet}'
+        sawGguf = true
         break
       case 'CheckpointLoaderSimple':
         inputs.ckpt_name = '${model}'
@@ -149,7 +155,7 @@ export function entryFromApiWorkflow(
     template[nid] = { class_type: node.class_type, inputs }
   }
 
-  if (!sawUnet && !sawCheckpoint)
+  if (!sawUnet && !sawGguf && !sawCheckpoint)
     notes.push(
       'No UNETLoader or CheckpointLoaderSimple was found, so Filesmith cannot substitute the model file. The graph will always use whatever it was exported with.'
     )
@@ -185,7 +191,7 @@ export function entryFromApiWorkflow(
       nodes: [...nodes].filter((n) => !/^(UNETLoader|VAELoader|CLIPLoader|DualCLIPLoader)$/.test(n)),
       ...(clipLoader ? { clipLoader } : {})
     },
-    [sawCheckpoint && !sawUnet ? 'checkpointWorkflow' : 'workflow']: {
+    [sawGguf ? 'ggufWorkflow' : sawCheckpoint && !sawUnet ? 'checkpointWorkflow' : 'workflow']: {
       format: 'comfy-api-v1',
       template
     }

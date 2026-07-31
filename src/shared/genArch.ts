@@ -94,9 +94,10 @@ export interface GenModel {
   /** Display label (basename, no extension). */
   label: string
   arch: GenArch
-  /** How the model loads: a single-file checkpoint (CheckpointLoaderSimple) or a
-   * bare diffusion model (UNETLoader + separate encoders/VAE). */
-  source: 'checkpoint' | 'diffusion'
+  /** How the model loads: a single-file checkpoint (CheckpointLoaderSimple), a
+   * bare diffusion model (UNETLoader + separate encoders/VAE), or a quantized
+   * GGUF (UnetLoaderGGUF, from the ComfyUI-GGUF custom node). */
+  source: 'checkpoint' | 'diffusion' | 'gguf'
   /** Picker group heading (ARCH_INFO[arch].group). */
   group: string
   /** Ready to generate now. */
