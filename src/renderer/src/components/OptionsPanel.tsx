@@ -507,38 +507,26 @@ function UpscaleOptions({
           </>
         )}
       </div>
-      {/* GPU usage: the tiled engines (Real-ESRGAN / ComfyUI) can leave headroom;
-          PiD's diffusion runs in one pass, so it's shown but explained there. */}
-      <div>
-        <Label>GPU usage</Label>
-        {isPid ? (
-          <>
-            <p className="text-[12px] text-dim">
-              PiD runs at full GPU — its diffusion can&apos;t be paced. Use a ComfyUI, Photo, or
-              Anime model for a Background option.
-            </p>
-            {lowVram && (
-              <p className="mt-1.5 text-[11px] text-dim">
-                Your GPU reports ~{Math.round((vramMb as number) / 1024)} GB — PiD will
-                auto-reduce resolution on large images to fit.
-              </p>
-            )}
-          </>
-        ) : (
-          <>
-            <Segmented
-              value={String(options.gpuMode ?? 'full')}
-              onChange={(v) => set('gpuMode', v)}
-              options={UPSCALE_GPU_MODES.map((o) => ({ value: o.value, label: o.label }))}
-            />
-            {String(options.gpuMode ?? 'full') === 'background' && (
-              <p className="mt-1.5 text-[11px] text-dim">
-                Slower, but caps VRAM and paces the work so the GPU stays free for other apps.
-              </p>
-            )}
-          </>
-        )}
-      </div>
+      {/* GPU usage. The option names carry their own meaning, so there is no
+          explanatory line under them. PiD's diffusion runs in one pass and can't
+          be paced, so it gets no control at all rather than a disabled one. */}
+      {!isPid && (
+        <div>
+          <Label>GPU usage</Label>
+          <Segmented
+            value={String(options.gpuMode ?? 'full')}
+            onChange={(v) => set('gpuMode', v)}
+            options={UPSCALE_GPU_MODES.map((o) => ({ value: o.value, label: o.label }))}
+          />
+        </div>
+      )}
+      {/* Not option help: a capability warning the user can't infer from the UI. */}
+      {isPid && lowVram && (
+        <p className="text-[11.5px] leading-relaxed text-dim">
+          Your GPU reports ~{Math.round((vramMb as number) / 1024)} GB — PiD will auto-reduce
+          resolution on large images to fit.
+        </p>
+      )}
       {outputs && outputs.length > 0 && (
         <div>
           <Label>Output</Label>
@@ -693,11 +681,11 @@ function RemoveBgOptions({
       {rembg && !rembg.ready && (
         <div className="mb-3 rounded-xl border border-black/[.10] bg-white p-3 text-[12px] leading-relaxed text-muted">
           {rembg.uvAvailable ? (
-            <>Background removal uses an AI model. The first run downloads it once (a few hundred MB); after that it&apos;s instant and offline.</>
+            <>First run downloads the AI model once (a few hundred MB), then works offline.</>
           ) : (
             <>
-              Background removal uses an AI model and needs the free <span className="font-semibold text-ink">uv</span>{' '}
-              tool. Install it with <span className="font-mono text-ink">winget install astral-sh.uv</span>, then reopen
+              Needs the free <span className="font-semibold text-ink">uv</span> tool:{' '}
+              <span className="font-mono text-ink">winget install astral-sh.uv</span>, then reopen
               Filesmith.
             </>
           )}
@@ -963,10 +951,7 @@ function LocateComfy({ onLocated }: { onLocated: () => void }): JSX.Element {
   }
   return (
     <div className="space-y-2.5 rounded-xl border border-black/[.10] bg-white p-3">
-      <p className="text-[12px] leading-relaxed text-muted">
-        ComfyUI wasn&apos;t found automatically. If you already have it, point Filesmith at the
-        folder — that also enables your own models everywhere else in the app.
-      </p>
+      <p className="text-[12px] text-muted">ComfyUI wasn&apos;t found automatically.</p>
       <button
         onClick={pick}
         className="w-full rounded-xl bg-accent px-3 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-110"
@@ -1002,16 +987,12 @@ function AddModel({ onAdded }: { onAdded: () => void }): JSX.Element {
   }
   return (
     <div className="mt-3 space-y-2 border-t border-black/[.07] pt-3">
-      <p className="text-[11.5px] leading-relaxed text-dim">
-        Model not listed? Add it yourself — no Filesmith update needed. Your entries live in your own
-        folder and survive every app update.
-      </p>
       <div className="flex gap-2">
         <button
           onClick={importOne}
           className="flex-1 rounded-xl border border-black/[.12] bg-white px-3 py-2 text-[12.5px] font-semibold text-ink transition hover:border-[#b9b9c8]"
         >
-          Import a model or workflow…
+          Add a model…
         </button>
         <button
           onClick={() => void window.filesmith.registryOpenFolder()}
@@ -1122,12 +1103,6 @@ function GenerateOptions({
                 {tryAnyway ? 'Will try anyway — click to cancel' : 'Try anyway'}
               </button>
             )}
-            {tryAnyway && (
-              <p className="text-[11px] leading-relaxed text-dim">
-                Filesmith will send this through a standard ComfyUI graph. If it doesn&apos;t work,
-                you&apos;ll see ComfyUI&apos;s own error.
-              </p>
-            )}
           </div>
         ) : null}
         {/* Say what we saw. `gguf` and `excluded` were computed, sent to the
@@ -1136,15 +1111,14 @@ function GenerateOptions({
             hint that the app had seen anything at all. */}
         {status && (status.gguf > 0 || status.excluded > 0 || status.unrecognized > 0) && (
           <p className="mt-2 text-[11px] leading-relaxed text-dim">
+            Also found:{' '}
             {[
-              status.unrecognized > 0 &&
-                `${status.unrecognized} unrecognized (listed at the bottom)`,
+              status.unrecognized > 0 && `${status.unrecognized} unrecognized`,
               status.excluded > 0 && `${status.excluded} video/3D/audio`,
-              status.gguf > 0 && `${status.gguf} GGUF (not supported yet)`
+              status.gguf > 0 && `${status.gguf} GGUF`
             ]
               .filter(Boolean)
-              .join(' · ')}{' '}
-            also found in your models folder.
+              .join(' · ')}
           </p>
         )}
         {/* Registry problems are surfaced, not swallowed: a user's own entry that

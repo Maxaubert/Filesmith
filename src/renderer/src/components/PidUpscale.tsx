@@ -33,10 +33,11 @@ export function PidInstallCard({ onInstalled }: { onInstalled: () => void }): JS
   const pct = progress?.pct ?? null
   return (
     <div className="space-y-3 rounded-xl border border-black/[.10] bg-white p-3.5">
+      {/* Cost and licence, nothing else — both are things the user cannot infer
+          and must know BEFORE committing to a multi-GB download. */}
       <p className="text-[12.5px] leading-relaxed text-muted">
-        PiD is NVIDIA&apos;s diffusion upscaler. Its model weights are licensed for
-        <span className="font-semibold text-ink"> non-commercial use only</span>. A one-time
-        <span className="font-semibold text-ink"> ~6 GB</span> download sets it up.
+        <span className="font-semibold text-ink">~6 GB</span> one-time download ·{' '}
+        <span className="font-semibold text-ink">non-commercial use only</span>
       </p>
 
       {installing ? (

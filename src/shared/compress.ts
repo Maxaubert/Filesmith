@@ -97,8 +97,8 @@ export const UPSCALE_FACTORS: UpscaleFactor[] = [2, 3, 4]
 // tiled engines (Real-ESRGAN, ComfyUI/spandrel) — PiD's diffusion can't be paced.
 export type UpscaleGpuMode = 'full' | 'background'
 export const UPSCALE_GPU_MODES: Choice<UpscaleGpuMode>[] = [
-  { value: 'full', label: 'Full speed' },
-  { value: 'background', label: 'Background' }
+  { value: 'full', label: 'Full GPU usage' },
+  { value: 'background', label: 'Balanced' }
 ]
 
 /** Output pixel size for a scale factor (for the live preview list). */
