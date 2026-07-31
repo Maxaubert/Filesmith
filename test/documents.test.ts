@@ -85,6 +85,24 @@ describe('soffice (LibreOffice) args', () => {
     expect(args.some((a) => a.startsWith('-env:UserInstallation='))).toBe(true)
   })
 
+  it('percent-encodes the profile URL so a spaced %TEMP% still converts', () => {
+    // Regression: `'file:///' + dir` left the space literal, and soffice then
+    // died with a C++ exception and an EMPTY stderr — breaking every document
+    // conversion for any user whose account name contains a space, since the
+    // profile is created under %TEMP%.
+    const env = (dir: string) =>
+      buildSofficeArgs('C:/in/a.docx', 'C:/out', dir, '.pdf').find((a) =>
+        a.startsWith('-env:UserInstallation=')
+      )!
+    const spaced = env('C:\\Users\\John Smith\\AppData\\Local\\Temp\\fs-doc\\profile')
+    expect(spaced).toContain('%20')
+    expect(spaced).not.toMatch(/ /)
+    // `#` would otherwise make soffice.bin hang indefinitely (no timeout exists).
+    expect(env('C:/tmp/a#b/profile')).toContain('%23')
+    // Every profile URL is a file: URL with forward slashes and a drive letter.
+    expect(env('C:\\tmp\\profile')).toMatch(/^-env:UserInstallation=file:\/\/\/C:\/tmp\/profile$/)
+  })
+
   it('predicts LibreOffice output filename in the outdir', () => {
     expect(sofficeOutputPath('C:/in/report.docx', 'C:/tmp', '.pdf')).toBe(join('C:/tmp', 'report.pdf'))
     expect(sofficeOutputPath('C:/in/report.docx', 'C:/tmp', 'txt')).toBe(join('C:/tmp', 'report.txt'))

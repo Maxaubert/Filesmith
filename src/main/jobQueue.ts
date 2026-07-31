@@ -3,6 +3,8 @@ import { statSync } from 'fs'
 import type { JobEvent, JobRequest } from '@shared/types'
 import { fileInfoFromPath } from './fileInfo'
 import { getTool } from './tools/registry'
+import { ToolMissingError } from './run'
+import { toolMissingMessage } from './toolResolver'
 
 type Emit = (event: JobEvent) => void
 
@@ -97,7 +99,13 @@ export class JobQueue {
       this.emit({
         id: req.id,
         status: aborted ? 'canceled' : 'failed',
-        error: aborted ? undefined : ((err as Error).message ?? String(err))
+        // Last line of defence: any tool that never started reaches the card as
+        // an install message, not `spawn <name> ENOENT`, whichever module threw.
+        error: aborted
+          ? undefined
+          : err instanceof ToolMissingError
+            ? toolMissingMessage(err.tool)
+            : ((err as Error).message ?? String(err))
       })
     } finally {
       this.controllers.delete(req.id)

@@ -313,6 +313,95 @@ async function bundleRealesrgan() {
   }
 }
 
+/**
+ * The tree-shaped tools, each with the file whose absence means it did not get
+ * bundled. These ship via electron-builder's `extraResources`, and app-builder's
+ * `copyFiles()` only **warns** on a missing source (`if (fromStat == null) {
+ * log.warn(...); return }`) — so without this check `npm run package` exits 0 on
+ * a machine that has none of them and produces an installer with dead PDF
+ * compress, dead AI upscale and dead document conversion.
+ */
+const REQUIRED_TREES = [
+  {
+    id: 'libreoffice',
+    probe: ['libreoffice', 'program', 'soffice.com'],
+    what: 'document conversion',
+    how: 'winget install TheDocumentFoundation.LibreOffice (or set LIBREOFFICE_DIR)'
+  },
+  {
+    id: 'ghostscript',
+    probe: ['ghostscript', 'bin', 'gswin64c.exe'],
+    what: 'PDF compress (non-lossless levels)',
+    how: 'install Ghostscript or 7-Zip so the download path can extract it'
+  },
+  {
+    id: 'realesrgan',
+    probe: ['realesrgan', 'realesrgan-ncnn-vulkan.exe'],
+    what: 'AI image upscale',
+    how: 'set REALESRGAN_DIR, or re-run with network access to fetch the release zip'
+  },
+  {
+    id: 'realesrgan-models',
+    probe: ['realesrgan', 'models'],
+    what: 'AI image upscale (no model files)',
+    how: 'same as realesrgan — the models/ folder must contain at least one .param',
+    // A tree with an empty models/ dir upscales nothing, so probe contents too.
+    nonEmptyParam: true
+  }
+]
+
+/** `--skip=<id>[,<id>]`: deliberately build without a tree (a dev build). */
+const skipArg = process.argv.find((a) => a.startsWith('--skip='))
+const SKIPPED = new Set((skipArg?.slice('--skip='.length) ?? '').split(',').filter(Boolean))
+
+/**
+ * A skipped tree still has to *exist* as a directory, otherwise electron-builder
+ * logs a warning for a missing `extraResources` source and the operator learns
+ * nothing. Leave a marker so the omission is visible in the packaged app too.
+ */
+function markSkipped(id) {
+  const dir = join(ROOT, 'resources', id)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    join(dir, 'SKIPPED.txt'),
+    `This build was packaged with --skip=${id}. Features depending on it are unavailable.\n`
+  )
+}
+
+/** Fail the build loudly rather than shipping a silently broken installer. */
+function assertBundled() {
+  const missing = []
+
+  const required = ['magick.exe', 'ffmpeg.exe', 'ffprobe.exe', 'caesiumclt.exe', 'mutool.exe']
+  for (const f of required)
+    if (!existsSync(join(BIN, f)))
+      missing.push({
+        id: f,
+        what: 'core convert/compress/PDF',
+        how: 'winget install ImageMagick.ImageMagick Gyan.FFmpeg ArtifexSoftware.mutool SaeraSoft.CaesiumCLT'
+      })
+
+  for (const t of REQUIRED_TREES) {
+    const base = t.id.split('-')[0]
+    if (SKIPPED.has(t.id) || SKIPPED.has(base)) continue
+    const p = join(ROOT, 'resources', ...t.probe)
+    let ok = existsSync(p)
+    if (ok && t.nonEmptyParam) ok = readdirSync(p).some((f) => f.endsWith('.param'))
+    if (!ok) missing.push({ ...t, path: p })
+  }
+
+  if (!missing.length) return
+  log('\n❌ This build would ship broken. Missing:')
+  for (const m of missing) log(`   • ${m.id} — breaks ${m.what}\n     ${m.how}`)
+  log('\n   Fix them and re-run, or pass --skip=<id> to build without one deliberately.')
+  process.exit(1)
+}
+
+for (const id of SKIPPED) {
+  log(`  ! --skip=${id}: building WITHOUT it`)
+  if (REQUIRED_TREES.some((t) => t.id === id || t.id.split('-')[0] === id)) markSkipped(id)
+}
+
 // `--lo-only` bundles just LibreOffice (the big download), leaving the fast
 // resources/bin tools untouched. `--gs-only` / `--esrgan-only` likewise.
 if (process.argv.includes('--lo-only')) {
@@ -327,23 +416,13 @@ if (process.argv.includes('--lo-only')) {
   bundleCaesium()
   await bundleFfmpeg()
   bundleMutool()
-  await bundleGhostscript()
-  await bundleRealesrgan()
-  bundleLibreOffice()
+  if (!SKIPPED.has('ghostscript')) await bundleGhostscript()
+  if (!SKIPPED.has('realesrgan')) await bundleRealesrgan()
+  if (!SKIPPED.has('libreoffice')) bundleLibreOffice()
 
   const bundled = readdirSync(BIN).filter((f) => f !== '.gitkeep')
   const total = bundled.reduce((s, f) => s + statSync(join(BIN, f)).size, 0)
   log(`\nresources/bin: ${bundled.length} files, ${(total / MB).toFixed(1)} MB total`)
 
-  // Fail the build loudly if a core tool didn't get bundled, so `npm run package`
-  // can never ship an installer whose convert/compress/PDF tools are broken. The
-  // copy-sourced tools (magick/caesium/mutool) only warn-and-return when absent,
-  // so without this a clean machine would silently produce a broken installer.
-  const required = ['magick.exe', 'ffmpeg.exe', 'ffprobe.exe', 'caesiumclt.exe', 'mutool.exe']
-  const missing = required.filter((f) => !existsSync(join(BIN, f)))
-  if (missing.length) {
-    log(`\n❌ Missing core binaries in resources/bin: ${missing.join(', ')}`)
-    log('   Install them (winget: ImageMagick.ImageMagick, Gyan.FFmpeg, ArtifexSoftware.mutool) and re-run.')
-    process.exit(1)
-  }
+  assertBundled()
 }
