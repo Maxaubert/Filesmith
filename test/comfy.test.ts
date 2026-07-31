@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { classifyModel, normalizeModelName } from '../src/shared/comfy'
 import { classifySpandrelLine } from '../src/main/comfy/sidecar'
 import { resolveUpscaleDirs, scanModelFiles } from '../src/main/comfy/discover'
+import { candidateComfyUrls } from '../src/main/generate/comfy'
 import {
   COMFY_DIR_NAMES,
   comfyCandidateDirs,
@@ -48,6 +49,27 @@ describe('ComfyUI search roots (one list, used everywhere)', () => {
     expect(nested).toContain(join('D:\\AI', 'ComfyUI'))
     expect(nested).toContain(join('D:\\AI', 'resources', 'ComfyUI'))
     expect(nested).toContain(join('D:\\AI', 'resources', 'app', 'ComfyUI'))
+  })
+})
+
+describe('ComfyUI server URLs', () => {
+  it('tries an explicit override before the default port', () => {
+    const prev = process.env.FILESMITH_COMFY_URL
+    process.env.FILESMITH_COMFY_URL = 'http://10.0.0.4:8188/'
+    try {
+      const urls = candidateComfyUrls()
+      expect(urls[0]).toBe('http://10.0.0.4:8188') // trailing slash trimmed
+      expect(urls).toContain('http://127.0.0.1:8188')
+    } finally {
+      if (prev === undefined) delete process.env.FILESMITH_COMFY_URL
+      else process.env.FILESMITH_COMFY_URL = prev
+    }
+  })
+
+  it('always includes ComfyUI’s default, with no duplicates', () => {
+    const urls = candidateComfyUrls()
+    expect(urls).toContain('http://127.0.0.1:8188')
+    expect(new Set(urls).size).toBe(urls.length)
   })
 })
 

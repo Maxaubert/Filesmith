@@ -1022,10 +1022,21 @@ function GenerateOptions({
         ) : selected && !selected.runnable && selected.reason ? (
           <p className="mt-2 text-[11.5px] leading-relaxed text-muted">{selected.reason}</p>
         ) : null}
-        {status && status.unrecognized > 0 && (
+        {/* Say what we saw. `gguf` and `excluded` were computed, sent to the
+            renderer, and then never rendered — so a user whose diffusion_models
+            folder is full of GGUF files was told "No image models found" with no
+            hint that the app had seen anything at all. */}
+        {status && (status.gguf > 0 || status.excluded > 0 || status.unrecognized > 0) && (
           <p className="mt-2 text-[11px] leading-relaxed text-dim">
-            {status.unrecognized} unrecognized model{status.unrecognized === 1 ? '' : 's'} in your folder{' '}
-            {status.unrecognized === 1 ? "isn't" : "aren't"} shown.
+            {[
+              status.unrecognized > 0 &&
+                `${status.unrecognized} unrecognized (listed at the bottom)`,
+              status.excluded > 0 && `${status.excluded} video/3D/audio`,
+              status.gguf > 0 && `${status.gguf} GGUF (not supported yet)`
+            ]
+              .filter(Boolean)
+              .join(' · ')}{' '}
+            also found in your models folder.
           </p>
         )}
       </div>

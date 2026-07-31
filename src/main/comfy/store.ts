@@ -11,6 +11,10 @@ export interface ComfyStore {
   /** The folder the user selected (ComfyUI root / models / upscale_models). */
   folder: string
   models: ComfyModel[]
+  /** An explicit ComfyUI server to talk to (e.g. a non-default port, or one on
+   * another machine). Tried before the default 8188 and before launching ours.
+   * Also settable per-run with FILESMITH_COMFY_URL. */
+  serverUrl?: string
 }
 
 function storePath(): string {
