@@ -23,3 +23,7 @@ resources/realesrgan/
 __pycache__/
 *.pyc
 build/logo-mockups/
+
+# Channel signing key — never commit. See scripts/registry-channel.mjs
+channel-private.pem
+channel.json
