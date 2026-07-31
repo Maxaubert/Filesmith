@@ -75,7 +75,14 @@ export const ARCH_INFO: Record<string, ArchInfo> = {
 export interface MissingFile {
   label: string
   filename: string
+  /** Primary source (urls[0]) — kept for display. */
   url: string
+  /** Every mirror, tried in order: a pinned commit first, a moving branch last,
+   * so a repo reorg degrades to a fallback instead of 404ing the model out of
+   * existence. */
+  urls?: string[]
+  /** Declared checksum, verified while streaming. */
+  sha256?: string
   approxSize: string
   subdir: 'text_encoders' | 'vae'
 }

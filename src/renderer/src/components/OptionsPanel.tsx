@@ -959,6 +959,60 @@ function LocateComfy({ onLocated }: { onLocated: () => void }): JSX.Element {
 }
 
 /**
+ * "Add a model" — the escape hatch that means a new architecture never requires
+ * an app release. Importing a ComfyUI "Export (API)" workflow is the highest-
+ * leverage case: a user who can already generate a model inside ComfyUI can now
+ * generate it here, with no knowledge of Filesmith's internals.
+ */
+function AddModel({ onAdded }: { onAdded: () => void }): JSX.Element {
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const importOne = (): void => {
+    setMsg(null)
+    void window.filesmith.registryImport().then((r) => {
+      if (!r.ok) {
+        if (r.error) setMsg({ ok: false, text: r.error })
+        return
+      }
+      setMsg({
+        ok: true,
+        text: [`Added ${r.ids?.join(', ')}.`, ...(r.notes ?? [])].join(' ')
+      })
+      onAdded()
+    })
+  }
+  return (
+    <div className="mt-3 space-y-2 border-t border-black/[.07] pt-3">
+      <p className="text-[11.5px] leading-relaxed text-dim">
+        Model not listed? Add it yourself — no Filesmith update needed. Your entries live in your own
+        folder and survive every app update.
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={importOne}
+          className="flex-1 rounded-xl border border-black/[.12] bg-white px-3 py-2 text-[12.5px] font-semibold text-ink transition hover:border-[#b9b9c8]"
+        >
+          Import a model or workflow…
+        </button>
+        <button
+          onClick={() => void window.filesmith.registryOpenFolder()}
+          title="Open the folder where your own model entries live"
+          className="rounded-xl border border-black/[.12] bg-white px-3 py-2 text-[12.5px] font-semibold text-ink transition hover:border-[#b9b9c8]"
+        >
+          Open folder
+        </button>
+      </div>
+      {msg && (
+        <p
+          className={`text-[11.5px] leading-relaxed ${msg.ok ? 'text-muted' : 'font-medium text-red-600'}`}
+        >
+          {msg.text}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
  * Text-to-image generation options. The prompt lives in the center PromptBox;
  * this panel carries the model + sampling settings and the availability notice.
  */
@@ -1042,6 +1096,14 @@ function GenerateOptions({
             also found in your models folder.
           </p>
         )}
+        {/* Registry problems are surfaced, not swallowed: a user's own entry that
+            failed validation must say so, or it silently does nothing. */}
+        {status?.registryWarnings?.length ? (
+          <p className="mt-2 text-[11px] leading-relaxed text-[#b8860b]">
+            {status.registryWarnings.join(' · ')}
+          </p>
+        ) : null}
+        <AddModel onAdded={refresh} />
       </div>
       {/* Negative prompt only affects arches that use real CFG (SDXL). Flux / Z-Image
           / Krea run at cfg 1, where the negative branch is inert — so hide it there

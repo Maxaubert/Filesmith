@@ -1,6 +1,7 @@
 import { existsSync, statSync } from 'fs'
 import { join } from 'path'
 import { downloadFile } from '../net/download'
+import { expectedHash, recordHash } from '../net/integrity'
 import { findGenerationModel, primaryModelsDir } from './models'
 
 /** Parse an approxSize like "8 GB" / "335 MB" into bytes (0 if unparseable). */
@@ -64,11 +65,17 @@ export async function downloadCompanions(
     // Require at least half the advertised size so a truncated body / error page
     // isn't cached as a "complete" companion that then poisons every rescan.
     const minBytes = Math.floor(approxBytes(f.approxSize) * 0.5)
-    await downloadFile(
-      f.url,
-      dest,
-      (pct) => onProgress({ index: i + 1, total, label: f.label, filename: f.filename, pct }),
-      minBytes || undefined
-    )
+    const urls = f.urls?.length ? f.urls : [f.url]
+    // Verify against the declared checksum when the registry has one, else
+    // against whatever this URL gave us last time (trust-on-first-use), so a
+    // re-download that quietly returns different bytes is discarded instead of
+    // overwriting a good file.
+    const sha256 = expectedHash(urls[0], f.sha256)
+    const result = await downloadFile(urls, dest, {
+      onPct: (pct) => onProgress({ index: i + 1, total, label: f.label, filename: f.filename, pct }),
+      minBytes: minBytes || undefined,
+      sha256
+    })
+    recordHash(result.url, result.sha256, result.bytes)
   }
 }

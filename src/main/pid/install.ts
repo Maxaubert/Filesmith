@@ -1,6 +1,5 @@
 import {
   copyFileSync,
-  createWriteStream,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -9,9 +8,8 @@ import {
   writeFileSync
 } from 'fs'
 import { basename, dirname, join } from 'path'
-import { Readable, Transform } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
 import { run } from '../run'
+import { downloadFile } from '../net/download'
 import { resolveUv } from '../toolResolver'
 import { findComfyPidWeights } from '../comfy/discover'
 import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from './paths'
@@ -26,6 +24,10 @@ import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from
 // (write to .part, rename on success), and each phase is gated on a marker that
 // is written only AFTER the phase fully completes — so a killed install always
 // resumes cleanly and never mistakes a half-done step for a finished one.
+
+/** The VAE's share of a backbone's approxBytes, so the checkpoint floor is the
+ * remainder. Both come from the catalog rather than being re-guessed here. */
+const VAE_APPROX_BYTES = 335_000_000
 
 const PID_REPO_ZIP = 'https://github.com/nv-tlabs/PiD/archive/refs/heads/main.zip'
 const HF_BASE = 'https://huggingface.co/nvidia/PiD/resolve/main'
@@ -59,64 +61,20 @@ function winTar(): string {
 }
 
 /**
- * Download a URL to `dest`, atomically. Streams to `<dest>.part` (honouring
- * backpressure and surfacing disk errors via pipeline), verifies the transfer is
- * complete against Content-Length, then renames into place. A truncated or failed
- * transfer leaves no file at `dest`, so the existsSync() skip guards can never
- * mistake a partial download for a finished one.
+ * Download a URL to `dest`. Delegates to net/download.ts rather than keeping a
+ * private copy: the fork here was missing ALL THREE of that file's guards — no
+ * 401/403 license message, no rejection of an HTML/JSON error page served as
+ * 200, and no minimum-size floor — and it is what fetches the 2.6 GB checkpoint
+ * and the 320 MB VAE. It also now inherits sha256 verification, net.fetch (system
+ * proxy + Windows trust store) and real network error messages.
  */
-const STALL_MS = 60_000
-
-async function download(url: string, dest: string, onPct?: (pct: number) => void): Promise<void> {
-  mkdirSync(dirname(dest), { recursive: true })
-  // Idle watchdog: a half-open / stalled socket must not hang the install modal
-  // forever. Abort if no bytes arrive for STALL_MS; the timer re-arms per chunk.
-  const ac = new AbortController()
-  let idle: ReturnType<typeof setTimeout> | null = null
-  const arm = (): void => {
-    if (idle) clearTimeout(idle)
-    idle = setTimeout(() => ac.abort(new Error(`Download stalled: ${url}`)), STALL_MS)
-    idle.unref?.()
-  }
-  arm()
-  try {
-    const res = await fetch(url, { signal: ac.signal })
-    if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}): ${url}`)
-    const total = Number(res.headers.get('content-length')) || 0
-    const part = `${dest}.part`
-    rmSync(part, { force: true })
-
-    let got = 0
-    const counter = new Transform({
-      transform(chunk: Buffer, _enc, cb) {
-        got += chunk.length
-        arm()
-        if (total && onPct) onPct(Math.min(99, Math.round((got / total) * 100)))
-        cb(null, chunk)
-      }
-    })
-    try {
-      await pipeline(
-        Readable.fromWeb(res.body as unknown as Parameters<typeof Readable.fromWeb>[0]),
-        counter,
-        createWriteStream(part),
-        { signal: ac.signal }
-      )
-    } catch (e) {
-      rmSync(part, { force: true })
-      throw e
-    }
-    // Reject a truncated transfer rather than leaving a partial file that the
-    // existsSync() guards would later accept as complete.
-    if (total && got < total) {
-      rmSync(part, { force: true })
-      throw new Error(`Download incomplete: got ${got} of ${total} bytes from ${url}`)
-    }
-    rmSync(dest, { force: true })
-    renameSync(part, dest)
-  } finally {
-    if (idle) clearTimeout(idle)
-  }
+async function download(
+  url: string,
+  dest: string,
+  onPct?: (pct: number) => void,
+  minBytes?: number
+): Promise<void> {
+  await downloadFile(url, dest, { onPct, minBytes })
 }
 
 /** Copy a file into place atomically (temp + rename), so an interrupted copy
@@ -275,7 +233,15 @@ async function ensureWeights(backbone: string, onProgress: InstallProgress): Pro
       onProgress('Reusing ComfyUI VAE', null)
       copyAtomic(existing.vae, vaeDest)
     } else {
-      await download(`${HF_BASE}/${bb.vaeFile}`, vaeDest, (p) => onProgress('Downloading VAE (320 MB)', p))
+      // A floor derived from the catalog's own advertised size, so a truncated
+      // body or a captive-portal page can't be cached as a finished weight.
+      // bb.approxBytes was populated and then read by nothing at all.
+      await download(
+        `${HF_BASE}/${bb.vaeFile}`,
+        vaeDest,
+        (p) => onProgress('Downloading VAE (320 MB)', p),
+        Math.floor(VAE_APPROX_BYTES * 0.9)
+      )
     }
   }
   const ckptDest = join(pidRepoDir(), bb.checkpointDir, 'model_ema_bf16.pth')
@@ -284,8 +250,11 @@ async function ensureWeights(backbone: string, onProgress: InstallProgress): Pro
       onProgress('Reusing ComfyUI PiD model', null)
       copyAtomic(existing.checkpoint, ckptDest)
     } else {
-      await download(`${HF_BASE}/${bb.checkpointDir}/model_ema_bf16.pth`, ckptDest, (p) =>
-        onProgress('Downloading model (2.6 GB)', p)
+      await download(
+        `${HF_BASE}/${bb.checkpointDir}/model_ema_bf16.pth`,
+        ckptDest,
+        (p) => onProgress('Downloading model (2.6 GB)', p),
+        Math.floor(Math.max(0, bb.approxBytes - VAE_APPROX_BYTES) * 0.9)
       )
     }
   }
