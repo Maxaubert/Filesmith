@@ -37,6 +37,47 @@ textarea {
   user-select: text;
   -webkit-user-select: text;
 }
+
+/* Affordance: everything clickable shows the hand cursor. The body sets
+   `cursor: default` (chrome-less app UI) and browsers give <button> an arrow
+   too, so without this the whole interface — dropdowns, segmented controls,
+   menu items, tiles — reads as inert. Base layer, so an explicit cursor-*
+   utility (e.g. the grab handles) still wins. */
+@layer base {
+  button,
+  summary,
+  select,
+  a[href],
+  [role='button'],
+  [role='menuitem'],
+  [role='option'],
+  [role='tab'],
+  input[type='checkbox'],
+  input[type='radio'],
+  input[type='color'],
+  input[type='file'],
+  input[type='range'],
+  label:has(> input[type='checkbox']),
+  label:has(> input[type='radio']) {
+    cursor: pointer;
+  }
+
+  /* A slider's track is click-to-jump; its thumb is something you pick up. */
+  input[type='range']::-webkit-slider-thumb {
+    cursor: grab;
+  }
+  input[type='range']:active::-webkit-slider-thumb {
+    cursor: grabbing;
+  }
+
+  /* Nothing unavailable should invite a click. */
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled='true'] {
+    cursor: default;
+  }
+}
 img {
   -webkit-user-drag: none;
 }

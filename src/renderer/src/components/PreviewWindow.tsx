@@ -348,7 +348,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
                   }
                 }
               }}
-              className="h-full w-full rounded-lg object-contain"
+              className="h-full w-full cursor-pointer rounded-lg object-contain"
             />
             {!playing && (
               <button
