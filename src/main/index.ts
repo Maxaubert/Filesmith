@@ -151,7 +151,11 @@ function createWindow(): void {
 
   // Open external links in the OS browser, never in-app.
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    void shell.openExternal(details.url)
+    // Scheme allowlist: shell.openExternal will happily launch a file:// or a
+    // registered protocol handler. previewWindow.ts already does this; not
+    // reachable today (the CSP is script-src 'self' and this window renders no
+    // untrusted markup) but it costs one line to keep it that way.
+    if (/^https?:/i.test(details.url)) void shell.openExternal(details.url)
     return { action: 'deny' }
   })
   // Never let a link click navigate the app window away from its own document;

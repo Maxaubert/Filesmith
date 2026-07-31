@@ -94,9 +94,10 @@ export interface GenModel {
   /** Display label (basename, no extension). */
   label: string
   arch: GenArch
-  /** How the model loads: a single-file checkpoint (CheckpointLoaderSimple) or a
-   * bare diffusion model (UNETLoader + separate encoders/VAE). */
-  source: 'checkpoint' | 'diffusion'
+  /** How the model loads: a single-file checkpoint (CheckpointLoaderSimple), a
+   * bare diffusion model (UNETLoader + separate encoders/VAE), or a quantized
+   * GGUF (UnetLoaderGGUF, from the ComfyUI-GGUF custom node). */
+  source: 'checkpoint' | 'diffusion' | 'gguf'
   /** Picker group heading (ARCH_INFO[arch].group). */
   group: string
   /** Ready to generate now. */
@@ -139,6 +140,10 @@ export interface GenModelScan {
   registryWarnings?: string[]
   /** Per-arch dimension limits from the registry, replacing one global clamp. */
   dimCaps?: Record<string, { minDim?: number; maxDim?: number; dimStep?: number }>
+  /** The ComfyUI folder in use, so Generate can show and change it too — the
+   * picker used to live only in the Upscale panel plus a Generate banner that
+   * appeared only when nothing was found. */
+  comfyFolder?: string | null
 }
 
 /** Files a diffusion-model workflow needs, as ComfyUI folder-relative names. */

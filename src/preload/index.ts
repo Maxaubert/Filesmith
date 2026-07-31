@@ -88,6 +88,10 @@ const api = {
   /** NVIDIA GPU presence + whether the PiD engine is installed. */
   pidStatus: (): Promise<{ nvidia: { name: string; vramMb: number | null } | null; installed: boolean }> =>
     ipcRenderer.invoke('pid:status'),
+  /** Delete the AI install (repair path for a corrupt/poisoned one). */
+  pidRemove: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('pid:remove'),
+  /** True while an install is running anywhere in the app. */
+  pidInstalling: (): Promise<boolean> => ipcRenderer.invoke('pid:installing'),
   /** Run the one-click PiD download/install; resolves when done. */
   pidInstall: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('pid:install'),
   /** Install progress updates (step label + percent, or null while indeterminate). */

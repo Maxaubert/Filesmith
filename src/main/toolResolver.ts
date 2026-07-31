@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { run } from './run'
+import { findUv } from './uv'
 
 // Core CLI tools bundled in resources/bin (packed by electron-builder into
 // process.resourcesPath/bin in production; the repo's resources/bin in dev).
@@ -175,22 +176,14 @@ export function resolveRembg(): RembgCommand | null {
   return null
 }
 
-/** uv, from winget's package dir, the standard user install, or PATH. */
+/**
+ * uv, from every place it can be — including the one the app downloaded itself.
+ * Delegates to src/main/uv.ts; see that file for why this used to miss the uv
+ * the PiD installer had just placed at <pidRoot>/uv/uv.exe, and told the user to
+ * go install one from a terminal.
+ */
 export function resolveUv(): string | null {
-  const candidates = [
-    join(
-      process.env.LOCALAPPDATA ?? '',
-      'Microsoft',
-      'WinGet',
-      'Packages',
-      'astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe',
-      'uv' + EXE
-    ),
-    join(process.env.USERPROFILE ?? '', '.local', 'bin', 'uv' + EXE),
-    join(process.env.LOCALAPPDATA ?? '', 'Programs', 'uv', 'uv' + EXE)
-  ]
-  const found = candidates.find((p) => existsSync(p))
-  return found ?? null
+  return findUv()
 }
 
 /**

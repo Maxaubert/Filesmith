@@ -7,7 +7,13 @@ import { pidKernelCache, spandrelServerScript } from '../pid/paths'
 import { comfyCandidateDirs, comfyNestedDirs } from './roots'
 import { resolveSpandrelPython } from './pythonEnv'
 
-const MODEL_EXTS = ['.pth', '.safetensors', '.pt', '.ckpt']
+// `.pt` is deliberately EXCLUDED from the bulk scan. Reading the installed
+// spandrel loader: `.pth`/`.ckpt` go through pickle_module=RestrictedUnpickle
+// and `.safetensors` through load_file — both safe — but `.pt` reaches
+// `torch.jit.load` with NO restriction, and a scan loads every file in the
+// folder, including ones the user never chose. A `.pt` is still selectable
+// individually; it just isn't opened en masse because it happened to be nearby.
+const MODEL_EXTS = ['.pth', '.safetensors', '.ckpt']
 
 /**
  * Best guess at where the user's ComfyUI lives, so the folder picker opens there
@@ -146,7 +152,14 @@ export function comfyDesktopBases(): string[] {
  * Returned as ComfyUI names them: relative to models/checkpoints, forward slashes. */
 export function findComfyCheckpoints(): string[] {
   const found = new Set<string>()
-  const walk = (dir: string, rel: string): void => {
+  // Cycle + depth guard, matching scanModelFiles below. A junctioned shared
+  // models folder otherwise recursed until the app hung.
+  const visited = new Set<string>()
+  const walk = (dir: string, rel: string, depth = 0): void => {
+    if (depth > 4) return
+    const vk = resolve(dir)
+    if (visited.has(vk)) return
+    visited.add(vk)
     let entries: string[]
     try {
       entries = readdirSync(dir)
@@ -162,7 +175,7 @@ export function findComfyCheckpoints(): string[] {
         continue
       }
       const r = rel ? `${rel}/${e}` : e
-      if (st.isDirectory()) walk(p, r)
+      if (st.isDirectory()) walk(p, r, depth + 1)
       // Show every checkpoint — name-based filtering was unreliable (it hid
       // usable models). A checkpoint that can't generate is handled by Cancel.
       else if (/\.(safetensors|ckpt)$/i.test(e)) found.add(r)

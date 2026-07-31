@@ -73,16 +73,36 @@ export function comfySearchRoots(): string[] {
   return [...userRoots(), ...driveRoots()]
 }
 
+/** Roots only the user or an installer writes — no drive roots, no Downloads,
+ * no Desktop. Used where discovery leads to EXECUTING what it finds. */
+export function trustedRoots(): string[] {
+  const home = homedir()
+  return [home, join(home, 'Documents')].filter(Boolean)
+}
+
 /**
  * Candidate ComfyUI directories: the remembered folder first (it is the only one
  * that is not a guess), then every root x name combination. Order matters —
  * callers take the first match.
+ *
+ * `trusted: true` narrows discovery to locations only the user (or an installer)
+ * writes: the folder they picked, their profile, and the two app-data roots. It
+ * omits the drive roots, Downloads and Desktop.
+ *
+ * That distinction matters for one caller specifically. `icacls C:\` grants
+ * `Authenticated Users:(AD)`, so a NON-elevated process can create `C:\ComfyUI\`
+ * — and interpreter discovery ends in SPAWNING the python.exe it finds. Reading
+ * a models folder from a wide net is fine; executing a binary found by one is
+ * not. Now that the folder picker exists (Phase 2), a user whose ComfyUI lives
+ * in an untrusted location can point at it explicitly, which is strictly better
+ * than guessing on their behalf.
  */
-export function comfyCandidateDirs(): string[] {
+export function comfyCandidateDirs(opts?: { trusted?: boolean }): string[] {
   const out: string[] = []
   const remembered = readComfyStore()?.folder
   if (remembered) out.push(remembered)
-  for (const root of comfySearchRoots())
+  const roots = opts?.trusted ? trustedRoots() : comfySearchRoots()
+  for (const root of roots)
     for (const name of COMFY_DIR_NAMES) out.push(join(root, name))
   // ComfyUI Desktop (the official installer) keeps user data under %APPDATA% and
   // the app itself under %LOCALAPPDATA%\Programs.

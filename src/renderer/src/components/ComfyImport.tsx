@@ -93,15 +93,15 @@ export function ComfyImportCard({
     <div className="space-y-3 rounded-xl border border-black/[.10] bg-white p-3.5">
       {!status.engineReady ? (
         <>
-          <p className="text-[12.5px] leading-relaxed text-muted">
+          {/* The download size is the one thing the buttons can't say. */}
+          <p className="text-[12.5px] text-muted">
             Use your own ComfyUI upscale models.{' '}
             {status.envExists ? (
-              <>A quick one-time setup adds the loader to your existing engine, then browse to your
-              ComfyUI folder.</>
+              <>Quick one-time setup.</>
             ) : (
               <>
-                A one-time engine setup (<span className="font-semibold text-ink">~3 GB</span>,
-                shared with PiD) is needed first; then browse to your ComfyUI folder.
+                One-time setup: <span className="font-semibold text-ink">~3 GB</span>, shared with
+                PiD.
               </>
             )}
           </p>
@@ -139,13 +139,9 @@ export function ComfyImportCard({
         <ProgressBar pct={null} step="Scanning your models…" />
       ) : (
         <>
-          {status.folder ? (
+          {status.folder && (
             <p className="truncate text-[11.5px] text-dim" title={status.folder}>
               From {status.folder}
-            </p>
-          ) : (
-            <p className="text-[12.5px] leading-relaxed text-muted">
-              Browse to your ComfyUI folder to import your upscale models.
             </p>
           )}
           <div className="flex gap-2">

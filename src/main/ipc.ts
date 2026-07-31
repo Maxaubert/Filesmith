@@ -19,10 +19,10 @@ import { probeDimensions, probeImageDimensions } from './probe'
 import { makeThumbnail } from './thumbnail'
 import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
 import { targetsFor, toolsFor } from './tools/registry'
-import { detectNvidia } from './pid/gpu'
+import { cudaTierSupport, detectNvidia } from './pid/gpu'
 import { basename } from 'path'
 import { pidInstalled, comfyEngineReady, pidEnvMarker, PID_BACKBONES } from './pid/paths'
-import { installPid, installComfyEngine } from './pid/install'
+import { installPid, installComfyEngine, removePidInstall, installInProgress } from './pid/install'
 import { scanComfy, guessComfyFolder, findComfyPidWeights } from './comfy/discover'
 import { readComfyStore, writeComfyStore, usableComfyModels } from './comfy/store'
 import { comfyPythonReady, clearComfyPythonCache } from './comfy/pythonEnv'
@@ -196,8 +196,21 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // appeared in four files and made a second backbone an app-wide edit.
   ipcMain.handle('pid:status', async (_e, backbone = 'flux') => {
     const gpu = await detectNvidia()
-    return { nvidia: gpu, installed: pidInstalled(backbone), backbone }
+    // Report the compute-capability / driver verdict too, so a Pascal card is
+    // turned away BEFORE a ~3 GB cu128 torch download rather than after it.
+    const support = cudaTierSupport(gpu)
+    return {
+      nvidia: gpu,
+      installed: pidInstalled(backbone),
+      backbone,
+      cudaOk: support.ok,
+      cudaReason: support.reason ?? null
+    }
   })
+  // A visible way out of a poisoned install. pidInstalled() returns true on mere
+  // existsSync, so a corrupt weight was otherwise unrecoverable from the UI.
+  ipcMain.handle('pid:remove', () => removePidInstall())
+  ipcMain.handle('pid:installing', () => installInProgress())
   ipcMain.handle('pid:install', async (_e, backbone = 'flux') => {
     try {
       await installPid(backbone, (step, pct) => win.webContents.send('pid:progress', { step, pct }))
@@ -217,9 +230,13 @@ export function registerIpc(win: BrowserWindow): JobQueue {
     // which would hide the whole "ComfyUI models" option.
     try {
       const gpu = await detectNvidia()
+      const support = cudaTierSupport(gpu)
       const store = readComfyStore()
       return {
-        nvidia: gpu,
+        // A GPU that cannot run the CUDA tier reads as "no GPU" for gating, and
+        // carries the reason so the UI can say why instead of silently hiding.
+        nvidia: support.ok ? gpu : null,
+        cudaReason: support.ok ? null : (support.reason ?? null),
         // Ready with NO install when the user's ComfyUI Python already has
         // torch+spandrel; otherwise our own env must be built.
         engineReady: comfyEngineReady() || comfyPythonReady(),
@@ -294,6 +311,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
       ...scan,
       archInfo: registryArchInfo(),
       dimCaps: registryDimCaps(),
+      comfyFolder: readComfyStore()?.folder ?? null,
       registryWarnings: loadRegistry().warnings
     }
   })
