@@ -25,9 +25,10 @@ import {
   resolveRealesrgan,
   resolveRembg,
   resolveSoffice,
-  resolveTool
+  resolveTool,
+  toolMissingMessage
 } from '../toolResolver'
-import { run } from '../run'
+import { run, ToolMissingError } from '../run'
 import { estimateProgress, estimateSecForBytes } from './estimate'
 import { reserveOutPath, uniqueOutDir } from '../output'
 import { ffmpegProgress, probeDuration, probeImageDimensions } from '../probe'
@@ -111,7 +112,9 @@ async function runToOutput(
     } catch {
       /* best effort */
     }
-    throw e
+    // A binary that never started is a broken install, not a bad input file:
+    // say so instead of surfacing Node's raw `spawn gswin64c ENOENT`.
+    throw e instanceof ToolMissingError ? new Error(toolMissingMessage(e.tool), { cause: e }) : e
   } finally {
     est?.stop()
   }
@@ -192,6 +195,7 @@ const convertTool: ToolModule = {
           )
         } catch (e) {
           if (ctx.signal.aborted) throw e
+          if (!(e instanceof ToolMissingError)) throw e
           throw new Error(
             "LibreOffice isn't installed. Install it (winget install TheDocumentFoundation.LibreOffice), then restart Filesmith, to convert documents.",
             { cause: e }

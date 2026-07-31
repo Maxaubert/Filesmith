@@ -1,4 +1,5 @@
 import { basename, extname, join } from 'path'
+import { pathToFileURL } from 'url'
 
 // LibreOffice (soffice) headless conversion. soffice writes the result into an
 // --outdir under `<name>.<targetext>`, so callers convert into a temp dir and
@@ -25,7 +26,11 @@ export function buildSofficeArgs(
   profileDir: string,
   targetExt: string
 ): string[] {
-  const profileUrl = 'file:///' + profileDir.replace(/\\/g, '/')
+  // MUST be percent-encoded. A raw splice leaves spaces literal, and soffice
+  // then dies with a C++ exception and an EMPTY stderr (no diagnostic at all) —
+  // which happens to every user whose account name has a space, since the
+  // profile is created under %TEMP%. A `#` makes it hang instead.
+  const profileUrl = pathToFileURL(profileDir).href
   return [
     '--headless',
     '--invisible',

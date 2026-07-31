@@ -7,6 +7,24 @@ import { run } from './run'
 // process.resourcesPath/bin in production; the repo's resources/bin in dev).
 const EXE = process.platform === 'win32' ? '.exe' : ''
 
+/**
+ * The Program Files roots, from the environment rather than hardcoded to `C:`.
+ * Windows localizes only the Explorer *display* name (the on-disk path is always
+ * `\Program Files`), but the drive is not guaranteed to be C: — a machine that
+ * boots from D:, or a `ProgramFilesDir` redirect, has neither literal. The
+ * literals stay as a last-resort fallback.
+ */
+function programFilesRoots(): string[] {
+  const env = [
+    process.env.ProgramW6432,
+    process.env.ProgramFiles,
+    process.env['ProgramFiles(x86)'],
+    'C:\\Program Files',
+    'C:\\Program Files (x86)'
+  ].filter((p): p is string => Boolean(p))
+  return [...new Set(env)]
+}
+
 function bundledDir(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'bin')
@@ -40,14 +58,11 @@ export function resolveSoffice(): string {
     if (existsSync(p)) return p
   }
   if (process.platform === 'win32') {
-    for (const p of [
-      'C:\\Program Files\\LibreOffice\\program\\soffice.com',
-      'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
-      'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.com',
-      'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe'
-    ]) {
-      if (existsSync(p)) return p
-    }
+    for (const root of programFilesRoots())
+      for (const n of names) {
+        const p = join(root, 'LibreOffice', 'program', n)
+        if (existsSync(p)) return p
+      }
   }
   return 'soffice'
 }
@@ -67,7 +82,7 @@ export function resolveGhostscript(): string {
   if (existsSync(bundled)) return bundled
   if (process.platform === 'win32') {
     // Program Files\gs\gs<version>\bin\gswin64c.exe
-    for (const base of ['C:\\Program Files\\gs', 'C:\\Program Files (x86)\\gs']) {
+    for (const base of programFilesRoots().map((r) => join(r, 'gs'))) {
       try {
         for (const ver of readdirSync(base)) {
           const p = join(base, ver, 'bin', 'gswin64c.exe')
@@ -173,14 +188,64 @@ export function resolveUv(): string | null {
   return found ?? null
 }
 
+/**
+ * The flag each bundled tool actually accepts for a version probe. Measured
+ * against the shipped binaries, not assumed: `-version` works for magick /
+ * ffmpeg / ffprobe but **mutool exits 1** (it prints usage) and **caesiumclt
+ * exits 2** ("unexpected argument '-v'"), so a single `-version` probe reports
+ * two of the four bundled tools as unavailable.
+ */
+export const VERSION_FLAG: Record<string, string> = {
+  magick: '-version',
+  ffmpeg: '-version',
+  ffprobe: '-version',
+  mutool: '-v',
+  caesiumclt: '--version'
+}
+
 /** True if the tool is bundled or answers a version probe on PATH. */
 export async function toolAvailable(name: string): Promise<boolean> {
   const bundled = join(bundledDir(), name + EXE)
   if (existsSync(bundled)) return true
   try {
-    const { code } = await run(name, ['-version'])
+    const { code } = await run(name, [VERSION_FLAG[name] ?? '-version'])
     return code === 0
   } catch {
     return false
   }
+}
+
+/**
+ * What to tell the user when a binary could not be started at all. Keyed on the
+ * command's base name, because the resolvers hand back either a bundled path or
+ * a bare PATH name. A missing bundled tool is a broken install, so every message
+ * says how to get it back rather than showing `spawn gswin64c ENOENT`.
+ */
+const MISSING_TOOL_HELP: Record<string, string> = {
+  magick: 'The image engine (ImageMagick) is missing from this installation. Reinstall Filesmith.',
+  ffmpeg: 'The media engine (ffmpeg) is missing from this installation. Reinstall Filesmith.',
+  ffprobe: 'The media engine (ffprobe) is missing from this installation. Reinstall Filesmith.',
+  mutool: 'The PDF engine (mutool) is missing from this installation. Reinstall Filesmith.',
+  caesiumclt:
+    'The image compressor (CaesiumCLT) is missing from this installation. Reinstall Filesmith.',
+  gswin64c:
+    'PDF compression needs Ghostscript, which is missing from this installation. Reinstall Filesmith, or install Ghostscript (ghostscript.com) and restart.',
+  gs: 'PDF compression needs Ghostscript, which is missing from this installation. Reinstall Filesmith, or install Ghostscript (ghostscript.com) and restart.',
+  'realesrgan-ncnn-vulkan':
+    'AI upscaling needs Real-ESRGAN, which is missing from this installation. Reinstall Filesmith.',
+  soffice:
+    "Document conversion needs LibreOffice, which is missing from this installation. Reinstall Filesmith, or install LibreOffice (winget install TheDocumentFoundation.LibreOffice) and restart."
+}
+
+/** A user-facing message for a `ToolMissingError`'s command. */
+export function toolMissingMessage(cmd: string): string {
+  const base = cmd
+    .replace(/\\/g, '/')
+    .split('/')
+    .pop()!
+    .replace(/\.(exe|com)$/i, '')
+  return (
+    MISSING_TOOL_HELP[base] ??
+    `A required tool (${base}) is missing from this installation. Reinstall Filesmith.`
+  )
 }
