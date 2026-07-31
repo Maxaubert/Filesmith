@@ -969,8 +969,28 @@ function LocateComfy({ onLocated }: { onLocated: () => void }): JSX.Element {
  * leverage case: a user who can already generate a model inside ComfyUI can now
  * generate it here, with no knowledge of Filesmith's internals.
  */
-function AddModel({ onAdded }: { onAdded: () => void }): JSX.Element {
+function AddModel({
+  onAdded,
+  comfyFolder
+}: {
+  onAdded: () => void
+  comfyFolder?: string | null
+}): JSX.Element {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  // Changing the ComfyUI folder belongs here as much as in Upscale — both panels
+  // read the same store. It used to be reachable from Generate ONLY through the
+  // "not found" banner, so once a ComfyUI was located there was no way to point
+  // at a different one without going to the Upscale tab.
+  const pickComfy = (): void => {
+    setMsg(null)
+    void window.filesmith.comfyPickFolder().then((folder) => {
+      if (!folder) return
+      void window.filesmith.comfySetFolder(folder).then((r) => {
+        if (r.ok) onAdded()
+        else setMsg({ ok: false, text: r.error ?? "Couldn't use that folder" })
+      })
+    })
+  }
   const importOne = (): void => {
     setMsg(null)
     void window.filesmith.registryImport().then((r) => {
@@ -1002,6 +1022,16 @@ function AddModel({ onAdded }: { onAdded: () => void }): JSX.Element {
           Open folder
         </button>
       </div>
+      <button
+        onClick={pickComfy}
+        title={comfyFolder ?? 'Choose your ComfyUI folder'}
+        className="flex w-full items-center gap-2 rounded-xl border border-black/[.12] bg-white px-3 py-2 text-left text-[12.5px] transition hover:border-[#b9b9c8]"
+      >
+        <span className="shrink-0 font-semibold text-ink">ComfyUI</span>
+        <span className="min-w-0 flex-1 truncate text-dim" dir="rtl">
+          {comfyFolder ?? 'Choose folder…'}
+        </span>
+      </button>
       {msg && (
         <p
           className={`text-[11.5px] leading-relaxed ${msg.ok ? 'text-muted' : 'font-medium text-red-600'}`}
@@ -1105,30 +1135,7 @@ function GenerateOptions({
             )}
           </div>
         ) : null}
-        {/* Say what we saw. `gguf` and `excluded` were computed, sent to the
-            renderer, and then never rendered — so a user whose diffusion_models
-            folder is full of GGUF files was told "No image models found" with no
-            hint that the app had seen anything at all. */}
-        {status && (status.gguf > 0 || status.excluded > 0 || status.unrecognized > 0) && (
-          <p className="mt-2 text-[11px] leading-relaxed text-dim">
-            Also found:{' '}
-            {[
-              status.unrecognized > 0 && `${status.unrecognized} unrecognized`,
-              status.excluded > 0 && `${status.excluded} video/3D/audio`,
-              status.gguf > 0 && `${status.gguf} GGUF`
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
-        )}
-        {/* Registry problems are surfaced, not swallowed: a user's own entry that
-            failed validation must say so, or it silently does nothing. */}
-        {status?.registryWarnings?.length ? (
-          <p className="mt-2 text-[11px] leading-relaxed text-[#b8860b]">
-            {status.registryWarnings.join(' · ')}
-          </p>
-        ) : null}
-        <AddModel onAdded={refresh} />
+        <AddModel onAdded={refresh} comfyFolder={status?.comfyFolder} />
       </div>
       {/* Negative prompt only affects arches that use real CFG (SDXL). Flux / Z-Image
           / Krea run at cfg 1, where the negative branch is inert — so hide it there

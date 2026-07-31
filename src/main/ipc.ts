@@ -311,6 +311,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
       ...scan,
       archInfo: registryArchInfo(),
       dimCaps: registryDimCaps(),
+      comfyFolder: readComfyStore()?.folder ?? null,
       registryWarnings: loadRegistry().warnings
     }
   })

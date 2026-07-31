@@ -159,7 +159,21 @@ export function scanGenerationModels(): GenModelScan {
   // --- Bare diffusion models (UNETLoader + separate encoders/VAE) ----------
   for (const { rel, abs, base } of walkModels(['diffusion_models', 'unet'], /\.(safetensors|sft|gguf)$/i)) {
     if (/\.gguf$/i.test(rel)) {
+      // Listed, not counted. A counter line under the picker said "1 GGUF" and
+      // nothing else; the file itself in the list says the same thing and says
+      // WHICH file. Nothing on disk is invisible, and nothing needs a caption.
       gguf += 1
+      models.push({
+        name: rel,
+        label: label(rel),
+        arch: 'sdxl',
+        group: 'Unrecognized',
+        source: 'diffusion',
+        runnable: false,
+        baseDir: base,
+        detectedArch: 'gguf',
+        reason: 'GGUF models are not supported yet.'
+      })
       continue
     }
     const inspected = inspectModelFile(abs)
