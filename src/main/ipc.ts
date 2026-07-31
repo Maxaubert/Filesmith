@@ -270,7 +270,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // --- Text-to-image generation (via headless ComfyUI) -----------------------
   ipcMain.handle('generate:status', async () => {
     const scan = scanGenerationModels()
-    return { available: comfyGenerationAvailable(), ...scan }
+    return { available: await comfyGenerationAvailable(), ...scan }
   })
   ipcMain.handle('generate:download', async (_e, id: string, model: string) => {
     try {
