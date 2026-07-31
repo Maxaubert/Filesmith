@@ -141,12 +141,19 @@ describe('classifyModelFile', () => {
 describe('inspectModelFile', () => {
   it('reports arch + excluded together', () => {
     const flux = writeSafetensors('f2.safetensors', ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.w', 'txt_in.w'])
-    expect(inspectModelFile(flux)).toEqual({ arch: 'flux1', excluded: false })
+    expect(inspectModelFile(flux)).toMatchObject({ arch: 'flux1', excluded: false })
 
     const video = writeSafetensors('v.safetensors', ['patch_embedding.w', 'time_embedding.w', 'blocks.0.w'])
-    expect(inspectModelFile(video)).toEqual({ arch: 'unknown', excluded: true })
+    expect(inspectModelFile(video)).toMatchObject({ arch: 'unknown', excluded: true })
 
     const mystery = writeSafetensors('m.safetensors', ['some_new_dit.0.w'])
-    expect(inspectModelFile(mystery)).toEqual({ arch: 'unknown', excluded: false })
+    expect(inspectModelFile(mystery)).toMatchObject({ arch: 'unknown', excluded: false })
+  })
+
+  it('returns the header so an unrecognized file can be re-tried against the registry', () => {
+    // Registry-declared `detect` blocks need the tensor keys; without this the
+    // caller would pay a second multi-hundred-KB header read per unknown model.
+    const mystery = writeSafetensors('m2.safetensors', ['some_new_dit.0.w'])
+    expect(inspectModelFile(mystery).header?.keys).toEqual(['some_new_dit.0.w'])
   })
 })

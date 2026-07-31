@@ -19,7 +19,7 @@ import {
 import { RESIZE_FITS, type ResizeFit } from '@shared/resize'
 import { BG_DEFAULTS, BG_FILLS, type BgFill } from '@shared/removebg'
 import { GEN_SIZES, GEN_STYLES, GEN_MAX_COUNT, clampDim } from '@shared/generate'
-import { ARCH_INFO, type GenArch, type GenModel } from '@shared/genArch'
+import { archInfoFor, type GenArch, type GenModel } from '@shared/genArch'
 import type { Operation } from '@shared/catalog'
 import { Icon } from './Icon'
 import { OperationSwitcher } from './OperationSwitcher'
@@ -979,7 +979,10 @@ function GenerateOptions({
   const models = useMemo(() => status?.models ?? [], [status])
   const selected = models.find((m) => m.name === model)
   const arch: GenArch = selected?.arch ?? 'sdxl'
-  const info = ARCH_INFO[arch]
+  // Sampler defaults come from the REGISTRY when the main process supplied them,
+  // so a user-added family gets its own defaults instead of a built-in's (cfg 7
+  // on a distilled model produces garbage). The compiled table is the fallback.
+  const info = archInfoFor(arch, status?.archInfo)
 
   // Default to a runnable text-to-image model once the list loads, and steer away
   // from a restoration checkpoint (SUPIR) or a vanished selection.

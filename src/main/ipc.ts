@@ -30,8 +30,10 @@ import {
   generateImages,
   comfyGenerationAvailable,
   scanGenerationModels,
+  registryArchInfo,
   downloadCompanions
 } from './generate'
+import { loadRegistry } from './registry/load'
 import type { GenerateOptions } from '@shared/generate'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
@@ -270,7 +272,12 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // --- Text-to-image generation (via headless ComfyUI) -----------------------
   ipcMain.handle('generate:status', async () => {
     const scan = scanGenerationModels()
-    return { available: await comfyGenerationAvailable(), ...scan }
+    return {
+      available: await comfyGenerationAvailable(),
+      ...scan,
+      archInfo: registryArchInfo(),
+      registryWarnings: loadRegistry().warnings
+    }
   })
   ipcMain.handle('generate:download', async (_e, id: string, model: string) => {
     try {

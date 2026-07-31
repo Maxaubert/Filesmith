@@ -1,0 +1,534 @@
+{
+  "$comment": [
+    "Filesmith's built-in generation-model registry (layer 1: read-only, ships in the installer).",
+    "This file is DATA. Adding a new checkpoint family here — or in your own file under",
+    "%APPDATA%/Filesmith/registry/user/ — requires no app release and no code change.",
+    "A user entry with the same id overrides the built-in FIELD BY FIELD, so you can fix a",
+    "dead download URL by supplying only { id, companions } and inherit everything else.",
+    "Workflow templates are ComfyUI API-format graphs; ${name} placeholders are substituted",
+    "as data (never evaluated) and the result is only ever POSTed to a loopback ComfyUI."
+  ],
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "sdxl",
+      "kind": "generate",
+      "label": "SDXL / single-file checkpoint",
+      "group": "Checkpoints",
+      "provenance": { "source": "builtin" },
+      "capabilities": {
+        "task": "text-to-image",
+        "minDim": 256,
+        "maxDim": 2048,
+        "dimStep": 8
+      },
+      "sampler": {
+        "name": "dpmpp_2m",
+        "scheduler": "karras",
+        "steps": 28,
+        "cfg": 7,
+        "guidance": 0,
+        "hasGuidance": false
+      },
+      "requires": {
+        "nodes": ["CLIPTextEncode", "EmptyLatentImage", "KSampler", "VAEDecode", "SaveImage"]
+      },
+      "checkpointWorkflow": {
+        "format": "comfy-api-v1",
+        "template": {
+          "3": {
+            "class_type": "KSampler",
+            "inputs": {
+              "seed": "${seed}",
+              "steps": "${steps}",
+              "cfg": "${cfg}",
+              "sampler_name": "${sampler}",
+              "scheduler": "${scheduler}",
+              "denoise": 1,
+              "model": ["4", 0],
+              "positive": ["6", 0],
+              "negative": ["7", 0],
+              "latent_image": ["5", 0]
+            }
+          },
+          "4": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "${model}" } },
+          "5": {
+            "class_type": "EmptyLatentImage",
+            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+          },
+          "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["4", 1] } },
+          "7": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["4", 1] } },
+          "8": { "class_type": "VAEDecode", "inputs": { "samples": ["3", 0], "vae": ["4", 2] } },
+          "9": {
+            "class_type": "SaveImage",
+            "inputs": { "filename_prefix": "${prefix}", "images": ["8", 0] }
+          }
+        }
+      }
+    },
+
+    {
+      "id": "flux1",
+      "kind": "generate",
+      "label": "Flux 1",
+      "group": "Flux",
+      "provenance": { "source": "builtin", "host": "huggingface.co" },
+      "capabilities": { "task": "text-to-image", "minDim": 256, "maxDim": 2048, "dimStep": 8 },
+      "sampler": {
+        "name": "euler",
+        "scheduler": "simple",
+        "steps": 20,
+        "cfg": 1,
+        "guidance": 3.5,
+        "hasGuidance": true
+      },
+      "requires": {
+        "nodes": [
+          "CLIPTextEncode",
+          "FluxGuidance",
+          "EmptySD3LatentImage",
+          "KSampler",
+          "VAEDecode",
+          "SaveImage"
+        ],
+        "clipLoader": { "node": "DualCLIPLoader", "type": "flux" }
+      },
+      "companions": [
+        {
+          "role": "clip",
+          "label": "T5-XXL text encoder",
+          "subdir": "text_encoders",
+          "identify": { "nameHint": "t5xxl" },
+          "download": {
+            "filename": "t5xxl_fp8_e4m3fn_scaled.safetensors",
+            "approxSize": "4.9 GB",
+            "urls": [
+              "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors"
+            ]
+          }
+        },
+        {
+          "role": "clip2",
+          "label": "CLIP-L text encoder",
+          "subdir": "text_encoders",
+          "identify": { "nameHint": "clip_l" },
+          "download": {
+            "filename": "clip_l.safetensors",
+            "approxSize": "246 MB",
+            "urls": [
+              "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors"
+            ]
+          }
+        },
+        {
+          "role": "vae",
+          "label": "Flux VAE (ae.safetensors)",
+          "subdir": "vae",
+          "identify": { "nameHint": "^ae([._-][^/\\\\]*)?\\.(safetensors|sft)$" },
+          "download": {
+            "filename": "ae.safetensors",
+            "approxSize": "335 MB",
+            "urls": [
+              "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors"
+            ]
+          }
+        }
+      ],
+      "workflow": {
+        "format": "comfy-api-v1",
+        "template": {
+          "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
+          "2": {
+            "class_type": "DualCLIPLoader",
+            "inputs": { "clip_name1": "${clip}", "clip_name2": "${clip2}", "type": "flux" }
+          },
+          "3": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
+          "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["2", 0] } },
+          "5": {
+            "class_type": "FluxGuidance",
+            "inputs": { "conditioning": ["4", 0], "guidance": "${guidance}" }
+          },
+          "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["2", 0] } },
+          "7": {
+            "class_type": "EmptySD3LatentImage",
+            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+          },
+          "8": {
+            "class_type": "KSampler",
+            "inputs": {
+              "seed": "${seed}",
+              "steps": "${steps}",
+              "cfg": 1,
+              "sampler_name": "${sampler}",
+              "scheduler": "${scheduler}",
+              "denoise": 1,
+              "model": ["1", 0],
+              "positive": ["5", 0],
+              "negative": ["6", 0],
+              "latent_image": ["7", 0]
+            }
+          },
+          "9": { "class_type": "VAEDecode", "inputs": { "samples": ["8", 0], "vae": ["3", 0] } },
+          "10": {
+            "class_type": "SaveImage",
+            "inputs": { "filename_prefix": "${prefix}", "images": ["9", 0] }
+          }
+        }
+      },
+      "checkpointWorkflow": {
+        "format": "comfy-api-v1",
+        "template": {
+          "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "${model}" } },
+          "2": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["1", 1] } },
+          "3": {
+            "class_type": "FluxGuidance",
+            "inputs": { "conditioning": ["2", 0], "guidance": "${guidance}" }
+          },
+          "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["1", 1] } },
+          "5": {
+            "class_type": "EmptySD3LatentImage",
+            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+          },
+          "6": {
+            "class_type": "KSampler",
+            "inputs": {
+              "seed": "${seed}",
+              "steps": "${steps}",
+              "cfg": 1,
+              "sampler_name": "${sampler}",
+              "scheduler": "${scheduler}",
+              "denoise": 1,
+              "model": ["1", 0],
+              "positive": ["3", 0],
+              "negative": ["4", 0],
+              "latent_image": ["5", 0]
+            }
+          },
+          "7": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["1", 2] } },
+          "8": {
+            "class_type": "SaveImage",
+            "inputs": { "filename_prefix": "${prefix}", "images": ["7", 0] }
+          }
+        }
+      }
+    },
+
+    {
+      "id": "flux2",
+      "kind": "generate",
+      "label": "Flux 2 [klein]",
+      "group": "Flux 2",
+      "provenance": { "source": "builtin", "host": "huggingface.co" },
+      "capabilities": { "task": "text-to-image", "minDim": 256, "maxDim": 2048, "dimStep": 8 },
+      "sampler": {
+        "name": "euler",
+        "scheduler": "simple",
+        "steps": 4,
+        "cfg": 1,
+        "guidance": 4,
+        "hasGuidance": true
+      },
+      "requires": {
+        "nodes": [
+          "CLIPTextEncode",
+          "FluxGuidance",
+          "EmptySD3LatentImage",
+          "KSampler",
+          "VAEDecode",
+          "SaveImage"
+        ],
+        "clipLoader": { "node": "CLIPLoader", "type": "flux2" },
+        "minComfyNote": "Flux 2 needs a ComfyUI from late November 2025 or newer."
+      },
+      "companionSets": [
+        {
+          "id": "9b",
+          "$comment": "4B fp8 ~3.8 GB, 9B fp8 ~8.8 GB — byte size separates them even when the filename carries no size token. The name is only consulted when the size is unknown.",
+          "when": { "minBytes": 6000000000, "nameHint": "9b" },
+          "companions": [
+            {
+              "role": "clip",
+              "label": "Qwen3-8B text encoder (for 9B)",
+              "subdir": "text_encoders",
+              "identify": { "nameHint": "qwen_3_8b" },
+              "download": {
+                "filename": "qwen_3_8b_fp8mixed.safetensors",
+                "approxSize": "8.7 GB",
+                "urls": [
+                  "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors"
+                ]
+              }
+            },
+            {
+              "role": "vae",
+              "label": "Flux 2 VAE",
+              "subdir": "vae",
+              "identify": { "nameHint": "flux2[-_]?vae" },
+              "download": {
+                "filename": "flux2-vae.safetensors",
+                "approxSize": "160 MB",
+                "urls": [
+                  "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "4b",
+          "companions": [
+            {
+              "role": "clip",
+              "label": "Qwen3-4B text encoder (for 4B)",
+              "subdir": "text_encoders",
+              "identify": { "nameHint": "qwen_3_4b" },
+              "download": {
+                "filename": "qwen_3_4b.safetensors",
+                "approxSize": "8 GB",
+                "urls": [
+                  "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors"
+                ]
+              }
+            },
+            {
+              "role": "vae",
+              "label": "Flux 2 VAE",
+              "subdir": "vae",
+              "identify": { "nameHint": "flux2[-_]?vae" },
+              "download": {
+                "filename": "flux2-vae.safetensors",
+                "approxSize": "160 MB",
+                "urls": [
+                  "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "workflow": {
+        "format": "comfy-api-v1",
+        "template": {
+          "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
+          "2": { "class_type": "CLIPLoader", "inputs": { "clip_name": "${clip}", "type": "flux2" } },
+          "3": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
+          "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["2", 0] } },
+          "5": {
+            "class_type": "FluxGuidance",
+            "inputs": { "conditioning": ["4", 0], "guidance": "${guidance}" }
+          },
+          "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["2", 0] } },
+          "7": {
+            "class_type": "EmptySD3LatentImage",
+            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+          },
+          "8": {
+            "class_type": "KSampler",
+            "inputs": {
+              "seed": "${seed}",
+              "steps": "${steps}",
+              "cfg": 1,
+              "sampler_name": "${sampler}",
+              "scheduler": "${scheduler}",
+              "denoise": 1,
+              "model": ["1", 0],
+              "positive": ["5", 0],
+              "negative": ["6", 0],
+              "latent_image": ["7", 0]
+            }
+          },
+          "9": { "class_type": "VAEDecode", "inputs": { "samples": ["8", 0], "vae": ["3", 0] } },
+          "10": {
+            "class_type": "SaveImage",
+            "inputs": { "filename_prefix": "${prefix}", "images": ["9", 0] }
+          }
+        }
+      }
+    },
+
+    {
+      "id": "z-image",
+      "kind": "generate",
+      "label": "Z-Image Turbo",
+      "group": "Z-Image",
+      "provenance": { "source": "builtin", "host": "huggingface.co" },
+      "capabilities": { "task": "text-to-image", "minDim": 256, "maxDim": 2048, "dimStep": 8 },
+      "sampler": {
+        "name": "res_multistep",
+        "scheduler": "simple",
+        "steps": 8,
+        "cfg": 1,
+        "guidance": 0,
+        "hasGuidance": false
+      },
+      "requires": {
+        "nodes": [
+          "CLIPTextEncode",
+          "ModelSamplingAuraFlow",
+          "ConditioningZeroOut",
+          "EmptySD3LatentImage",
+          "KSampler",
+          "VAEDecode",
+          "SaveImage"
+        ],
+        "clipLoader": { "node": "CLIPLoader", "type": "lumina2" },
+        "minComfyNote": "Z-Image needs a recent ComfyUI (v0.6.0+, late November 2025)."
+      },
+      "companions": [
+        {
+          "role": "clip",
+          "label": "Qwen3-4B text encoder",
+          "subdir": "text_encoders",
+          "$comment": "Underscore form only — must NOT match krea2's qwen3vl_4b_fp8_scaled.",
+          "identify": { "nameHint": "qwen_3_4b" },
+          "download": {
+            "filename": "qwen_3_4b.safetensors",
+            "approxSize": "8 GB",
+            "urls": [
+              "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors"
+            ]
+          }
+        },
+        {
+          "role": "vae",
+          "label": "Flux VAE (ae.safetensors)",
+          "subdir": "vae",
+          "identify": { "nameHint": "^ae([._-][^/\\\\]*)?\\.(safetensors|sft)$" },
+          "download": {
+            "filename": "ae.safetensors",
+            "approxSize": "335 MB",
+            "urls": [
+              "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors"
+            ]
+          }
+        }
+      ],
+      "workflow": {
+        "format": "comfy-api-v1",
+        "template": {
+          "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
+          "2": { "class_type": "ModelSamplingAuraFlow", "inputs": { "model": ["1", 0], "shift": 3 } },
+          "3": { "class_type": "CLIPLoader", "inputs": { "clip_name": "${clip}", "type": "lumina2" } },
+          "4": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
+          "5": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["3", 0] } },
+          "6": { "class_type": "ConditioningZeroOut", "inputs": { "conditioning": ["5", 0] } },
+          "7": {
+            "class_type": "EmptySD3LatentImage",
+            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+          },
+          "8": {
+            "class_type": "KSampler",
+            "inputs": {
+              "seed": "${seed}",
+              "steps": "${steps}",
+              "cfg": 1,
+              "sampler_name": "${sampler}",
+              "scheduler": "${scheduler}",
+              "denoise": 1,
+              "model": ["2", 0],
+              "positive": ["5", 0],
+              "negative": ["6", 0],
+              "latent_image": ["7", 0]
+            }
+          },
+          "9": { "class_type": "VAEDecode", "inputs": { "samples": ["8", 0], "vae": ["4", 0] } },
+          "10": {
+            "class_type": "SaveImage",
+            "inputs": { "filename_prefix": "${prefix}", "images": ["9", 0] }
+          }
+        }
+      }
+    },
+
+    {
+      "id": "krea2",
+      "kind": "generate",
+      "label": "Krea 2 Turbo",
+      "group": "Krea 2",
+      "provenance": { "source": "builtin", "host": "huggingface.co" },
+      "capabilities": { "task": "text-to-image", "minDim": 256, "maxDim": 2048, "dimStep": 8 },
+      "sampler": {
+        "name": "euler",
+        "scheduler": "simple",
+        "steps": 8,
+        "cfg": 1,
+        "guidance": 0,
+        "hasGuidance": false
+      },
+      "requires": {
+        "nodes": [
+          "CLIPTextEncode",
+          "EmptySD3LatentImage",
+          "KSampler",
+          "VAEDecode",
+          "SaveImage"
+        ],
+        "clipLoader": { "node": "CLIPLoader", "type": "krea2" },
+        "minComfyNote": "Krea 2 needs an up-to-date ComfyUI (nightly, mid-2026) for the krea2 encoder type."
+      },
+      "companions": [
+        {
+          "role": "clip",
+          "label": "Qwen3-VL 4B text encoder",
+          "subdir": "text_encoders",
+          "identify": { "nameHint": "qwen3vl.*4b" },
+          "download": {
+            "filename": "qwen3vl_4b_fp8_scaled.safetensors",
+            "approxSize": "5.2 GB",
+            "urls": [
+              "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors"
+            ]
+          }
+        },
+        {
+          "role": "vae",
+          "label": "Qwen-Image VAE",
+          "subdir": "vae",
+          "identify": { "nameHint": "qwen_image_vae" },
+          "download": {
+            "filename": "qwen_image_vae.safetensors",
+            "approxSize": "254 MB",
+            "urls": [
+              "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/vae/qwen_image_vae.safetensors"
+            ]
+          }
+        }
+      ],
+      "workflow": {
+        "format": "comfy-api-v1",
+        "$comment": "Krea 2 is a Qwen-Image-lineage MMDiT on a 16-channel latent — it needs EmptySD3LatentImage (16ch), NOT EmptyLatentImage (4ch, SD1.x/SDXL).",
+        "template": {
+          "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
+          "2": { "class_type": "CLIPLoader", "inputs": { "clip_name": "${clip}", "type": "krea2" } },
+          "3": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
+          "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "${prompt}", "clip": ["2", 0] } },
+          "5": { "class_type": "CLIPTextEncode", "inputs": { "text": "${negative}", "clip": ["2", 0] } },
+          "6": {
+            "class_type": "EmptySD3LatentImage",
+            "inputs": { "width": "${width}", "height": "${height}", "batch_size": "${batch}" }
+          },
+          "7": {
+            "class_type": "KSampler",
+            "inputs": {
+              "seed": "${seed}",
+              "steps": "${steps}",
+              "cfg": 1,
+              "sampler_name": "${sampler}",
+              "scheduler": "${scheduler}",
+              "denoise": 1,
+              "model": ["1", 0],
+              "positive": ["4", 0],
+              "negative": ["5", 0],
+              "latent_image": ["6", 0]
+            }
+          },
+          "8": { "class_type": "VAEDecode", "inputs": { "samples": ["7", 0], "vae": ["3", 0] } },
+          "9": {
+            "class_type": "SaveImage",
+            "inputs": { "filename_prefix": "${prefix}", "images": ["8", 0] }
+          }
+        }
+      }
+    }
+  ]
+}
