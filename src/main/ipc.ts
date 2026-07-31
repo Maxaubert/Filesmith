@@ -32,6 +32,7 @@ import {
   comfyGenerationAvailable,
   scanGenerationModels,
   registryArchInfo,
+  registryDimCaps,
   downloadCompanions
 } from './generate'
 import { loadRegistry, layerDir, ensureUserLayers } from './registry/load'
@@ -292,6 +293,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
       available: await comfyGenerationAvailable(),
       ...scan,
       archInfo: registryArchInfo(),
+      dimCaps: registryDimCaps(),
       registryWarnings: loadRegistry().warnings
     }
   })

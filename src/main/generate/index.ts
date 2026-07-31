@@ -18,7 +18,12 @@ import {
 
 export { comfyGenerationAvailable, stopComfyServer } from './comfy'
 export { downloadCompanions } from './companions'
-export { findGenerationModels, scanGenerationModels, registryArchInfo } from './models'
+export {
+  findGenerationModels,
+  scanGenerationModels,
+  registryArchInfo,
+  registryDimCaps
+} from './models'
 
 let clientCounter = 0
 
@@ -52,11 +57,19 @@ export async function generateImages(
   // diffusion arch) to build and, for diffusion models, its loader wiring.
   const gm = findGenerationModel(opts.model)
   if (!gm) throw new Error('That model was not found. Try rescanning your ComfyUI folder.')
-  if (!gm.runnable)
+  // `tryAnyway` opts out of the block: an unrecognized model gets a generic
+  // graph and ComfyUI's own error verbatim if it doesn't work. Missing companion
+  // FILES are still a hard stop — there is nothing to attempt without them.
+  const attempting = !gm.runnable && Boolean(opts.tryAnyway) && gm.tryAnyway === true
+  if (!gm.runnable && !attempting)
     throw new Error(
       gm.missing?.length
         ? `This model needs files first: ${gm.missing.map((m) => m.label).join(', ')}. Use "Download required files".`
         : (gm.reason ?? 'This model is not ready to use.')
+    )
+  if (attempting && gm.missing?.length)
+    throw new Error(
+      `This model needs files first: ${gm.missing.map((m) => m.label).join(', ')}. Use "Download required files".`
     )
 
   onStatus('Connecting to ComfyUI…')
@@ -65,7 +78,7 @@ export async function generateImages(
   // Reconcile names + node availability with the actual ComfyUI before queueing,
   // so a wrong path separator, a model this server can't see, or a too-old ComfyUI
   // fails with a clear message instead of a raw 400 / silent garbage.
-  const resolved = await resolveAgainstComfy(baseUrl, gm)
+  const resolved = await resolveAgainstComfy(baseUrl, gm, attempting)
   const clientId = `filesmith-${(clientCounter += 1)}`
   const count = Math.max(1, Math.min(GEN_MAX_COUNT, Math.round(opts.count || 1)))
 
@@ -95,7 +108,7 @@ export async function generateImages(
         count: 1,
         seed: opts.seed < 0 ? -1 : opts.seed + i
       }
-      const wf = buildWorkflow(gm, perImage, resolved.wiring)
+      const wf = buildWorkflow(gm, perImage, resolved.wiring, attempting)
       sawProgress = false
       const promptId = await queuePrompt(baseUrl, wf, clientId)
       indexByPrompt.set(promptId, i)

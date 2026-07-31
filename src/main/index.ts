@@ -8,6 +8,7 @@ import { pidSidecar } from './pid/sidecar'
 import { spandrelSidecar } from './comfy/sidecar'
 import { stopComfyServer } from './generate'
 import { ensureUserLayers } from './registry/load'
+import { scheduleChannelRefresh } from './registry/channel'
 
 // Remove temp dirs orphaned by a previous HARD crash (normal runs delete their
 // own in a finally). Guarded by age so a concurrent second instance's in-use
@@ -193,6 +194,9 @@ if (!app.requestSingleInstanceLock()) {
     // Create the writable registry layers so a user can drop a model file in
     // without having to guess (or create) the path first.
     ensureUserLayers()
+    // Background, non-blocking, at most once a day, silent-fail-to-cache: the
+    // lever that fixes a dead model URL for every install without a release.
+    scheduleChannelRefresh()
 
     // Serve local files for the preview: fsmedia://local/<encoded-abs-path>.
     protocol.handle(MEDIA_SCHEME, (request) => serveMedia(request))
