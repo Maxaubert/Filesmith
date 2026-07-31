@@ -20,6 +20,8 @@ export interface GenerateOptions {
   guidance?: number
   /** -1 = random each run. */
   seed: number
+  /** Run an unrecognized model through a generic graph instead of refusing. */
+  tryAnyway?: boolean
 }
 
 export const GEN_DEFAULTS: Omit<GenerateOptions, 'model' | 'prompt'> = {
@@ -96,8 +98,27 @@ export const GEN_SIZES: { label: string; width: number; height: number }[] = [
   { label: 'Landscape 5:4 · 1152×896', width: 1152, height: 896 }
 ]
 
-/** Clamp a custom dimension to a sane, model-friendly range (multiple of 8). */
-export function clampDim(n: number): number {
-  const v = Math.round((Number.isFinite(n) ? n : 1024) / 8) * 8
-  return Math.max(256, Math.min(2048, v))
+/** Per-architecture dimension limits, from the registry's `capabilities`. */
+export interface DimCaps {
+  minDim?: number
+  maxDim?: number
+  dimStep?: number
+}
+
+export const DEFAULT_DIM_CAPS: Required<DimCaps> = { minDim: 256, maxDim: 2048, dimStep: 8 }
+
+/**
+ * Clamp a custom dimension to a model-friendly range.
+ *
+ * The limits come from the model's own registry entry rather than one global
+ * 2048 ceiling. That ceiling was a guess about SDXL that then applied to every
+ * architecture — including ones whose native resolution is higher, which were
+ * silently capped below what they were trained for.
+ */
+export function clampDim(n: number, caps?: DimCaps): number {
+  const min = caps?.minDim ?? DEFAULT_DIM_CAPS.minDim
+  const max = caps?.maxDim ?? DEFAULT_DIM_CAPS.maxDim
+  const step = caps?.dimStep && caps.dimStep > 0 ? caps.dimStep : DEFAULT_DIM_CAPS.dimStep
+  const v = Math.round((Number.isFinite(n) ? n : 1024) / step) * step
+  return Math.max(min, Math.min(max, v))
 }

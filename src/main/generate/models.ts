@@ -3,6 +3,7 @@ import { basename, join } from 'path'
 import type { ArchInfo, GenArch, GenModel, GenModelScan } from '@shared/genArch'
 import { archInfoFor } from '@shared/genArch'
 import type { ProbedFile } from '@shared/registry'
+import type { DimCaps } from '@shared/generate'
 import { scoreDetect } from '@shared/registry'
 import { comfyModelsBases } from '../comfy/discover'
 import { registryEntries, registryEntry } from '../registry/load'
@@ -132,6 +133,10 @@ export function scanGenerationModels(): GenModelScan {
         arch: 'sdxl',
         group: archGroup('sdxl'),
         runnable: false,
+        detectedArch: arch,
+        // A single-file checkpoint always has SOMETHING to try: ComfyUI's
+        // CheckpointLoaderSimple graph. Worst case the user learns why not.
+        tryAnyway: true,
         reason:
           arch === 'sd3'
             ? 'SD3 checkpoints are not supported yet.'
@@ -171,6 +176,10 @@ export function scanGenerationModels(): GenModelScan {
         baseDir: base,
         detectedArch: arch,
         notImage: true,
+        // Advisory, not terminal. The exclusion keys on `patch_embedding` +
+        // `time_embedding`, which are generic DiT names — a real text-to-image
+        // model can trip them. Say so and let the user decide.
+        tryAnyway: true,
         reason: 'Looks like a video/3D/audio model, not a text-to-image one.'
       })
       continue
@@ -186,6 +195,7 @@ export function scanGenerationModels(): GenModelScan {
         runnable: false,
         baseDir: base,
         detectedArch: arch,
+        tryAnyway: true,
         reason:
           arch === 'unknown'
             ? "Filesmith doesn't recognize this architecture yet."
@@ -242,6 +252,16 @@ export function registryArchInfo(): Record<string, ArchInfo> {
       hasGuidance: e.sampler.hasGuidance,
       minComfyNote: e.requires?.minComfyNote
     }
+  }
+  return out
+}
+
+/** Per-arch dimension limits, for the renderer's custom width/height inputs. */
+export function registryDimCaps(): Record<string, DimCaps> {
+  const out: Record<string, DimCaps> = {}
+  for (const e of registryEntries('generate')) {
+    const c = e.capabilities
+    if (c) out[e.id] = { minDim: c.minDim, maxDim: c.maxDim, dimStep: c.dimStep }
   }
   return out
 }

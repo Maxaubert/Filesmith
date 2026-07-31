@@ -1052,6 +1052,13 @@ function GenerateOptions({
 
   const models = useMemo(() => status?.models ?? [], [status])
   const selected = models.find((m) => m.name === model)
+  // "Try anyway" is per-model and deliberately not sticky: it must be a
+  // conscious choice each time, not a setting that quietly stays on.
+  const tryAnyway = Boolean(options.tryAnyway)
+  // Dimension limits come from the model's own registry entry. One global 2048
+  // ceiling was a guess about SDXL applied to every architecture, silently
+  // capping models whose native resolution is higher.
+  const dimCaps = status?.dimCaps?.[selected?.arch ?? 'sdxl']
   const arch: GenArch = selected?.arch ?? 'sdxl'
   // Sampler defaults come from the REGISTRY when the main process supplied them,
   // so a user-added family gets its own defaults instead of a built-in's (cfg 7
@@ -1077,6 +1084,7 @@ function GenerateOptions({
   useEffect(() => {
     if (prevArch.current === arch) return
     prevArch.current = arch
+    set('tryAnyway', 0)
     set('steps', info.steps)
     set('cfg', info.cfg)
     if (info.hasGuidance) set('guidance', info.guidance)
@@ -1097,7 +1105,30 @@ function GenerateOptions({
             <CompanionDownload model={selected} onDone={refresh} />
           </div>
         ) : selected && !selected.runnable && selected.reason ? (
-          <p className="mt-2 text-[11.5px] leading-relaxed text-muted">{selected.reason}</p>
+          <div className="mt-2 space-y-2">
+            <p className="text-[11.5px] leading-relaxed text-muted">{selected.reason}</p>
+            {/* An unrecognized model is not a forbidden one. Send it through a
+                generic graph and let ComfyUI give its own verdict — the user
+                learns something either way, which beats a dead end. */}
+            {selected.tryAnyway && (
+              <button
+                onClick={() => set('tryAnyway', tryAnyway ? 0 : 1)}
+                className={`w-full rounded-xl border px-3 py-2 text-[12.5px] font-semibold transition ${
+                  tryAnyway
+                    ? 'border-accent bg-accent-soft text-accent'
+                    : 'border-black/[.12] bg-white text-ink hover:border-[#b9b9c8]'
+                }`}
+              >
+                {tryAnyway ? 'Will try anyway — click to cancel' : 'Try anyway'}
+              </button>
+            )}
+            {tryAnyway && (
+              <p className="text-[11px] leading-relaxed text-dim">
+                Filesmith will send this through a standard ComfyUI graph. If it doesn&apos;t work,
+                you&apos;ll see ComfyUI&apos;s own error.
+              </p>
+            )}
+          </div>
         ) : null}
         {/* Say what we saw. `gguf` and `excluded` were computed, sent to the
             renderer, and then never rendered — so a user whose diffusion_models
@@ -1197,7 +1228,7 @@ function GenerateOptions({
                 type="number"
                 value={w}
                 step={64}
-                onChange={(e) => set('width', clampDim(Number(e.target.value)))}
+                onChange={(e) => set('width', clampDim(Number(e.target.value), dimCaps))}
                 className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
               />
             </div>
@@ -1207,7 +1238,7 @@ function GenerateOptions({
                 type="number"
                 value={h}
                 step={64}
-                onChange={(e) => set('height', clampDim(Number(e.target.value)))}
+                onChange={(e) => set('height', clampDim(Number(e.target.value), dimCaps))}
                 className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
               />
             </div>

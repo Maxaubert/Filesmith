@@ -115,6 +115,11 @@ export interface GenModel {
   detectedArch?: string
   /** Probed as a non-image model (video/3D/audio). Listed, but discouraged. */
   notImage?: boolean
+  /** Not runnable through a known workflow, but a generic graph CAN be sent to
+   * ComfyUI. The user gets a "Try anyway" action and ComfyUI's own error if it
+   * fails — the app's job is to make the good path obvious, not to make the
+   * unusual path impossible. */
+  tryAnyway?: boolean
 }
 
 /** Result of scanning for generation models, with counts for models we saw but
@@ -132,6 +137,8 @@ export interface GenModelScan {
   archInfo?: Record<string, ArchInfo>
   /** Registry problems worth telling the user about (a malformed user entry). */
   registryWarnings?: string[]
+  /** Per-arch dimension limits from the registry, replacing one global clamp. */
+  dimCaps?: Record<string, { minDim?: number; maxDim?: number; dimStep?: number }>
 }
 
 /** Files a diffusion-model workflow needs, as ComfyUI folder-relative names. */

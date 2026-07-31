@@ -73,7 +73,14 @@ function missingNodeError(arch: GenArch, node: string): Error {
  * a clear, actionable Error if a node/type is missing or a file the server can't
  * see, so generation never fails with a raw 400 or a wrong-separator name.
  */
-export async function resolveAgainstComfy(baseUrl: string, gm: GenModel): Promise<Resolved> {
+export async function resolveAgainstComfy(
+  baseUrl: string,
+  gm: GenModel,
+  /** "Try anyway": skip the per-arch node/type requirements, which describe a
+   * workflow we are not using. The generic graph's own nodes are still checked,
+   * and ComfyUI's error is surfaced verbatim if it refuses. */
+  tryAnyway = false
+): Promise<Resolved> {
   const oi = await fetchObjectInfo(baseUrl)
   const need = (node: string): void => {
     if (!oi[node]) throw missingNodeError(gm.arch, node)
@@ -81,7 +88,7 @@ export async function resolveAgainstComfy(baseUrl: string, gm: GenModel): Promis
 
   if (gm.source === 'checkpoint') {
     need('CheckpointLoaderSimple')
-    for (const n of extraNodes(gm.arch)) need(n)
+    if (!tryAnyway) for (const n of extraNodes(gm.arch)) need(n)
     const ckpt = resolveName(acceptedValues(oi, 'CheckpointLoaderSimple', 'ckpt_name'), gm.name)
     if (!ckpt)
       throw new Error(
@@ -93,8 +100,8 @@ export async function resolveAgainstComfy(baseUrl: string, gm: GenModel): Promis
   // Diffusion model: UNET + CLIP(+2) + VAE, all resolved to ComfyUI's own names.
   need('UNETLoader')
   need('VAELoader')
-  for (const n of extraNodes(gm.arch)) need(n)
-  const clip = clipReq(gm.arch)
+  if (!tryAnyway) for (const n of extraNodes(gm.arch)) need(n)
+  const clip = clipReq(gm.arch) ?? (tryAnyway ? { loader: 'CLIPLoader' as const, type: '' } : null)
   if (!clip)
     throw new Error(
       `No CLIP loader is defined for "${gm.arch}". Its registry entry is incomplete — reinstall Filesmith or fix the entry.`
@@ -103,7 +110,8 @@ export async function resolveAgainstComfy(baseUrl: string, gm: GenModel): Promis
   // The CLIPLoader/DualCLIPLoader "type" enum must include this arch's value; if
   // not, the node exists but this ComfyUI is too old for this architecture.
   const types = acceptedValues(oi, clip.loader, 'type')
-  if (types.length && !types.includes(clip.type)) throw missingNodeError(gm.arch, `${clip.loader} type "${clip.type}"`)
+  if (clip.type && types.length && !types.includes(clip.type))
+    throw missingNodeError(gm.arch, `${clip.loader} type "${clip.type}"`)
 
   const w = gm.wiring
   if (!w) throw new Error('This model has no resolved loader wiring; rescan and try again.')
