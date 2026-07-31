@@ -1,5 +1,5 @@
 import type { GenModel, DiffusionWiring, GenArch } from '@shared/genArch'
-import { ARCH_INFO } from '@shared/genArch'
+import { registryEntry } from '../registry/load'
 
 // Before queueing, reconcile with the ACTUAL ComfyUI on the other end via
 // /object_info, instead of trusting filesystem-derived names and assuming node
@@ -38,21 +38,20 @@ function resolveName(accepted: string[], wanted: string): string | null {
   return accepted.find((a) => norm(a) === w) ?? accepted.find((a) => norm(a).endsWith('/' + w)) ?? null
 }
 
-/** Which CLIP loader + "type" enum value each diffusion arch requires. */
-const CLIP_REQ: Record<Exclude<GenArch, 'sdxl'>, { loader: 'DualCLIPLoader' | 'CLIPLoader'; type: string }> = {
-  flux1: { loader: 'DualCLIPLoader', type: 'flux' },
-  flux2: { loader: 'CLIPLoader', type: 'flux2' },
-  'z-image': { loader: 'CLIPLoader', type: 'lumina2' },
-  krea2: { loader: 'CLIPLoader', type: 'krea2' }
+// Which CLIP loader + "type" enum value, and which non-loader nodes, each arch
+// needs — read from the registry rather than two hardcoded tables. ComfyUI
+// renames a node or a loader `type` enum value from time to time, and when it
+// did, the only fix was an app release; now it is a data change.
+
+/** Non-loader nodes this arch's workflow needs to exist in this ComfyUI. */
+function extraNodes(arch: GenArch): string[] {
+  return registryEntry(arch)?.requires?.nodes ?? []
 }
 
-/** Non-loader nodes each arch's workflow needs to exist in this ComfyUI. */
-const EXTRA_NODES: Record<GenArch, string[]> = {
-  sdxl: ['CLIPTextEncode', 'EmptyLatentImage', 'KSampler', 'VAEDecode', 'SaveImage'],
-  flux1: ['CLIPTextEncode', 'FluxGuidance', 'EmptySD3LatentImage', 'KSampler', 'VAEDecode', 'SaveImage'],
-  flux2: ['CLIPTextEncode', 'FluxGuidance', 'EmptySD3LatentImage', 'KSampler', 'VAEDecode', 'SaveImage'],
-  'z-image': ['CLIPTextEncode', 'ModelSamplingAuraFlow', 'ConditioningZeroOut', 'EmptySD3LatentImage', 'KSampler', 'VAEDecode', 'SaveImage'],
-  krea2: ['CLIPTextEncode', 'EmptySD3LatentImage', 'KSampler', 'VAEDecode', 'SaveImage']
+/** The CLIP loader + `type` enum value this arch requires, if any. */
+function clipReq(arch: GenArch): { loader: 'DualCLIPLoader' | 'CLIPLoader'; type: string } | null {
+  const c = registryEntry(arch)?.requires?.clipLoader
+  return c ? { loader: c.node, type: c.type } : null
 }
 
 export interface Resolved {
@@ -63,7 +62,7 @@ export interface Resolved {
 }
 
 function missingNodeError(arch: GenArch, node: string): Error {
-  const note = ARCH_INFO[arch].minComfyNote
+  const note = registryEntry(arch)?.requires?.minComfyNote
   return new Error(
     note ?? `Your ComfyUI is missing the "${node}" node — update ComfyUI to the latest version and try again.`
   )
@@ -82,8 +81,7 @@ export async function resolveAgainstComfy(baseUrl: string, gm: GenModel): Promis
 
   if (gm.source === 'checkpoint') {
     need('CheckpointLoaderSimple')
-    for (const n of EXTRA_NODES[gm.arch]) need(n)
-    if (gm.arch === 'flux1') need('FluxGuidance')
+    for (const n of extraNodes(gm.arch)) need(n)
     const ckpt = resolveName(acceptedValues(oi, 'CheckpointLoaderSimple', 'ckpt_name'), gm.name)
     if (!ckpt)
       throw new Error(
@@ -95,8 +93,12 @@ export async function resolveAgainstComfy(baseUrl: string, gm: GenModel): Promis
   // Diffusion model: UNET + CLIP(+2) + VAE, all resolved to ComfyUI's own names.
   need('UNETLoader')
   need('VAELoader')
-  for (const n of EXTRA_NODES[gm.arch]) need(n)
-  const clip = CLIP_REQ[gm.arch as Exclude<GenArch, 'sdxl'>]
+  for (const n of extraNodes(gm.arch)) need(n)
+  const clip = clipReq(gm.arch)
+  if (!clip)
+    throw new Error(
+      `No CLIP loader is defined for "${gm.arch}". Its registry entry is incomplete — reinstall Filesmith or fix the entry.`
+    )
   need(clip.loader)
   // The CLIPLoader/DualCLIPLoader "type" enum must include this arch's value; if
   // not, the node exists but this ComfyUI is too old for this architecture.

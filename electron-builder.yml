@@ -20,6 +20,12 @@ files:
 # resources/bin; LibreOffice (document conversion) ships in resources/libreoffice.
 # Both are populated by scripts/fetch-binaries.mjs before packaging.
 extraResources:
+  # The built-in model registry (layer 1). Data, not code: it defines which model
+  # families exist, and ships in the installer so a fully offline install has a
+  # complete catalog. The user's own layer lives in %APPDATA%/Filesmith/registry.
+  - from: resources/registry
+    to: registry
+    filter: ['**/*.json']
   - from: resources/bin
     to: bin
     filter: ['**/*']

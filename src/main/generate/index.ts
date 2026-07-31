@@ -3,8 +3,8 @@ import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { reserveOutPath } from '../output'
 import type { GenerateOptions } from '@shared/generate'
-import { GEN_MAX_COUNT, buildSdxlWorkflow } from '@shared/generate'
-import { buildDiffusionWorkflow, buildFlux1CheckpointWorkflow } from '@shared/genArch'
+import { GEN_MAX_COUNT } from '@shared/generate'
+import { buildWorkflow } from './workflow'
 import { findGenerationModel } from './models'
 import { resolveAgainstComfy } from './preflight'
 import {
@@ -18,7 +18,7 @@ import {
 
 export { comfyGenerationAvailable, stopComfyServer } from './comfy'
 export { downloadCompanions } from './companions'
-export { findGenerationModels, scanGenerationModels } from './models'
+export { findGenerationModels, scanGenerationModels, registryArchInfo } from './models'
 
 let clientCounter = 0
 
@@ -95,12 +95,7 @@ export async function generateImages(
         count: 1,
         seed: opts.seed < 0 ? -1 : opts.seed + i
       }
-      const wf =
-        gm.source === 'checkpoint'
-          ? gm.arch === 'flux1'
-            ? buildFlux1CheckpointWorkflow(perImage)
-            : buildSdxlWorkflow(perImage)
-          : buildDiffusionWorkflow(gm.arch, perImage, resolved.wiring!)
+      const wf = buildWorkflow(gm, perImage, resolved.wiring)
       sawProgress = false
       const promptId = await queuePrompt(baseUrl, wf, clientId)
       indexByPrompt.set(promptId, i)

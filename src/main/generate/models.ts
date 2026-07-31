@@ -1,8 +1,12 @@
 import { existsSync, readdirSync, statSync } from 'fs'
 import { basename, join } from 'path'
-import type { GenArch, GenModel, GenModelScan } from '@shared/genArch'
-import { ARCH_INFO } from '@shared/genArch'
+import type { ArchInfo, GenArch, GenModel, GenModelScan } from '@shared/genArch'
+import { archInfoFor } from '@shared/genArch'
+import type { ProbedFile } from '@shared/registry'
+import { scoreDetect } from '@shared/registry'
 import { comfyModelsBases } from '../comfy/discover'
+import { registryEntries, registryEntry } from '../registry/load'
+import type { SafetensorsHeader } from './archScan'
 import { classifyModelFile, inspectModelFile, readSafetensorsHeader } from './archScan'
 import { resolveArch } from './archRegistry'
 
@@ -12,8 +16,47 @@ import { resolveArch } from './archRegistry'
 // SDXL. Video / 3D / audio models are dropped silently; unrecognized image models
 // are counted so the UI can say so instead of leaving the user guessing.
 
-/** Diffusion arches we can build a text-to-image workflow for. */
-const SUPPORTED: GenArch[] = ['flux1', 'flux2', 'z-image', 'krea2']
+/**
+ * Diffusion arches we can build a text-to-image workflow for — whatever the
+ * registry has, not a hardcoded allowlist. Adding a family is now a JSON file,
+ * and a user's own entry counts exactly as much as a shipped one.
+ */
+function supportedArches(): string[] {
+  return registryEntries('generate')
+    .filter((e) => e.workflow)
+    .map((e) => e.id)
+}
+
+/**
+ * Identify a model the built-in classifier could not place, using the `detect`
+ * blocks registry entries may declare (tensor keys, metadata, byte size). Only
+ * consulted where `classifyArch` gave up, so the shipped families keep exactly
+ * their previous behaviour while a user- or channel-added family becomes
+ * recognizable without touching the classifier.
+ */
+function registryArch(header: SafetensorsHeader | null, probe: ProbedFile): string | null {
+  let best: string | null = null
+  let bestScore = 0
+  for (const e of registryEntries('generate')) {
+    if (!e.detect || !e.workflow) continue
+    const score = scoreDetect(e.detect, {
+      ...probe,
+      metaArch: header?.metadata['modelspec.architecture'] ?? header?.metadata['architecture'],
+      tensorKeys: header?.keys
+    })
+    if (score > bestScore) {
+      bestScore = score
+      best = e.id
+    }
+  }
+  return best
+}
+
+/** Picker heading for an arch: the registry's own group, so a user-added family
+ * gets its own heading instead of being filed under a built-in's. */
+function archGroup(id: string): string {
+  return registryEntry(id)?.group ?? archInfoFor(id).group
+}
 
 function label(name: string): string {
   return basename(name).replace(/\.[^.]+$/, '')
@@ -78,16 +121,16 @@ export function scanGenerationModels(): GenModelScan {
     const header = /\.(safetensors|sft)$/i.test(rel) ? readSafetensorsHeader(abs) : null
     const arch = header ? classifyModelFile(abs) : 'sdxl'
     if (arch === 'sdxl' || (!header && /\.ckpt$/i.test(rel))) {
-      models.push({ ...common, arch: 'sdxl', group: ARCH_INFO.sdxl.group, runnable: true })
+      models.push({ ...common, arch: 'sdxl', group: archGroup('sdxl'), runnable: true })
     } else if (arch === 'flux1') {
       // All-in-one Flux checkpoint: baked CLIP+VAE, loaded via CheckpointLoaderSimple.
-      models.push({ ...common, arch: 'flux1', group: ARCH_INFO.flux1.group, runnable: true })
+      models.push({ ...common, arch: 'flux1', group: archGroup('flux1'), runnable: true })
     } else {
       // SD3 / Flux 2 / an unrecognized single-file checkpoint: don't pretend it's SDXL.
       models.push({
         ...common,
         arch: 'sdxl',
-        group: ARCH_INFO.sdxl.group,
+        group: archGroup('sdxl'),
         runnable: false,
         reason:
           arch === 'sd3'
@@ -103,7 +146,15 @@ export function scanGenerationModels(): GenModelScan {
       gguf += 1
       continue
     }
-    const { arch, excluded: isExcluded } = inspectModelFile(abs)
+    const inspected = inspectModelFile(abs)
+    const isExcluded = inspected.excluded
+    // Registry-declared detection only fills the gap the classifier left, so the
+    // shipped families behave exactly as before.
+    const arch =
+      inspected.arch !== 'unknown'
+        ? (inspected.arch as string)
+        : (registryArch(inspected.header, { basename: basename(rel), sizeBytes: fileSize(abs) }) ??
+          'unknown')
     // Nothing on disk is invisible. Both of these used to `continue`, so a user
     // with a folder full of next month's architecture saw "No image models
     // found" and had no way to tell whether the app had even seen the files.
@@ -124,7 +175,7 @@ export function scanGenerationModels(): GenModelScan {
       })
       continue
     }
-    if (!SUPPORTED.includes(arch as GenArch)) {
+    if (!supportedArches().includes(arch)) {
       unrecognized += 1
       models.push({
         name: rel,
@@ -144,7 +195,7 @@ export function scanGenerationModels(): GenModelScan {
     }
     const ga = arch as GenArch
     const { missing, wiring } = resolveArch(ga, rel, fileSize(abs))
-    const common = { name: rel, label: label(rel), arch: ga, group: ARCH_INFO[ga].group, source: 'diffusion' as const, baseDir: base }
+    const common = { name: rel, label: label(rel), arch: ga, group: archGroup(ga), source: 'diffusion' as const, baseDir: base }
     if (!missing.length && wiring) {
       models.push({ ...common, runnable: true, wiring })
     } else {
@@ -167,6 +218,30 @@ export function scanGenerationModels(): GenModelScan {
     (a, b) => Number(b.runnable) - Number(a.runnable) || a.group.localeCompare(b.group) || a.label.localeCompare(b.label)
   )
   return { models, excluded, unrecognized, gguf }
+}
+
+/**
+ * Sampler/group settings for every arch the registry knows, for the renderer.
+ * Without this the UI would fall back to a compiled-in table, so a user-added
+ * family would generate with someone else's sampler defaults (and cfg 7 on a
+ * distilled model produces garbage). Data in, data out.
+ */
+export function registryArchInfo(): Record<string, ArchInfo> {
+  const out: Record<string, ArchInfo> = {}
+  for (const e of registryEntries('generate')) {
+    if (!e.sampler) continue
+    out[e.id] = {
+      group: e.group ?? e.label,
+      sampler: e.sampler.name,
+      scheduler: e.sampler.scheduler,
+      steps: e.sampler.steps,
+      cfg: e.sampler.cfg,
+      guidance: e.sampler.guidance,
+      hasGuidance: e.sampler.hasGuidance,
+      minComfyNote: e.requires?.minComfyNote
+    }
+  }
+  return out
 }
 
 /** Just the model list (for the generate path's lookup). */

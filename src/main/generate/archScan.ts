@@ -131,11 +131,17 @@ export function isAllInOne(h: SafetensorsHeader): boolean {
   return h.keys.some((k) => k.startsWith('text_encoders.')) && h.keys.some((k) => k.startsWith('vae.'))
 }
 
-/** classifyModelFile + the excluded/unrecognized distinction in one header read. */
-export function inspectModelFile(path: string): { arch: DiffusionArch; excluded: boolean } {
+/** classifyModelFile + the excluded/unrecognized distinction in one header read.
+ * The header comes back too, so a caller that wants to try registry-declared
+ * detection on an unrecognized file doesn't pay for a second read. */
+export function inspectModelFile(path: string): {
+  arch: DiffusionArch
+  excluded: boolean
+  header: SafetensorsHeader | null
+} {
   const h = readSafetensorsHeader(path)
-  if (!h) return { arch: 'unknown', excluded: false }
-  return { arch: classifyArch(h), excluded: isExcludedNonImage(h) }
+  if (!h) return { arch: 'unknown', excluded: false, header: null }
+  return { arch: classifyArch(h), excluded: isExcludedNonImage(h), header: h }
 }
 
 /** Convenience: classify straight from a path (null header -> 'unknown'). */
