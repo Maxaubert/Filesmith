@@ -45,8 +45,7 @@ export function uvCandidates(): string[] {
     /* no Electron */
   }
   out.push(...wingetCandidates())
-  if (process.env.USERPROFILE)
-    out.push(join(process.env.USERPROFILE, '.local', 'bin', 'uv' + EXE))
+  if (process.env.USERPROFILE) out.push(join(process.env.USERPROFILE, '.local', 'bin', 'uv' + EXE))
   if (process.env.LOCALAPPDATA)
     out.push(join(process.env.LOCALAPPDATA, 'Programs', 'uv', 'uv' + EXE))
   return out
@@ -76,4 +75,10 @@ export async function findUvAsync(): Promise<string | null> {
   const local = findUv()
   if (local) return local
   return (await uvOnPath()) ? 'uv' : null
+}
+
+/** The PATH probe's cached verdict, for synchronous callers (resolveRembg).
+ * False until uvOnPath()/findUvAsync() has run once this session. */
+export function uvOnPathCached(): boolean {
+  return pathProbe?.found ?? false
 }

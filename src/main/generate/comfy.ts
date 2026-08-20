@@ -76,7 +76,16 @@ export function findComfyLaunch(): { python: string; cwd: string } | null {
  * they live in a different folder (e.g. a shared models dir) than the code root.
  * Returns the config path, or null if no model dirs were found.
  */
-const MODEL_SUBS = ['checkpoints', 'vae', 'loras', 'diffusion_models', 'text_encoders', 'clip', 'unet', 'upscale_models']
+const MODEL_SUBS = [
+  'checkpoints',
+  'vae',
+  'loras',
+  'diffusion_models',
+  'text_encoders',
+  'clip',
+  'unet',
+  'upscale_models'
+]
 
 function writeExtraModelPaths(): string | null {
   const dirs = new Set<string>()
@@ -133,7 +142,14 @@ export async function ensureComfyServer(onStatus?: (s: string) => void): Promise
   if (!proc) {
     onStatus?.('Starting ComfyUI (first run of the session)…')
     const port = await freePort()
-    const args = ['main.py', '--port', String(port), '--listen', '127.0.0.1', '--disable-auto-launch']
+    const args = [
+      'main.py',
+      '--port',
+      String(port),
+      '--listen',
+      '127.0.0.1',
+      '--disable-auto-launch'
+    ]
     const extraPaths = writeExtraModelPaths()
     if (extraPaths) args.push('--extra-model-paths-config', extraPaths)
     procTail = ''
@@ -236,7 +252,11 @@ export function openProgressSocket(
           data?: { prompt_id?: string; value?: number; max?: number }
         }
         if (msg.type === 'progress' && msg.data?.prompt_id)
-          onProgress(String(msg.data.prompt_id), Number(msg.data.value) || 0, Number(msg.data.max) || 0)
+          onProgress(
+            String(msg.data.prompt_id),
+            Number(msg.data.value) || 0,
+            Number(msg.data.max) || 0
+          )
       } catch {
         /* non-JSON */
       }
@@ -298,7 +318,10 @@ export async function waitForImages(
     try {
       const r = await fetch(`${baseUrl}/history/${promptId}`, { signal: AbortSignal.timeout(5000) })
       if (r.ok) {
-        const hist = (await r.json()) as Record<string, { status?: { status_str?: string }; outputs?: Record<string, { images?: ComfyImage[] }> }>
+        const hist = (await r.json()) as Record<
+          string,
+          { status?: { status_str?: string }; outputs?: Record<string, { images?: ComfyImage[] }> }
+        >
         const entry = hist[promptId]
         if (entry) {
           if (entry.status?.status_str === 'error')
@@ -337,7 +360,10 @@ export async function listCheckpoints(baseUrl: string): Promise<string[]> {
       signal: AbortSignal.timeout(5000)
     })
     if (!r.ok) return []
-    const j = (await r.json()) as Record<string, { input?: { required?: { ckpt_name?: unknown[][] } } }>
+    const j = (await r.json()) as Record<
+      string,
+      { input?: { required?: { ckpt_name?: unknown[][] } } }
+    >
     const names = j.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0]
     return Array.isArray(names) ? (names as string[]) : []
   } catch {

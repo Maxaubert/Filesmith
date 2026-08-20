@@ -71,7 +71,12 @@ function templateVars(
  * to the user than our refusal to attempt anything.
  */
 function genericWorkflow(gm: GenModel): WorkflowSpec {
-  const sampler = (model: [string, number], pos: string, neg: string, latent: string): WorkflowNode => ({
+  const sampler = (
+    model: [string, number],
+    pos: string,
+    neg: string,
+    latent: string
+  ): WorkflowNode => ({
     class_type: 'KSampler',
     inputs: {
       seed: '${seed}',
@@ -164,7 +169,8 @@ export function buildWorkflow(
     gm.source === 'checkpoint'
       ? entry?.checkpointWorkflow
       : gm.source === 'gguf'
-        ? (entry?.ggufWorkflow ?? (entry?.workflow ? deriveGgufWorkflow(entry.workflow) : undefined))
+        ? (entry?.ggufWorkflow ??
+          (entry?.workflow ? deriveGgufWorkflow(entry.workflow) : undefined))
         : entry?.workflow
   // "Try anyway": no known workflow, so send the generic one and let ComfyUI
   // give its own verdict. The user learns something either way — which beats a

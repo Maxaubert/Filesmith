@@ -32,11 +32,19 @@ export function buildResizeSpec(options: JobOptions): string {
  * mode with a blank/zero/non-finite value (`"0%"`, `"NaN%"`).
  */
 export function isValidResizeSpec(spec: string): boolean {
-  if (/^x!?$/.test(spec)) return false
   if (spec.endsWith('%')) {
     const n = Number(spec.slice(0, -1))
     return Number.isFinite(n) && n > 0
   }
+  // Dimensions: every present side must be a positive integer. `0x` made
+  // magick exit 0 with a 1x1 image (passing the size>0 check), and `-5x`
+  // silently copied the file unchanged.
+  const m = /^(\d*)x(\d*)!?$/.exec(spec)
+  if (!m) return false
+  const [, w, h] = m
+  if (!w && !h) return false
+  if (w && Number(w) < 1) return false
+  if (h && Number(h) < 1) return false
   return true
 }
 

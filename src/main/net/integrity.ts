@@ -71,6 +71,9 @@ export function expectedHash(url: string, declared?: string): string | undefined
 
 /** Record a completed download. A declared hash was already verified upstream. */
 export function recordHash(url: string, sha256: string, bytes: number): void {
+  // A resumed transfer hashes only its tail and reports '' — recording that
+  // would anchor future verifications to an empty string.
+  if (!sha256) return
   const l = read()
   if (l[url]?.sha256 === sha256) return
   let host = url
@@ -81,9 +84,4 @@ export function recordHash(url: string, sha256: string, bytes: number): void {
   }
   l[url] = { sha256, bytes, host, firstSeen: new Date().toISOString() }
   write(l)
-}
-
-/** Everything we've recorded, for a provenance view. */
-export function integrityLedger(): Ledger {
-  return read()
 }

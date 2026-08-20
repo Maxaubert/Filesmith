@@ -6,33 +6,9 @@ import { basename, dirname, extname, join } from 'path'
 // the user's source or an existing unrelated file. This is a hard rule.
 
 /**
- * A collision-free file path in `dir`: `name.ext` -> `name (tag).ext` ->
- * `name (tag 2).ext` -> ... The tag names the operation ("converted",
- * "compressed", "resized", "upscaled").
- */
-export function uniqueFileInDir(dir: string, name: string, ext: string, tag: string): string {
-  const e = ext.startsWith('.') ? ext : '.' + ext
-  let cand = join(dir, name + e)
-  if (!existsSync(cand)) return cand
-  cand = join(dir, `${name} (${tag})${e}`)
-  let n = 2
-  while (existsSync(cand)) {
-    cand = join(dir, `${name} (${tag} ${n})${e}`)
-    n++
-  }
-  return cand
-}
-
-/** Output next to the source with a new extension, collision-safe. */
-export function uniqueOutPath(sourcePath: string, ext: string, tag: string): string {
-  const dir = dirname(sourcePath)
-  const name = basename(sourcePath, extname(sourcePath))
-  return uniqueFileInDir(dir, name, ext, tag)
-}
-
-/**
- * Like uniqueFileInDir, but ATOMICALLY claims the chosen name by creating an
- * empty placeholder (openSync 'wx' — exclusive create). Two jobs running
+ * A collision-free file path (`name.ext` -> `name (tag).ext` ->
+ * `name (tag 2).ext` -> ...) that ATOMICALLY claims the chosen name by creating
+ * an empty placeholder (openSync 'wx' — exclusive create). Two jobs running
  * concurrently can otherwise pick the same free name before either has written
  * it (a batch of differently-named sources converting to one target format all
  * land on `name.ext`); the exclusive create makes the second job skip to the

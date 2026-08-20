@@ -45,7 +45,6 @@ describe('buildRembgArgs', () => {
     expect(args.slice(args.indexOf('-ae'), args.indexOf('-ae') + 2)).toEqual(['-ae', '10'])
   })
 
-
   it('passes a background colour as four bare ints', () => {
     const args = buildRembgArgs('in.png', 'out.png', { ...base, bgFill: 'white' })
     const i = args.indexOf('-bgc')

@@ -1,5 +1,6 @@
 import { extname } from 'path'
 import { isLosslessAudio, normalizeExt } from '@shared/convert'
+import { audioMapArgs, magickFrame } from './convert'
 import { SCALE_MAX, SCALE_MIN, type AudioCodec, type VideoCodec } from '@shared/compress'
 
 // Image targets that hold multiple frames — keep all frames (an animated GIF
@@ -30,8 +31,12 @@ export function buildCompressArgs(input: string, outDir: string, quality: number
  * single-frame target reads only `input[0]` (so a multi-frame source doesn't
  * split); a multi-frame target keeps every frame (animated GIF -> animated WebP). */
 export function buildMagickCompressArgs(input: string, output: string, quality: number): string[] {
-  const src = MULTIFRAME_TARGETS.includes(normalizeExt(extname(output))) ? input : `${input}[0]`
-  return [src, '-quality', String(quality), output]
+  const e = normalizeExt(extname(output))
+  const src = MULTIFRAME_TARGETS.includes(e) ? input : magickFrame(input)
+  // TIFF: without an explicit -compress, re-encoding DROPPED the source's Zip
+  // compression entirely (measured +59% on a Zip TIFF at every quality).
+  const extra = e === '.tiff' ? ['-compress', 'Zip'] : []
+  return [src, '-quality', String(quality), ...extra, output]
 }
 
 // --- Video ---------------------------------------------------------------------
@@ -67,10 +72,16 @@ export interface VideoOpts {
  * probe is needed. Audio -> AAC 128k.
  */
 export function buildVideoCompressArgs(input: string, output: string, o: VideoOpts): string[] {
-  const args = ['-y', '-i', input]
+  // Keep EVERY audio track (the default selection takes only the "best" one);
+  // subtitles are left behind - image subs (PGS) cannot become mov_text and
+  // mapping them would fail the whole compress.
+  const args = ['-y', '-i', input, '-map', '0:v:0', '-map', '0:a?']
   if (o.scale < 100) {
     const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, o.scale)) / 100
-    args.push('-vf', `scale=w=iw*${s}:h=ih*${s}:force_divisible_by=2`)
+    // Even dimensions via trunc(x/2)*2 IN the expression: ffmpeg honours
+    // `force_divisible_by` only inside the force_original_aspect_ratio branch,
+    // so 3 of the 15 scale positions aborted with "width not divisible by 2".
+    args.push('-vf', `scale=w=trunc(iw*${s}/2)*2:h=trunc(ih*${s}/2)*2`)
   }
   args.push('-c:v', VIDEO_ENCODER[o.codec])
   args.push('-preset', o.codec === 'av1' ? '6' : 'medium')
@@ -95,7 +106,8 @@ const EXT_ENCODER: Record<string, string> = {
   '.aac': 'aac',
   '.ogg': 'libvorbis',
   '.opus': 'libopus',
-  '.wma': 'wmav2'
+  '.wma': 'wmav2',
+  '.ac3': 'ac3'
 }
 // The output extension for a chosen codec (keep -> source ext).
 const CODEC_EXT: Record<Exclude<AudioCodec, 'keep'>, string> = {
@@ -113,7 +125,13 @@ const CODEC_EXT: Record<Exclude<AudioCodec, 'keep'>, string> = {
  */
 export function audioOutputExt(codec: AudioCodec, sourceExt: string): string {
   if (codec !== 'keep') return CODEC_EXT[codec]
-  return isLosslessAudio(sourceExt) ? '.flac' : normalizeExt(sourceExt)
+  if (isLosslessAudio(sourceExt)) return '.flac'
+  const e = normalizeExt(sourceExt)
+  // "Keep" needs an encoder for the source codec. A source with no entry falls
+  // back to AAC - and AAC inside the source's container fails outright (.amr
+  // kept its extension while carrying AAC: "Could not write header"), so the
+  // container must follow the fallback codec.
+  return EXT_ENCODER[e] ? e : '.m4a'
 }
 
 export interface AudioOpts {
@@ -125,10 +143,11 @@ export interface AudioOpts {
 /** ffmpeg audio compress to a target codec + bitrate (kbps), or lossless FLAC
  * when keeping the format of a lossless source. */
 export function buildAudioCompressArgs(input: string, output: string, o: AudioOpts): string[] {
+  const maps = audioMapArgs(extname(output))
   if (o.codec === 'keep' && isLosslessAudio(o.sourceExt)) {
-    return ['-y', '-i', input, '-c:a', 'flac', '-compression_level', '8', output]
+    return ['-y', '-i', input, ...maps, '-c:a', 'flac', '-compression_level', '8', output]
   }
   const enc =
     o.codec === 'keep' ? (EXT_ENCODER[normalizeExt(o.sourceExt)] ?? 'aac') : AUDIO_ENCODER[o.codec]
-  return ['-y', '-i', input, '-c:a', enc, '-b:a', `${o.bitrate}k`, output]
+  return ['-y', '-i', input, ...maps, '-c:a', enc, '-b:a', `${o.bitrate}k`, output]
 }

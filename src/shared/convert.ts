@@ -137,18 +137,11 @@ export const LOSSLESS_AUDIO_EXTS = ['.flac', '.wav', '.aiff', '.aif']
 // exotic exts (svg, xcf, tga, ppm, mpo) are excluded — "compress to same ext"
 // there would silently rasterize into a broken file that still passes a size>0
 // check, so they must not be offered.
-export const COMPRESSIBLE_IMAGE_EXTS = [
-  '.jpg',
-  '.png',
-  '.webp',
-  '.gif',
-  '.tiff',
-  '.avif',
-  '.jxl',
-  '.heic',
-  '.heif',
-  '.bmp'
-]
+// HEIC/HEIF are absent for the same reason as the vector formats: the bundled
+// magick has no HEIC ENCODER, prints "no encode delegate" as a warning, exits
+// 0, and leaves a junk file wearing a .heic name. BMP is absent because BMP is
+// uncompressed - a "compress" that changes nothing at every quality is a lie.
+export const COMPRESSIBLE_IMAGE_EXTS = ['.jpg', '.png', '.webp', '.gif', '.tiff', '.avif', '.jxl']
 
 /** Whether the Compress tool supports a given file. Images: only formats the
  * compressors handle (Caesium set + raster magick); video, audio and PDF always

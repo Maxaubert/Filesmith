@@ -82,8 +82,18 @@ describe('normalizeModelName', () => {
 
 describe('classifyModel', () => {
   it('marks a known token as verified with its arch and scale', () => {
-    const m = classifyModel({ path: 'C:/m/4x-UltraSharpV2.safetensors', ok: true, arch: 'ESRGAN', scale: 4 })
-    expect(m).toMatchObject({ name: '4x-UltraSharpV2', badge: 'verified', arch: 'ESRGAN', scale: 4 })
+    const m = classifyModel({
+      path: 'C:/m/4x-UltraSharpV2.safetensors',
+      ok: true,
+      arch: 'ESRGAN',
+      scale: 4
+    })
+    expect(m).toMatchObject({
+      name: '4x-UltraSharpV2',
+      badge: 'verified',
+      arch: 'ESRGAN',
+      scale: 4
+    })
   })
 
   it('marks a model experimental only when BOTH its name and its arch are unknown', () => {
@@ -93,13 +103,22 @@ describe('classifyModel', () => {
     expect(
       classifyModel({ path: '/m/SomeRandomUpscaler.pth', ok: true, arch: 'DAT', scale: 2 }).badge
     ).toBe('verified')
-    const m = classifyModel({ path: '/m/SomeRandomUpscaler.pth', ok: true, arch: 'BrandNew', scale: 2 })
+    const m = classifyModel({
+      path: '/m/SomeRandomUpscaler.pth',
+      ok: true,
+      arch: 'BrandNew',
+      scale: 2
+    })
     expect(m.badge).toBe('experimental')
     expect(m.scale).toBe(2) // and it stays fully usable either way
   })
 
   it('marks an unloadable file unsupported with the reason', () => {
-    const m = classifyModel({ path: '/m/supir_v0.safetensors', ok: false, reason: 'not an image upscaler' })
+    const m = classifyModel({
+      path: '/m/supir_v0.safetensors',
+      ok: false,
+      reason: 'not an image upscaler'
+    })
     expect(m).toMatchObject({ badge: 'unsupported', reason: 'not an image upscaler', scale: 0 })
   })
 })
@@ -109,7 +128,11 @@ describe('classifySpandrelLine', () => {
     expect(classifySpandrelLine('{"ready": true}')).toEqual({ kind: 'ready' })
   })
   it('parses a progress line into a 0-99 percent', () => {
-    expect(classifySpandrelLine('{"id": 2, "progress": 0.5}')).toEqual({ kind: 'progress', id: 2, pct: 50 })
+    expect(classifySpandrelLine('{"id": 2, "progress": 0.5}')).toEqual({
+      kind: 'progress',
+      id: 2,
+      pct: 50
+    })
   })
   it('parses a success reply', () => {
     expect(classifySpandrelLine('{"id": 1, "ok": true, "output": "o.png", "ms": 42}')).toEqual({

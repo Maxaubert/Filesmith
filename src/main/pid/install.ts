@@ -11,7 +11,9 @@ import {
 } from 'fs'
 import { basename, dirname, join } from 'path'
 import { run } from '../run'
+import { cudaTierSupport, detectNvidia } from './gpu'
 import { downloadFile } from '../net/download'
+import { expectedHash, recordHash } from '../net/integrity'
 import { resolveUv } from '../toolResolver'
 import { findComfyPidWeights } from '../comfy/discover'
 import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from './paths'
@@ -37,8 +39,11 @@ const VAE_APPROX_BYTES = 335_000_000
 // code, neither could tell which, and neither could ever receive a fix, because
 // the marker's mere existence counted as "up to date". The ref is now written
 // into the marker and a mismatch forces a re-vendor.
-const PID_REPO_REF = 'main'
-const PID_REPO_ZIP = `https://github.com/nv-tlabs/PiD/archive/refs/heads/${PID_REPO_REF}.zip`
+// Pinned to a COMMIT, not the moving `main`: two installs a month apart must
+// run the same vendored code, and the marker comparison below can only mean
+// something when the ref itself is immutable.
+const PID_REPO_REF = '2c8814c2b91cc41a2be7809962c891e0d0ccff5f'
+const PID_REPO_ZIP = `https://github.com/nv-tlabs/PiD/archive/${PID_REPO_REF}.zip`
 const HF_BASE = 'https://huggingface.co/nvidia/PiD/resolve/main'
 
 // Written at the very end of ensureRepo (after the pin is relaxed), so an
@@ -83,7 +88,12 @@ async function download(
   onPct?: (pct: number) => void,
   minBytes?: number
 ): Promise<void> {
-  await downloadFile(url, dest, { onPct, minBytes })
+  // Trust-on-first-use like every other download in the app: the uv zip, the
+  // vendored source and the multi-GB weights used to be the ONLY fetches that
+  // bypassed the integrity ledger entirely - accepted on a size floor, never
+  // recorded, so a re-download could silently differ from what was installed.
+  const result = await downloadFile(url, dest, { onPct, minBytes, sha256: expectedHash(url) })
+  recordHash(result.url, result.sha256, result.bytes)
 }
 
 /** Copy a file into place atomically (temp + rename), so an interrupted copy
@@ -123,8 +133,8 @@ async function ensureRepo(onProgress: InstallProgress): Promise<void> {
   const ex = await run(winTar(), ['-xf', tmpZip, '-C', extractTo])
   if (ex.code !== 0) throw new Error(`PiD source extract failed: ${ex.stderr.slice(-400)}`)
 
-  const inner = join(extractTo, 'PiD-main')
-  if (!existsSync(inner)) throw new Error('PiD source extract produced no PiD-main folder')
+  const inner = join(extractTo, `PiD-${PID_REPO_REF}`)
+  if (!existsSync(inner)) throw new Error('PiD source extract produced no PiD-* folder')
   rmSync(pidRepoDir(), { recursive: true, force: true })
   renameSync(inner, pidRepoDir())
   rmSync(extractTo, { recursive: true, force: true })
@@ -227,7 +237,8 @@ async function ensureEnv(onProgress: InstallProgress): Promise<void> {
   const depRes = await run(uv, ['pip', 'install', '--python', python, '-e', '.'], {
     cwd: pidRepoDir()
   })
-  if (depRes.code !== 0) throw new Error(`PiD dependency install failed: ${depRes.stderr.slice(-400)}`)
+  if (depRes.code !== 0)
+    throw new Error(`PiD dependency install failed: ${depRes.stderr.slice(-400)}`)
 
   writeFileSync(marker, '')
 }
@@ -311,10 +322,7 @@ function withInstallLock(fn: () => Promise<void>): Promise<void> {
  */
 const ENV_APPROX_BYTES = 3_000_000_000
 
-export function checkDiskSpace(
-  needBytes: number,
-  dir?: string
-): { ok: boolean; reason?: string } {
+export function checkDiskSpace(needBytes: number, dir?: string): { ok: boolean; reason?: string } {
   if (!(needBytes > 0)) return { ok: true }
   try {
     // statfs is Node 18.15+; absent or failing, we simply don't block — refusing
@@ -355,7 +363,16 @@ export async function installPid(backbone: string, onProgress: InstallProgress):
   return withInstallLock(() => installPidInner(backbone, onProgress))
 }
 
+/** Refuse the multi-GB download when this GPU can't run the result. The
+ * verdict (cudaTierSupport) was computed for the status endpoint and then
+ * never enforced: a GTX 1080 was still offered the ~3 GB cu128 torch. */
+async function assertCudaCapable(): Promise<void> {
+  const support = cudaTierSupport(await detectNvidia())
+  if (!support.ok) throw new Error(support.reason ?? 'This GPU cannot run the CUDA engine.')
+}
+
 async function installPidInner(backbone: string, onProgress: InstallProgress): Promise<void> {
+  await assertCudaCapable()
   mkdirSync(pidRoot(), { recursive: true })
   const bbForSpace = PID_BACKBONES[backbone]
   const space = checkDiskSpace((bbForSpace?.approxBytes ?? 0) + ENV_APPROX_BYTES)
@@ -373,7 +390,13 @@ async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
   // so whatever spandrel resolved on setup day was frozen forever — and a model
   // with a newer architecture then reported "could not be read" with no way in
   // the UI to update the loader.
-  const spec = registryEntry('spandrel')?.engineSpec ?? 'spandrel>=0.4.1'
+  // Never honour a USER-layer engineSpec: with field-by-field merge an
+  // imported pack can override this string, and it is spliced into
+  // `uv pip install`. validateEntry constrains its shape; provenance
+  // constrains who may set it.
+  const entry = registryEntry('spandrel')
+  const spec =
+    (entry && entry.provenance.source !== 'user' && entry.engineSpec) || 'spandrel>=0.4.1'
   if (markerSays(spandrelMarker(), spec)) return
   const uv = await ensureUv(onProgress)
   const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')
@@ -398,6 +421,7 @@ export async function installComfyEngine(onProgress: InstallProgress): Promise<v
   // Shares the lock with installPid: both run ensureRepo/ensureEnv, write the
   // same temp paths and rmSync the same repo dir.
   return withInstallLock(async () => {
+    await assertCudaCapable()
     mkdirSync(pidRoot(), { recursive: true })
     const space = checkDiskSpace(ENV_APPROX_BYTES)
     if (!space.ok) throw new Error(space.reason)

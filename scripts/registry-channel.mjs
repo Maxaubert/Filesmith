@@ -84,7 +84,10 @@ if (cmd === 'keygen') {
   }
   const pack = JSON.parse(readFileSync(file, 'utf-8'))
   const key = createPublicKey({
-    key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(pub, 'base64')]),
+    key: Buffer.concat([
+      Buffer.from('302a300506032b6570032100', 'hex'),
+      Buffer.from(pub, 'base64')
+    ]),
     format: 'der',
     type: 'spki'
   })

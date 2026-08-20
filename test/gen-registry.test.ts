@@ -17,7 +17,9 @@ describe('requiredCompanions', () => {
   })
 
   it('krea2 needs the Qwen3-VL encoder and the Qwen-Image VAE', () => {
-    const files = requiredCompanions('krea2', 'krea2_turbo.safetensors').map((x) => x.download.filename)
+    const files = requiredCompanions('krea2', 'krea2_turbo.safetensors').map(
+      (x) => x.download.filename
+    )
     expect(files).toContain('qwen3vl_4b_fp8_scaled.safetensors')
     expect(files).toContain('qwen_image_vae.safetensors')
   })
@@ -31,14 +33,16 @@ describe('requiredCompanions', () => {
     expect(small.map((x) => x.download.filename)).toContain('qwen_3_4b.safetensors')
 
     // Falls back to the filename token when size is unknown.
-    expect(requiredCompanions('flux2', 'flux-2-klein-9b-fp8.safetensors').map((x) => x.download.filename)).toContain(
-      'qwen_3_8b_fp8mixed.safetensors'
-    )
+    expect(
+      requiredCompanions('flux2', 'flux-2-klein-9b-fp8.safetensors').map((x) => x.download.filename)
+    ).toContain('qwen_3_8b_fp8mixed.safetensors')
   })
 
   it('every flux2 variant also needs the flux2 VAE', () => {
     for (const size of [3_800_000_000, 8_800_000_000]) {
-      const files = requiredCompanions('flux2', 'm.safetensors', size).map((x) => x.download.filename)
+      const files = requiredCompanions('flux2', 'm.safetensors', size).map(
+        (x) => x.download.filename
+      )
       expect(files).toContain('flux2-vae.safetensors')
     }
   })

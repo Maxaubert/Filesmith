@@ -45,6 +45,11 @@ export function openPreviewWindow(next: PreviewPayload): void {
   win.on('ready-to-show', () => win?.show())
   win.on('closed', () => {
     win = null
+    // Tell the app windows: the renderer otherwise kept re-serialising its
+    // preview list (with base64 thumbnails) on every progress tick, forever,
+    // into a window that no longer existed.
+    for (const w of BrowserWindow.getAllWindows())
+      if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preview:closed')
   })
 
   // A markdown/HTML link click must open in the OS browser, never navigate the

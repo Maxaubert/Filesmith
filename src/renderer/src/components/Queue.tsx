@@ -1,13 +1,22 @@
 import type { JSX, MouseEvent } from 'react'
 import type { JobOptions, ToolId } from '@shared/types'
 import { formatBytes, formatEta, groupOf, inInput, inOutput, type QueueItem } from '../state'
+import { baseName } from '@shared/fileKind'
 import { Icon } from './Icon'
 
-const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 const extOf = (p: string): string => {
   const b = baseName(p)
   const i = b.lastIndexOf('.')
   return i > 0 ? b.slice(i + 1).toUpperCase() : ''
+}
+
+const PDF_OP_LABEL: Record<string, string> = {
+  'extract-text': 'Extract text',
+  'pages-to-images': 'Pages to PNG',
+  merge: 'Merge PDFs',
+  'split-range': 'Split pages',
+  'split-pages': 'Burst pages',
+  'extract-images': 'Extract images'
 }
 
 function inputSub(item: QueueItem, tool: ToolId, panelOptions: JobOptions): string {
@@ -27,7 +36,13 @@ function inputSub(item: QueueItem, tool: ToolId, panelOptions: JobOptions): stri
     const h = options.height === '' || options.height == null ? 'auto' : options.height
     return `Resize ${w}×${h}${options.fit === 'stretch' ? ' stretched' : ''}`
   }
-  return `Compress ${src}`
+  // Name the operation the row is actually part of - the old fall-through
+  // stamped "Compress" on upscale, removebg and every PDF verb.
+  if (tool === 'upscale') return `Upscale ${options.upscaleFactor ?? 4}×`
+  if (tool === 'removebg') return 'Remove background'
+  if (tool === 'pdf') return PDF_OP_LABEL[String(options.op)] ?? 'PDF'
+  if (tool === 'compress') return `Compress ${src}`
+  return src
 }
 
 function StatusCell({ item }: { item: QueueItem }): JSX.Element | null {
@@ -108,7 +123,8 @@ function InputCard({
   compatible,
   onClick,
   onOpen,
-  onMenu
+  onMenu,
+  onCancel
 }: {
   item: QueueItem
   tool: ToolId
@@ -118,6 +134,7 @@ function InputCard({
   onClick: (e: MouseEvent) => void
   onOpen: () => void
   onMenu: (x: number, y: number) => void
+  onCancel: () => void
 }): JSX.Element {
   // Determinate only once the job reports a real percentage — a long encode
   // legitimately sits at 0-1% for a while and must NOT fall back to the fake fill.
@@ -148,7 +165,15 @@ function InputCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-semibold">{item.file.name}</div>
-        <div className="mt-0.5 truncate text-[11.5px] text-dim" title={item.error ?? undefined}>
+        <div
+          // Failed rows WRAP (up to three lines) and are selectable: engine
+          // errors are full remedial sentences, and a one-line truncate inside
+          // a user-select:none UI made the remedy unreadable AND uncopyable.
+          className={`mt-0.5 text-[11.5px] text-dim ${
+            item.status === 'failed' && item.error ? 'line-clamp-3 select-text' : 'truncate'
+          }`}
+          title={item.error ?? undefined}
+        >
           {item.status === 'failed' && item.error ? (
             // Say WHY it failed. "Failed" alone leaves the user guessing.
             <span className="text-[#e0483d]">{item.error}</span>
@@ -174,7 +199,21 @@ function InputCard({
       </div>
       <div className="flex shrink-0 items-center gap-1 pr-0.5">
         <Kebab onOpen={onMenu} />
-        <StatusCell item={item} />
+        {/* An in-flight row is stoppable right where its status shows. */}
+        {item.status === 'running' || item.status === 'queued' ? (
+          <button
+            title="Stop"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCancel()
+            }}
+            className="no-drag grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg text-[#9a9aa6] transition hover:bg-[#f0f0f5] hover:text-[#e0483d]"
+          >
+            <Icon name="close" className="h-3.5 w-3.5" strokeWidth={2.5} />
+          </button>
+        ) : (
+          <StatusCell item={item} />
+        )}
       </div>
     </div>
   )
@@ -205,7 +244,9 @@ function OutputCard({
         onMenu(e.clientX, e.clientY)
       }}
       className={`group flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition ${
-        selected ? 'border-accent ring-2 ring-accent/60' : 'border-black/[.07] hover:border-black/[.14]'
+        selected
+          ? 'border-accent ring-2 ring-accent/60'
+          : 'border-black/[.07] hover:border-black/[.14]'
       }`}
     >
       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[9px] bg-[#ececf1] shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">
@@ -261,7 +302,8 @@ export function Queues({
   outThumbs,
   onItemClick,
   onOpen,
-  onMenu
+  onMenu,
+  onCancel
 }: {
   items: QueueItem[]
   tool: ToolId
@@ -272,6 +314,7 @@ export function Queues({
   onItemClick: (id: string, e: MouseEvent) => void
   onOpen: (side: 'input' | 'output', item: QueueItem) => void
   onMenu: (side: 'input' | 'output', item: QueueItem, x: number, y: number) => void
+  onCancel: (id: string) => void
 }): JSX.Element {
   const inputs = items.filter(inInput)
   const done = items.filter(inOutput)
@@ -308,6 +351,7 @@ export function Queues({
             onClick={(e) => onItemClick(i.id, e)}
             onOpen={() => onOpen('input', i)}
             onMenu={(x, y) => onMenu('input', i, x, y)}
+            onCancel={() => onCancel(i.id)}
           />
         ))}
       </Column>

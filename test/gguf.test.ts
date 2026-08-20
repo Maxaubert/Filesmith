@@ -81,11 +81,21 @@ describe('reading a GGUF header', () => {
   it('skips non-string metadata values of every scalar type', () => {
     // The KV block must be walked exactly, or the tensor names read as garbage.
     const extra = [
-      str('a.u32'), u32(4), u32(7),
-      str('b.f32'), u32(6), Buffer.from(Float32Array.of(1.5).buffer),
-      str('c.bool'), u32(7), Buffer.from([1]),
-      str('d.u64'), u32(10), u64(9),
-      str('e.i16'), u32(3), Buffer.from([0xff, 0xff])
+      str('a.u32'),
+      u32(4),
+      u32(7),
+      str('b.f32'),
+      u32(6),
+      Buffer.from(Float32Array.of(1.5).buffer),
+      str('c.bool'),
+      u32(7),
+      Buffer.from([1]),
+      str('d.u64'),
+      u32(10),
+      u64(9),
+      str('e.i16'),
+      u32(3),
+      Buffer.from([0xff, 0xff])
     ]
     const p = writeGguf('mixed.gguf', ['cap_embedder.w', 'noise_refiner.w'], {}, extra)
     expect(readGgufHeader(p)?.keys).toEqual(['cap_embedder.w', 'noise_refiner.w'])
@@ -97,6 +107,30 @@ describe('reading a GGUF header', () => {
     const extra = [str('tok.list'), u32(9), strArr, str('nums'), u32(9), numArr]
     const p = writeGguf('arr.gguf', ['txtfusion.w'], {}, extra)
     expect(readGgufHeader(p)?.keys).toEqual(['txtfusion.w'])
+  })
+
+  it('parses a header larger than one refill chunk (the >1 MB regression)', () => {
+    // The refill computed its file offset from a stale `consumed`, so a 50 KB
+    // header parsed while the identical header past 1 MB (CHUNK) lost its
+    // place and misread everything after the first refill. A tokenizer-sized
+    // array value (3 MB of u8s, skipped in chunks) forces several refills;
+    // the tensor names AFTER it must still read back exactly.
+    const blob = Buffer.alloc(3 * 1024 * 1024)
+    const bigArray = [
+      str('tokenizer.blob'),
+      u32(9),
+      Buffer.concat([u32(0), u64(blob.length), blob])
+    ]
+    const p = writeGguf(
+      'big-header.gguf',
+      ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.w', 'txt_in.w'],
+      { 'general.architecture': 'flux' },
+      bigArray
+    )
+    const h = readGgufHeader(p)
+    expect(h?.keys).toContain('double_blocks.0.w')
+    expect(h?.keys).toContain('txt_in.w')
+    expect(h?.metadata['general.architecture']).toBe('flux')
   })
 
   it('returns null for anything that is not a readable GGUF', () => {
@@ -151,7 +185,9 @@ describe('the GGUF workflow', () => {
       const wf = registryEntry(id)?.workflow
       expect(wf, `${id} has no workflow`).toBeDefined()
       const derived = deriveGgufWorkflow(wf!)
-      expect(Object.values(derived.template).some((n) => n.class_type === GGUF_UNET_NODE)).toBe(true)
+      expect(Object.values(derived.template).some((n) => n.class_type === GGUF_UNET_NODE)).toBe(
+        true
+      )
     }
   })
 })

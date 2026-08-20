@@ -126,7 +126,9 @@ export function CategoryRail({
 
   // The slot the grabbed row currently hovers over.
   const target =
-    drag == null ? null : clamp(drag.index + Math.round(drag.offset / drag.pitch), 0, rows.length - 1)
+    drag == null
+      ? null
+      : clamp(drag.index + Math.round(drag.offset / drag.pitch), 0, rows.length - 1)
 
   /** Vertical shift for the row at `i` while a drag is in progress. */
   function shiftFor(i: number): { ty: number; lifted: boolean; animate: boolean } {
@@ -231,7 +233,9 @@ export function CategoryRail({
             </span>
             <span className="flex-1">{c.label}</span>
             {n > 0 && (
-              <span className={`text-[11.5px] tabular-nums ${active ? 'text-white/75' : 'text-dim'}`}>
+              <span
+                className={`text-[11.5px] tabular-nums ${active ? 'text-white/75' : 'text-dim'}`}
+              >
                 {n}
               </span>
             )}

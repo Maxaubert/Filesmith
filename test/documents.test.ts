@@ -3,16 +3,8 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 import { convertGroup, convertTargets, familyFormats } from '../src/shared/convert'
-import {
-  buildSofficeArgs,
-  sofficeFilter,
-  sofficeOutputPath
-} from '../src/main/tools/soffice'
-import {
-  buildPdfCompressArgs,
-  buildPdfImagesArgs,
-  buildPdfTextArgs
-} from '../src/main/tools/pdf'
+import { buildSofficeArgs, sofficeFilter, sofficeOutputPath } from '../src/main/tools/soffice'
+import { buildPdfCompressArgs, buildPdfImagesArgs, buildPdfTextArgs } from '../src/main/tools/pdf'
 import { uniqueOutDir } from '../src/main/output'
 
 describe('document convert targets', () => {
@@ -61,7 +53,10 @@ describe('document convert targets', () => {
 
   it('every family format has a dotted extension', () => {
     for (const src of ['.docx', '.xlsx', '.pptx', '.pdf', '.md'])
-      for (const f of familyFormats(src === '.pdf' ? 'pdf' : src === '.md' ? 'text' : 'document', src))
+      for (const f of familyFormats(
+        src === '.pdf' ? 'pdf' : src === '.md' ? 'text' : 'document',
+        src
+      ))
         expect(f.ext.startsWith('.')).toBe(true)
   })
 })
@@ -104,14 +99,25 @@ describe('soffice (LibreOffice) args', () => {
   })
 
   it('predicts LibreOffice output filename in the outdir', () => {
-    expect(sofficeOutputPath('C:/in/report.docx', 'C:/tmp', '.pdf')).toBe(join('C:/tmp', 'report.pdf'))
-    expect(sofficeOutputPath('C:/in/report.docx', 'C:/tmp', 'txt')).toBe(join('C:/tmp', 'report.txt'))
+    expect(sofficeOutputPath('C:/in/report.docx', 'C:/tmp', '.pdf')).toBe(
+      join('C:/tmp', 'report.pdf')
+    )
+    expect(sofficeOutputPath('C:/in/report.docx', 'C:/tmp', 'txt')).toBe(
+      join('C:/tmp', 'report.txt')
+    )
   })
 })
 
 describe('mutool (PDF) args', () => {
   it('extract text: draw -F txt', () => {
-    expect(buildPdfTextArgs('in.pdf', 'out.txt')).toEqual(['draw', '-F', 'txt', '-o', 'out.txt', 'in.pdf'])
+    expect(buildPdfTextArgs('in.pdf', 'out.txt')).toEqual([
+      'draw',
+      '-F',
+      'txt',
+      '-o',
+      'out.txt',
+      'in.pdf'
+    ])
   })
   it('pages to images: draw -F png at a DPI into a folder', () => {
     expect(buildPdfImagesArgs('in.pdf', 'C:/out', 150)).toEqual([

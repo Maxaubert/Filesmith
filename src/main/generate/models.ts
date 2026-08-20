@@ -16,7 +16,7 @@ import {
   readSafetensorsHeader
 } from './archScan'
 import { readGgufHeader } from './ggufScan'
-import { resolveArch } from './archRegistry'
+import { listCompanionPools, resolveArch } from './archRegistry'
 
 // The generation model list the UI shows: single-file checkpoints AND recognized
 // image-generation diffusion models (Flux 1/2, Z-Image, Krea 2). Both are header-
@@ -144,8 +144,16 @@ export function scanGenerationModels(): GenModelScan {
   let gguf = 0
 
   // --- Single-file checkpoints (CheckpointLoaderSimple) --------------------
+  // One pool walk for the whole scan, not two per model.
+  const pools = listCompanionPools()
   for (const { rel, abs, base } of walkModels(['checkpoints'], /\.(safetensors|ckpt|sft)$/i)) {
-    const common = { name: rel, label: label(rel), group: '', source: 'checkpoint' as const, baseDir: base }
+    const common = {
+      name: rel,
+      label: label(rel),
+      group: '',
+      source: 'checkpoint' as const,
+      baseDir: base
+    }
     // .ckpt is a pickle we can't header-inspect; trust CheckpointLoaderSimple with
     // the SDXL graph (the overwhelmingly common case for a .ckpt checkpoint).
     const header = /\.(safetensors|sft)$/i.test(rel) ? readSafetensorsHeader(abs) : null
@@ -175,7 +183,10 @@ export function scanGenerationModels(): GenModelScan {
   }
 
   // --- Bare diffusion models (UNETLoader + separate encoders/VAE) ----------
-  for (const { rel, abs, base } of walkModels(['diffusion_models', 'unet'], /\.(safetensors|sft|gguf)$/i)) {
+  for (const { rel, abs, base } of walkModels(
+    ['diffusion_models', 'unet'],
+    /\.(safetensors|sft|gguf)$/i
+  )) {
     // GGUF is the quantized container (a 24 GB Flux at ~7 GB, which is how it
     // fits a smaller card). Its tensor names are the same ones the safetensors
     // build uses, so reading its header lets the ORDINARY classifier identify
@@ -237,7 +248,7 @@ export function scanGenerationModels(): GenModelScan {
       continue
     }
     const ga = arch as GenArch
-    const { missing, wiring } = resolveArch(ga, rel, fileSize(abs))
+    const { missing, wiring } = resolveArch(ga, rel, fileSize(abs), pools)
     const common = {
       name: rel,
       label: label(rel),
@@ -259,6 +270,7 @@ export function scanGenerationModels(): GenModelScan {
           url: m.download.url,
           urls: m.download.urls,
           sha256: m.download.sha256,
+          bytes: m.download.bytes,
           approxSize: m.download.approxSize,
           subdir: m.download.subdir
         }))
@@ -267,7 +279,10 @@ export function scanGenerationModels(): GenModelScan {
   }
 
   models.sort(
-    (a, b) => Number(b.runnable) - Number(a.runnable) || a.group.localeCompare(b.group) || a.label.localeCompare(b.label)
+    (a, b) =>
+      Number(b.runnable) - Number(a.runnable) ||
+      a.group.localeCompare(b.group) ||
+      a.label.localeCompare(b.label)
   )
   return { models, excluded, unrecognized, gguf }
 }
@@ -325,7 +340,8 @@ export function primaryModelsDir(preferBase?: string): string | null {
   if (preferBase && existsSync(preferBase)) return preferBase
   const bases = comfyModelsBases()
   for (const base of bases)
-    if (existsSync(join(base, 'checkpoints')) || existsSync(join(base, 'diffusion_models'))) return base
+    if (existsSync(join(base, 'checkpoints')) || existsSync(join(base, 'diffusion_models')))
+      return base
   for (const base of bases) if (existsSync(base)) return base
   return null
 }

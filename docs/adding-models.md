@@ -1,6 +1,6 @@
 # Adding a model to Filesmith
 
-Filesmith does not bake models in. What a model *is* — how to recognize it, what files it needs,
+Filesmith does not bake models in. What a model _is_ — how to recognize it, what files it needs,
 which ComfyUI graph runs it — is **data on disk**, so you can add a model family that did not exist
 when your copy of Filesmith was built, without waiting for a release.
 
@@ -8,11 +8,11 @@ when your copy of Filesmith was built, without waiting for a release.
 
 Three layers, merged by `id`, later layers winning **field by field**:
 
-| Layer | Path | Who writes it |
-|---|---|---|
-| 1. Built-in | `<install>/resources/registry/*.json` | ships in the installer, read-only |
-| 2. Channel | `%APPDATA%/Filesmith/registry/channel/` | refreshed over the network (signed) |
-| 3. **Yours** | `%APPDATA%/Filesmith/registry/user/` | you |
+| Layer        | Path                                    | Who writes it                       |
+| ------------ | --------------------------------------- | ----------------------------------- |
+| 1. Built-in  | `<install>/resources/registry/*.json`   | ships in the installer, read-only   |
+| 2. Channel   | `%APPDATA%/Filesmith/registry/channel/` | refreshed over the network (signed) |
+| 3. **Yours** | `%APPDATA%/Filesmith/registry/user/`    | you                                 |
 
 Two rules that will not change:
 
@@ -129,7 +129,7 @@ Available placeholders:
 `${unet}` `${clip}` `${clip2}` `${vae}` `${model}` · `${prompt}` `${negative}` `${seed}` `${steps}`
 `${cfg}` `${guidance}` `${sampler}` `${scheduler}` `${width}` `${height}` `${batch}` `${prefix}`
 
-A value that is *exactly* one placeholder is replaced with the raw value, so `"seed": "${seed}"`
+A value that is _exactly_ one placeholder is replaced with the raw value, so `"seed": "${seed}"`
 yields a number, not a string. Use `workflow` for a bare diffusion model (UNETLoader + separate
 encoders) and `checkpointWorkflow` for an all-in-one single-file checkpoint. An entry can have both.
 
@@ -165,7 +165,7 @@ always tell whether Filesmith saw the file at all.
 Every download in `resources/registry/gen-archs.json` carries a real `sha256` and a URL pinned to
 an immutable commit revision, with the `resolve/main` branch URL kept after it as a fallback mirror.
 
-The hashes are not invented: Hugging Face stores large files in git-LFS, and an LFS object id *is*
+The hashes are not invented: Hugging Face stores large files in git-LFS, and an LFS object id _is_
 the sha256 of the content, exposed per file by the repo tree API.
 
 ```
@@ -183,7 +183,7 @@ trust-on-first-use, which is where everything was before.
 
 ## Publishing a channel update
 
-Every companion URL points into someone else's repo. When one is reorganized, every *installed*
+Every companion URL points into someone else's repo. When one is reorganized, every _installed_
 copy of Filesmith gets a 404 and stays broken until a new release ships. The channel fixes that
 without a release: publish a signed pack, and every install picks it up within a day.
 

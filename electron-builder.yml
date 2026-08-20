@@ -3,19 +3,13 @@ productName: Filesmith
 directories:
   buildResources: build
   output: dist
+# An ALLOWLIST, not a denylist: the old exclude list named eslint.config.js
+# (the repo has .mjs) and missed vitest.config.ts, so stray dev files rode
+# into app.asar — and every new top-level file would too. Only the built app
+# belongs in the archive; resources/ ships via extraResources below.
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,.prettierrc.yaml,.prettierignore,eslint.config.js,tsconfig*.json}'
-  - '!{.git,.claude,docs,test}/*'
-  # resources/ ships via extraResources below; without these excludes electron-
-  # builder's default **/* also packs the whole 1.4 GB tree INTO app.asar,
-  # doubling the installer. scripts/ and build/ are dev-only.
-  - '!resources/**'
-  - '!scripts/**'
-  - '!build/**'
-  - '!dist/**'
+  - 'out/**/*'
+  - 'package.json'
 # Bundled core CLI tools (ffmpeg, ImageMagick, mutool, CaesiumCLT) ship in
 # resources/bin; LibreOffice (document conversion) ships in resources/libreoffice.
 # Both are populated by scripts/fetch-binaries.mjs before packaging.

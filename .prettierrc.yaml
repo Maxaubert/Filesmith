@@ -2,3 +2,6 @@ semi: false
 singleQuote: true
 printWidth: 100
 trailingComma: none
+# Match what git checks out on Windows (core.autocrlf) so `format` never
+# rewrites the whole tree over line endings.
+endOfLine: auto

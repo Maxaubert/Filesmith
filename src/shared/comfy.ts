@@ -1,5 +1,6 @@
 // Types + pure classification for ComfyUI-imported upscale models, shared by the
 // engine (scan) and the renderer (picker). No Node/Electron imports here.
+import { baseName } from './fileKind'
 
 export type ComfyBadge = 'verified' | 'experimental' | 'unsupported'
 
@@ -76,7 +77,10 @@ export const VERIFIED_TOKENS: string[] = [
 
 /** Normalize a filename to alphanumerics for tolerant matching. */
 export function normalizeModelName(name: string): string {
-  return name.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z0-9]/g, '')
+  return name
+    .toLowerCase()
+    .replace(/\.[a-z0-9]+$/, '')
+    .replace(/[^a-z0-9]/g, '')
 }
 
 /**
@@ -94,7 +98,7 @@ export function classifyModel(
   tokens: string[] = VERIFIED_TOKENS,
   archs: string[] = VERIFIED_ARCHS
 ): ComfyModel {
-  const base = probe.path.split(/[\\/]/).pop() ?? probe.path
+  const base = baseName(probe.path)
   const name = base.replace(/\.[^.]+$/, '')
   if (!probe.ok) {
     return { path: probe.path, name, scale: 0, badge: 'unsupported', reason: probe.reason }

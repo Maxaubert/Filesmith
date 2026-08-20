@@ -1,12 +1,18 @@
 import { cpus } from 'os'
 import { statSync } from 'fs'
-import type { JobEvent, JobRequest } from '@shared/types'
+import type { JobEvent, JobRequest, ToolId } from '@shared/types'
 import { fileInfoFromPath } from './fileInfo'
 import { getTool } from './tools/registry'
 import { ToolMissingError } from './run'
 import { toolMissingMessage } from './toolResolver'
 
 type Emit = (event: JobEvent) => void
+
+// Per-tool concurrency caps inside the global limit. The AI tools are
+// effectively serial: the python sidecars process one request at a time (so
+// three of four "running" upscales were fiction driven by estimate tickers),
+// and concurrent realesrgan processes each auto-size tiles against FULL VRAM.
+const TOOL_LIMIT: Partial<Record<ToolId, number>> = { upscale: 1, removebg: 1 }
 
 /**
  * Batch queue: runs jobs with bounded concurrency, streams progress via `emit`,
@@ -16,6 +22,7 @@ export class JobQueue {
   private controllers = new Map<string, AbortController>()
   private queue: JobRequest[] = []
   private active = 0
+  private activeByTool = new Map<ToolId, number>()
   private readonly concurrency: number
 
   constructor(
@@ -54,8 +61,15 @@ export class JobQueue {
 
   private pump(): void {
     while (this.active < this.concurrency && this.queue.length > 0) {
-      const req = this.queue.shift()
-      if (req) void this.execute(req)
+      // First request whose tool still has capacity; capped tools wait
+      // without blocking the rest of the queue behind them.
+      const idx = this.queue.findIndex((r) => {
+        const limit = TOOL_LIMIT[r.tool]
+        return limit == null || (this.activeByTool.get(r.tool) ?? 0) < limit
+      })
+      if (idx === -1) return
+      const req = this.queue.splice(idx, 1)[0]
+      void this.execute(req)
     }
   }
 
@@ -68,6 +82,7 @@ export class JobQueue {
     const ctrl = new AbortController()
     this.controllers.set(req.id, ctrl)
     this.active++
+    this.activeByTool.set(req.tool, (this.activeByTool.get(req.tool) ?? 0) + 1)
     // No percent here: "started" is not progress. Only a tool reporting a real
     // percentage should switch the UI to a determinate bar.
     this.emit({ id: req.id, status: 'running' })
@@ -110,6 +125,7 @@ export class JobQueue {
     } finally {
       this.controllers.delete(req.id)
       this.active--
+      this.activeByTool.set(req.tool, Math.max(0, (this.activeByTool.get(req.tool) ?? 1) - 1))
       this.pump()
     }
   }

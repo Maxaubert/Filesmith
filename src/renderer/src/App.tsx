@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useReducer,
   useRef,
@@ -8,7 +9,13 @@ import {
   type MouseEvent
 } from 'react'
 import type { FileInfo, FileKind, PreviewItem } from '@shared/types'
-import { canCompress, familyFormats, isSameFormat, normalizeExt, toolForKind } from '@shared/convert'
+import {
+  canCompress,
+  familyFormats,
+  isSameFormat,
+  normalizeExt,
+  toolForKind
+} from '@shared/convert'
 import {
   estimatedPngBytes,
   formatBytes,
@@ -17,7 +24,7 @@ import {
   upscaledSize
 } from '@shared/compress'
 import { resizedSize } from '@shared/resize'
-import { fileKind } from '@shared/fileKind'
+import { baseName, fileKind } from '@shared/fileKind'
 import {
   reducer,
   initialState,
@@ -34,7 +41,13 @@ import {
   type QueueItem,
   type SelectMode
 } from './state'
-import { acceptsKind, categoryOf, findOperation, operationsFor, type CategoryId } from '@shared/catalog'
+import {
+  acceptsKind,
+  categoryOf,
+  findOperation,
+  operationsFor,
+  type CategoryId
+} from '@shared/catalog'
 import { TopBar } from './components/TopBar'
 import { CategoryRail } from './components/CategoryRail'
 import { OperationTitle } from './components/OperationTitle'
@@ -78,7 +91,6 @@ import { OptionsPanel, type VideoOutputRow } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
 import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
 
-const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 const extOfPath = (p: string): string => {
   const b = baseName(p)
   const i = b.lastIndexOf('.')
@@ -104,15 +116,13 @@ function toPreviewFiles(
   outThumbs: Record<string, string | null>
 ): PreviewItem[] {
   if (side === 'input') {
-    return items
-      .filter(inInput)
-      .map((it) => ({
-        path: it.file.path,
-        name: it.file.name,
-        kind: it.file.kind,
-        size: it.file.size,
-        thumb: it.thumb
-      }))
+    return items.filter(inInput).map((it) => ({
+      path: it.file.path,
+      name: it.file.name,
+      kind: it.file.kind,
+      size: it.file.size,
+      thumb: it.thumb
+    }))
   }
   return items.filter(inOutput).map((it) => {
     const out = it.outputPath as string
@@ -155,6 +165,11 @@ export default function App(): JSX.Element {
   const vDimsRequested = useRef<Set<string>>(new Set())
   // Oversize-upscale confirmation, and the flag that lets the confirmed run through.
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  // Stable close handlers: ContextMenu re-registers five window listeners
+  // whenever its onClose identity changes, which an inline arrow made happen
+  // on all ~20 progress renders a second.
+  const closeMenu = useCallback(() => setMenu(null), [])
+  const closeConfirm = useCallback(() => setConfirm(null), [])
   const confirmedHuge = useRef(false)
   // Session persistence: restore the last session (queues + produced files) on
   // launch, pruning anything whose file was deleted since; then save on change.
@@ -177,7 +192,10 @@ export default function App(): JSX.Element {
         dispatch({ type: 'hydrate', state: pruned.state })
         setGenResults(pruned.genResults)
       } finally {
-        hydrated.current = true
+        // Only the LIVE pass may enable saving: StrictMode's discarded first
+        // run otherwise armed the save before the restore had landed, letting
+        // an early change overwrite the persisted session.
+        if (alive) hydrated.current = true
       }
     })()
     return () => {
@@ -189,7 +207,10 @@ export default function App(): JSX.Element {
   // a saved session with the empty initial state during the async load.
   useEffect(() => {
     if (!hydrated.current) return
-    const t = setTimeout(() => window.filesmith.sessionSave(sessionSnapshot(state, genResults)), 400)
+    const t = setTimeout(
+      () => window.filesmith.sessionSave(sessionSnapshot(state, genResults)),
+      400
+    )
     return () => clearTimeout(t)
   }, [state, genResults])
 
@@ -202,7 +223,9 @@ export default function App(): JSX.Element {
   useEffect(() => {
     const flush = (): void => {
       if (hydrated.current)
-        window.filesmith.sessionSave(sessionSnapshot(latest.current.state, latest.current.genResults))
+        window.filesmith.sessionSave(
+          sessionSnapshot(latest.current.state, latest.current.genResults)
+        )
     }
     window.addEventListener('beforeunload', flush)
     return () => window.removeEventListener('beforeunload', flush)
@@ -253,8 +276,10 @@ export default function App(): JSX.Element {
         const out = item.outputPath
         if (!out || item.status !== 'done' || outRequested.current.has(out)) continue
         outRequested.current.add(out)
+        // The OUTPUT's kind, not the source's: an MKV -> MP3 output wants
+        // cover-art extraction, not a video frame grab.
         void window.filesmith
-          .thumbnail(out, 128, item.file.kind)
+          .thumbnail(out, 128, fileKind(extOfPath(out)))
           .then((t) => setOutThumbs((m) => ({ ...m, [out]: t })))
       }
     }
@@ -274,9 +299,7 @@ export default function App(): JSX.Element {
   // A source is runnable when idle (incl. already-done, so it can run again); a
   // result is always runnable — running it promotes its output back to input.
   const canRun = (i: QueueItem): boolean =>
-    i.isResult
-      ? !!i.outputPath
-      : ['ready', 'failed', 'canceled', 'done'].includes(i.status)
+    i.isResult ? !!i.outputPath : ['ready', 'failed', 'canceled', 'done'].includes(i.status)
 
   // The files a run would actually process: selected, runnable, tool-compatible,
   // and (for convert) not already the target format.
@@ -343,16 +366,80 @@ export default function App(): JSX.Element {
     window.filesmith.updatePreviewList(toPreviewFiles(items, previewCtx.side, outThumbs))
   }, [state.queues, outThumbs, previewCtx])
 
+  // Stop the sync the moment the preview window closes — it used to keep
+  // structured-cloning the list (base64 thumbs included) on every progress
+  // tick, forever, into a window that no longer existed.
+  useEffect(() => window.filesmith.onPreviewClosed(() => setPreviewCtx(null)), [])
+
   // Dismiss a set of items from a column. For Output we also recycle-bin the
   // produced file before dropping the card.
   function dismiss(ids: string[], column: 'input' | 'output'): void {
+    if (column === 'output') {
+      void trashOutputs(ids)
+      return
+    }
     for (const id of ids) {
-      if (column === 'output') {
-        const it = cur.items.find((x) => x.id === id)
-        if (it?.outputPath) void window.filesmith.trashFile(it.outputPath)
+      const it = cur.items.find((x) => x.id === id)
+      // Removing an in-flight row must not orphan its process: cancel the job
+      // first, or ffmpeg keeps encoding headless and writes an untracked file.
+      if (it && (it.status === 'queued' || it.status === 'running')) {
+        void window.filesmith.cancelJob(id)
       }
+      if (it) evictProbe(it.file.path)
       dispatch({ type: 'dismiss', id, column })
     }
+  }
+
+  /** Trash output files, honouring the result: a locked/network file that
+   * could NOT be recycled keeps its row instead of silently staying on disk
+   * while the card disappears. */
+  async function trashOutputs(ids: string[]): Promise<void> {
+    const failed: string[] = []
+    for (const id of ids) {
+      const it = cur.items.find((x) => x.id === id)
+      const out = it?.outputPath
+      if (!out) continue
+      const ok = await window.filesmith.trashFile(out)
+      if (!ok) {
+        failed.push(baseName(out))
+        continue
+      }
+      // Evict the caches keyed by this path: output names are reusable after a
+      // delete, and a re-run must not show the previous run's thumbnail.
+      outRequested.current.delete(out)
+      setOutThumbs((m) => {
+        const rest = { ...m }
+        delete rest[out]
+        return rest
+      })
+      evictProbe(out)
+      dispatch({ type: 'dismiss', id, column: 'output' })
+    }
+    if (failed.length)
+      setConfirm({
+        title:
+          failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
+        body: `${failed.join(', ')} could not be moved to the Recycle Bin — the file may be open in another app.`,
+        confirmLabel: 'OK',
+        hideCancel: true,
+        onConfirm: () => {}
+      })
+  }
+
+  /** Drop a path from the probe caches so a changed file gets re-probed. */
+  function evictProbe(path: string): void {
+    vDimsRequested.current.delete(path)
+    setVDims((m) => {
+      if (!(path in m)) return m
+      const rest = { ...m }
+      delete rest[path]
+      return rest
+    })
+  }
+
+  /** Stop a queued or running job; the engine emits the terminal 'canceled'. */
+  function cancelJob(id: string): void {
+    void window.filesmith.cancelJob(id)
   }
 
   // Build the right-click / ⋯ menu for a queue item. Destructive actions apply
@@ -370,6 +457,11 @@ export default function App(): JSX.Element {
     const n = targets.length
 
     if (side === 'input') {
+      // Cancel applies to whichever of the targeted rows are actually in flight.
+      const cancellable = targets.filter((id) => {
+        const it = cur.items.find((x) => x.id === id)
+        return it != null && (it.status === 'queued' || it.status === 'running')
+      })
       setMenu({
         x,
         y,
@@ -380,6 +472,15 @@ export default function App(): JSX.Element {
             icon: 'folder',
             onClick: () => window.filesmith.reveal(item.file.path)
           },
+          ...(cancellable.length
+            ? [
+                {
+                  label: cancellable.length > 1 ? `Cancel ${cancellable.length} jobs` : 'Cancel',
+                  icon: 'close' as const,
+                  onClick: () => cancellable.forEach(cancelJob)
+                }
+              ]
+            : []),
           { sep: true },
           {
             label: n > 1 ? `Remove ${n} from list` : 'Remove from list',
@@ -398,13 +499,26 @@ export default function App(): JSX.Element {
       y,
       items: [
         { label: 'Preview', icon: 'eye', onClick: () => openPreview('output', item) },
-        { label: 'Reveal in Explorer', icon: 'folder', onClick: () => window.filesmith.reveal(out) },
+        {
+          label: 'Reveal in Explorer',
+          icon: 'folder',
+          onClick: () => window.filesmith.reveal(out)
+        },
         { sep: true },
         {
           label: n > 1 ? `Delete ${n} files` : 'Delete file',
           icon: 'trash',
           danger: true,
-          onClick: () => dismiss(targets, 'output')
+          onClick: () =>
+            n > 1
+              ? setConfirm({
+                  title: `Delete ${n} files?`,
+                  body: 'They will be moved to the Recycle Bin.',
+                  confirmLabel: 'Delete',
+                  danger: true,
+                  onConfirm: () => dismiss(targets, 'output')
+                })
+              : dismiss(targets, 'output')
         }
       ]
     })
@@ -417,19 +531,24 @@ export default function App(): JSX.Element {
   }
 
   async function browse(): Promise<void> {
+    const category = state.category
     const files = ofCategory(await window.filesmith.pickFiles())
-    if (files.length) dispatch({ type: 'addItems', files })
+    if (files.length) dispatch({ type: 'addItems', files, category })
   }
 
   async function onDrop(e: DragEvent<HTMLElement>): Promise<void> {
     e.preventDefault()
     setDragging(false)
+    // Generate has no queue on screen: a file accepted here would land in an
+    // invisible list with no feedback at all.
+    if (op.tool === 'generate') return
     const paths = Array.from(e.dataTransfer.files)
       .map((f) => window.filesmith.pathForFile(f))
       .filter(Boolean)
     if (!paths.length) return
+    const category = state.category
     const files = ofCategory(await window.filesmith.classify(paths))
-    if (files.length) dispatch({ type: 'addItems', files })
+    if (files.length) dispatch({ type: 'addItems', files, category })
   }
 
   // Build a fresh Input-column source item for a path (a promoted output, or a
@@ -491,7 +610,11 @@ export default function App(): JSX.Element {
           icon: 'upload',
           onClick: () => window.filesmith.openFile(path)
         },
-        { label: 'Reveal in Explorer', icon: 'folder', onClick: () => window.filesmith.reveal(path) },
+        {
+          label: 'Reveal in Explorer',
+          icon: 'folder',
+          onClick: () => window.filesmith.reveal(path)
+        },
         { sep: true },
         {
           label: 'Delete file',
@@ -512,7 +635,11 @@ export default function App(): JSX.Element {
     const id = `gen-${(genIdRef.current += 1)}`
     genActiveId.current = id
     const count = Math.max(1, Math.min(8, Number(opts.count ?? 1)))
-    setGenRun({ running: true, slots: Array.from({ length: count }, () => ({ pct: 0 })), message: 'Starting…' })
+    setGenRun({
+      running: true,
+      slots: Array.from({ length: count }, () => ({ pct: 0 })),
+      message: 'Starting…'
+    })
     const finished: (string | undefined)[] = []
     const unsubP = window.filesmith.onGenerateProgress((p) => {
       if (p.id !== id) return
@@ -544,6 +671,7 @@ export default function App(): JSX.Element {
           title: 'Generation failed',
           body: r.error ?? 'Unknown error',
           confirmLabel: 'OK',
+          hideCancel: true,
           onConfirm: () => {}
         })
     } finally {
@@ -565,6 +693,7 @@ export default function App(): JSX.Element {
         title: 'That is a very large image',
         body: warning,
         confirmLabel: 'Upscale anyway',
+        danger: true,
         onConfirm: () => {
           // One confirmation covers this run only.
           confirmedHuge.current = true
@@ -586,7 +715,7 @@ export default function App(): JSX.Element {
       if (anchor.isResult) {
         const src = await makeSource(anchor)
         if (!src) return
-        dispatch({ type: 'addSources', items: [src] })
+        dispatch({ type: 'addSources', items: [src], category: state.category })
         anchorId = src.id
       }
       dispatch({ type: 'markQueued', ids: [anchorId], options: opts })
@@ -616,7 +745,8 @@ export default function App(): JSX.Element {
       newSources.push(src)
       targets.push({ id: src.id, path: src.file.path })
     }
-    if (newSources.length) dispatch({ type: 'addSources', items: newSources })
+    if (newSources.length)
+      dispatch({ type: 'addSources', items: newSources, category: state.category })
     if (!targets.length) return
     dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), options: opts })
     for (const t of targets) {
@@ -652,9 +782,15 @@ export default function App(): JSX.Element {
   // Upscale reuses the same probe cache to preview the (much larger) result size.
   const probePaths =
     tool === 'compress'
-      ? runList.map(effectiveFile).filter((f) => f.kind === 'video').map((f) => f.path)
+      ? runList
+          .map(effectiveFile)
+          .filter((f) => f.kind === 'video')
+          .map((f) => f.path)
       : tool === 'upscale' || tool === 'resize'
-        ? runList.map(effectiveFile).filter((f) => f.kind === 'image').map((f) => f.path)
+        ? runList
+            .map(effectiveFile)
+            .filter((f) => f.kind === 'image')
+            .map((f) => f.path)
         : []
   const compressVideoPaths = tool === 'compress' ? probePaths : []
   useEffect(() => {
@@ -740,142 +876,141 @@ export default function App(): JSX.Element {
         />
 
         <>
-            <section
-              className="flex min-w-0 flex-1 flex-col gap-4 px-7 pb-5 pt-1"
-              onDragOver={(e) => {
-                e.preventDefault()
-                setDragging(true)
-              }}
-              onDragLeave={(e) => {
-                if (e.currentTarget === e.target) setDragging(false)
-              }}
-              onDrop={onDrop}
-            >
-              {/* The rail names the file type; the sidebar switcher names (and
+          <section
+            className="flex min-w-0 flex-1 flex-col gap-4 px-7 pb-5 pt-1"
+            onDragOver={(e) => {
+              e.preventDefault()
+              if (op.tool !== 'generate') setDragging(true)
+            }}
+            onDragLeave={(e) => {
+              if (e.currentTarget === e.target) setDragging(false)
+            }}
+            onDrop={onDrop}
+          >
+            {/* The rail names the file type; the sidebar switcher names (and
                   colours) the operation. This heading is just a heading. */}
-              <OperationTitle category={category} fileCount={cur.items.filter(inInput).length} />
-              {op.tool === 'generate' ? (
-                <>
-                  <PromptBox
-                    value={String(curOptions.prompt ?? '')}
-                    onChange={(v) => dispatch({ type: 'setOption', key: 'prompt', value: v })}
-                  />
-                  {genRun.running && (
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => {
-                          if (genActiveId.current)
-                            window.filesmith.generateCancel(genActiveId.current)
-                        }}
-                        className="rounded-lg border border-black/[.12] bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-ink transition hover:border-[#e0483d] hover:text-[#e0483d]"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                  {/* Startup indicator only ("Starting ComfyUI…" / "Connecting…").
+            <OperationTitle category={category} fileCount={cur.items.filter(inInput).length} />
+            {op.tool === 'generate' ? (
+              <>
+                <PromptBox
+                  value={String(curOptions.prompt ?? '')}
+                  onChange={(v) => dispatch({ type: 'setOption', key: 'prompt', value: v })}
+                />
+                {genRun.running && (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => {
+                        if (genActiveId.current)
+                          window.filesmith.generateCancel(genActiveId.current)
+                      }}
+                      className="rounded-lg border border-black/[.12] bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-ink transition hover:border-[#e0483d] hover:text-[#e0483d]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {/* Startup indicator only ("Starting ComfyUI…" / "Connecting…").
                       Once images are sampling, the per-tile bars carry it, so the
                       redundant "Generating X of Y" line is dropped. */}
-                  {genRun.running &&
-                    genRun.message &&
-                    !genRun.message.startsWith('Generating') && (
-                      <div className="rounded-xl border border-black/[.06] bg-white/70 px-4 py-3">
-                        <div className="mb-2 text-[13px] font-medium text-ink">{genRun.message}</div>
-                        <div className="h-1 overflow-hidden rounded-full bg-[#ececf2]">
-                          <div className="fs-indet h-full w-1/4 rounded-full bg-accent" />
-                        </div>
-                      </div>
-                    )}
-                  {(genRun.running || genResults.length > 0) && (
-                    <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
-                      {/* This run's tiles first (each fills as it finishes)… */}
-                      {genRun.running &&
-                        genRun.slots.map((slot, i) =>
-                          slot.path ? (
-                            <GenTile
-                              key={`slot-${i}`}
-                              path={slot.path}
-                              aspect={genAspect}
-                              onPreview={previewGen}
-                              onMenu={openGenMenu}
-                            />
-                          ) : (
-                            <div
-                              key={`slot-${i}`}
-                              style={{ aspectRatio: genAspect }}
-                              className="relative overflow-hidden rounded-xl border border-black/[.08] bg-[#eeeef4]"
-                            >
-                              <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-[#eeeef4] to-[#e0e0ec]" />
-                              <div className="absolute inset-x-3 bottom-3">
-                                <div className="mb-1 text-center text-[11px] font-semibold text-dim">
-                                  {slot.pct > 0 ? `${slot.pct}%` : 'Generating…'}
-                                </div>
-                                <div className="h-1.5 overflow-hidden rounded-full bg-white/70">
-                                  <div
-                                    className="h-full rounded-full bg-accent transition-[width] duration-300"
-                                    style={{ width: `${slot.pct}%` }}
-                                  />
-                                </div>
+                {genRun.running && genRun.message && !genRun.message.startsWith('Generating') && (
+                  <div className="rounded-xl border border-black/[.06] bg-white/70 px-4 py-3">
+                    <div className="mb-2 text-[13px] font-medium text-ink">{genRun.message}</div>
+                    <div className="h-1 overflow-hidden rounded-full bg-[#ececf2]">
+                      <div className="fs-indet h-full w-1/4 rounded-full bg-accent" />
+                    </div>
+                  </div>
+                )}
+                {(genRun.running || genResults.length > 0) && (
+                  <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+                    {/* This run's tiles first (each fills as it finishes)… */}
+                    {genRun.running &&
+                      genRun.slots.map((slot, i) =>
+                        slot.path ? (
+                          <GenTile
+                            key={`slot-${i}`}
+                            path={slot.path}
+                            aspect={genAspect}
+                            onPreview={previewGen}
+                            onMenu={openGenMenu}
+                          />
+                        ) : (
+                          <div
+                            key={`slot-${i}`}
+                            style={{ aspectRatio: genAspect }}
+                            className="relative overflow-hidden rounded-xl border border-black/[.08] bg-[#eeeef4]"
+                          >
+                            <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-[#eeeef4] to-[#e0e0ec]" />
+                            <div className="absolute inset-x-3 bottom-3">
+                              <div className="mb-1 text-center text-[11px] font-semibold text-dim">
+                                {slot.pct > 0 ? `${slot.pct}%` : 'Generating…'}
+                              </div>
+                              <div className="h-1.5 overflow-hidden rounded-full bg-white/70">
+                                <div
+                                  className="h-full rounded-full bg-accent transition-[width] duration-300"
+                                  style={{ width: `${slot.pct}%` }}
+                                />
                               </div>
                             </div>
-                          )
-                        )}
-                      {/* …then everything generated earlier stays visible. */}
-                      {genResults.map((path) => (
-                        <GenTile
-                          key={path}
-                          path={path}
-                          aspect={genAspect}
-                          onPreview={previewGen}
-                          onMenu={openGenMenu}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <DropZone
-                    dragging={dragging}
-                    label={`Drop ${category.label.toLowerCase()} here`}
-                    onBrowse={() => void browse()}
-                  />
-                  <Queues
-                    items={cur.items}
-                    tool={op.tool}
-                    options={curOptions}
-                    selected={cur.selected}
-                    activeGroup={activeGroup}
-                    outThumbs={outThumbs}
-                    onItemClick={onItemClick}
-                    onOpen={openPreview}
-                    onMenu={openMenu}
-                  />
-                </>
-              )}
-            </section>
+                          </div>
+                        )
+                      )}
+                    {/* …then everything generated earlier stays visible. */}
+                    {genResults.map((path) => (
+                      <GenTile
+                        key={path}
+                        path={path}
+                        aspect={genAspect}
+                        onPreview={previewGen}
+                        onMenu={openGenMenu}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <DropZone
+                  dragging={dragging}
+                  label={`Drop ${category.label.toLowerCase()} here`}
+                  onBrowse={() => void browse()}
+                />
+                <Queues
+                  items={cur.items}
+                  tool={op.tool}
+                  options={curOptions}
+                  selected={cur.selected}
+                  activeGroup={activeGroup}
+                  outThumbs={outThumbs}
+                  onItemClick={onItemClick}
+                  onOpen={openPreview}
+                  onMenu={openMenu}
+                  onCancel={cancelJob}
+                />
+              </>
+            )}
+          </section>
 
-            <OptionsPanel
-              operation={op}
-              operations={operationsFor(state.category)}
-              onPickOperation={(id) => dispatch({ type: 'setOperation', operation: id })}
-              options={curOptions}
-              activeKind={activeKind}
-              runKind={runKind}
-              fallbackKind={category.kinds[0]}
-              videoOutputs={videoOutputs}
-              upscaleOutputs={upscaleOutputs}
-              resizeOutputs={resizeOutputs}
-              sourceExt={sourceExt}
-              srcExts={srcExts}
-              runCount={runCount}
-              onSet={(k, v) => dispatch({ type: 'setOption', key: k, value: v })}
-              onRun={() => void run()}
-            />
+          <OptionsPanel
+            operation={op}
+            operations={operationsFor(state.category)}
+            onPickOperation={(id) => dispatch({ type: 'setOperation', operation: id })}
+            options={curOptions}
+            activeKind={activeKind}
+            runKind={runKind}
+            fallbackKind={category.kinds[0]}
+            videoOutputs={videoOutputs}
+            upscaleOutputs={upscaleOutputs}
+            resizeOutputs={resizeOutputs}
+            sourceExt={sourceExt}
+            srcExts={srcExts}
+            runCount={runCount}
+            onSet={(k, v) => dispatch({ type: 'setOption', key: k, value: v })}
+            onRun={() => void run()}
+          />
         </>
       </div>
-      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
-      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
+      <ContextMenu menu={menu} onClose={closeMenu} />
+      <ConfirmDialog state={confirm} onClose={closeConfirm} />
     </div>
   )
 }

@@ -270,7 +270,9 @@ function CompressOptions({
         </div>
         <div>
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">Scale</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
+              Scale
+            </span>
             <span className="text-sm font-semibold text-accent">
               {Number(options.scale ?? 100) === 100 ? 'Original' : `${Number(options.scale)}%`}
             </span>
@@ -289,9 +291,7 @@ function CompressOptions({
             <span>Original</span>
           </div>
         </div>
-        {Number(options.scale ?? 100) < 100 &&
-          videoOutputs &&
-          videoOutputs.length > 0 && (
+        {Number(options.scale ?? 100) < 100 && videoOutputs && videoOutputs.length > 0 && (
           <div>
             <Label>Output</Label>
             <div className="scroll-thin max-h-32 space-y-1 overflow-auto rounded-xl border border-black/[.08] bg-white p-2.5">
@@ -399,13 +399,20 @@ function UpscaleOptions({
   useEffect(() => {
     void window.filesmith.upscaleModels().then(setNcnn)
   }, [])
-  const comfyModels = comfy.status?.models ?? []
-  const comfyChoices = comfyModels.map((m) => ({
-    value: `comfy:${m.path}`,
-    // Verified models read clean; only flag the unvetted ones, so the marker
-    // isn't mistaken for a "selected" checkmark.
-    label: `${m.name} · ${m.scale}×${m.badge === 'experimental' ? ' · experimental' : ''}`
-  }))
+  const comfyModels = comfy.status?.models
+  // Memoized: the validity effect below depends on this list and calls set()
+  // from inside itself — with a freshly-mapped array every render it escaped
+  // looping only by convergence.
+  const comfyChoices = useMemo(
+    () =>
+      (comfyModels ?? []).map((m) => ({
+        value: `comfy:${m.path}`,
+        // Verified models read clean; only flag the unvetted ones, so the
+        // marker isn't mistaken for a "selected" checkmark.
+        label: `${m.name} · ${m.scale}×${m.badge === 'experimental' ? ' · experimental' : ''}`
+      })),
+    [comfyModels]
+  )
   // Fall back to the legacy Photo/Anime aliases until the disk scan returns, so
   // the picker is never empty for a frame.
   const ncnnChoices: Choice<UpscaleModel>[] = ncnn?.length
@@ -454,7 +461,19 @@ function UpscaleOptions({
     else if (isComfyPath && !comfyChoices.some((c) => c.value === rawModel))
       set('upscaleModel', subDefault)
     else if (isPid && !showPid) set('upscaleModel', subDefault)
-  }, [pid, comfy.status, hasNvidia, inAi, isComfyPath, isPid, showPid, rawModel, comfyChoices, subDefault, set])
+  }, [
+    pid,
+    comfy.status,
+    hasNvidia,
+    inAi,
+    isComfyPath,
+    isPid,
+    showPid,
+    rawModel,
+    comfyChoices,
+    subDefault,
+    set
+  ])
 
   return (
     <>
@@ -482,6 +501,23 @@ function UpscaleOptions({
       <div>
         <Label>Model</Label>
         <ChoiceSelect value={category} choices={categoryChoices} onChange={pickCategory} />
+        {/* The drop-in models folder that upscale:models reads was reachable
+            only by knowing the %APPDATA% path by heart. */}
+        {!inAi && (
+          <button
+            onClick={() => void window.filesmith.upscaleOpenModelsFolder()}
+            className="mt-2 text-[11.5px] font-medium text-muted underline-offset-2 hover:text-ink hover:underline"
+          >
+            Add your own model… (opens the models folder)
+          </button>
+        )}
+        {/* Why the AI tier is missing, instead of silently hiding it: the
+            verdict was computed in main and thrown away before any UI. */}
+        {!hasNvidia && (pid?.cudaReason || comfy.status?.cudaReason) && (
+          <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+            {pid?.cudaReason ?? comfy.status?.cudaReason}
+          </p>
+        )}
         {category === 'comfy' && (
           <>
             {/* Second picker: which AI upscaler (imported ESRGAN models + PiD). */}
@@ -499,6 +535,11 @@ function UpscaleOptions({
                 <PidInstallCard onInstalled={refreshPid} />
               </div>
             )}
+            {/* The way OUT of a poisoned install: pidInstalled() is a bare
+                existsSync, so a corrupt multi-GB weight was otherwise
+                unrecoverable from the UI. Two-step to avoid an accidental
+                6 GB re-download. */}
+            {isPid && pid?.installed && <PidRemoveButton onRemoved={refreshPid} />}
             {comfy.status && (
               <div className="mt-3">
                 <ComfyImportCard status={comfy.status} refresh={comfy.refresh} />
@@ -599,6 +640,7 @@ function ResizeOptions({
             <input
               type="number"
               placeholder="auto"
+              min={1}
               value={options.width != null ? String(options.width) : ''}
               onChange={(e) => set('width', e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
@@ -609,6 +651,7 @@ function ResizeOptions({
             <input
               type="number"
               placeholder="auto"
+              min={1}
               value={options.height != null ? String(options.height) : ''}
               onChange={(e) => set('height', e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
@@ -772,7 +815,9 @@ function PdfOptions({
             <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
               Resolution
             </span>
-            <span className="text-sm font-semibold text-accent">{Number(options.dpi ?? 150)} DPI</span>
+            <span className="text-sm font-semibold text-accent">
+              {Number(options.dpi ?? 150)} DPI
+            </span>
           </div>
           <input
             type="range"
@@ -864,7 +909,13 @@ function ModelPicker({
 /** Shown when the selected model is missing its text-encoder / VAE files. Fetches
  * them into the user's ComfyUI folders, then refreshes so the model goes runnable
  * — the "works for anyone" path, not just a machine that already has the files. */
-function CompanionDownload({ model, onDone }: { model: GenModel; onDone: () => void }): JSX.Element {
+function CompanionDownload({
+  model,
+  onDone
+}: {
+  model: GenModel
+  onDone: () => void
+}): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [pct, setPct] = useState<number | null>(null)
@@ -893,7 +944,8 @@ function CompanionDownload({ model, onDone }: { model: GenModel; onDone: () => v
   return (
     <div className="rounded-xl border border-accent/40 bg-accent-soft/40 p-3 text-[12px] leading-relaxed">
       <p className="font-semibold text-ink">
-        This model needs {missing.length} file{missing.length === 1 ? '' : 's'} you don&apos;t have yet:
+        This model needs {missing.length} file{missing.length === 1 ? '' : 's'} you don&apos;t have
+        yet:
       </p>
       <ul className="mt-1.5 space-y-0.5 text-muted">
         {missing.map((m) => (
@@ -1043,6 +1095,87 @@ function AddModel({
   )
 }
 
+/** Remove the PiD install (repair path). Two clicks: the first arms it. */
+function PidRemoveButton({ onRemoved }: { onRemoved: () => void }): JSX.Element {
+  const [armed, setArmed] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const remove = (): void => {
+    if (!armed) {
+      setArmed(true)
+      return
+    }
+    setArmed(false)
+    void window.filesmith.pidInstalling().then((busy) => {
+      if (busy) {
+        setError('An install is running. Wait for it to finish first.')
+        return
+      }
+      void window.filesmith.pidRemove().then((r) => {
+        if (!r.ok) setError(r.error ?? 'Could not remove the install.')
+        else {
+          setError(null)
+          onRemoved()
+        }
+      })
+    })
+  }
+  return (
+    <div className="mt-2">
+      <button
+        onClick={remove}
+        onBlur={() => setArmed(false)}
+        className={`text-[11.5px] font-medium underline-offset-2 hover:underline ${
+          armed ? 'text-[#e0483d]' : 'text-muted hover:text-ink'
+        }`}
+      >
+        {armed ? 'Click again to remove the PiD install (~6 GB)' : 'Remove PiD install…'}
+      </button>
+      {error && <p className="mt-1 text-[11.5px] text-[#e0483d]">{error}</p>}
+    </div>
+  )
+}
+
+/** A dimension field that clamps on BLUR, not on every keystroke: clamping
+ * while typing turned "832" into 256 the moment its first digit landed, which
+ * made the field impossible to use at all. Steps by the model's own dimStep. */
+function DimInput({
+  value,
+  caps,
+  onCommit
+}: {
+  value: number
+  caps?: { minDim?: number; maxDim?: number; dimStep?: number }
+  onCommit: (v: number) => void
+}): JSX.Element {
+  const [text, setText] = useState(String(value))
+  // Re-sync when the committed value changes from OUTSIDE (preset picked):
+  // the render-time adjustment pattern, not an effect (no extra paint).
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    setText(String(value))
+  }
+  const commit = (): void => {
+    const n = Number(text)
+    onCommit(clampDim(Number.isFinite(n) && n > 0 ? n : value, caps))
+  }
+  return (
+    <input
+      type="number"
+      value={text}
+      step={caps?.dimStep ?? 8}
+      min={caps?.minDim ?? 256}
+      max={caps?.maxDim ?? 4096}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+      }}
+      className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+    />
+  )
+}
+
 /**
  * Text-to-image generation options. The prompt lives in the center PromptBox;
  * this panel carries the model + sampling settings and the availability notice.
@@ -1059,7 +1192,12 @@ function GenerateOptions({
   const w = Number(options.width ?? 1024)
   const h = Number(options.height ?? 1024)
   const seed = Number(options.seed ?? -1)
-  const sizeValue = GEN_SIZES.some((s) => s.width === w && s.height === h) ? `${w}x${h}` : 'custom'
+  // An explicit mode: derived-from-dimensions alone made "Custom…" unreachable
+  // (the defaults equal a preset, so the select snapped straight back and the
+  // width/height inputs never mounted in any build).
+  const isPreset = GEN_SIZES.some((s) => s.width === w && s.height === h)
+  const sizeValue =
+    String(options.sizeMode ?? '') === 'custom' || !isPreset ? 'custom' : `${w}x${h}`
 
   const models = useMemo(() => status?.models ?? [], [status])
   const selected = models.find((m) => m.name === model)
@@ -1091,15 +1229,23 @@ function GenerateOptions({
 
   // When the architecture changes, reset the sampler knobs to that arch's sane
   // defaults (cfg MUST be 1 for Flux/Z-Image/Krea; steps differ per family).
+  // Only AFTER the scan resolves, and only on a real change: the ref used to
+  // start null with arch defaulting to 'sdxl' mid-scan, so every mount fired
+  // the reset twice and the persisted Steps/CFG were never once honoured.
   const prevArch = useRef<GenArch | null>(null)
   useEffect(() => {
+    if (!status) return
+    if (prevArch.current === null) {
+      prevArch.current = arch
+      return
+    }
     if (prevArch.current === arch) return
     prevArch.current = arch
     set('tryAnyway', 0)
     set('steps', info.steps)
     set('cfg', info.cfg)
     if (info.hasGuidance) set('guidance', info.guidance)
-  }, [arch, info, set])
+  }, [arch, info, set, status])
 
   return (
     <>
@@ -1109,7 +1255,9 @@ function GenerateOptions({
         {models.length ? (
           <ModelPicker models={models} value={model} onChange={(v) => set('model', v)} />
         ) : (
-          <p className="text-[12px] text-dim">No image models found in your ComfyUI models folder.</p>
+          <p className="text-[12px] text-dim">
+            No image models found in your ComfyUI models folder.
+          </p>
         )}
         {selected && !selected.runnable && selected.missing?.length ? (
           <div className="mt-2.5">
@@ -1195,7 +1343,11 @@ function GenerateOptions({
             { value: 'custom', label: 'Custom…' }
           ]}
           onChange={(v) => {
-            if (v === 'custom') return
+            if (v === 'custom') {
+              set('sizeMode', 'custom')
+              return
+            }
+            set('sizeMode', 'preset')
             const [ww, hh] = v.split('x').map(Number)
             set('width', ww)
             set('height', hh)
@@ -1205,23 +1357,11 @@ function GenerateOptions({
           <div className="mt-2 grid grid-cols-2 gap-3">
             <div>
               <Label>Width</Label>
-              <input
-                type="number"
-                value={w}
-                step={64}
-                onChange={(e) => set('width', clampDim(Number(e.target.value), dimCaps))}
-                className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
-              />
+              <DimInput value={w} caps={dimCaps} onCommit={(v) => set('width', v)} />
             </div>
             <div>
               <Label>Height</Label>
-              <input
-                type="number"
-                value={h}
-                step={64}
-                onChange={(e) => set('height', clampDim(Number(e.target.value), dimCaps))}
-                className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
-              />
+              <DimInput value={h} caps={dimCaps} onCommit={(v) => set('height', v)} />
             </div>
           </div>
         )}
@@ -1239,7 +1379,9 @@ function GenerateOptions({
                 Steps
                 <HelpTip text="How many refinement passes the model makes. More adds a little detail but is slower. Turbo models (Z-Image, Krea, Flux 2) need only a handful; SDXL and Flux 1 like ~20-30." />
               </span>
-              <span className="text-sm font-semibold text-accent">{Number(options.steps ?? info.steps)}</span>
+              <span className="text-sm font-semibold text-accent">
+                {Number(options.steps ?? info.steps)}
+              </span>
             </div>
             <input
               type="range"
@@ -1257,7 +1399,9 @@ function GenerateOptions({
                   Guidance (CFG)
                   <HelpTip text="How closely it follows your prompt. About 7 is balanced; lower is looser and more natural, higher sticks to the prompt but can look harsh." />
                 </span>
-                <span className="text-sm font-semibold text-accent">{Number(options.cfg ?? 7)}</span>
+                <span className="text-sm font-semibold text-accent">
+                  {Number(options.cfg ?? 7)}
+                </span>
               </div>
               <input
                 type="range"
@@ -1276,7 +1420,9 @@ function GenerateOptions({
                   Guidance
                   <HelpTip text="Flux's prompt-adherence dial. Around 3.5 is the sweet spot for Flux 1; lower is more natural, higher follows the prompt harder." />
                 </span>
-                <span className="text-sm font-semibold text-accent">{Number(options.guidance ?? info.guidance)}</span>
+                <span className="text-sm font-semibold text-accent">
+                  {Number(options.guidance ?? info.guidance)}
+                </span>
               </div>
               <input
                 type="range"
@@ -1291,7 +1437,9 @@ function GenerateOptions({
           ) : null}
           <div>
             <div className="mb-2.5 flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">Seed</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
+                Seed
+              </span>
               <HelpTip text="The random starting point. The same seed with the same settings makes the exact same image — leave it on Random for variety, or fix it to reproduce a result." />
             </div>
             <div className="flex gap-2">
@@ -1358,8 +1506,12 @@ export function OptionsPanel({
     // Every option control (slider, toggle, run button, selected chip) reads the
     // accent variables, so overriding them here themes the whole panel black in
     // one place, without touching the rail or the coloured switcher above.
+    // Three regions: a fixed header (the switcher), a scrolling middle (the
+    // option groups), and a PINNED footer holding the primary action - which
+    // used to be an ordinary last child of one scroll container and left the
+    // viewport entirely at the app's own default window size.
     <aside
-      className="scroll-thin flex w-[300px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-black/[.06] bg-white/40 px-[22px] py-6"
+      className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-black/[.06] bg-white/40"
       style={
         {
           '--color-accent': '#000000',
@@ -1370,53 +1522,59 @@ export function OptionsPanel({
     >
       {/* The one coloured control: the primary choice. No "Options" header below
           it: the option groups (Target format, Quality) are their own headers. */}
-      <OperationSwitcher operation={operation} operations={operations} onPick={onPickOperation} />
-      <div className="-my-1 h-px bg-black/[.07]" />
-
-      {/* The options are always shown: every file in this category takes the
+      <div className="px-[22px] pt-6">
+        <OperationSwitcher operation={operation} operations={operations} onPick={onPickOperation} />
+        <div className="mt-5 h-px bg-black/[.07]" />
+      </div>
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-[22px] py-5">
+        {/* The options are always shown: every file in this category takes the
           same operation, so its options are known before anything is selected.
           Falls back to the category's kind when there's no selection to read
           one from. Only the run button reflects whether files are ready. */}
-      <>
-        {operation.tool === 'convert' && (
-          <ConvertOptions
-            options={options}
-            activeKind={activeKind ?? fallbackKind}
-            sourceExt={sourceExt}
-            srcExts={srcExts}
-            set={onSet}
-          />
-        )}
-        {operation.tool === 'compress' && (
-          <CompressOptions
-            options={options}
-            activeKind={runKind ?? fallbackKind}
-            videoOutputs={videoOutputs}
-            set={onSet}
-          />
-        )}
-        {operation.tool === 'resize' && (
-          <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
-        )}
-        {operation.tool === 'upscale' && (
-          <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
-        )}
-        {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
-        {operation.tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
-        {operation.tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
-      </>
-      <div className="flex-1" />
+        <>
+          {operation.tool === 'convert' && (
+            <ConvertOptions
+              options={options}
+              activeKind={activeKind ?? fallbackKind}
+              sourceExt={sourceExt}
+              srcExts={srcExts}
+              set={onSet}
+            />
+          )}
+          {operation.tool === 'compress' && (
+            <CompressOptions
+              options={options}
+              activeKind={runKind ?? fallbackKind}
+              videoOutputs={videoOutputs}
+              set={onSet}
+            />
+          )}
+          {operation.tool === 'resize' && (
+            <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
+          )}
+          {operation.tool === 'upscale' && (
+            <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
+          )}
+          {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
+          {operation.tool === 'pdf' && (
+            <PdfOptions options={options} runCount={runCount} set={onSet} />
+          )}
+          {operation.tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
+        </>
+      </div>
 
-      <button
-        onClick={onRun}
-        disabled={runCount === 0}
-        className="mt-auto rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(0,0,0,.20)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
-      >
-        {operation.label}
-        {operation.tool !== 'generate' && runCount > 0
-          ? ` ${runCount} file${runCount === 1 ? '' : 's'}`
-          : ''}
-      </button>
+      <div className="border-t border-black/[.07] px-[22px] py-4">
+        <button
+          onClick={onRun}
+          disabled={runCount === 0}
+          className="w-full rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(0,0,0,.20)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+        >
+          {operation.label}
+          {operation.tool !== 'generate' && runCount > 0
+            ? ` ${runCount} file${runCount === 1 ? '' : 's'}`
+            : ''}
+        </button>
+      </div>
     </aside>
   )
 }

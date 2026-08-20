@@ -30,7 +30,9 @@ function writeSafetensors(name: string, keys: string[], meta?: Record<string, st
 
 describe('readSafetensorsHeader', () => {
   it('reads keys and metadata, excluding __metadata__', () => {
-    const p = writeSafetensors('m.safetensors', ['a.weight', 'b.bias'], { 'modelspec.architecture': 'X' })
+    const p = writeSafetensors('m.safetensors', ['a.weight', 'b.bias'], {
+      'modelspec.architecture': 'X'
+    })
     const h = readSafetensorsHeader(p)
     expect(h?.keys.sort()).toEqual(['a.weight', 'b.bias'])
     expect(h?.metadata['modelspec.architecture']).toBe('X')
@@ -53,21 +55,46 @@ describe('readSafetensorsHeader', () => {
 
 describe('classifyArch', () => {
   const cases: [string, string[], string][] = [
-    ['flux1', ['double_blocks.0.img_attn.qkv.weight', 'single_blocks.0.linear1.weight', 'img_in.weight', 'txt_in.weight'], 'flux1'],
+    [
+      'flux1',
+      [
+        'double_blocks.0.img_attn.qkv.weight',
+        'single_blocks.0.linear1.weight',
+        'img_in.weight',
+        'txt_in.weight'
+      ],
+      'flux1'
+    ],
     [
       'flux2',
-      ['double_blocks.0.x.weight', 'single_blocks.0.x.weight', 'double_stream_modulation_img.0.weight', 'img_in.weight', 'txt_in.weight'],
+      [
+        'double_blocks.0.x.weight',
+        'single_blocks.0.x.weight',
+        'double_stream_modulation_img.0.weight',
+        'img_in.weight',
+        'txt_in.weight'
+      ],
       'flux2'
     ],
     ['sd3', ['joint_blocks.0.x_block.attn.qkv.weight'], 'sd3'],
-    ['z-image', ['cap_embedder.0.weight', 'noise_refiner.0.weight', 'context_refiner.0.weight'], 'z-image'],
+    [
+      'z-image',
+      ['cap_embedder.0.weight', 'noise_refiner.0.weight', 'context_refiner.0.weight'],
+      'z-image'
+    ],
     ['sdxl', ['input_blocks.0.0.weight', 'middle_block.1.weight'], 'sdxl'],
     ['krea2', ['blocks.0.weight', 'tmlp.0.weight', 'txtfusion.0.weight', 'tproj.weight'], 'krea2'],
     ['genuinely unknown', ['foo.0.weight', 'bar.baz.weight'], 'unknown'],
     // Regression: non-image DiTs that reuse Flux's block names must NOT be Flux.
     [
       'HunyuanVideo (flux-like blocks + token refiner)',
-      ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.weight', 'txt_in.individual_token_refiner.blocks.0.w', 'guidance_in.w'],
+      [
+        'double_blocks.0.w',
+        'single_blocks.0.w',
+        'img_in.weight',
+        'txt_in.individual_token_refiner.blocks.0.w',
+        'guidance_in.w'
+      ],
       'unknown'
     ],
     [
@@ -75,7 +102,11 @@ describe('classifyArch', () => {
       ['double_blocks.0.w', 'single_blocks.0.w', 'conditioner.w', 'patch_embed.w', 'time_in.w'],
       'unknown'
     ],
-    ['FramePack (clean_x_embedder)', ['clean_x_embedder.w', 'double_blocks.0.w', 'img_in.w', 'txt_in.w'], 'unknown']
+    [
+      'FramePack (clean_x_embedder)',
+      ['clean_x_embedder.w', 'double_blocks.0.w', 'img_in.w', 'txt_in.w'],
+      'unknown'
+    ]
   ]
   for (const [label, keys, expected] of cases) {
     it(`classifies ${label} as ${expected}`, () => {
@@ -84,18 +115,28 @@ describe('classifyArch', () => {
   }
 
   it('prefers flux2 over flux1 when modulation keys are present', () => {
-    const keys = ['double_blocks.0.w', 'single_blocks.0.w', 'single_stream_modulation.0.w', 'img_in.w', 'txt_in.w']
+    const keys = [
+      'double_blocks.0.w',
+      'single_blocks.0.w',
+      'single_stream_modulation.0.w',
+      'img_in.w',
+      'txt_in.w'
+    ]
     expect(classifyArch({ keys, metadata: {} })).toBe('flux2')
   })
 
   it('rejects a model whose metadata names a video family, even with image-like keys', () => {
     const keys = ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.w', 'txt_in.w']
-    expect(classifyArch({ keys, metadata: { 'modelspec.architecture': 'hunyuan-video' } })).toBe('unknown')
+    expect(classifyArch({ keys, metadata: { 'modelspec.architecture': 'hunyuan-video' } })).toBe(
+      'unknown'
+    )
   })
 
   it('treats Lumina 2 (declares lumina) as unknown so it is not mis-wired as Z-Image', () => {
     const keys = ['cap_embedder.0.w', 'noise_refiner.0.w', 'context_refiner.0.w']
-    expect(classifyArch({ keys, metadata: { 'modelspec.architecture': 'Lumina-Image-2.0' } })).toBe('unknown')
+    expect(classifyArch({ keys, metadata: { 'modelspec.architecture': 'Lumina-Image-2.0' } })).toBe(
+      'unknown'
+    )
     // Without the metadata it would (correctly, for real Z-Image) be z-image.
     expect(classifyArch({ keys, metadata: {} })).toBe('z-image')
   })
@@ -103,34 +144,58 @@ describe('classifyArch', () => {
 
 describe('isExcludedNonImage', () => {
   const yes: [string, string[], Record<string, string>?][] = [
-    ['HunyuanVideo token refiner', ['double_blocks.0.w', 'img_in.w', 'txt_in.individual_token_refiner.w']],
+    [
+      'HunyuanVideo token refiner',
+      ['double_blocks.0.w', 'img_in.w', 'txt_in.individual_token_refiner.w']
+    ],
     ['Wan video patch/time embed', ['patch_embedding.w', 'time_embedding.w', 'blocks.0.w']],
     ['LTX vocoder/audio', ['vocoder.w', 'audio_vae.w', 'model.w']],
     ['Hunyuan3D shape DiT', ['double_blocks.0.w', 'single_blocks.0.w', 'conditioner.w']],
     ['metadata video', ['x.w'], { 'modelspec.architecture': 'wan-2.2' }]
   ]
   for (const [label, keys, metadata] of yes)
-    it(`excludes ${label}`, () => expect(isExcludedNonImage({ keys, metadata: metadata ?? {} })).toBe(true))
+    it(`excludes ${label}`, () =>
+      expect(isExcludedNonImage({ keys, metadata: metadata ?? {} })).toBe(true))
 
   it('does NOT exclude a real Flux or Z-Image', () => {
-    expect(isExcludedNonImage({ keys: ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.w', 'txt_in.w'], metadata: {} })).toBe(false)
-    expect(isExcludedNonImage({ keys: ['cap_embedder.0.w', 'noise_refiner.0.w', 'context_refiner.0.w'], metadata: {} })).toBe(false)
+    expect(
+      isExcludedNonImage({
+        keys: ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.w', 'txt_in.w'],
+        metadata: {}
+      })
+    ).toBe(false)
+    expect(
+      isExcludedNonImage({
+        keys: ['cap_embedder.0.w', 'noise_refiner.0.w', 'context_refiner.0.w'],
+        metadata: {}
+      })
+    ).toBe(false)
   })
 })
 
 describe('isAllInOne', () => {
   it('detects a baked text-encoder + VAE checkpoint', () => {
-    const h = { keys: ['model.diffusion_model.x', 'text_encoders.t5.w', 'vae.decoder.w'], metadata: {} }
+    const h = {
+      keys: ['model.diffusion_model.x', 'text_encoders.t5.w', 'vae.decoder.w'],
+      metadata: {}
+    }
     expect(isAllInOne(h)).toBe(true)
   })
   it('is false for a bare UNET', () => {
-    expect(isAllInOne({ keys: ['double_blocks.0.w', 'single_blocks.0.w'], metadata: {} })).toBe(false)
+    expect(isAllInOne({ keys: ['double_blocks.0.w', 'single_blocks.0.w'], metadata: {} })).toBe(
+      false
+    )
   })
 })
 
 describe('classifyModelFile', () => {
   it('classifies from a real file end-to-end', () => {
-    const p = writeSafetensors('flux.safetensors', ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.w', 'txt_in.w'])
+    const p = writeSafetensors('flux.safetensors', [
+      'double_blocks.0.w',
+      'single_blocks.0.w',
+      'img_in.w',
+      'txt_in.w'
+    ])
     expect(classifyModelFile(p)).toBe('flux1')
   })
   it('returns unknown for an unreadable path', () => {
@@ -140,10 +205,19 @@ describe('classifyModelFile', () => {
 
 describe('inspectModelFile', () => {
   it('reports arch + excluded together', () => {
-    const flux = writeSafetensors('f2.safetensors', ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.w', 'txt_in.w'])
+    const flux = writeSafetensors('f2.safetensors', [
+      'double_blocks.0.w',
+      'single_blocks.0.w',
+      'img_in.w',
+      'txt_in.w'
+    ])
     expect(inspectModelFile(flux)).toMatchObject({ arch: 'flux1', excluded: false })
 
-    const video = writeSafetensors('v.safetensors', ['patch_embedding.w', 'time_embedding.w', 'blocks.0.w'])
+    const video = writeSafetensors('v.safetensors', [
+      'patch_embedding.w',
+      'time_embedding.w',
+      'blocks.0.w'
+    ])
     expect(inspectModelFile(video)).toMatchObject({ arch: 'unknown', excluded: true })
 
     const mystery = writeSafetensors('m.safetensors', ['some_new_dit.0.w'])

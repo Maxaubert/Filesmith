@@ -35,7 +35,9 @@ describe('classifySidecarLine', () => {
   })
 
   it('parses a successful reply with id, output and ms', () => {
-    expect(classifySidecarLine('{"id": 7, "ok": true, "output": "C:/out.png", "ms": 1234}')).toEqual({
+    expect(
+      classifySidecarLine('{"id": 7, "ok": true, "output": "C:/out.png", "ms": 1234}')
+    ).toEqual({
       kind: 'ok',
       id: 7,
       output: 'C:/out.png',
@@ -115,7 +117,9 @@ describe('cudaTierSupport (the gate before a ~3 GB cu128 download)', () => {
   })
 
   it('accepts an RTX-class card', () => {
-    expect(cudaTierSupport(parseNvidiaSmi('NVIDIA GeForce RTX 4070, 12282, 8.9, 581.15')).ok).toBe(true)
+    expect(cudaTierSupport(parseNvidiaSmi('NVIDIA GeForce RTX 4070, 12282, 8.9, 581.15')).ok).toBe(
+      true
+    )
   })
 
   it('refuses a driver below the floor', () => {

@@ -125,20 +125,8 @@ img {
 .modal-pop {
   animation: modalpop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
-@keyframes backdropfade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.backdrop-fade {
-  animation: backdropfade 0.16s ease-out;
-}
 @media (prefers-reduced-motion: reduce) {
-  .modal-pop,
-  .backdrop-fade {
+  .modal-pop {
     animation: none;
   }
 }

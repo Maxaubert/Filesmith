@@ -157,7 +157,9 @@ describe('validateEntry (the path-traversal and https gate)', () => {
   it('rejects a filename with a separator or ..', () => {
     for (const bad of ['../../evil.exe', 'sub/dir.safetensors', '..', 'a\\b'])
       expect(
-        validateEntry(withCompanion({ download: { filename: bad, approxSize: '1 MB', urls: ['https://h/x'] } }))
+        validateEntry(
+          withCompanion({ download: { filename: bad, approxSize: '1 MB', urls: ['https://h/x'] } })
+        )
       ).not.toEqual([])
   })
 
@@ -239,7 +241,9 @@ describe('scoreDetect (content beats the filename, always)', () => {
     const d = { tensorKeys: { all: ['double_blocks'], none: ['vace_blocks'] } }
     expect(scoreDetect(d, { basename: 'm', tensorKeys: ['x.double_blocks.0'] })).toBeGreaterThan(0)
     expect(scoreDetect(d, { basename: 'm', tensorKeys: ['x.single_blocks.0'] })).toBe(0)
-    expect(scoreDetect(d, { basename: 'm', tensorKeys: ['x.double_blocks.0', 'vace_blocks.1'] })).toBe(0)
+    expect(
+      scoreDetect(d, { basename: 'm', tensorKeys: ['x.double_blocks.0', 'vace_blocks.1'] })
+    ).toBe(0)
   })
 
   it('scores tensor evidence far above a filename hint', () => {

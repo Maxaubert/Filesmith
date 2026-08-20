@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'fs'
+import { mkdirSync, readdirSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import type { RegistryEntry, RegistryFile } from '@shared/registry'
-import { REGISTRY_SCHEMA_VERSION, mergeRegistry, validateEntry } from '@shared/registry'
+import { REGISTRY_SCHEMA_VERSION, mergeRegistryChecked } from '@shared/registry'
 
 /**
  * The three-layer model registry.
@@ -75,7 +75,7 @@ export function ensureUserLayers(): void {
   }
 }
 
-function readLayer(layer: Layer, warnings: string[]): RegistryFile[] {
+function readLayer(layer: Layer, warnings: string[]): { file: string; entries: RegistryEntry[] }[] {
   const dir = layerDir(layer)
   if (!dir) return []
   let files: string[]
@@ -84,14 +84,16 @@ function readLayer(layer: Layer, warnings: string[]): RegistryFile[] {
   } catch {
     return [] // a missing layer is normal, not an error
   }
-  const out: RegistryFile[] = []
+  const out: { file: string; entries: RegistryEntry[] }[] = []
   for (const f of files.sort()) {
     const path = join(dir, f)
     let parsed: RegistryFile
     try {
       parsed = JSON.parse(readFileSync(path, 'utf-8')) as RegistryFile
     } catch (e) {
-      warnings.push(`${layer}/${f}: not valid JSON (${e instanceof Error ? e.message : e}) — skipped`)
+      warnings.push(
+        `${layer}/${f}: not valid JSON (${e instanceof Error ? e.message : e}) — skipped`
+      )
       continue
     }
     if (!parsed || !Array.isArray(parsed.entries)) {
@@ -110,18 +112,47 @@ function readLayer(layer: Layer, warnings: string[]): RegistryFile[] {
         warnings.push(`${layer}/${f}: entry "${e?.id}" needs a newer Filesmith — skipped`)
         continue
       }
-      const errs = validateEntry(e)
-      if (errs.length) {
-        warnings.push(`${layer}/${f}: ${errs.join('; ')} — entry skipped`)
-        continue
-      }
-      // Provenance is assigned by the LAYER, never trusted from the file: an
-      // entry cannot claim to be built-in by writing so.
+      // Validation happens on the MERGED entry (mergeRegistryChecked), not the
+      // fragment: a companions-only override has no kind/label of its own.
+      // Provenance is still assigned by the LAYER, never trusted from the file.
       entries.push({ ...e, provenance: { ...(e.provenance ?? {}), source: layer } })
     }
-    out.push({ schemaVersion: parsed.schemaVersion ?? 1, entries })
+    out.push({ file: `${layer}/${f}`, entries })
   }
   return out
+}
+
+/** mtimes of the WRITABLE layers' files, so a hand-edited user file (the
+ * registry:open-folder flow actively invites it) is picked up without an app
+ * restart instead of being ignored until the next launch. */
+function layerFingerprint(): string {
+  const parts: string[] = []
+  for (const l of ['channel', 'user'] as const) {
+    const dir = layerDir(l)
+    if (!dir) continue
+    try {
+      for (const f of readdirSync(dir).sort()) {
+        if (!f.toLowerCase().endsWith('.json')) continue
+        try {
+          parts.push(`${l}/${f}:${statSync(join(dir, f)).mtimeMs}`)
+        } catch {
+          /* raced a delete */
+        }
+      }
+    } catch {
+      /* missing layer */
+    }
+  }
+  return parts.join('|')
+}
+
+let fingerprint = ''
+
+/** Drop the cache when a writable layer changed on disk. Called from the IPC
+ * status endpoints so an edit takes effect on the next panel refresh. */
+export function invalidateRegistryIfChanged(): void {
+  if (!cache) return
+  if (layerFingerprint() !== fingerprint) cache = null
 }
 
 let cache: RegistryLoadResult | null = null
@@ -139,8 +170,11 @@ export function loadRegistry(): RegistryLoadResult {
     warnings.push(
       'No model registry found. Filesmith ships one in resources/registry — this installation looks incomplete.'
     )
+  const merged = mergeRegistryChecked(layers)
+  warnings.push(...merged.warnings)
   for (const w of warnings) console.warn('[registry]', w)
-  cache = { entries: mergeRegistry(layers), warnings }
+  fingerprint = layerFingerprint()
+  cache = { entries: merged.entries, warnings }
   return cache
 }
 
@@ -157,9 +191,4 @@ export function registryEntries(kind: RegistryEntry['kind']): RegistryEntry[] {
 /** One entry by id, or undefined. */
 export function registryEntry(id: string): RegistryEntry | undefined {
   return loadRegistry().entries.find((e) => e.id === id)
-}
-
-/** True when the built-in pack was found — used by a startup sanity check. */
-export function registryHealthy(): boolean {
-  return existsSync(builtinDir()) && loadRegistry().entries.length > 0
 }

@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { PidStatus } from '@shared/ipc'
 
 // PiD status hook, kept apart from the PidInstallCard component so the card file
 // exports only components (React Fast Refresh requires that).
 
-export interface PidStatus {
-  nvidia: { name: string; vramMb: number | null } | null
-  installed: boolean
-}
+export type { PidStatus }
 
 /** GPU presence + install state, fetched once on mount. `refresh` re-checks. */
 export function usePidStatus(): { status: PidStatus | null; refresh: () => void } {

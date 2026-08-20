@@ -42,7 +42,9 @@ describe('renderMarkdown', () => {
       '<ul><li>a<ul><li>nested</li></ul></li><li>b</li></ul>'
     )
     // A tab counts as 2 spaces (one level) too.
-    expect(renderMarkdown('- a\n\t- nested')).toContain('<ul><li>a<ul><li>nested</li></ul></li></ul>')
+    expect(renderMarkdown('- a\n\t- nested')).toContain(
+      '<ul><li>a<ul><li>nested</li></ul></li></ul>'
+    )
   })
 
   it('honors an ordered-list start number via <ol start>', () => {

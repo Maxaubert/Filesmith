@@ -37,8 +37,24 @@ export interface ArchInfo {
  * fallback and is asserted against the shipped pack by a test, so the two
  * cannot drift. */
 export const ARCH_INFO: Record<string, ArchInfo> = {
-  sdxl: { group: 'Checkpoints', sampler: 'dpmpp_2m', scheduler: 'karras', steps: 28, cfg: 7, guidance: 0, hasGuidance: false },
-  flux1: { group: 'Flux', sampler: 'euler', scheduler: 'simple', steps: 20, cfg: 1, guidance: 3.5, hasGuidance: true },
+  sdxl: {
+    group: 'Checkpoints',
+    sampler: 'dpmpp_2m',
+    scheduler: 'karras',
+    steps: 28,
+    cfg: 7,
+    guidance: 0,
+    hasGuidance: false
+  },
+  flux1: {
+    group: 'Flux',
+    sampler: 'euler',
+    scheduler: 'simple',
+    steps: 20,
+    cfg: 1,
+    guidance: 3.5,
+    hasGuidance: true
+  },
   flux2: {
     group: 'Flux 2',
     sampler: 'euler',
@@ -67,7 +83,8 @@ export const ARCH_INFO: Record<string, ArchInfo> = {
     cfg: 1,
     guidance: 0,
     hasGuidance: false,
-    minComfyNote: 'Krea 2 needs an up-to-date ComfyUI (nightly, mid-2026) for the krea2 encoder type.'
+    minComfyNote:
+      'Krea 2 needs an up-to-date ComfyUI (nightly, mid-2026) for the krea2 encoder type.'
   }
 }
 
@@ -83,6 +100,8 @@ export interface MissingFile {
   urls?: string[]
   /** Declared checksum, verified while streaming. */
   sha256?: string
+  /** Exact size in bytes when the registry knows it. */
+  bytes?: number
   approxSize: string
   subdir: 'text_encoders' | 'vae'
 }

@@ -108,7 +108,9 @@ for (const c of companions) {
       continue
     }
     if (CHECK) {
-      log(`  ! ${label}: STALE (pack has ${d.sha256?.slice(0, 12) ?? 'no hash'}, upstream ${sha256.slice(0, 12)})`)
+      log(
+        `  ! ${label}: STALE (pack has ${d.sha256?.slice(0, 12) ?? 'no hash'}, upstream ${sha256.slice(0, 12)})`
+      )
       failed += 1
       continue
     }

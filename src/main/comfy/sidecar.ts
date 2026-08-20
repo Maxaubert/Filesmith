@@ -89,7 +89,9 @@ class SpandrelSidecar {
       })
       proc.on('close', (code) => {
         const tail = stderrTail.trim().split('\n').filter(Boolean).pop()
-        const err = new Error(tail ? `Upscaler failed: ${tail}` : `spandrel process exited (${code})`)
+        const err = new Error(
+          tail ? `Upscaler failed: ${tail}` : `spandrel process exited (${code})`
+        )
         this.reset(err)
         reject(err)
       })

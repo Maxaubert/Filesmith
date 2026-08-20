@@ -5,11 +5,10 @@ import type {
   JobEvent,
   JobRequest,
   PreviewItem,
-  PreviewPayload,
-  ToolId,
-  ToolTarget
+  PreviewPayload
 } from '@shared/types'
 import type { ComfyModel } from '@shared/comfy'
+import type { ComfyStatus, PidStatus } from '@shared/ipc'
 import type { GenerateOptions } from '@shared/generate'
 import type { GenModelScan } from '@shared/genArch'
 
@@ -60,9 +59,14 @@ const api = {
     ipcRenderer.on('preview:update', listener)
     return () => ipcRenderer.removeListener('preview:update', listener)
   },
+  /** The preview window was closed — stop pushing list updates to it. */
+  onPreviewClosed: (cb: () => void): (() => void) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('preview:closed', listener)
+    return () => ipcRenderer.removeListener('preview:closed', listener)
+  },
   /** Push a fresh file list to an open preview window (keeps its position). */
-  updatePreviewList: (files: PreviewItem[]): void =>
-    ipcRenderer.send('preview:update-list', files),
+  updatePreviewList: (files: PreviewItem[]): void => ipcRenderer.send('preview:update-list', files),
   /** The preview window listens for live list changes. */
   onPreviewList: (cb: (files: PreviewItem[]) => void): (() => void) => {
     const listener = (_: unknown, files: PreviewItem[]): void => cb(files)
@@ -73,21 +77,16 @@ const api = {
   trashFile: (path: string): Promise<boolean> => ipcRenderer.invoke('file:trash', path),
 
   // tools
-  checkTool: (name: string): Promise<boolean> => ipcRenderer.invoke('tool:check', name),
-  toolsFor: (file: FileInfo): Promise<ToolId[]> => ipcRenderer.invoke('tools:for', file),
   /** AI upscale models present on disk (bundled + the user's own overlay). */
   upscaleModels: (): Promise<{ value: string; label: string; user: boolean }[]> =>
     ipcRenderer.invoke('upscale:models'),
   /** Open the folder where the user can drop their own Real-ESRGAN models. */
-  upscaleOpenModelsFolder: (): Promise<boolean> =>
-    ipcRenderer.invoke('upscale:open-models-folder'),
-  targets: (tool: ToolId, file: FileInfo): Promise<ToolTarget[]> =>
-    ipcRenderer.invoke('tool:targets', tool, file),
+  upscaleOpenModelsFolder: (): Promise<boolean> => ipcRenderer.invoke('upscale:open-models-folder'),
 
   // PiD Advanced (NVIDIA) upscaler tier
-  /** NVIDIA GPU presence + whether the PiD engine is installed. */
-  pidStatus: (): Promise<{ nvidia: { name: string; vramMb: number | null } | null; installed: boolean }> =>
-    ipcRenderer.invoke('pid:status'),
+  /** NVIDIA/PiD availability. Typed by the SHARED PidStatus: this wrapper used
+   * to re-declare a narrower shape, which silently discarded cudaReason. */
+  pidStatus: (): Promise<PidStatus> => ipcRenderer.invoke('pid:status'),
   /** Delete the AI install (repair path for a corrupt/poisoned one). */
   pidRemove: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('pid:remove'),
   /** True while an install is running anywhere in the app. */
@@ -103,17 +102,9 @@ const api = {
 
   // ComfyUI-imported upscale models
   /** GPU + spandrel-engine readiness + remembered folder + usable models. */
-  comfyStatus: (): Promise<{
-    nvidia: { name: string; vramMb: number | null } | null
-    engineReady: boolean
-    envExists: boolean
-    pidReusable: boolean
-    folder: string | null
-    models: ComfyModel[]
-  }> => ipcRenderer.invoke('comfy:status'),
+  comfyStatus: (): Promise<ComfyStatus> => ipcRenderer.invoke('comfy:status'),
   /** Build the shared torch env + spandrel (no PiD weights). */
-  comfyInstall: (): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke('comfy:install'),
+  comfyInstall: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('comfy:install'),
   /** Open a folder picker; resolves to the chosen path or null. */
   comfyPickFolder: (): Promise<string | null> => ipcRenderer.invoke('comfy:pick-folder'),
   // The user's own model registry (add a model with no app release).
@@ -127,12 +118,6 @@ const api = {
   }> => ipcRenderer.invoke('registry:import'),
   /** Open the user registry folder in the OS file manager. */
   registryOpenFolder: (): Promise<boolean> => ipcRenderer.invoke('registry:open-folder'),
-  /** Every known model entry with its layer + source host (provenance). */
-  registryInfo: (): Promise<{
-    folder: string | null
-    warnings: string[]
-    entries: { id: string; kind: string; label: string; source: string; host: string | null }[]
-  }> => ipcRenderer.invoke('registry:info'),
 
   /** Remember where ComfyUI is, without needing the upscale engine installed. */
   comfySetFolder: (folder: string): Promise<{ ok: boolean; error?: string }> =>
@@ -140,8 +125,6 @@ const api = {
   /** Scan a folder for upscale models, classify + remember them. */
   comfyScan: (folder: string): Promise<{ ok: boolean; models?: ComfyModel[]; error?: string }> =>
     ipcRenderer.invoke('comfy:scan', folder),
-  /** The remembered, still-on-disk usable models. */
-  comfyList: (): Promise<ComfyModel[]> => ipcRenderer.invoke('comfy:list'),
   /** Engine-install progress updates. */
   onComfyProgress: (cb: (p: { step: string; pct: number | null }) => void): (() => void) => {
     const listener = (_: unknown, p: { step: string; pct: number | null }): void => cb(p)
@@ -164,11 +147,25 @@ const api = {
     ipcRenderer.invoke('generate:download', id, model),
   /** Progress of an in-flight companion download. */
   onGenerateDownloadProgress: (
-    cb: (p: { id: string; index: number; total: number; label: string; filename: string; pct: number | null }) => void
+    cb: (p: {
+      id: string
+      index: number
+      total: number
+      label: string
+      filename: string
+      pct: number | null
+    }) => void
   ): (() => void) => {
     const listener = (
       _: unknown,
-      p: { id: string; index: number; total: number; label: string; filename: string; pct: number | null }
+      p: {
+        id: string
+        index: number
+        total: number
+        label: string
+        filename: string
+        pct: number | null
+      }
     ): void => cb(p)
     ipcRenderer.on('generate:download-progress', listener)
     return () => ipcRenderer.removeListener('generate:download-progress', listener)
@@ -185,9 +182,7 @@ const api = {
     return () => ipcRenderer.removeListener('generate:progress', listener)
   },
   /** An image in the batch finished (index + saved path). */
-  onGenerateImage: (
-    cb: (p: { id: string; index: number; path: string }) => void
-  ): (() => void) => {
+  onGenerateImage: (cb: (p: { id: string; index: number; path: string }) => void): (() => void) => {
     const listener = (_: unknown, p: { id: string; index: number; path: string }): void => cb(p)
     ipcRenderer.on('generate:image', listener)
     return () => ipcRenderer.removeListener('generate:image', listener)

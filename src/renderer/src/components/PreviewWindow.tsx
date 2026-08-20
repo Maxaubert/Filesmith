@@ -70,7 +70,9 @@ function FallbackCard({ file }: { file: PreviewItem }): JSX.Element {
 export function PreviewWindow(): JSX.Element | null {
   const [state, setState] = useState<{ p: PreviewPayload; ver: number } | null>(null)
   useEffect(() => {
-    void window.filesmith.getPreviewData().then((p) => setState((s) => ({ p, ver: (s?.ver ?? 0) + 1 })))
+    void window.filesmith
+      .getPreviewData()
+      .then((p) => setState((s) => ({ p, ver: (s?.ver ?? 0) + 1 })))
     // Explicit re-open jumps to a new item (bump ver -> remount). A live list
     // update just swaps the files and keeps the current position (same ver).
     const unsubUpdate = window.filesmith.onPreviewUpdate((p) =>
@@ -88,7 +90,13 @@ export function PreviewWindow(): JSX.Element | null {
   return <PreviewView key={state.ver} files={state.p.files} start={state.p.index} />
 }
 
-function PreviewView({ files, start }: { files: PreviewItem[]; start: number }): JSX.Element | null {
+function PreviewView({
+  files,
+  start
+}: {
+  files: PreviewItem[]
+  start: number
+}): JSX.Element | null {
   const [i, setI] = useState(start)
   const mediaRef = useRef<HTMLMediaElement | null>(null)
   const [mediaEl, setMediaEl] = useState<HTMLMediaElement | null>(null)
@@ -127,8 +135,7 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
       if (e.key === 'Escape') {
         if (document.fullscreenElement) return // let the browser exit fullscreen
         close()
-      }
-      else if (e.key === 'ArrowLeft' && many) step(-1)
+      } else if (e.key === 'ArrowLeft' && many) step(-1)
       else if (e.key === 'ArrowRight' && many) step(1)
       else if (e.key === ' ' && mediaRef.current) {
         e.preventDefault()
@@ -184,7 +191,9 @@ function PreviewView({ files, start }: { files: PreviewItem[]; start: number }):
         setFailed(pdfPath)
         return
       }
-      obj = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }))
+      obj = URL.createObjectURL(
+        new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' })
+      )
       setPdf({ path: pdfPath, src: obj })
     })
     return () => {

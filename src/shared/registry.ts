@@ -198,6 +198,43 @@ export function mergeRegistry(layers: RegistryFile[]): RegistryEntry[] {
   return order.map((id) => byId.get(id)!)
 }
 
+/**
+ * Merge with per-overlay validation: each fragment is applied onto the current
+ * merged entry and the RESULT is validated. A fragment that would make its
+ * entry invalid is rejected (with a warning) and the previous state kept.
+ * Validating the merged result rather than each fragment in isolation is what
+ * makes the documented partial override ({"id":"flux2","companions":[...]})
+ * actually work: a fragment has no kind/label of its own, and validating it
+ * standalone rejected the exact thirty-second fix the user layer exists for.
+ */
+export function mergeRegistryChecked(layers: { file: string; entries: RegistryEntry[] }[]): {
+  entries: RegistryEntry[]
+  warnings: string[]
+} {
+  const byId = new Map<string, RegistryEntry>()
+  const order: string[] = []
+  const warnings: string[] = []
+  for (const layer of layers) {
+    for (const e of layer.entries ?? []) {
+      if (!e?.id) continue
+      const prev = byId.get(e.id)
+      const merged: RegistryEntry = prev
+        ? { ...prev, ...e, provenance: e.provenance ?? prev.provenance }
+        : e
+      const errs = validateEntry(merged)
+      if (errs.length) {
+        warnings.push(
+          `${layer.file}: ${errs.join('; ')} — ${prev ? 'override ignored' : 'entry skipped'}`
+        )
+        continue
+      }
+      if (!prev) order.push(e.id)
+      byId.set(e.id, merged)
+    }
+  }
+  return { entries: order.map((id) => byId.get(id)!), warnings }
+}
+
 // --- detection --------------------------------------------------------------
 
 function safeRegExp(source: string): RegExp | null {
@@ -337,8 +374,7 @@ export function instantiateWorkflow(
 export function workflowPlaceholders(spec: WorkflowSpec): string[] {
   const found = new Set<string>()
   const walk = (v: unknown): void => {
-    if (typeof v === 'string')
-      for (const m of v.matchAll(/\$\{([a-zA-Z0-9_]+)\}/g)) found.add(m[1])
+    if (typeof v === 'string') for (const m of v.matchAll(/\$\{([a-zA-Z0-9_]+)\}/g)) found.add(m[1])
     else if (Array.isArray(v)) v.forEach(walk)
     else if (v && typeof v === 'object') Object.values(v as object).forEach(walk)
   }
@@ -385,6 +421,24 @@ export function validateEntry(e: RegistryEntry): string[] {
   if (!e.id || !/^[a-z0-9][a-z0-9._-]*$/i.test(e.id)) errs.push(`bad id "${e.id}"`)
   if (!e.kind) errs.push(`${e.id}: missing kind`)
   if (!e.label) errs.push(`${e.id}: missing label`)
+
+  // engineSpec is spliced into `uv pip install <spec>`. Unvalidated, an
+  // imported "model pack" carrying a URL (or an --index-url flag) was remote
+  // code execution on the next Install click. Only a bare PEP 508 requirement
+  // is allowed: name, optional extras, optional version constraints.
+  if (e.engineSpec != null) {
+    const spec = e.engineSpec
+    const bare =
+      typeof spec === 'string' &&
+      !/\s/.test(spec) &&
+      !spec.startsWith('-') &&
+      !spec.includes('://') &&
+      /^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9._,-]+\])?([<>=!~][^@/\\]*)?$/.test(spec)
+    if (!bare)
+      errs.push(
+        `${e.id}: engineSpec must be a bare package requirement (like "spandrel>=0.4.1"), got "${spec}"`
+      )
+  }
 
   const checkCompanion = (c: CompanionSpec): void => {
     if (!COMPANION_SUBDIRS.includes(c.subdir))

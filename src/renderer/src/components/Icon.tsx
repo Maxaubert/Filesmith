@@ -13,8 +13,6 @@ export type IconName =
   | 'min'
   | 'max'
   | 'close'
-  | 'logo'
-  | 'x'
   | 'eye'
   | 'folder'
   | 'trash'
@@ -30,7 +28,6 @@ export type IconName =
   | 'volume-mute'
   | 'fullscreen'
   | 'expand'
-  | 'music'
   | 'image'
   | 'video'
   | 'audio'
@@ -45,7 +42,9 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   video: <path d="M2.5 6.5h13v11h-13zM15.5 12l6-3.5v7z" />,
   audio: <path d="M4 10v4M8 6.5v11M12 3.5v17M16 6.5v11M20 10v4" />,
-  doc: <path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5zM14 3.5v5h5M8.5 13.5h7M8.5 17h4.5" />,
+  doc: (
+    <path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5zM14 3.5v5h5M8.5 13.5h7M8.5 17h4.5" />
+  ),
   text: <path d="M5 6.5h14M5 12h14M5 17.5h9" />,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
   edit: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />,
@@ -70,14 +69,6 @@ const PATHS: Record<IconName, JSX.Element> = {
   min: <path d="M5 12h14" />,
   max: <rect x="5" y="5" width="14" height="14" rx="2" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
-  logo: (
-    <>
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
-      <path d="m9 14 2 2 4-4" />
-    </>
-  ),
-  x: <path d="M6 6l12 12M18 6 6 18" />,
   eye: (
     <>
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
@@ -85,7 +76,9 @@ const PATHS: Record<IconName, JSX.Element> = {
     </>
   ),
   folder: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />,
-  trash: <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />,
+  trash: (
+    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+  ),
   dots: (
     <>
       <circle cx="12" cy="5" r="1.7" fill="currentColor" stroke="none" />
@@ -123,13 +116,6 @@ const PATHS: Record<IconName, JSX.Element> = {
       <path d="M21 3l-7 7" />
       <path d="M9 21H3v-6" />
       <path d="M3 21l7-7" />
-    </>
-  ),
-  music: (
-    <>
-      <path d="M9 18V5l12-2v13" />
-      <circle cx="6" cy="18" r="3" />
-      <circle cx="18" cy="16" r="3" />
     </>
   )
 }

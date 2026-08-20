@@ -1,5 +1,7 @@
 node_modules
 out
 dist
-resources/bin
+resources
 package-lock.json
+# Design mockups are point-in-time artifacts, not living code.
+docs/mockups
