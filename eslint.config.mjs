@@ -6,7 +6,12 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
-  { ignores: ['out', 'dist', 'node_modules', 'resources', '.harness'] },
+  {
+    // build/installer is the NSIS setup kit (ported from Prism): CommonJS
+    // generator scripts + committed media that follow that kit's conventions,
+    // not the app toolchain's.
+    ignores: ['out', 'dist', 'node_modules', 'resources', '.harness', 'build/installer', 'patches']
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
