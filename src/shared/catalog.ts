@@ -190,8 +190,3 @@ export function defaultOperation(c: CategoryId): string {
 export function acceptsKind(c: CategoryId, kind: FileKind): boolean {
   return categoryOf(c).kinds.includes(kind)
 }
-
-/** The category a dropped file belongs to, or null if nothing handles it. */
-export function categoryForKind(kind: FileKind): CategoryId | null {
-  return CATEGORIES.find((c) => c.kinds.includes(kind))?.id ?? null
-}

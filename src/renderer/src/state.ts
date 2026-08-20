@@ -89,8 +89,6 @@ export function optionsKey(state: AppState): WorkspaceKey {
   return workspaceKey(state.category, state.operation)
 }
 
-export const TOOL_IDS: ToolId[] = ['convert', 'compress', 'resize', 'upscale', 'removebg', 'pdf']
-
 export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   convert: { format: '.webp', quality: 'balanced' },
   compress: {
@@ -594,13 +592,6 @@ export function reducer(state: AppState, action: Action): AppState {
   }
 }
 
-/** Items eligible to (re)run: everything except in-flight or already done. */
-export function processable(items: QueueItem[]): QueueItem[] {
-  return items.filter(
-    (i) => i.status === 'ready' || i.status === 'failed' || i.status === 'canceled'
-  )
-}
-
 /** "45s left" / "12m left" / "1h 22m left" — what actually reassures a user
  * during a long encode that sits below 1% for minutes. */
 export function formatEta(sec: number): string {
@@ -612,10 +603,7 @@ export function formatEta(sec: number): string {
   return `${h}h ${m % 60}m left`
 }
 
-export function formatBytes(n: number): string {
-  if (n <= 0) return '0 B'
-  const u = ['B', 'KB', 'MB', 'GB']
-  const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)))
-  const v = n / Math.pow(1024, i)
-  return `${i === 0 ? Math.round(v) : v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${u[i]}`
-}
+// One byte formatter for the whole app: this file used to carry its own copy
+// (clamped at GB, different rounding) that rendered different strings on the
+// same screen as the shared one.
+export { formatBytes } from '@shared/compress'

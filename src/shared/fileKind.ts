@@ -113,3 +113,9 @@ export function fileKind(ext: string): FileKind {
   if (DOC_EXTS.includes(e)) return 'document'
   return 'other'
 }
+
+/** The last path segment, for display. Hand-rolled five times before (one of
+ * which - a forward-slash-only regex fed Windows paths - was a real bug). */
+export function baseName(p: string): string {
+  return p.split(/[\\/]/).pop() ?? p
+}

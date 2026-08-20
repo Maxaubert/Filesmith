@@ -76,3 +76,9 @@ export async function findUvAsync(): Promise<string | null> {
   if (local) return local
   return (await uvOnPath()) ? 'uv' : null
 }
+
+/** The PATH probe's cached verdict, for synchronous callers (resolveRembg).
+ * False until uvOnPath()/findUvAsync() has run once this session. */
+export function uvOnPathCached(): boolean {
+  return pathProbe?.found ?? false
+}

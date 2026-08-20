@@ -13,8 +13,6 @@ export type IconName =
   | 'min'
   | 'max'
   | 'close'
-  | 'logo'
-  | 'x'
   | 'eye'
   | 'folder'
   | 'trash'
@@ -30,7 +28,6 @@ export type IconName =
   | 'volume-mute'
   | 'fullscreen'
   | 'expand'
-  | 'music'
   | 'image'
   | 'video'
   | 'audio'
@@ -72,14 +69,6 @@ const PATHS: Record<IconName, JSX.Element> = {
   min: <path d="M5 12h14" />,
   max: <rect x="5" y="5" width="14" height="14" rx="2" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
-  logo: (
-    <>
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
-      <path d="m9 14 2 2 4-4" />
-    </>
-  ),
-  x: <path d="M6 6l12 12M18 6 6 18" />,
   eye: (
     <>
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
@@ -127,13 +116,6 @@ const PATHS: Record<IconName, JSX.Element> = {
       <path d="M21 3l-7 7" />
       <path d="M9 21H3v-6" />
       <path d="M3 21l7-7" />
-    </>
-  ),
-  music: (
-    <>
-      <path d="M9 18V5l12-2v13" />
-      <circle cx="6" cy="18" r="3" />
-      <circle cx="18" cy="16" r="3" />
     </>
   )
 }

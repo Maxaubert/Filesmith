@@ -11,7 +11,7 @@ import {
   writeFileSync
 } from 'fs'
 import { tmpdir } from 'os'
-import type { FileInfo, ToolId, ToolTarget } from '@shared/types'
+import type { FileInfo, ToolId } from '@shared/types'
 import type { AudioCodec, ImageFormat, PdfLevel, UpscaleModel, VideoCodec } from '@shared/compress'
 import {
   resolveGhostscript,
@@ -37,7 +37,6 @@ import {
   buildFfmpegArgs,
   buildMagickArgs,
   canCompress,
-  convertTargets,
   ffmpegExtraFor,
   isSameFormat,
   magickExtraFor,
@@ -1045,21 +1044,4 @@ const TOOLS: Partial<Record<ToolId, ToolModule>> = {
 
 export function getTool(id: ToolId): ToolModule | undefined {
   return TOOLS[id]
-}
-
-/** Which tools apply to a file (drives the UI's tool highlighting). */
-export function toolsFor(file: FileInfo): ToolId[] {
-  const compress = canCompress(file.kind, file.ext) ? (['compress'] as ToolId[]) : []
-  if (file.kind === 'image') return ['convert', ...compress, 'resize']
-  if (file.kind === 'video' || file.kind === 'audio') return ['convert', ...compress]
-  if (file.kind === 'pdf') return ['convert', ...compress, 'pdf']
-  if (file.kind === 'document' || file.kind === 'text') return ['convert']
-  return []
-}
-
-/** Target options a tool offers for a file (the options panel). */
-export function targetsFor(id: ToolId, file: FileInfo): ToolTarget[] {
-  if (id === 'convert')
-    return convertTargets(file.kind, file.ext).map(({ label, ext }) => ({ label, ext }))
-  return []
 }

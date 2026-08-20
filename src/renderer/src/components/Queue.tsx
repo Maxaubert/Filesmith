@@ -1,9 +1,9 @@
 import type { JSX, MouseEvent } from 'react'
 import type { JobOptions, ToolId } from '@shared/types'
 import { formatBytes, formatEta, groupOf, inInput, inOutput, type QueueItem } from '../state'
+import { baseName } from '@shared/fileKind'
 import { Icon } from './Icon'
 
-const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 const extOf = (p: string): string => {
   const b = baseName(p)
   const i = b.lastIndexOf('.')

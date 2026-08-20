@@ -23,7 +23,7 @@ import {
   upscaledSize
 } from '@shared/compress'
 import { resizedSize } from '@shared/resize'
-import { fileKind } from '@shared/fileKind'
+import { baseName, fileKind } from '@shared/fileKind'
 import {
   reducer,
   initialState,
@@ -90,7 +90,6 @@ import { OptionsPanel, type VideoOutputRow } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
 import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
 
-const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 const extOfPath = (p: string): string => {
   const b = baseName(p)
   const i = b.lastIndexOf('.')
@@ -411,6 +410,7 @@ export default function App(): JSX.Element {
           failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
         body: `${failed.join(', ')} could not be moved to the Recycle Bin — the file may be open in another app.`,
         confirmLabel: 'OK',
+        hideCancel: true,
         onConfirm: () => {}
       })
   }
@@ -504,6 +504,7 @@ export default function App(): JSX.Element {
                   title: `Delete ${n} files?`,
                   body: 'They will be moved to the Recycle Bin.',
                   confirmLabel: 'Delete',
+                  danger: true,
                   onConfirm: () => dismiss(targets, 'output')
                 })
               : dismiss(targets, 'output')
@@ -659,6 +660,7 @@ export default function App(): JSX.Element {
           title: 'Generation failed',
           body: r.error ?? 'Unknown error',
           confirmLabel: 'OK',
+          hideCancel: true,
           onConfirm: () => {}
         })
     } finally {
@@ -680,6 +682,7 @@ export default function App(): JSX.Element {
         title: 'That is a very large image',
         body: warning,
         confirmLabel: 'Upscale anyway',
+        danger: true,
         onConfirm: () => {
           // One confirmation covers this run only.
           confirmedHuge.current = true

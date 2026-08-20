@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'fs'
+import { mkdirSync, readdirSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import type { RegistryEntry, RegistryFile } from '@shared/registry'
@@ -191,9 +191,4 @@ export function registryEntries(kind: RegistryEntry['kind']): RegistryEntry[] {
 /** One entry by id, or undefined. */
 export function registryEntry(id: string): RegistryEntry | undefined {
   return loadRegistry().entries.find((e) => e.id === id)
-}
-
-/** True when the built-in pack was found — used by a startup sanity check. */
-export function registryHealthy(): boolean {
-  return existsSync(builtinDir()) && loadRegistry().entries.length > 0
 }

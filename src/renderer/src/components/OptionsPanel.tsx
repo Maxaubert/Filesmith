@@ -494,6 +494,16 @@ function UpscaleOptions({
       <div>
         <Label>Model</Label>
         <ChoiceSelect value={category} choices={categoryChoices} onChange={pickCategory} />
+        {/* The drop-in models folder that upscale:models reads was reachable
+            only by knowing the %APPDATA% path by heart. */}
+        {!inAi && (
+          <button
+            onClick={() => void window.filesmith.upscaleOpenModelsFolder()}
+            className="mt-2 text-[11.5px] font-medium text-muted underline-offset-2 hover:text-ink hover:underline"
+          >
+            Add your own model… (opens the models folder)
+          </button>
+        )}
         {/* Why the AI tier is missing, instead of silently hiding it: the
             verdict was computed in main and thrown away before any UI. */}
         {!hasNvidia && (pid?.cudaReason || comfy.status?.cudaReason) && (
@@ -518,6 +528,11 @@ function UpscaleOptions({
                 <PidInstallCard onInstalled={refreshPid} />
               </div>
             )}
+            {/* The way OUT of a poisoned install: pidInstalled() is a bare
+                existsSync, so a corrupt multi-GB weight was otherwise
+                unrecoverable from the UI. Two-step to avoid an accidental
+                6 GB re-download. */}
+            {isPid && pid?.installed && <PidRemoveButton onRemoved={refreshPid} />}
             {comfy.status && (
               <div className="mt-3">
                 <ComfyImportCard status={comfy.status} refresh={comfy.refresh} />
@@ -1069,6 +1084,46 @@ function AddModel({
           {msg.text}
         </p>
       )}
+    </div>
+  )
+}
+
+/** Remove the PiD install (repair path). Two clicks: the first arms it. */
+function PidRemoveButton({ onRemoved }: { onRemoved: () => void }): JSX.Element {
+  const [armed, setArmed] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const remove = (): void => {
+    if (!armed) {
+      setArmed(true)
+      return
+    }
+    setArmed(false)
+    void window.filesmith.pidInstalling().then((busy) => {
+      if (busy) {
+        setError('An install is running. Wait for it to finish first.')
+        return
+      }
+      void window.filesmith.pidRemove().then((r) => {
+        if (!r.ok) setError(r.error ?? 'Could not remove the install.')
+        else {
+          setError(null)
+          onRemoved()
+        }
+      })
+    })
+  }
+  return (
+    <div className="mt-2">
+      <button
+        onClick={remove}
+        onBlur={() => setArmed(false)}
+        className={`text-[11.5px] font-medium underline-offset-2 hover:underline ${
+          armed ? 'text-[#e0483d]' : 'text-muted hover:text-ink'
+        }`}
+      >
+        {armed ? 'Click again to remove the PiD install (~6 GB)' : 'Remove PiD install…'}
+      </button>
+      {error && <p className="mt-1 text-[11.5px] text-[#e0483d]">{error}</p>}
     </div>
   )
 }

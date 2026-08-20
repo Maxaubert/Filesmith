@@ -5,9 +5,7 @@ import type {
   JobEvent,
   JobRequest,
   PreviewItem,
-  PreviewPayload,
-  ToolId,
-  ToolTarget
+  PreviewPayload
 } from '@shared/types'
 import type { ComfyModel } from '@shared/comfy'
 import type { ComfyStatus, PidStatus } from '@shared/ipc'
@@ -73,15 +71,11 @@ const api = {
   trashFile: (path: string): Promise<boolean> => ipcRenderer.invoke('file:trash', path),
 
   // tools
-  checkTool: (name: string): Promise<boolean> => ipcRenderer.invoke('tool:check', name),
-  toolsFor: (file: FileInfo): Promise<ToolId[]> => ipcRenderer.invoke('tools:for', file),
   /** AI upscale models present on disk (bundled + the user's own overlay). */
   upscaleModels: (): Promise<{ value: string; label: string; user: boolean }[]> =>
     ipcRenderer.invoke('upscale:models'),
   /** Open the folder where the user can drop their own Real-ESRGAN models. */
   upscaleOpenModelsFolder: (): Promise<boolean> => ipcRenderer.invoke('upscale:open-models-folder'),
-  targets: (tool: ToolId, file: FileInfo): Promise<ToolTarget[]> =>
-    ipcRenderer.invoke('tool:targets', tool, file),
 
   // PiD Advanced (NVIDIA) upscaler tier
   /** NVIDIA/PiD availability. Typed by the SHARED PidStatus: this wrapper used
@@ -118,12 +112,6 @@ const api = {
   }> => ipcRenderer.invoke('registry:import'),
   /** Open the user registry folder in the OS file manager. */
   registryOpenFolder: (): Promise<boolean> => ipcRenderer.invoke('registry:open-folder'),
-  /** Every known model entry with its layer + source host (provenance). */
-  registryInfo: (): Promise<{
-    folder: string | null
-    warnings: string[]
-    entries: { id: string; kind: string; label: string; source: string; host: string | null }[]
-  }> => ipcRenderer.invoke('registry:info'),
 
   /** Remember where ComfyUI is, without needing the upscale engine installed. */
   comfySetFolder: (folder: string): Promise<{ ok: boolean; error?: string }> =>
@@ -131,8 +119,6 @@ const api = {
   /** Scan a folder for upscale models, classify + remember them. */
   comfyScan: (folder: string): Promise<{ ok: boolean; models?: ComfyModel[]; error?: string }> =>
     ipcRenderer.invoke('comfy:scan', folder),
-  /** The remembered, still-on-disk usable models. */
-  comfyList: (): Promise<ComfyModel[]> => ipcRenderer.invoke('comfy:list'),
   /** Engine-install progress updates. */
   onComfyProgress: (cb: (p: { step: string; pct: number | null }) => void): (() => void) => {
     const listener = (_: unknown, p: { step: string; pct: number | null }): void => cb(p)

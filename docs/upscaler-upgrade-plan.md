@@ -1,3 +1,7 @@
+> **STATUS: SUPERSEDED (2026-08).** The ONNX/DirectML "Standard" tier described
+> below was never built. What shipped instead is the spandrel/ComfyUI import
+> path — see `docs/comfyui-upscaler-import.md`. Kept for the decision record.
+
 # Image Upscale v2: PiD flagship + cross-GPU ONNX engine
 
 Status: APPROVED 2026-07-21. Order: PiD first, then ONNX Standard tier, then custom import.

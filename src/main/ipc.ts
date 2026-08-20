@@ -7,18 +7,16 @@ import type {
   JobEvent,
   JobRequest,
   PreviewItem,
-  PreviewPayload,
-  ToolId
+  PreviewPayload
 } from '@shared/types'
 import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
-import { toolAvailable, removebgStatus } from './toolResolver'
+import { removebgStatus } from './toolResolver'
 import { ensureUserNcnnDir, listNcnnModels, userNcnnDir } from './tools/ncnnModels'
 import { probeDimensions, probeImageDimensions } from './probe'
 import { makeThumbnail } from './thumbnail'
 import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
-import { targetsFor, toolsFor } from './tools/registry'
 import { cudaTierSupport, detectNvidia } from './pid/gpu'
 import { basename } from 'path'
 import { pidInstalled, comfyEngineReady, pidEnvMarker, PID_BACKBONES } from './pid/paths'
@@ -147,7 +145,6 @@ export function registerGlobalIpc(): JobQueue {
     queue.cancel(id)
     return true
   })
-  ipcMain.handle('tool:check', (_e, name: string) => toolAvailable(name))
   ipcMain.handle('removebg:status', () => removebgStatus())
   // The AI upscalers actually present on disk (bundled + the user's overlay),
   // so the picker reflects what is installed instead of a build-time literal.
@@ -235,8 +232,6 @@ export function registerGlobalIpc(): JobQueue {
   // Images go through ImageMagick instead: ffprobe rejects very large ones and
   // can't read svg/jxl/heic at all.
   ipcMain.handle('image:dimensions', (_e, p: string) => probeImageDimensions(p))
-  ipcMain.handle('tools:for', (_e, file: FileInfo) => toolsFor(file))
-  ipcMain.handle('tool:targets', (_e, id: ToolId, file: FileInfo) => targetsFor(id, file))
 
   // --- PiD Advanced (NVIDIA) upscaler tier -----------------------------------
   // Status drives the gated model option; install runs the one-click download,
@@ -363,7 +358,6 @@ export function registerGlobalIpc(): JobQueue {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
   })
-  ipcMain.handle('comfy:list', () => usableComfyModels())
 
   // --- Text-to-image generation (via headless ComfyUI) -----------------------
   ipcMain.handle('generate:status', async () => {
@@ -447,21 +441,6 @@ export function registerGlobalIpc(): JobQueue {
     if (!dir) return false
     await shell.openPath(dir)
     return true
-  })
-  ipcMain.handle('registry:info', () => {
-    invalidateRegistryIfChanged()
-    const { entries, warnings } = loadRegistry()
-    return {
-      folder: layerDir('user'),
-      warnings,
-      entries: entries.map((e) => ({
-        id: e.id,
-        kind: e.kind,
-        label: e.label,
-        source: e.provenance.source,
-        host: e.provenance.host ?? null
-      }))
-    }
   })
 
   // --- Session persistence (queues, produced files, options) -----------------

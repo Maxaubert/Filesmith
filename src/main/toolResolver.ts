@@ -1,8 +1,7 @@
 import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import { run } from './run'
-import { findUv } from './uv'
+import { findUv, findUvAsync, uvOnPathCached } from './uv'
 
 // Core CLI tools bundled in resources/bin (packed by electron-builder into
 // process.resourcesPath/bin in production; the repo's resources/bin in dev).
@@ -184,9 +183,11 @@ export interface RembgStatus {
 
 /** Proactive Remove-Background availability, so the panel can DISCLOSE the AI
  * model + one-time download (and the uv requirement) before the user commits
- * files — rather than failing mid-run. */
-export function removebgStatus(): RembgStatus {
-  return { ready: existsSync(rembgInstalledPath()), uvAvailable: resolveUv() != null }
+ * files — rather than failing mid-run. Async so the PATH probe counts: a uv
+ * installed via scoop/choco/cargo lives only on PATH, and the fixed-path
+ * lookup reported uvAvailable:false for those users. */
+export async function removebgStatus(): Promise<RembgStatus> {
+  return { ready: existsSync(rembgInstalledPath()), uvAvailable: (await findUvAsync()) != null }
 }
 
 export function resolveRembg(): RembgCommand | null {
@@ -194,8 +195,10 @@ export function resolveRembg(): RembgCommand | null {
   const installed = rembgInstalledPath()
   if (existsSync(installed)) return { cmd: installed, prefix: [] }
 
-  // (b) uv itself, which fetches Python + rembg on demand
-  const uv = resolveUv()
+  // (b) uv itself, which fetches Python + rembg on demand. A PATH-only uv
+  // (scoop/choco/cargo) is used by bare name when the async status probe has
+  // already confirmed one answers — resolveRembg stays synchronous.
+  const uv = resolveUv() ?? (uvOnPathCached() ? 'uv' : null)
   if (uv)
     return { cmd: uv, prefix: ['tool', 'run', '--python', '3.11', '--from', REMBG_SPEC, 'rembg'] }
   return null
@@ -209,33 +212,6 @@ export function resolveRembg(): RembgCommand | null {
  */
 export function resolveUv(): string | null {
   return findUv()
-}
-
-/**
- * The flag each bundled tool actually accepts for a version probe. Measured
- * against the shipped binaries, not assumed: `-version` works for magick /
- * ffmpeg / ffprobe but **mutool exits 1** (it prints usage) and **caesiumclt
- * exits 2** ("unexpected argument '-v'"), so a single `-version` probe reports
- * two of the four bundled tools as unavailable.
- */
-export const VERSION_FLAG: Record<string, string> = {
-  magick: '-version',
-  ffmpeg: '-version',
-  ffprobe: '-version',
-  mutool: '-v',
-  caesiumclt: '--version'
-}
-
-/** True if the tool is bundled or answers a version probe on PATH. */
-export async function toolAvailable(name: string): Promise<boolean> {
-  const bundled = join(bundledDir(), name + EXE)
-  if (existsSync(bundled)) return true
-  try {
-    const { code } = await run(name, [VERSION_FLAG[name] ?? '-version'])
-    return code === 0
-  } catch {
-    return false
-  }
 }
 
 /**

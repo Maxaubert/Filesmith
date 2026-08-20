@@ -85,8 +85,3 @@ export function recordHash(url: string, sha256: string, bytes: number): void {
   l[url] = { sha256, bytes, host, firstSeen: new Date().toISOString() }
   write(l)
 }
-
-/** Everything we've recorded, for a provenance view. */
-export function integrityLedger(): Ledger {
-  return read()
-}
