@@ -11,6 +11,7 @@ import {
 } from 'fs'
 import { basename, dirname, join } from 'path'
 import { run } from '../run'
+import { cudaTierSupport, detectNvidia } from './gpu'
 import { downloadFile } from '../net/download'
 import { expectedHash, recordHash } from '../net/integrity'
 import { resolveUv } from '../toolResolver'
@@ -362,7 +363,16 @@ export async function installPid(backbone: string, onProgress: InstallProgress):
   return withInstallLock(() => installPidInner(backbone, onProgress))
 }
 
+/** Refuse the multi-GB download when this GPU can't run the result. The
+ * verdict (cudaTierSupport) was computed for the status endpoint and then
+ * never enforced: a GTX 1080 was still offered the ~3 GB cu128 torch. */
+async function assertCudaCapable(): Promise<void> {
+  const support = cudaTierSupport(await detectNvidia())
+  if (!support.ok) throw new Error(support.reason ?? 'This GPU cannot run the CUDA engine.')
+}
+
 async function installPidInner(backbone: string, onProgress: InstallProgress): Promise<void> {
+  await assertCudaCapable()
   mkdirSync(pidRoot(), { recursive: true })
   const bbForSpace = PID_BACKBONES[backbone]
   const space = checkDiskSpace((bbForSpace?.approxBytes ?? 0) + ENV_APPROX_BYTES)
@@ -411,6 +421,7 @@ export async function installComfyEngine(onProgress: InstallProgress): Promise<v
   // Shares the lock with installPid: both run ensureRepo/ensureEnv, write the
   // same temp paths and rmSync the same repo dir.
   return withInstallLock(async () => {
+    await assertCudaCapable()
     mkdirSync(pidRoot(), { recursive: true })
     const space = checkDiskSpace(ENV_APPROX_BYTES)
     if (!space.ok) throw new Error(space.reason)

@@ -10,6 +10,7 @@ import type {
   ToolTarget
 } from '@shared/types'
 import type { ComfyModel } from '@shared/comfy'
+import type { ComfyStatus, PidStatus } from '@shared/ipc'
 import type { GenerateOptions } from '@shared/generate'
 import type { GenModelScan } from '@shared/genArch'
 
@@ -83,11 +84,9 @@ const api = {
     ipcRenderer.invoke('tool:targets', tool, file),
 
   // PiD Advanced (NVIDIA) upscaler tier
-  /** NVIDIA GPU presence + whether the PiD engine is installed. */
-  pidStatus: (): Promise<{
-    nvidia: { name: string; vramMb: number | null } | null
-    installed: boolean
-  }> => ipcRenderer.invoke('pid:status'),
+  /** NVIDIA/PiD availability. Typed by the SHARED PidStatus: this wrapper used
+   * to re-declare a narrower shape, which silently discarded cudaReason. */
+  pidStatus: (): Promise<PidStatus> => ipcRenderer.invoke('pid:status'),
   /** Delete the AI install (repair path for a corrupt/poisoned one). */
   pidRemove: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('pid:remove'),
   /** True while an install is running anywhere in the app. */
@@ -103,14 +102,7 @@ const api = {
 
   // ComfyUI-imported upscale models
   /** GPU + spandrel-engine readiness + remembered folder + usable models. */
-  comfyStatus: (): Promise<{
-    nvidia: { name: string; vramMb: number | null } | null
-    engineReady: boolean
-    envExists: boolean
-    pidReusable: boolean
-    folder: string | null
-    models: ComfyModel[]
-  }> => ipcRenderer.invoke('comfy:status'),
+  comfyStatus: (): Promise<ComfyStatus> => ipcRenderer.invoke('comfy:status'),
   /** Build the shared torch env + spandrel (no PiD weights). */
   comfyInstall: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('comfy:install'),
   /** Open a folder picker; resolves to the chosen path or null. */

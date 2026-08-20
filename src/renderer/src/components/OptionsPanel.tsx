@@ -494,6 +494,13 @@ function UpscaleOptions({
       <div>
         <Label>Model</Label>
         <ChoiceSelect value={category} choices={categoryChoices} onChange={pickCategory} />
+        {/* Why the AI tier is missing, instead of silently hiding it: the
+            verdict was computed in main and thrown away before any UI. */}
+        {!hasNvidia && (pid?.cudaReason || comfy.status?.cudaReason) && (
+          <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+            {pid?.cudaReason ?? comfy.status?.cudaReason}
+          </p>
+        )}
         {category === 'comfy' && (
           <>
             {/* Second picker: which AI upscaler (imported ESRGAN models + PiD). */}

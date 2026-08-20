@@ -3,7 +3,7 @@ import { join, extname } from 'path'
 import { createReadStream, readdirSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { Readable } from 'stream'
-import { registerIpc } from './ipc'
+import { registerGlobalIpc, cancelActiveGenerations } from './ipc'
 import { configureBundledMagickEnv } from './toolResolver'
 import { pidSidecar } from './pid/sidecar'
 import { spandrelSidecar } from './comfy/sidecar'
@@ -148,8 +148,6 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => mainWindow.show())
 
-  jobQueue = registerIpc(mainWindow)
-
   // Open external links in the OS browser, never in-app.
   mainWindow.webContents.setWindowOpenHandler((details) => {
     // Scheme allowlist: shell.openExternal will happily launch a file:// or a
@@ -208,6 +206,12 @@ if (!app.requestSingleInstanceLock()) {
     // Serve local files for the preview: fsmedia://local/<encoded-abs-path>.
     protocol.handle(MEDIA_SCHEME, (request) => serveMedia(request))
 
+    // ONCE per process, before any window: handlers are process-global, and
+    // registering from inside createWindow made a second createWindow (macOS
+    // dock activate) stack duplicate listeners and throw on the first
+    // duplicate handle().
+    jobQueue = registerGlobalIpc()
+
     createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -222,6 +226,7 @@ if (!app.requestSingleInstanceLock()) {
   // headless) and free the warm AI sidecars (PiD holds ~10 GB of VRAM).
   app.on('before-quit', () => {
     jobQueue?.cancelAll()
+    cancelActiveGenerations()
     pidSidecar.stop()
     spandrelSidecar.stop()
     stopComfyServer()

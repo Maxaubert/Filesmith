@@ -37,6 +37,20 @@ export function writeComfyStore(store: ComfyStore): void {
   writeFileSync(storePath(), JSON.stringify(store, null, 2))
 }
 
+/** Update only the given fields, preserving the rest. The whole-object writes
+ * in comfy:set-folder / comfy:scan silently deleted a hand-configured
+ * serverUrl every time the folder was re-picked. */
+export function mergeComfyStore(patch: Partial<ComfyStore>): void {
+  const cur = readComfyStore()
+  const merged: ComfyStore = {
+    folder: patch.folder ?? cur?.folder ?? '',
+    models: patch.models ?? cur?.models ?? []
+  }
+  const serverUrl = patch.serverUrl ?? cur?.serverUrl
+  if (serverUrl) merged.serverUrl = serverUrl
+  writeComfyStore(merged)
+}
+
 /** The usable (loadable) models from the store, filtered to ones still on disk. */
 export function usableComfyModels(): ComfyModel[] {
   const store = readComfyStore()

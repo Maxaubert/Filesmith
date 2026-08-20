@@ -24,7 +24,7 @@ import { basename } from 'path'
 import { pidInstalled, comfyEngineReady, pidEnvMarker, PID_BACKBONES } from './pid/paths'
 import { installPid, installComfyEngine, removePidInstall, installInProgress } from './pid/install'
 import { scanComfy, guessComfyFolder, findComfyPidWeights } from './comfy/discover'
-import { readComfyStore, writeComfyStore, usableComfyModels } from './comfy/store'
+import { mergeComfyStore, readComfyStore, usableComfyModels } from './comfy/store'
 import { comfyPythonReady, clearComfyPythonCache } from './comfy/pythonEnv'
 import { loadSession, saveSession, filesExist } from './session'
 import {
@@ -43,6 +43,7 @@ import {
 } from './registry/load'
 import { importRegistryJson } from './registry/userLayer'
 import type { GenerateOptions } from '@shared/generate'
+import type { ComfyStatus, PidStatus } from '@shared/ipc'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
 // is hidden from the picker and dropped from drag-and-drop.
@@ -51,16 +52,49 @@ function isSupported(f: FileInfo): boolean {
   return f.kind !== 'other'
 }
 
-/** Wire the renderer <-> engine channels for one window. */
-export function registerIpc(win: BrowserWindow): JobQueue {
-  // Progress/terminal events can fire while the window is tearing down (the
+// In-flight generations, module-scope so app quit can abort them: before-quit
+// cancelled the job queue and both sidecars but never these.
+const genControllers = new Map<string, AbortController>()
+
+/** Abort every in-flight text-to-image run (app quit). */
+export function cancelActiveGenerations(): void {
+  for (const ctrl of genControllers.values()) ctrl.abort()
+  genControllers.clear()
+}
+
+/**
+ * Wire the renderer <-> engine channels, ONCE per process at app ready.
+ *
+ * This used to run inside createWindow closing over that window: a second
+ * createWindow (macOS dock activate, any future second window) stacked
+ * duplicate ipcMain.on listeners and then THREW at the first duplicate
+ * ipcMain.handle, stranding a constructed-but-never-loaded window. Handlers
+ * now resolve their target from the event's sender; broadcast events go to
+ * every live window.
+ */
+export function registerGlobalIpc(): JobQueue {
+  // Progress/terminal events can fire while a window is tearing down (the
   // estimate ticker runs on a 200ms interval; macOS keeps the app alive with
   // no window at all). Sending to a destroyed webContents throws, so every
-  // engine->renderer push goes through this guard.
-  const send = (channel: string, payload: unknown): void => {
-    if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, payload)
+  // engine->renderer push goes through these guards.
+  const broadcast = (channel: string, payload: unknown): void => {
+    for (const w of BrowserWindow.getAllWindows())
+      if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(channel, payload)
   }
-  const queue = new JobQueue((e: JobEvent) => send('job:event', e))
+  const sendTo = (wc: Electron.WebContents, channel: string, payload: unknown): void => {
+    if (!wc.isDestroyed()) wc.send(channel, payload)
+  }
+  /** The sender's window, for dialogs that should be parented to it. */
+  const winOf = (e: Electron.IpcMainInvokeEvent): BrowserWindow | null =>
+    BrowserWindow.fromWebContents(e.sender)
+  const openDialog = (
+    e: Electron.IpcMainInvokeEvent,
+    opts: Electron.OpenDialogOptions
+  ): Promise<Electron.OpenDialogReturnValue> => {
+    const w = winOf(e)
+    return w ? dialog.showOpenDialog(w, opts) : dialog.showOpenDialog(opts)
+  }
+  const queue = new JobQueue((e: JobEvent) => broadcast('job:event', e))
 
   // Custom (frameless) window controls — act on the sender's window so both the
   // main window and the preview window control themselves.
@@ -135,15 +169,15 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   )
   // A single image, for the Remove Background backdrop. Separate from
   // files:pick because it feeds an option, not the queue.
-  ipcMain.handle('image:pick', async () => {
-    const r = await dialog.showOpenDialog(win, {
+  ipcMain.handle('image:pick', async (e) => {
+    const r = await openDialog(e, {
       properties: ['openFile'],
       filters: [{ name: 'Images', extensions: bare(IMAGE_EXTS) }]
     })
     return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
   })
-  ipcMain.handle('files:pick', async () => {
-    const r = await dialog.showOpenDialog(win, {
+  ipcMain.handle('files:pick', async (e) => {
+    const r = await openDialog(e, {
       properties: ['openFile', 'multiSelections'],
       filters: [
         {
@@ -210,13 +244,16 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // The backbone id comes from the caller (defaulting to the only wired one)
   // rather than being the literal 'flux' at the IPC boundary — that literal
   // appeared in four files and made a second backbone an app-wide edit.
-  ipcMain.handle('pid:status', async (_e, backbone = 'flux') => {
+  ipcMain.handle('pid:status', async (_e, backbone = 'flux'): Promise<PidStatus> => {
     const gpu = await detectNvidia()
     // Report the compute-capability / driver verdict too, so a Pascal card is
     // turned away BEFORE a ~3 GB cu128 torch download rather than after it.
     const support = cudaTierSupport(gpu)
     return {
-      nvidia: gpu,
+      // GATED, matching comfy:status: an unsupported GPU reads as "no GPU"
+      // for the picker (the ungated value used to OR back in and re-offer the
+      // ~3 GB install to a card that can't run it), with the reason alongside.
+      nvidia: support.ok ? gpu : null,
       installed: pidInstalled(backbone),
       backbone,
       cudaOk: support.ok,
@@ -227,12 +264,12 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // existsSync, so a corrupt weight was otherwise unrecoverable from the UI.
   ipcMain.handle('pid:remove', () => removePidInstall())
   ipcMain.handle('pid:installing', () => installInProgress())
-  ipcMain.handle('pid:install', async (_e, backbone = 'flux') => {
+  ipcMain.handle('pid:install', async (e, backbone = 'flux') => {
     try {
-      await installPid(backbone, (step, pct) => send('pid:progress', { step, pct }))
+      await installPid(backbone, (step, pct) => sendTo(e.sender, 'pid:progress', { step, pct }))
       return { ok: true }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
 
@@ -241,7 +278,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // and usable model count. install: builds the shared torch env + spandrel (no
   // PiD weights). pick+scan: choose a ComfyUI folder, classify its upscalers,
   // remember them. list: the usable models for the picker.
-  ipcMain.handle('comfy:status', async () => {
+  ipcMain.handle('comfy:status', async (): Promise<ComfyStatus> => {
     // Never reject: a rejected status leaves the renderer's comfy.status null,
     // which would hide the whole "ComfyUI models" option.
     try {
@@ -267,23 +304,31 @@ export function registerIpc(win: BrowserWindow): JobQueue {
       }
     } catch (e) {
       console.error('[comfy:status] failed:', e)
-      return { nvidia: null, engineReady: false, envExists: false, folder: null, models: [] }
+      return {
+        nvidia: null,
+        cudaReason: null,
+        engineReady: false,
+        envExists: false,
+        pidReusable: false,
+        folder: null,
+        models: []
+      }
     }
   })
-  ipcMain.handle('comfy:install', async () => {
+  ipcMain.handle('comfy:install', async (e) => {
     try {
-      await installComfyEngine((step, pct) => send('comfy:progress', { step, pct }))
+      await installComfyEngine((step, pct) => sendTo(e.sender, 'comfy:progress', { step, pct }))
       return { ok: true }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
-  ipcMain.handle('comfy:pick-folder', async () => {
+  ipcMain.handle('comfy:pick-folder', async (e) => {
     // Open at the remembered folder (if it still exists), else the best guess at
     // a ComfyUI install, so a moved folder doesn't drop them in a blank Explorer.
     const stored = readComfyStore()?.folder
     const defaultPath = stored && existsSync(stored) ? stored : guessComfyFolder()
-    const r = await dialog.showOpenDialog(win, {
+    const r = await openDialog(e, {
       title: 'Select your ComfyUI folder',
       properties: ['openDirectory'],
       ...(defaultPath ? { defaultPath } : {})
@@ -299,7 +344,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
     try {
       if (!folder || !existsSync(folder))
         return { ok: false, error: 'That folder no longer exists.' }
-      writeComfyStore({ folder, models: readComfyStore()?.models ?? [] })
+      mergeComfyStore({ folder })
       clearComfyPythonCache()
       return { ok: true }
     } catch (e) {
@@ -309,10 +354,10 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   ipcMain.handle('comfy:scan', async (_e, folder: string) => {
     try {
       // A newly-picked folder may bring its own ComfyUI Python into scope.
-      writeComfyStore({ folder, models: readComfyStore()?.models ?? [] })
+      mergeComfyStore({ folder })
       clearComfyPythonCache()
       const models = await scanComfy(folder)
-      writeComfyStore({ folder, models })
+      mergeComfyStore({ folder, models })
       return { ok: true, models }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
@@ -341,17 +386,17 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // deleted the first's completed file mid-rename, then re-fetched ~5 GB from
   // the UNVERIFIED mirror. A second caller now joins the running download.
   const companionDownloads = new Map<string, Promise<{ ok: boolean; error?: string }>>()
-  ipcMain.handle('generate:download', (_e, id: string, model: string) => {
+  ipcMain.handle('generate:download', (e, id: string, model: string) => {
     const running = companionDownloads.get(model)
     if (running) return running
     const p = (async (): Promise<{ ok: boolean; error?: string }> => {
       try {
         await downloadCompanions(model, (prog) =>
-          send('generate:download-progress', { id, ...prog })
+          sendTo(e.sender, 'generate:download-progress', { id, ...prog })
         )
         return { ok: true }
-      } catch (e) {
-        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
       } finally {
         companionDownloads.delete(model)
       }
@@ -359,21 +404,20 @@ export function registerIpc(win: BrowserWindow): JobQueue {
     companionDownloads.set(model, p)
     return p
   })
-  const genControllers = new Map<string, AbortController>()
-  ipcMain.handle('generate:run', async (_e, id: string, opts: GenerateOptions) => {
+  ipcMain.handle('generate:run', async (e, id: string, opts: GenerateOptions) => {
     const ctrl = new AbortController()
     genControllers.set(id, ctrl)
     try {
       await generateImages(
         opts,
-        (index, path) => send('generate:image', { id, index, path }),
-        (index, pct) => send('generate:progress', { id, index, pct }),
-        (message) => send('generate:progress', { id, index: -1, message }),
+        (index, path) => sendTo(e.sender, 'generate:image', { id, index, path }),
+        (index, pct) => sendTo(e.sender, 'generate:progress', { id, index, pct }),
+        (message) => sendTo(e.sender, 'generate:progress', { id, index: -1, message }),
         ctrl.signal
       )
       return { ok: true }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
     } finally {
       genControllers.delete(id)
     }
@@ -383,8 +427,8 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // --- The user's own model registry -----------------------------------------
   // "Add a model without waiting for a release": import a registry entry or a
   // ComfyUI "Export (API)" workflow, or just open the folder and edit by hand.
-  ipcMain.handle('registry:import', async () => {
-    const r = await dialog.showOpenDialog(win, {
+  ipcMain.handle('registry:import', async (e) => {
+    const r = await openDialog(e, {
       title: 'Add a model (registry entry or ComfyUI API workflow)',
       properties: ['openFile'],
       filters: [{ name: 'JSON', extensions: ['json'] }]
