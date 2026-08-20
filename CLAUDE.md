@@ -62,7 +62,8 @@ resources/bin/ bundled CLI binaries (gitignored; fetched by scripts, packed by e
 - `npm test` — Vitest unit tests (arg-builders, format catalogs, output collision-safety).
 - `npm run lint` / `npm run format` — eslint (flat config) / prettier.
 - `npm run package` — electron-vite build + electron-builder NSIS installer to `dist/`.
-- UI end-to-end: Playwright (scaffolded once the real UI exists — per the global testing rule).
+- `npm run test:e2e` — Playwright end-to-end (launches the built app via `_electron`; run
+  `npm run build` first). Covers the preload/IPC/engine chain unit tests can't reach.
 
 ## Conventions
 
