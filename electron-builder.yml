@@ -49,4 +49,13 @@ win:
 nsis:
   oneClick: false
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  # Setup draws its own directory page (build/installer/pages.nsh), so MUI's is
+  # off. allowElevation off keeps it per-user, the only mode Filesmith has.
+  allowToChangeInstallationDirectory: false
+  allowElevation: false
+  include: build/installer.nsh
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
