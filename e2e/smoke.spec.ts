@@ -34,7 +34,11 @@ let dir: string
 test.beforeAll(async () => {
   test.skip(!existsSync(MAIN), 'run `npm run build` first')
   dir = mkdtempSync(join(tmpdir(), 'filesmith-e2e-'))
-  app = await _electron.launch({ args: [MAIN] })
+  // Launch by PACKAGE ROOT, not the main script: `electron out/main/index.js`
+  // makes app.getAppPath() resolve to out/main, which silently hides every
+  // resources/ tree and lets resolveTool fall back to PATH binaries — the
+  // suite would then test the machine's tools, not the bundled ones.
+  app = await _electron.launch({ args: [ROOT] })
   page = await app.firstWindow()
 })
 
