@@ -6,6 +6,7 @@
   "license": "MIT",
   "main": "./out/main/index.js",
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
@@ -36,6 +37,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
+    "patch-package": "^8.0.1",
     "playwright": "^1.62.1",
     "prettier": "^3.9.5",
     "react": "^19.2.7",

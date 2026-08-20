@@ -39,10 +39,15 @@ Var WasDown
 Var Leaving     ; an action is posted; this page is finished
 Var WantMenu    ; the finish screen's three options
 Var WantDesk
-Var BoxOn       ; the two states of a checkbox, stamped rather than baked
-Var BoxOff
 Var CanvasW
 Var CanvasH
+
+; GDI+ arc angles are REAL (float) arguments; on x86 a float argument is its
+; IEEE bit pattern on the stack, so the constants ride in as ints.
+!define GPF_0   0            ; 0.0f
+!define GPF_90  0x42B40000   ; 90.0f
+!define GPF_180 0x43340000   ; 180.0f
+!define GPF_270 0x43870000   ; 270.0f
 
 ; ---- geometry ----------------------------------------------------------------
 ; over.nsh rectangles are 640x480 units; the window is whatever the display says.
@@ -133,15 +138,6 @@ Function FilesmithCanvas
   ; set once and never again: from here on the pixels change, not the handle
   SendMessage $Canvas ${STM_SETIMAGE} ${IMAGE_BITMAP} $DibShown
 
-  System::Call 'gdiplus::GdipCreateBitmapFromFile(w "$ArtDir\o\box-on.png", *p .r1) i .r2'
-  ${If} $2 = 0
-    StrCpy $BoxOn $1
-  ${EndIf}
-  System::Call 'gdiplus::GdipCreateBitmapFromFile(w "$ArtDir\o\box-off.png", *p .r1) i .r2'
-  ${If} $2 = 0
-    StrCpy $BoxOff $1
-  ${EndIf}
-
   StrCpy $Frame 0
   StrCpy $OverName ""
   StrCpy $OverImg 0
@@ -153,14 +149,6 @@ Function FilesmithCanvas
 FunctionEnd
 
 Function FilesmithCanvasFree
-  ${If} $BoxOn <> 0
-    System::Call 'gdiplus::GdipDisposeImage(p $BoxOn)'
-    StrCpy $BoxOn 0
-  ${EndIf}
-  ${If} $BoxOff <> 0
-    System::Call 'gdiplus::GdipDisposeImage(p $BoxOff)'
-    StrCpy $BoxOff 0
-  ${EndIf}
   ${If} $OverImg <> 0
     System::Call 'gdiplus::GdipDisposeImage(p $OverImg)'
     StrCpy $OverImg 0
@@ -179,13 +167,103 @@ Function FilesmithCanvasFree
   ${EndIf}
 FunctionEnd
 
+; The checkboxes are DRAWN, not stamped from images. The cut-out approach
+; inherited every sin of the capture: the crop kept the shade's half-opaque
+; pixels outside the border radius (a dark square behind the rounded box),
+; the alpha solve left a pale fringe on the edges, and the half-pixel rescale
+; at 225% smeared both. A GDI+ path is exact at any size.
+
+; A rounded-rect GpPath from $R0..$R3 (x,y,w,h) with corner radius $R4 -> $R8.
+Function FilesmithRoundRectPath
+  System::Call 'gdiplus::GdipCreatePath(i 0, *p .R8) i'
+  IntOp $5 $R4 * 2
+  IntOp $6 $R0 + $R2
+  IntOp $6 $6 - $5      ; right arc x
+  IntOp $7 $R1 + $R3
+  IntOp $7 $7 - $5      ; bottom arc y
+  System::Call 'gdiplus::GdipAddPathArcI(p $R8, i $R0, i $R1, i $5, i $5, i ${GPF_180}, i ${GPF_90}) i'
+  System::Call 'gdiplus::GdipAddPathArcI(p $R8, i $6, i $R1, i $5, i $5, i ${GPF_270}, i ${GPF_90}) i'
+  System::Call 'gdiplus::GdipAddPathArcI(p $R8, i $6, i $7, i $5, i $5, i ${GPF_0}, i ${GPF_90}) i'
+  System::Call 'gdiplus::GdipAddPathArcI(p $R8, i $R0, i $7, i $5, i $5, i ${GPF_90}, i ${GPF_90}) i'
+  System::Call 'gdiplus::GdipClosePathFigure(p $R8) i'
+FunctionEnd
+
+!macro BOX_FILL ARGB
+  System::Call 'gdiplus::GdipCreateSolidFill(i ${ARGB}, *p .r9) i'
+  System::Call 'gdiplus::GdipFillPath(p $3, p $9, p $R8) i'
+  System::Call 'gdiplus::GdipDeleteBrush(p $9)'
+  System::Call 'gdiplus::GdipDeletePath(p $R8)'
+!macroend
+
+; One vertex of the check, in tenths of the 18-unit box: X into $5, Y into $6.
+!macro CHK_PT U V
+  IntOp $5 $R3 * ${U}
+  IntOp $5 $5 / 180
+  IntOp $5 $5 + $R0
+  IntOp $6 $R3 * ${V}
+  IntOp $6 $6 / 180
+  IntOp $6 $6 + $R1
+!macroend
+
+; Draw one checkbox at $R0..$R3 in state $8 (mirrors over.html's .box CSS).
+Function FilesmithDrawBox
+  IntOp $R4 $R3 * 28    ; border-radius 5px of 18 = ~28%
+  IntOp $R4 $R4 / 100
+  ${If} $8 = 1
+    ; on: solid indigo, then the check as one anti-aliased filled polygon
+    Call FilesmithRoundRectPath
+    !insertmacro BOX_FILL 0xFF5B5BD6
+    System::Call 'gdiplus::GdipCreatePath(i 1, *p .R8) i'
+    !insertmacro CHK_PT 36 96
+    StrCpy $R5 $5
+    StrCpy $R6 $6
+    !insertmacro CHK_PT 76 136
+    System::Call 'gdiplus::GdipAddPathLineI(p $R8, i $R5, i $R6, i $5, i $6) i'
+    StrCpy $R5 $5
+    StrCpy $R6 $6
+    !insertmacro CHK_PT 146 62
+    System::Call 'gdiplus::GdipAddPathLineI(p $R8, i $R5, i $R6, i $5, i $6) i'
+    StrCpy $R5 $5
+    StrCpy $R6 $6
+    !insertmacro CHK_PT 131 47
+    System::Call 'gdiplus::GdipAddPathLineI(p $R8, i $R5, i $R6, i $5, i $6) i'
+    StrCpy $R5 $5
+    StrCpy $R6 $6
+    !insertmacro CHK_PT 76 106
+    System::Call 'gdiplus::GdipAddPathLineI(p $R8, i $R5, i $R6, i $5, i $6) i'
+    StrCpy $R5 $5
+    StrCpy $R6 $6
+    !insertmacro CHK_PT 51 81
+    System::Call 'gdiplus::GdipAddPathLineI(p $R8, i $R5, i $R6, i $5, i $6) i'
+    System::Call 'gdiplus::GdipClosePathFigure(p $R8) i'
+    !insertmacro BOX_FILL 0xFFFFFFFF
+  ${Else}
+    ; off: a .34-white border ring around a translucent dark well
+    Call FilesmithRoundRectPath
+    !insertmacro BOX_FILL 0x57FFFFFF
+    IntOp $9 $R3 * 8      ; border 1.5px of 18 = ~8%
+    IntOp $9 $9 / 100
+    ${If} $9 < 1
+      StrCpy $9 1
+    ${EndIf}
+    IntOp $R0 $R0 + $9
+    IntOp $R1 $R1 + $9
+    IntOp $5 $9 * 2
+    IntOp $R2 $R2 - $5
+    IntOp $R3 $R3 - $5
+    IntOp $R4 $R4 - $9
+    ${If} $R4 < 1
+      StrCpy $R4 1
+    ${EndIf}
+    Call FilesmithRoundRectPath
+    !insertmacro BOX_FILL 0x900A0B11
+  ${EndIf}
+FunctionEnd
+
 !macro STAMP_BOX RECT STATE
   !insertmacro OAT ${RECT}
-  ${If} ${STATE} = 1
-    System::Call 'gdiplus::GdipDrawImageRectI(p $3, p $BoxOn, i $R0, i $R1, i $R2, i $R3) i'
-  ${Else}
-    System::Call 'gdiplus::GdipDrawImageRectI(p $3, p $BoxOff, i $R0, i $R1, i $R2, i $R3) i'
-  ${EndIf}
+  StrCpy $8 ${STATE}
+  Call FilesmithDrawBox
 !macroend
 
 ; ---- drawing -----------------------------------------------------------------
@@ -209,6 +287,7 @@ Function FilesmithDraw
   ${EndIf}
   ; the finish screen's options: three boxes, in whatever state they are in
   ${If} $Screen = 3
+    System::Call 'gdiplus::GdipSetSmoothingMode(p $3, i 4)'   ; AntiAlias
     !insertmacro STAMP_BOX DONE_BOX_RUN $RunAfter
     !insertmacro STAMP_BOX DONE_BOX_MENU $WantMenu
     !insertmacro STAMP_BOX DONE_BOX_DESK $WantDesk

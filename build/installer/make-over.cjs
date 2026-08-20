@@ -130,23 +130,8 @@ async function main() {
       console.log(`  ${out}`)
     }
 
-    // and the two states of one box, cut out to be stamped at runtime
-    if (name === 'done') {
-      const r = await win.webContents.executeJavaScript('rects()')
-      const box = r.BOX_RUN
-      for (const state of ['on', 'off']) {
-        await win.webContents.executeJavaScript(`render(3, null, ${JSON.stringify(state)})`)
-        const shot = path.join(tmp, `box-${state}.png`)
-        await shoot(win, W * 2, H, shot)
-        const solved = path.join(tmp, `box-${state}-solved.png`)
-        solveAlpha(...split(shot, W, H, tmp), solved)
-        const s2 = SCALE
-        magick([solved, '-crop',
-          `${Math.round(box.w * s2)}x${Math.round(box.h * s2)}+${Math.round(box.x * s2)}+${Math.round(box.y * s2)}`,
-          '+repage', path.join(OUT, DIR, 'o', `box-${state}.png`)])
-        console.log(`  box-${state}.png`)
-      }
-    }
+    // (the finish screen's checkboxes are DRAWN by the installer with GDI+
+    // paths, not cut from captures - see FilesmithDrawBox in video.nsh)
 
     // rectangles are per screen, because the same button sits somewhere else on
     // each of them: O_WELCOME_NEXT is not O_DONE_NEXT
