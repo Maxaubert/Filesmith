@@ -337,8 +337,7 @@ export function instantiateWorkflow(
 export function workflowPlaceholders(spec: WorkflowSpec): string[] {
   const found = new Set<string>()
   const walk = (v: unknown): void => {
-    if (typeof v === 'string')
-      for (const m of v.matchAll(/\$\{([a-zA-Z0-9_]+)\}/g)) found.add(m[1])
+    if (typeof v === 'string') for (const m of v.matchAll(/\$\{([a-zA-Z0-9_]+)\}/g)) found.add(m[1])
     else if (Array.isArray(v)) v.forEach(walk)
     else if (v && typeof v === 'object') Object.values(v as object).forEach(walk)
   }

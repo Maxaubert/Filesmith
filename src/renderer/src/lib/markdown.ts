@@ -7,7 +7,11 @@
 // the DOM.
 
 function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 /** A URL is "relative" if it has no scheme, protocol, anchor, or root slash. */
@@ -70,9 +74,11 @@ function isSafeUrl(url: string): boolean {
 
 /** Resolve `rel` against `baseDir` (forward-slashed), collapsing . and .. */
 function joinPath(baseDir: string, rel: string): string {
-  const parts = (baseDir.replace(/\\/g, '/').replace(/\/+$/, '') + '/' + rel.replace(/\\/g, '/')).split(
-    '/'
-  )
+  const parts = (
+    baseDir.replace(/\\/g, '/').replace(/\/+$/, '') +
+    '/' +
+    rel.replace(/\\/g, '/')
+  ).split('/')
   const stack: string[] = []
   for (const p of parts) {
     if (p === '' || p === '.') continue
@@ -109,7 +115,10 @@ function inline(s: string, baseDir?: string): string {
 function sanitizeHtml(s: string): string {
   return s
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
-    .replace(/<\/?(script|style|iframe|object|embed|link|meta|base|form|input|button)\b[^>]*>/gi, '')
+    .replace(
+      /<\/?(script|style|iframe|object|embed|link|meta|base|form|input|button)\b[^>]*>/gi,
+      ''
+    )
     .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1="#"')
 }
@@ -117,8 +126,10 @@ function sanitizeHtml(s: string): string {
 /** Rewrite relative src="…" in raw HTML to fsmedia:// under baseDir. */
 function resolveHtmlSrcs(html: string, baseDir?: string): string {
   if (!baseDir) return html
-  return html.replace(/(\ssrc\s*=\s*)("|')([^"']+)\2/gi, (m, pre: string, q: string, url: string) =>
-    isRel(url) ? `${pre}${q}${resolveSrc(url, baseDir)}${q}` : m
+  return html.replace(
+    /(\ssrc\s*=\s*)("|')([^"']+)\2/gi,
+    (m, pre: string, q: string, url: string) =>
+      isRel(url) ? `${pre}${q}${resolveSrc(url, baseDir)}${q}` : m
   )
 }
 
@@ -251,7 +262,8 @@ export function renderMarkdown(src: string, baseDir?: string): string {
       flushPara()
       flushList()
       const buf: string[] = []
-      while (i < lines.length && /^\s*>/.test(lines[i])) buf.push(lines[i++].replace(/^\s*>\s?/, ''))
+      while (i < lines.length && /^\s*>/.test(lines[i]))
+        buf.push(lines[i++].replace(/^\s*>\s?/, ''))
       i--
       out.push(`<blockquote>${fmt(buf.join(' '))}</blockquote>`)
       continue

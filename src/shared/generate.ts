@@ -57,7 +57,8 @@ export const GEN_STYLES: GenStyle[] = [
   {
     id: 'photo',
     label: 'Photographic',
-    positive: 'professional photograph, DSLR, 50mm, shallow depth of field, cinematic lighting, film grain',
+    positive:
+      'professional photograph, DSLR, 50mm, shallow depth of field, cinematic lighting, film grain',
     negative: 'illustration, cartoon, 3d render'
   },
   {
@@ -75,7 +76,8 @@ export const GEN_STYLES: GenStyle[] = [
   {
     id: '3d',
     label: '3D Render',
-    positive: '3d render, octane render, physically based rendering, subsurface scattering, high detail',
+    positive:
+      '3d render, octane render, physically based rendering, subsurface scattering, high detail',
     negative: ''
   },
   {

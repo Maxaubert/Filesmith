@@ -63,7 +63,12 @@ describe('upscaler badge follows the probed architecture, not the calendar', () 
   })
 
   it('still verifies a known name whose architecture we do not list', () => {
-    const m = classifyModel({ path: '/m/4x-UltraSharpV2.pth', ok: true, arch: 'SomethingNew', scale: 4 })
+    const m = classifyModel({
+      path: '/m/4x-UltraSharpV2.pth',
+      ok: true,
+      arch: 'SomethingNew',
+      scale: 4
+    })
     expect(m.badge).toBe('verified')
     expect(VERIFIED_TOKENS).toContain('ultrasharp')
   })

@@ -63,8 +63,7 @@ function userRoots(): string[] {
     process.env.OneDriveCommercial,
     join(home, 'OneDrive')
   ].filter((p): p is string => Boolean(p))
-  for (const od of new Set(oneDrives))
-    out.push(od, join(od, 'Desktop'), join(od, 'Documents'))
+  for (const od of new Set(oneDrives)) out.push(od, join(od, 'Desktop'), join(od, 'Documents'))
   return [...new Set(out)]
 }
 
@@ -102,8 +101,7 @@ export function comfyCandidateDirs(opts?: { trusted?: boolean }): string[] {
   const remembered = readComfyStore()?.folder
   if (remembered) out.push(remembered)
   const roots = opts?.trusted ? trustedRoots() : comfySearchRoots()
-  for (const root of roots)
-    for (const name of COMFY_DIR_NAMES) out.push(join(root, name))
+  for (const root of roots) for (const name of COMFY_DIR_NAMES) out.push(join(root, name))
   // ComfyUI Desktop (the official installer) keeps user data under %APPDATA% and
   // the app itself under %LOCALAPPDATA%\Programs.
   if (process.env.APPDATA) out.push(join(process.env.APPDATA, 'ComfyUI'))

@@ -39,18 +39,7 @@ export interface UpscaleOpts {
  */
 export function buildUpscaleArgs(input: string, output: string, o: UpscaleOpts): string[] {
   const factor = [2, 3, 4].includes(o.factor) ? o.factor : 4
-  const args = [
-    '-i',
-    input,
-    '-o',
-    output,
-    '-n',
-    o.model,
-    '-s',
-    String(factor),
-    '-f',
-    'png'
-  ]
+  const args = ['-i', input, '-o', output, '-n', o.model, '-s', String(factor), '-f', 'png']
   if (o.tile && o.tile > 0) args.push('-t', String(o.tile))
   return args
 }
@@ -60,9 +49,7 @@ export function buildUpscaleArgs(input: string, output: string, o: UpscaleOpts):
  * those into 0-99 for the UI; a 4x upscale of a big photo takes seconds to
  * minutes, so a moving bar matters.
  */
-export function upscaleProgress(
-  onPercent: (pct: number) => void
-): (chunk: string) => void {
+export function upscaleProgress(onPercent: (pct: number) => void): (chunk: string) => void {
   return (chunk: string) => {
     let m: RegExpExecArray | null = null
     const re = /(\d+(?:\.\d+)?)%/g

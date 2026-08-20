@@ -1,15 +1,15 @@
 <div align="center">
   <img src="docs/logo.png" alt="Filesmith" width="116">
 
-  # Filesmith
+# Filesmith
 
-  A local file toolkit for Windows. Drop files, pick a tool, get results.
+A local file toolkit for Windows. Drop files, pick a tool, get results.
 
-  [![Latest release](https://img.shields.io/github/v/release/Maxaubert/Filesmith?style=flat-square&color=5b5bd6&cacheSeconds=1800)](https://github.com/Maxaubert/Filesmith/releases/latest)
-  [![Downloads](https://img.shields.io/github/downloads/Maxaubert/Filesmith/total?style=flat-square&color=5b5bd6&cacheSeconds=1800)](https://github.com/Maxaubert/Filesmith/releases)
-  [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=flat-square)](https://github.com/Maxaubert/Filesmith/releases/latest)
-  [![Built with](https://img.shields.io/badge/Electron%20·%20React%20·%20TypeScript-2b2e3a?style=flat-square)](#build-from-source)
-  [![License: MIT](https://img.shields.io/badge/License-MIT-22b364?style=flat-square)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/Maxaubert/Filesmith?style=flat-square&color=5b5bd6&cacheSeconds=1800)](https://github.com/Maxaubert/Filesmith/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Maxaubert/Filesmith/total?style=flat-square&color=5b5bd6&cacheSeconds=1800)](https://github.com/Maxaubert/Filesmith/releases)
+[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=flat-square)](https://github.com/Maxaubert/Filesmith/releases/latest)
+[![Built with](https://img.shields.io/badge/Electron%20·%20React%20·%20TypeScript-2b2e3a?style=flat-square)](#build-from-source)
+[![License: MIT](https://img.shields.io/badge/License-MIT-22b364?style=flat-square)](LICENSE)
 </div>
 
 ---
@@ -48,11 +48,11 @@ Plus batch queues, thumbnails for every kind (images, video frames, audio cover 
 
 The everyday tools (convert, compress, resize, and all PDF / video / audio / document operations) run **fully offline** from bundled binaries, with no AI and no downloads. The AI features are **opt-in**, and nothing AI runs unless you choose it:
 
-| Feature | What it needs |
-|---|---|
-| **Remove Background** | The free [`uv`](https://docs.astral.sh/uv/) tool; a small AI model is downloaded on first use (once, then offline). The panel tells you before you commit files. |
-| **Upscale** | An upscaling model, downloaded on first use. NVIDIA (PiD) mode needs an NVIDIA GPU. |
-| **Generate** | An existing [ComfyUI](https://github.com/comfyanonymous/ComfyUI) install, which Filesmith drives headlessly. Supports SDXL, Flux 1, Flux 2 (klein), Z-Image, and Krea 2 models; missing text-encoders / VAEs can be downloaded from the panel. If something is missing, the panel says exactly what to do. |
+| Feature               | What it needs                                                                                                                                                                                                                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Remove Background** | The free [`uv`](https://docs.astral.sh/uv/) tool; a small AI model is downloaded on first use (once, then offline). The panel tells you before you commit files.                                                                                                                                           |
+| **Upscale**           | An upscaling model, downloaded on first use. NVIDIA (PiD) mode needs an NVIDIA GPU.                                                                                                                                                                                                                        |
+| **Generate**          | An existing [ComfyUI](https://github.com/comfyanonymous/ComfyUI) install, which Filesmith drives headlessly. Supports SDXL, Flux 1, Flux 2 (klein), Z-Image, and Krea 2 models; missing text-encoders / VAEs can be downloaded from the panel. If something is missing, the panel says exactly what to do. |
 
 Don't want AI? Just use the core tools, and the AI features stay out of your way.
 

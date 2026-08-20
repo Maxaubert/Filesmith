@@ -188,7 +188,9 @@ export function entryFromApiWorkflow(
       hasGuidance: guidance != null
     },
     requires: {
-      nodes: [...nodes].filter((n) => !/^(UNETLoader|VAELoader|CLIPLoader|DualCLIPLoader)$/.test(n)),
+      nodes: [...nodes].filter(
+        (n) => !/^(UNETLoader|VAELoader|CLIPLoader|DualCLIPLoader)$/.test(n)
+      ),
       ...(clipLoader ? { clipLoader } : {})
     },
     [sawGguf ? 'ggufWorkflow' : sawCheckpoint && !sawUnet ? 'checkpointWorkflow' : 'workflow']: {
@@ -209,7 +211,10 @@ export function importRegistryJson(path: string, text: string): ImportResult {
   try {
     parsed = JSON.parse(text)
   } catch (e) {
-    return { ok: false, error: `That file is not valid JSON (${e instanceof Error ? e.message : e}).` }
+    return {
+      ok: false,
+      error: `That file is not valid JSON (${e instanceof Error ? e.message : e}).`
+    }
   }
   const stem = basename(path).replace(/\.json$/i, '')
 
@@ -228,9 +233,14 @@ export function importRegistryJson(path: string, text: string): ImportResult {
     const id = stem.toLowerCase().replace(/[^a-z0-9._-]+/g, '-') || 'my-model'
     const { entry, notes } = entryFromApiWorkflow(parsed, id, stem)
     const wf = entry.workflow ?? entry.checkpointWorkflow
-    const unknown = wf ? workflowPlaceholders(wf).filter((p) => !KNOWN_PLACEHOLDERS.includes(p)) : []
+    const unknown = wf
+      ? workflowPlaceholders(wf).filter((p) => !KNOWN_PLACEHOLDERS.includes(p))
+      : []
     if (unknown.length)
-      return { ok: false, error: `That workflow uses placeholders Filesmith can't fill: ${unknown.join(', ')}` }
+      return {
+        ok: false,
+        error: `That workflow uses placeholders Filesmith can't fill: ${unknown.join(', ')}`
+      }
     const res = saveUserPack([entry], id)
     return res.ok ? { ...res, notes } : res
   }

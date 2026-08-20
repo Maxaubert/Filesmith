@@ -5,8 +5,14 @@ import type { WorkflowNode } from '../src/shared/registry'
 
 // A realistic ComfyUI "Export (API)" payload for a Flux-style diffusion model.
 const exported: Record<string, WorkflowNode> = {
-  '1': { class_type: 'UNETLoader', inputs: { unet_name: 'their-model.safetensors', weight_dtype: 'default' } },
-  '2': { class_type: 'DualCLIPLoader', inputs: { clip_name1: 't5.safetensors', clip_name2: 'clip_l.safetensors', type: 'flux' } },
+  '1': {
+    class_type: 'UNETLoader',
+    inputs: { unet_name: 'their-model.safetensors', weight_dtype: 'default' }
+  },
+  '2': {
+    class_type: 'DualCLIPLoader',
+    inputs: { clip_name1: 't5.safetensors', clip_name2: 'clip_l.safetensors', type: 'flux' }
+  },
   '3': { class_type: 'VAELoader', inputs: { vae_name: 'ae.safetensors' } },
   '4': { class_type: 'CLIPTextEncode', inputs: { text: 'a cat they typed once', clip: ['2', 0] } },
   '5': { class_type: 'FluxGuidance', inputs: { conditioning: ['4', 0], guidance: 3.5 } },
@@ -43,7 +49,20 @@ describe('importing a ComfyUI "Export (API)" workflow', () => {
     // Without this the exported prompt, seed and size would be frozen into every
     // image the user ever generates with this model.
     const ph = workflowPlaceholders(entry.workflow!)
-    for (const p of ['unet', 'clip', 'clip2', 'vae', 'prompt', 'negative', 'seed', 'steps', 'width', 'height', 'batch', 'prefix'])
+    for (const p of [
+      'unet',
+      'clip',
+      'clip2',
+      'vae',
+      'prompt',
+      'negative',
+      'seed',
+      'steps',
+      'width',
+      'height',
+      'batch',
+      'prefix'
+    ])
       expect(ph, `missing \${${p}}`).toContain(p)
   })
 

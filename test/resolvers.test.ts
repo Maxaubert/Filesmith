@@ -103,9 +103,7 @@ describe('ComfyUI discovery: reading is wide, EXECUTING is narrow', () => {
     try {
       const dirs = comfyCandidateDirs({ trusted: true })
       expect(dirs).toContain(join(root, 'appdata', 'ComfyUI'))
-      expect(dirs).toContain(
-        join(root, 'localappdata', 'Programs', '@comfyorgcomfyui-electron')
-      )
+      expect(dirs).toContain(join(root, 'localappdata', 'Programs', '@comfyorgcomfyui-electron'))
     } finally {
       restore()
     }

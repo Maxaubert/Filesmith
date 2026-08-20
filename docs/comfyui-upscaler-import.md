@@ -11,7 +11,7 @@ uses) and run through our own tiled upscaler.
 ## Why this over bundling
 
 - **Licensing**: most good community upscalers are non-commercial (CC-BY-NC-SA),
-  so we can't ship them. Running the user's *own* files is distribution-free.
+  so we can't ship them. Running the user's _own_ files is distribution-free.
 - **VRAM**: tiled ESRGAN inference is bounded, so it avoids the large-output
   blow-ups the diffusion path (PiD) hits.
 - **Coverage**: spandrel auto-detects architecture, so one code path handles the
@@ -22,7 +22,7 @@ uses) and run through our own tiled upscaler.
 1. **Import policy** — load anything spandrel accepts; badge known-good models
    **Verified**, the rest **Experimental**; diffusion/unloadable files are shown
    greyed as **Unsupported** with the reason.
-2. **Placement** — imported models sit *alongside* the existing options
+2. **Placement** — imported models sit _alongside_ the existing options
    (Photo / Anime bundled Real-ESRGAN, PiD). Nothing is removed. PiD keeps its
    own diffusion path (and its pending input-resize fix).
 3. **Storage** — **reference in place**: read models straight from the ComfyUI

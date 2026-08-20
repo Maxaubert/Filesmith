@@ -12,13 +12,7 @@ import {
 } from 'fs'
 import { tmpdir } from 'os'
 import type { FileInfo, ToolId, ToolTarget } from '@shared/types'
-import type {
-  AudioCodec,
-  ImageFormat,
-  PdfLevel,
-  UpscaleModel,
-  VideoCodec
-} from '@shared/compress'
+import type { AudioCodec, ImageFormat, PdfLevel, UpscaleModel, VideoCodec } from '@shared/compress'
 import {
   resolveGhostscript,
   resolveRealesrgan,
@@ -418,7 +412,10 @@ const pdfTool: ToolModule = {
 
     if (op === 'pages-to-images') {
       const dpi = Math.max(36, Math.min(600, Number(options.dpi ?? 150)))
-      const dir = uniqueOutDir(dirname(file.path), basename(file.path, extname(file.path)) + ' (pages)')
+      const dir = uniqueOutDir(
+        dirname(file.path),
+        basename(file.path, extname(file.path)) + ' (pages)'
+      )
       mkdirSync(dir, { recursive: true })
       // mutool draw's -o is a printf pattern (the `page-%d.png` is the point),
       // so a `%` in the folder name — inherited from the source name — would be
@@ -469,7 +466,8 @@ const pdfTool: ToolModule = {
 const resizeTool: ToolModule = {
   async run(file, options, ctx) {
     const spec = buildResizeSpec(options)
-    if (!isValidResizeSpec(spec)) throw new Error('Enter a width, height, or percentage to resize by')
+    if (!isValidResizeSpec(spec))
+      throw new Error('Enter a width, height, or percentage to resize by')
     const output = reserveOutPath(file.path, file.ext, 'resized')
     ctx.onProgress(undefined, `Resizing ${spec}…`)
     const animated = normalizeExt(file.ext) === '.gif'
@@ -540,7 +538,9 @@ const compressTool: ToolModule = {
         ctx,
         'ffmpeg',
         true,
-        ffmpegProgress(duration, (pct, eta) => ctx.onProgress(pct, `Compressing video (${codec})…`, eta))
+        ffmpegProgress(duration, (pct, eta) =>
+          ctx.onProgress(pct, `Compressing video (${codec})…`, eta)
+        )
       )
     }
 
@@ -559,7 +559,9 @@ const compressTool: ToolModule = {
         ctx,
         'ffmpeg',
         true,
-        ffmpegProgress(duration, (pct, eta) => ctx.onProgress(pct, `Compressing audio (${bitrate}k)…`, eta))
+        ffmpegProgress(duration, (pct, eta) =>
+          ctx.onProgress(pct, `Compressing audio (${bitrate}k)…`, eta)
+        )
       )
     }
 
@@ -689,11 +691,7 @@ async function restoreAlpha(
  * warm. A missing install throws a clear error here as a backstop; the UI's own
  * pid:status check (not this error) is what drives the one-click download prompt.
  */
-async function upscaleWithPid(
-  file: FileInfo,
-  factor: number,
-  ctx: ToolContext
-): Promise<string> {
+async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext): Promise<string> {
   if (!pidInstalled('flux'))
     throw new Error('PiD is not installed. Pick PiD in the options panel and click Download first.')
   const tmp = mkdtempSync(join(tmpdir(), 'filesmith-pid-'))
@@ -795,7 +793,9 @@ async function upscaleWithComfy(
       if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
     }
     output = reserveOutPath(file.path, '.png', 'upscaled')
-    const label = background ? `Upscaling with ${model.name} (background)…` : `Upscaling with ${model.name}…`
+    const label = background
+      ? `Upscaling with ${model.name} (background)…`
+      : `Upscaling with ${model.name}…`
     ctx.onProgress(0, label)
     // Background: smaller tiles + a VRAM cap + inter-tile pacing so the GPU stays
     // free for other apps, at the cost of speed.
@@ -806,7 +806,8 @@ async function upscaleWithComfy(
       onProgress: (pct) => ctx.onProgress(pct, label),
       signal: ctx.signal
     })
-    if (!existsSync(out) || statSync(out).size === 0) throw new Error('The upscaler produced no output')
+    if (!existsSync(out) || statSync(out).size === 0)
+      throw new Error('The upscaler produced no output')
     await restoreAlpha(file.path, out, ctx, tmp)
     return out
   } catch (e) {
@@ -840,8 +841,7 @@ const upscaleTool: ToolModule = {
     // can't be paced, so background mode doesn't apply to it.)
     if (model === 'pid') return upscaleWithPid(file, factor, ctx)
     // The ComfyUI category with no specific model chosen yet.
-    if (model === 'comfy')
-      throw new Error('Pick one of your ComfyUI models from the list first.')
+    if (model === 'comfy') throw new Error('Pick one of your ComfyUI models from the list first.')
     // A user-imported ComfyUI model, keyed by its absolute path.
     if (model.startsWith('comfy:'))
       return upscaleWithComfy(file, model.slice(6), factor, background, ctx)
@@ -855,11 +855,9 @@ const upscaleTool: ToolModule = {
       let src = file.path
       if (needsPreConvert(file.ext)) {
         src = join(tmp, 'src.png')
-        const { code, stderr } = await run(
-          resolveTool('magick'),
-          [magickFrame(file.path), src],
-          { signal: ctx.signal }
-        )
+        const { code, stderr } = await run(resolveTool('magick'), [magickFrame(file.path), src], {
+          signal: ctx.signal
+        })
         if (code !== 0 || !existsSync(src))
           throw new Error(describeToolError(stderr, 'magick', code))
       }

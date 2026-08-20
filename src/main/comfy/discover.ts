@@ -283,8 +283,7 @@ export function probeModels(paths: string[]): Promise<ComfyProbe[]> {
       // Any path with no reply (spandrel crashed/hung on it) is unsupported.
       resolvePromise(
         paths.map(
-          (p) =>
-            byPath.get(resolve(p)) ?? { path: p, ok: false, reason: 'could not be read' }
+          (p) => byPath.get(resolve(p)) ?? { path: p, ok: false, reason: 'could not be read' }
         )
       )
     }

@@ -72,7 +72,8 @@ export async function downloadCompanions(
     // overwriting a good file.
     const sha256 = expectedHash(urls[0], f.sha256)
     const result = await downloadFile(urls, dest, {
-      onPct: (pct) => onProgress({ index: i + 1, total, label: f.label, filename: f.filename, pct }),
+      onPct: (pct) =>
+        onProgress({ index: i + 1, total, label: f.label, filename: f.filename, pct }),
       minBytes: minBytes || undefined,
       sha256
     })

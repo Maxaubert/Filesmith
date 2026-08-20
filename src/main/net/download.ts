@@ -216,11 +216,12 @@ async function downloadOne(
       rmSync(part, { force: true })
       throw new Error(msg)
     }
-    if (total && got < total)
-      fail(`Download incomplete: got ${got} of ${total} bytes from ${url}`)
+    if (total && got < total) fail(`Download incomplete: got ${got} of ${total} bytes from ${url}`)
     // Final size sanity check even when Content-Length was absent.
     if (opts.minBytes && got < opts.minBytes)
-      fail(`Download looks wrong: got only ${got} bytes, expected at least ${opts.minBytes}. ${url}`)
+      fail(
+        `Download looks wrong: got only ${got} bytes, expected at least ${opts.minBytes}. ${url}`
+      )
     if (opts.sha256 && digest && digest.toLowerCase() !== opts.sha256.toLowerCase())
       fail(
         `This download does not match its expected checksum and was discarded. Expected ${opts.sha256.slice(0, 16)}…, got ${digest.slice(0, 16)}… (${url})`

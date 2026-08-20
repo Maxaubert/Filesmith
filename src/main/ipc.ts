@@ -107,7 +107,11 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // so the picker reflects what is installed instead of a build-time literal.
   ipcMain.handle('upscale:models', () => {
     ensureUserNcnnDir()
-    return listNcnnModels().map((m) => ({ value: `esrgan:${m.name}`, label: m.label, user: m.user }))
+    return listNcnnModels().map((m) => ({
+      value: `esrgan:${m.name}`,
+      label: m.label,
+      user: m.user
+    }))
   })
   ipcMain.handle('upscale:open-models-folder', async () => {
     ensureUserNcnnDir()
@@ -281,7 +285,8 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   // now feeds generate, upscale and companion discovery alike.
   ipcMain.handle('comfy:set-folder', (_e, folder: string) => {
     try {
-      if (!folder || !existsSync(folder)) return { ok: false, error: 'That folder no longer exists.' }
+      if (!folder || !existsSync(folder))
+        return { ok: false, error: 'That folder no longer exists.' }
       writeComfyStore({ folder, models: readComfyStore()?.models ?? [] })
       clearComfyPythonCache()
       return { ok: true }
@@ -317,7 +322,9 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   })
   ipcMain.handle('generate:download', async (_e, id: string, model: string) => {
     try {
-      await downloadCompanions(model, (p) => win.webContents.send('generate:download-progress', { id, ...p }))
+      await downloadCompanions(model, (p) =>
+        win.webContents.send('generate:download-progress', { id, ...p })
+      )
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }

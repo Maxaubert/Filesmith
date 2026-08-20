@@ -31,7 +31,10 @@ describe('channel signature verification', () => {
     // The whole point: content that changed after signing must not reach the
     // registry, because a channel pack can add downloadable model URLs.
     const { pack, publicKeyB64 } = makeSigned(payload)
-    const tampered = { ...pack, payload: payload.replace('"entries":[]', '"entries":[{"id":"evil"}]') }
+    const tampered = {
+      ...pack,
+      payload: payload.replace('"entries":[]', '"entries":[{"id":"evil"}]')
+    }
     expect(verifyPack(tampered, publicKeyB64)).toBe(false)
   })
 

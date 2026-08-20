@@ -196,7 +196,8 @@ export function resolveRembg(): RembgCommand | null {
 
   // (b) uv itself, which fetches Python + rembg on demand
   const uv = resolveUv()
-  if (uv) return { cmd: uv, prefix: ['tool', 'run', '--python', '3.11', '--from', REMBG_SPEC, 'rembg'] }
+  if (uv)
+    return { cmd: uv, prefix: ['tool', 'run', '--python', '3.11', '--from', REMBG_SPEC, 'rembg'] }
   return null
 }
 
@@ -256,7 +257,7 @@ const MISSING_TOOL_HELP: Record<string, string> = {
   'realesrgan-ncnn-vulkan':
     'AI upscaling needs Real-ESRGAN, which is missing from this installation. Reinstall Filesmith.',
   soffice:
-    "Document conversion needs LibreOffice, which is missing from this installation. Reinstall Filesmith, or install LibreOffice (winget install TheDocumentFoundation.LibreOffice) and restart."
+    'Document conversion needs LibreOffice, which is missing from this installation. Reinstall Filesmith, or install LibreOffice (winget install TheDocumentFoundation.LibreOffice) and restart.'
 }
 
 /** A user-facing message for a `ToolMissingError`'s command. */

@@ -45,8 +45,7 @@ export function uvCandidates(): string[] {
     /* no Electron */
   }
   out.push(...wingetCandidates())
-  if (process.env.USERPROFILE)
-    out.push(join(process.env.USERPROFILE, '.local', 'bin', 'uv' + EXE))
+  if (process.env.USERPROFILE) out.push(join(process.env.USERPROFILE, '.local', 'bin', 'uv' + EXE))
   if (process.env.LOCALAPPDATA)
     out.push(join(process.env.LOCALAPPDATA, 'Programs', 'uv', 'uv' + EXE))
   return out

@@ -60,8 +60,14 @@ describe('per-category queues (shared across operations)', () => {
   it('appends a fresh result on each finished run; the source persists', () => {
     let s = reducer(start, { type: 'addItems', files: [img('a.png')] })
     const id = s.queues[IMAGES]!.items[0].id
-    s = reducer(s, { type: 'jobEvent', event: { id, status: 'done', outputPath: 'C:/x/a (1).webp' } })
-    s = reducer(s, { type: 'jobEvent', event: { id, status: 'done', outputPath: 'C:/x/a (2).webp' } })
+    s = reducer(s, {
+      type: 'jobEvent',
+      event: { id, status: 'done', outputPath: 'C:/x/a (1).webp' }
+    })
+    s = reducer(s, {
+      type: 'jobEvent',
+      event: { id, status: 'done', outputPath: 'C:/x/a (2).webp' }
+    })
     const items = s.queues[IMAGES]!.items
     expect(items.filter((i) => !i.isResult)).toHaveLength(1)
     const results = items.filter((i) => i.isResult)
@@ -90,7 +96,7 @@ describe('navigation', () => {
     expect(initialState.operation).toBe('convert')
   })
 
-  it('switching file type lands on that type\'s default operation, ready for files', () => {
+  it("switching file type lands on that type's default operation, ready for files", () => {
     // Operation ids are per-category, so carrying one across would be meaningless.
     let s = open(initialState, 'upscale')
     s = reducer(s, { type: 'setCategory', category: 'pdf' })

@@ -242,8 +242,11 @@ export function parseSession(raw: unknown): { state: AppState; genResults: strin
         return false
       }
     }
-    const category = validCat(p.category) && findOperation(p.category, p.operation) ? p.category : FIRST_CATEGORY
-    const operation = findOperation(category, p.operation) ? p.operation : defaultOperation(category)
+    const category =
+      validCat(p.category) && findOperation(p.category, p.operation) ? p.category : FIRST_CATEGORY
+    const operation = findOperation(category, p.operation)
+      ? p.operation
+      : defaultOperation(category)
     // Drop queues for categories no longer in the catalog (a removed/renamed tool).
     const queues: AppState['queues'] = {}
     for (const [cat, q] of Object.entries(p.queues ?? {})) {
@@ -260,7 +263,8 @@ export function parseSession(raw: unknown): { state: AppState; genResults: strin
       const idx = k.indexOf(':')
       const c = idx >= 0 ? k.slice(0, idx) : ''
       const o = idx >= 0 ? k.slice(idx + 1) : ''
-      if (validCat(c) && findOperation(c as CategoryId, o)) options[k as WorkspaceKey] = v as JobOptions
+      if (validCat(c) && findOperation(c as CategoryId, o))
+        options[k as WorkspaceKey] = v as JobOptions
     }
     const key = workspaceKey(category, operation)
     if (!options[key]) options[key] = defaultOptionsFor(category, operation)
@@ -269,7 +273,12 @@ export function parseSession(raw: unknown): { state: AppState; genResults: strin
     for (const [c, o] of Object.entries(p.lastOperation ?? {}))
       if (validCat(c) && o && findOperation(c as CategoryId, o)) lastOperation[c as CategoryId] = o
     const state: AppState = { category, operation, lastOperation, queues, options }
-    return { state, genResults: Array.isArray(p.genResults) ? p.genResults.filter((x) => typeof x === 'string') : [] }
+    return {
+      state,
+      genResults: Array.isArray(p.genResults)
+        ? p.genResults.filter((x) => typeof x === 'string')
+        : []
+    }
   } catch {
     return null
   }
@@ -300,7 +309,9 @@ export function pruneMissing(
   for (const [cat, q] of Object.entries(state.queues)) {
     if (!q) continue
     const items = q.items.filter((it) =>
-      it.isResult ? !!it.outputPath && exists.has(it.outputPath) : !!it.file?.path && exists.has(it.file.path)
+      it.isResult
+        ? !!it.outputPath && exists.has(it.outputPath)
+        : !!it.file?.path && exists.has(it.file.path)
     )
     queues[cat as CategoryId] = { items, selected: [], anchor: null }
   }
@@ -322,11 +333,7 @@ function mapQueue(state: AppState, fn: (q: QueueState) => QueueState): AppState 
  * arrive asynchronously and may land after the user has switched tabs, so we
  * can't assume the item lives in the current tool's queue.
  */
-function mapItemById(
-  state: AppState,
-  id: string,
-  fn: (i: QueueItem) => QueueItem
-): AppState {
+function mapItemById(state: AppState, id: string, fn: (i: QueueItem) => QueueItem): AppState {
   const queues = { ...state.queues }
   for (const [k, q] of Object.entries(queues) as [CategoryId, QueueState][]) {
     if (q.items.some((i) => i.id === id)) {
@@ -374,13 +381,18 @@ export function reducer(state: AppState, action: Action): AppState {
       // Images→Video→Images lands back on your chosen operation, not the default.
       const remembered = state.lastOperation[action.category]
       const opId =
-        remembered && findOperation(action.category, remembered) ? remembered : defaultOperation(action.category)
+        remembered && findOperation(action.category, remembered)
+          ? remembered
+          : defaultOperation(action.category)
       const key = workspaceKey(action.category, opId)
       return {
         ...state,
         category: action.category,
         operation: opId,
-        queues: { ...state.queues, [action.category]: state.queues[action.category] ?? emptyQueue() },
+        queues: {
+          ...state.queues,
+          [action.category]: state.queues[action.category] ?? emptyQueue()
+        },
         options: {
           ...state.options,
           [key]: state.options[key] ?? defaultOptionsFor(action.category, opId)
@@ -500,7 +512,13 @@ export function reducer(state: AppState, action: Action): AppState {
             items: [
               ...q.items.map((i) =>
                 i.id === e.id
-                  ? { ...i, status: 'done' as ItemStatus, percent: 100, message: undefined, error: undefined }
+                  ? {
+                      ...i,
+                      status: 'done' as ItemStatus,
+                      percent: 100,
+                      message: undefined,
+                      error: undefined
+                    }
                   : i
               ),
               result

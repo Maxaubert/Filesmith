@@ -29,7 +29,12 @@ function setPlaybackRate(m: HTMLMediaElement, r: number): void {
 }
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-const vertical: CSSProperties = { writingMode: 'vertical-lr', direction: 'rtl', width: '20px', height: '90px' }
+const vertical: CSSProperties = {
+  writingMode: 'vertical-lr',
+  direction: 'rtl',
+  width: '20px',
+  height: '90px'
+}
 
 /**
  * Custom media controls: a muted track, an indigo (accent) elapsed fill, a
@@ -120,7 +125,10 @@ export function MediaBar({
         {fmt(cur)} / {fmt(dur)}
       </span>
       <div onMouseDown={onBarDown} className="relative flex-1 cursor-pointer py-2.5">
-        <div ref={barRef} className={`relative h-1.5 rounded-full ${dark ? 'bg-white/25' : 'bg-black/10'}`}>
+        <div
+          ref={barRef}
+          className={`relative h-1.5 rounded-full ${dark ? 'bg-white/25' : 'bg-black/10'}`}
+        >
           <div
             className="absolute inset-y-0 left-0 rounded-full bg-accent"
             style={{ width: `${frac * 100}%` }}
@@ -132,7 +140,9 @@ export function MediaBar({
         </div>
       </div>
       <div className="group/spd relative flex items-center">
-        <div className={`${popoverOuter} group-hover/spd:pointer-events-auto group-hover/spd:opacity-100`}>
+        <div
+          className={`${popoverOuter} group-hover/spd:pointer-events-auto group-hover/spd:opacity-100`}
+        >
           <div className={`${popoverInner} flex flex-col p-1`}>
             {SPEEDS.map((s) => (
               <button
@@ -159,7 +169,9 @@ export function MediaBar({
         </button>
       </div>
       <div className="group/vol relative flex items-center">
-        <div className={`${popoverOuter} group-hover/vol:pointer-events-auto group-hover/vol:opacity-100`}>
+        <div
+          className={`${popoverOuter} group-hover/vol:pointer-events-auto group-hover/vol:opacity-100`}
+        >
           <div className={`${popoverInner} grid place-items-center p-2.5`}>
             <input
               type="range"

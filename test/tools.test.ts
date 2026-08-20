@@ -121,9 +121,9 @@ describe('resize', () => {
     expect(buildResizeSpec({ mode: 'dimensions', width: 800, height: 600 })).toBe('800x600')
   })
   it('appends ! when stretching to both numbers', () => {
-    expect(
-      buildResizeSpec({ mode: 'dimensions', width: 800, height: 600, fit: 'stretch' })
-    ).toBe('800x600!')
+    expect(buildResizeSpec({ mode: 'dimensions', width: 800, height: 600, fit: 'stretch' })).toBe(
+      '800x600!'
+    )
   })
   it('does not stretch against a blank field (nothing to distort to)', () => {
     expect(buildResizeSpec({ mode: 'dimensions', width: 800, height: '', fit: 'stretch' })).toBe(
@@ -214,40 +214,70 @@ describe('compress', () => {
     expect(
       buildVideoCompressArgs('in.mkv', 'out.mp4', { codec: 'h264', quality: 100, scale: 100 })
     ).toEqual([
-      '-y', '-i', 'in.mkv',
-      '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
-      '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart',
+      '-y',
+      '-i',
+      'in.mkv',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'medium',
+      '-crf',
+      '18',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-movflags',
+      '+faststart',
       'out.mp4'
     ])
     // H.265 adds the hvc1 tag; AV1 uses libsvtav1 + numeric preset
     expect(
       buildVideoCompressArgs('in.mp4', 'out.mp4', { codec: 'h265', quality: 100, scale: 100 })
     ).toContain('hvc1')
-    const av1 = buildVideoCompressArgs('in.mp4', 'out.mp4', { codec: 'av1', quality: 100, scale: 100 })
+    const av1 = buildVideoCompressArgs('in.mp4', 'out.mp4', {
+      codec: 'av1',
+      quality: 100,
+      scale: 100
+    })
     expect(av1).toContain('libsvtav1')
     expect(av1.join(' ')).toContain('-preset 6')
   })
 
   it('adds an aspect-safe percentage scale filter below 100%', () => {
     const a = buildVideoCompressArgs('in.mp4', 'out.mp4', {
-      codec: 'h264', quality: 80, scale: 50
+      codec: 'h264',
+      quality: 80,
+      scale: 50
     })
     expect(a).toContain('-vf')
     expect(a[a.indexOf('-vf') + 1]).toBe('scale=w=iw*0.5:h=ih*0.5:force_divisible_by=2')
     // 100% (original) adds no filter at all
     const b = buildVideoCompressArgs('in.mp4', 'out.mp4', {
-      codec: 'h264', quality: 80, scale: 100
+      codec: 'h264',
+      quality: 80,
+      scale: 100
     })
     expect(b).not.toContain('-vf')
   })
 
   it('builds audio args for a target codec + bitrate, keep uses source codec', () => {
-    expect(buildAudioCompressArgs('in.wav', 'out.opus', { codec: 'opus', bitrate: 96, sourceExt: '.wav' })).toEqual([
-      '-y', '-i', 'in.wav', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'
-    ])
-    expect(buildAudioCompressArgs('in.ogg', 'out.ogg', { codec: 'keep', bitrate: 128, sourceExt: '.ogg' })).toEqual([
-      '-y', '-i', 'in.ogg', '-c:a', 'libvorbis', '-b:a', '128k', 'out.ogg'
-    ])
+    expect(
+      buildAudioCompressArgs('in.wav', 'out.opus', {
+        codec: 'opus',
+        bitrate: 96,
+        sourceExt: '.wav'
+      })
+    ).toEqual(['-y', '-i', 'in.wav', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'])
+    expect(
+      buildAudioCompressArgs('in.ogg', 'out.ogg', {
+        codec: 'keep',
+        bitrate: 128,
+        sourceExt: '.ogg'
+      })
+    ).toEqual(['-y', '-i', 'in.ogg', '-c:a', 'libvorbis', '-b:a', '128k', 'out.ogg'])
     expect(audioOutputExt('mp3', '.m4a')).toBe('.mp3')
     expect(audioOutputExt('aac', '.wav')).toBe('.m4a')
     expect(audioOutputExt('keep', '.ogg')).toBe('.ogg')
@@ -259,8 +289,12 @@ describe('compress', () => {
     expect(bal).toContain('-dPDFSETTINGS=/ebook')
     expect(bal).toContain('-sOutputFile=out.pdf')
     expect(bal).not.toContain('-sColorConversionStrategy=Gray')
-    expect(buildGsCompressArgs('in.pdf', 'out.pdf', 'smallest', false)).toContain('-dPDFSETTINGS=/screen')
-    expect(buildGsCompressArgs('in.pdf', 'out.pdf', 'high', true)).toContain('-sColorConversionStrategy=Gray')
+    expect(buildGsCompressArgs('in.pdf', 'out.pdf', 'smallest', false)).toContain(
+      '-dPDFSETTINGS=/screen'
+    )
+    expect(buildGsCompressArgs('in.pdf', 'out.pdf', 'high', true)).toContain(
+      '-sColorConversionStrategy=Gray'
+    )
   })
 })
 
@@ -294,7 +328,12 @@ describe('pdf ops', () => {
       'out.pdf',
       '1-3,5'
     ])
-    expect(buildPdfPagesArgs('in.pdf', 'p-04.pdf', '4')).toEqual(['clean', 'in.pdf', 'p-04.pdf', '4'])
+    expect(buildPdfPagesArgs('in.pdf', 'p-04.pdf', '4')).toEqual([
+      'clean',
+      'in.pdf',
+      'p-04.pdf',
+      '4'
+    ])
   })
   it('builds info + extract args', () => {
     expect(buildPdfInfoArgs('in.pdf')).toEqual(['info', 'in.pdf'])
@@ -322,7 +361,19 @@ describe('canCompress', () => {
     expect(canCompress('pdf', '.pdf')).toBe(true)
   })
   it('accepts raster images the compressors handle, not vector/exotic exts', () => {
-    for (const e of ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.tif', '.tiff', '.avif', '.jxl', '.bmp', '.heic'])
+    for (const e of [
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.webp',
+      '.gif',
+      '.tif',
+      '.tiff',
+      '.avif',
+      '.jxl',
+      '.bmp',
+      '.heic'
+    ])
       expect(canCompress('image', e)).toBe(true)
     // vector / layered / exotic: would silently rasterize -> excluded
     expect(canCompress('image', '.svg')).toBe(false)
@@ -341,13 +392,21 @@ describe('canCompress', () => {
     // A bitrate is meaningless for wav/flac, so keep-format means lossless FLAC.
     expect(audioOutputExt('keep', '.wav')).toBe('.flac')
     expect(audioOutputExt('keep', '.flac')).toBe('.flac')
-    expect(buildAudioCompressArgs('in.wav', 'out.flac', { codec: 'keep', bitrate: 192, sourceExt: '.wav' })).toEqual([
-      '-y', '-i', 'in.wav', '-c:a', 'flac', '-compression_level', '8', 'out.flac'
-    ])
+    expect(
+      buildAudioCompressArgs('in.wav', 'out.flac', {
+        codec: 'keep',
+        bitrate: 192,
+        sourceExt: '.wav'
+      })
+    ).toEqual(['-y', '-i', 'in.wav', '-c:a', 'flac', '-compression_level', '8', 'out.flac'])
     // an explicit lossy codec still applies the bitrate
-    expect(buildAudioCompressArgs('in.wav', 'out.opus', { codec: 'opus', bitrate: 96, sourceExt: '.wav' })).toEqual([
-      '-y', '-i', 'in.wav', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'
-    ])
+    expect(
+      buildAudioCompressArgs('in.wav', 'out.opus', {
+        codec: 'opus',
+        bitrate: 96,
+        sourceExt: '.wav'
+      })
+    ).toEqual(['-y', '-i', 'in.wav', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'])
   })
   it('rejects documents, text, and unknown kinds', () => {
     expect(canCompress('document', '.docx')).toBe(false)

@@ -91,7 +91,9 @@ function readLayer(layer: Layer, warnings: string[]): RegistryFile[] {
     try {
       parsed = JSON.parse(readFileSync(path, 'utf-8')) as RegistryFile
     } catch (e) {
-      warnings.push(`${layer}/${f}: not valid JSON (${e instanceof Error ? e.message : e}) — skipped`)
+      warnings.push(
+        `${layer}/${f}: not valid JSON (${e instanceof Error ? e.message : e}) — skipped`
+      )
       continue
     }
     if (!parsed || !Array.isArray(parsed.entries)) {

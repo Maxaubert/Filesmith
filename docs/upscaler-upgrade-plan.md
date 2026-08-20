@@ -29,11 +29,11 @@ three tiers:
 
 ## Tiers and models
 
-| Tier | Engine | Runs on | Models | Ships? |
-|---|---|---|---|---|
-| Standard | ONNX + DirectML (`onnxruntime-node`) | NVIDIA/AMD/Intel + CPU | Real-ESRGAN (default), NMKD-Superscale, one transformer (SwinIR/DAT) | yes |
-| Advanced (NVIDIA) | torch + diffusers via uv/Python | NVIDIA CUDA only | PiD (backbone VAE: flux/sd3) | no (opt-in) |
-| Custom | ONNX + DirectML | any | user `.onnx` from OpenModelDB | n/a |
+| Tier              | Engine                               | Runs on                | Models                                                               | Ships?      |
+| ----------------- | ------------------------------------ | ---------------------- | -------------------------------------------------------------------- | ----------- |
+| Standard          | ONNX + DirectML (`onnxruntime-node`) | NVIDIA/AMD/Intel + CPU | Real-ESRGAN (default), NMKD-Superscale, one transformer (SwinIR/DAT) | yes         |
+| Advanced (NVIDIA) | torch + diffusers via uv/Python      | NVIDIA CUDA only       | PiD (backbone VAE: flux/sd3)                                         | no (opt-in) |
+| Custom            | ONNX + DirectML                      | any                    | user `.onnx` from OpenModelDB                                        | n/a         |
 
 Cross-cutting: **tiling with OOM back-off** (halve tile on allocator error, retry) so one build
 survives an 8GB laptop GPU, CPU fallback, and the RTX 5090.

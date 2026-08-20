@@ -27,7 +27,8 @@ export function readSafetensorsHeader(path: string): SafetensorsHeader | null {
     const lenBuf = Buffer.allocUnsafe(8)
     if (readSync(fd, lenBuf, 0, 8, 0) < 8) return null
     const headerLen = Number(lenBuf.readBigUInt64LE(0))
-    if (!Number.isSafeInteger(headerLen) || headerLen <= 0 || headerLen > MAX_HEADER_BYTES) return null
+    if (!Number.isSafeInteger(headerLen) || headerLen <= 0 || headerLen > MAX_HEADER_BYTES)
+      return null
     if (8 + headerLen > size) return null
     const json = Buffer.allocUnsafe(headerLen)
     let read = 0
@@ -116,11 +117,13 @@ export function isExcludedNonImage(h: SafetensorsHeader): boolean {
   // HunyuanVideo (token refiner), FramePack (clean-image embedder), Wan (VACE).
   if (has('individual_token_refiner') || has('clean_x_embedder') || has('vace_blocks')) return true
   // Wan-style video DiT: 3D patch-embedding + temporal embedding, no Flux blocks.
-  if (has('patch_embedding') && (has('time_embedding') || has('temporal')) && !has('double_blocks')) return true
+  if (has('patch_embedding') && (has('time_embedding') || has('temporal')) && !has('double_blocks'))
+    return true
   // Audio / vocoder stacks (LTX and similar bundle these).
   if (has('vocoder') || has('audio_vae')) return true
   // Flux-style blocks but no text+image projections = a 3D/other shape DiT.
-  if ((has('double_blocks') || has('single_blocks')) && !(has('img_in') && has('txt_in'))) return true
+  if ((has('double_blocks') || has('single_blocks')) && !(has('img_in') && has('txt_in')))
+    return true
   return false
 }
 
@@ -128,7 +131,9 @@ export function isExcludedNonImage(h: SafetensorsHeader): boolean {
  * checkpoint), meaning UNETLoader reads only the diffusion weights and the
  * baked encoders/VAE are ignored — we still supply encoders/VAE separately. */
 export function isAllInOne(h: SafetensorsHeader): boolean {
-  return h.keys.some((k) => k.startsWith('text_encoders.')) && h.keys.some((k) => k.startsWith('vae.'))
+  return (
+    h.keys.some((k) => k.startsWith('text_encoders.')) && h.keys.some((k) => k.startsWith('vae.'))
+  )
 }
 
 /** classifyModelFile + the excluded/unrecognized distinction in one header read.

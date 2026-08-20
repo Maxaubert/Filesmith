@@ -205,7 +205,9 @@ function OutputCard({
         onMenu(e.clientX, e.clientY)
       }}
       className={`group flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition ${
-        selected ? 'border-accent ring-2 ring-accent/60' : 'border-black/[.07] hover:border-black/[.14]'
+        selected
+          ? 'border-accent ring-2 ring-accent/60'
+          : 'border-black/[.07] hover:border-black/[.14]'
       }`}
     >
       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[9px] bg-[#ececf1] shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">

@@ -76,7 +76,10 @@ export const VERIFIED_TOKENS: string[] = [
 
 /** Normalize a filename to alphanumerics for tolerant matching. */
 export function normalizeModelName(name: string): string {
-  return name.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z0-9]/g, '')
+  return name
+    .toLowerCase()
+    .replace(/\.[a-z0-9]+$/, '')
+    .replace(/[^a-z0-9]/g, '')
 }
 
 /**

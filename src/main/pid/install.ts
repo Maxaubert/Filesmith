@@ -227,7 +227,8 @@ async function ensureEnv(onProgress: InstallProgress): Promise<void> {
   const depRes = await run(uv, ['pip', 'install', '--python', python, '-e', '.'], {
     cwd: pidRepoDir()
   })
-  if (depRes.code !== 0) throw new Error(`PiD dependency install failed: ${depRes.stderr.slice(-400)}`)
+  if (depRes.code !== 0)
+    throw new Error(`PiD dependency install failed: ${depRes.stderr.slice(-400)}`)
 
   writeFileSync(marker, '')
 }
@@ -311,10 +312,7 @@ function withInstallLock(fn: () => Promise<void>): Promise<void> {
  */
 const ENV_APPROX_BYTES = 3_000_000_000
 
-export function checkDiskSpace(
-  needBytes: number,
-  dir?: string
-): { ok: boolean; reason?: string } {
+export function checkDiskSpace(needBytes: number, dir?: string): { ok: boolean; reason?: string } {
   if (!(needBytes > 0)) return { ok: true }
   try {
     // statfs is Node 18.15+; absent or failing, we simply don't block — refusing

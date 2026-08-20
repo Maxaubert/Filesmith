@@ -8,12 +8,7 @@ import type { PdfLevel } from '@shared/compress'
 // not here — a second mutool-only "compress" op silently produced far worse
 // results for the same filename, so it was removed.
 export type PdfOp =
-  | 'extract-text'
-  | 'pages-to-images'
-  | 'merge'
-  | 'split-range'
-  | 'split-pages'
-  | 'extract-images'
+  'extract-text' | 'pages-to-images' | 'merge' | 'split-range' | 'split-pages' | 'extract-images'
 
 /** `mutool draw -F txt -o <out.txt> <in.pdf>` — extract the text layer. */
 export function buildPdfTextArgs(input: string, output: string): string[] {

@@ -270,7 +270,9 @@ function CompressOptions({
         </div>
         <div>
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">Scale</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
+              Scale
+            </span>
             <span className="text-sm font-semibold text-accent">
               {Number(options.scale ?? 100) === 100 ? 'Original' : `${Number(options.scale)}%`}
             </span>
@@ -289,9 +291,7 @@ function CompressOptions({
             <span>Original</span>
           </div>
         </div>
-        {Number(options.scale ?? 100) < 100 &&
-          videoOutputs &&
-          videoOutputs.length > 0 && (
+        {Number(options.scale ?? 100) < 100 && videoOutputs && videoOutputs.length > 0 && (
           <div>
             <Label>Output</Label>
             <div className="scroll-thin max-h-32 space-y-1 overflow-auto rounded-xl border border-black/[.08] bg-white p-2.5">
@@ -454,7 +454,19 @@ function UpscaleOptions({
     else if (isComfyPath && !comfyChoices.some((c) => c.value === rawModel))
       set('upscaleModel', subDefault)
     else if (isPid && !showPid) set('upscaleModel', subDefault)
-  }, [pid, comfy.status, hasNvidia, inAi, isComfyPath, isPid, showPid, rawModel, comfyChoices, subDefault, set])
+  }, [
+    pid,
+    comfy.status,
+    hasNvidia,
+    inAi,
+    isComfyPath,
+    isPid,
+    showPid,
+    rawModel,
+    comfyChoices,
+    subDefault,
+    set
+  ])
 
   return (
     <>
@@ -772,7 +784,9 @@ function PdfOptions({
             <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
               Resolution
             </span>
-            <span className="text-sm font-semibold text-accent">{Number(options.dpi ?? 150)} DPI</span>
+            <span className="text-sm font-semibold text-accent">
+              {Number(options.dpi ?? 150)} DPI
+            </span>
           </div>
           <input
             type="range"
@@ -864,7 +878,13 @@ function ModelPicker({
 /** Shown when the selected model is missing its text-encoder / VAE files. Fetches
  * them into the user's ComfyUI folders, then refreshes so the model goes runnable
  * — the "works for anyone" path, not just a machine that already has the files. */
-function CompanionDownload({ model, onDone }: { model: GenModel; onDone: () => void }): JSX.Element {
+function CompanionDownload({
+  model,
+  onDone
+}: {
+  model: GenModel
+  onDone: () => void
+}): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [pct, setPct] = useState<number | null>(null)
@@ -893,7 +913,8 @@ function CompanionDownload({ model, onDone }: { model: GenModel; onDone: () => v
   return (
     <div className="rounded-xl border border-accent/40 bg-accent-soft/40 p-3 text-[12px] leading-relaxed">
       <p className="font-semibold text-ink">
-        This model needs {missing.length} file{missing.length === 1 ? '' : 's'} you don&apos;t have yet:
+        This model needs {missing.length} file{missing.length === 1 ? '' : 's'} you don&apos;t have
+        yet:
       </p>
       <ul className="mt-1.5 space-y-0.5 text-muted">
         {missing.map((m) => (
@@ -1109,7 +1130,9 @@ function GenerateOptions({
         {models.length ? (
           <ModelPicker models={models} value={model} onChange={(v) => set('model', v)} />
         ) : (
-          <p className="text-[12px] text-dim">No image models found in your ComfyUI models folder.</p>
+          <p className="text-[12px] text-dim">
+            No image models found in your ComfyUI models folder.
+          </p>
         )}
         {selected && !selected.runnable && selected.missing?.length ? (
           <div className="mt-2.5">
@@ -1239,7 +1262,9 @@ function GenerateOptions({
                 Steps
                 <HelpTip text="How many refinement passes the model makes. More adds a little detail but is slower. Turbo models (Z-Image, Krea, Flux 2) need only a handful; SDXL and Flux 1 like ~20-30." />
               </span>
-              <span className="text-sm font-semibold text-accent">{Number(options.steps ?? info.steps)}</span>
+              <span className="text-sm font-semibold text-accent">
+                {Number(options.steps ?? info.steps)}
+              </span>
             </div>
             <input
               type="range"
@@ -1257,7 +1282,9 @@ function GenerateOptions({
                   Guidance (CFG)
                   <HelpTip text="How closely it follows your prompt. About 7 is balanced; lower is looser and more natural, higher sticks to the prompt but can look harsh." />
                 </span>
-                <span className="text-sm font-semibold text-accent">{Number(options.cfg ?? 7)}</span>
+                <span className="text-sm font-semibold text-accent">
+                  {Number(options.cfg ?? 7)}
+                </span>
               </div>
               <input
                 type="range"
@@ -1276,7 +1303,9 @@ function GenerateOptions({
                   Guidance
                   <HelpTip text="Flux's prompt-adherence dial. Around 3.5 is the sweet spot for Flux 1; lower is more natural, higher follows the prompt harder." />
                 </span>
-                <span className="text-sm font-semibold text-accent">{Number(options.guidance ?? info.guidance)}</span>
+                <span className="text-sm font-semibold text-accent">
+                  {Number(options.guidance ?? info.guidance)}
+                </span>
               </div>
               <input
                 type="range"
@@ -1291,7 +1320,9 @@ function GenerateOptions({
           ) : null}
           <div>
             <div className="mb-2.5 flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">Seed</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
+                Seed
+              </span>
               <HelpTip text="The random starting point. The same seed with the same settings makes the exact same image — leave it on Random for variety, or fix it to reproduce a result." />
             </div>
             <div className="flex gap-2">
@@ -1402,7 +1433,9 @@ export function OptionsPanel({
           <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
         )}
         {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
-        {operation.tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
+        {operation.tool === 'pdf' && (
+          <PdfOptions options={options} runCount={runCount} set={onSet} />
+        )}
         {operation.tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
       </>
       <div className="flex-1" />

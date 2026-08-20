@@ -101,7 +101,12 @@ export function verifyPack(pack: SignedPack, publicKeyB64: string): boolean {
       format: 'der',
       type: 'spki'
     })
-    return verify(null, Buffer.from(pack.payload, 'utf-8'), key, Buffer.from(pack.signature, 'base64'))
+    return verify(
+      null,
+      Buffer.from(pack.payload, 'utf-8'),
+      key,
+      Buffer.from(pack.signature, 'base64')
+    )
   } catch {
     return false
   }

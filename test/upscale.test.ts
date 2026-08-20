@@ -82,7 +82,6 @@ describe('upscaledSize', () => {
     expect(upscaledSize(640, 420, 4)).toEqual({ w: 2560, h: 1680 })
     expect(upscaledSize(500, 500, 3)).toEqual({ w: 1500, h: 1500 })
   })
-
 })
 
 describe('output size estimate', () => {

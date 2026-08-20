@@ -28,10 +28,10 @@ change plus a signed release.
 **Two things will bite a stranger before they ever get to models.** A build made on any machine
 but yours silently ships without LibreOffice, Ghostscript or Real-ESRGAN, because the packaging
 gate checks only five flat exes (`scripts/fetch-binaries.mjs:342`) while three tree-shaped tools
-ride `extraResources` unchecked (`electron-builder.yml:22-34`), and electron-builder only *warns*
+ride `extraResources` unchecked (`electron-builder.yml:22-34`), and electron-builder only _warns_
 on a missing source. And a user whose ComfyUI is not in the ~35 guessed paths has no way to tell
 the app where it is: the only folder picker in the entire renderer is behind an NVIDIA gate
-(`OptionsPanel.tsx:405`) *and* behind a 3 GB engine download (`ComfyImport.tsx:81`).
+(`OptionsPanel.tsx:405`) _and_ behind a 3 GB engine download (`ComfyImport.tsx:81`).
 
 **One hard bug**: a space in `%TEMP%` breaks every document conversion, reproduced by direct
 execution of the bundled `soffice.com` (`src/main/tools/soffice.ts:28`).
@@ -50,6 +50,7 @@ those two files.
 An honest baseline. These are not consolations, they are the parts you should not touch.
 
 ### Process execution and file safety
+
 - **No shell, anywhere.** Zero `shell: true`, zero `exec`/`execSync`/`spawnSync` across `src/`.
   Every spawn goes through `run.ts:24` with an argv array and `windowsHide`. A filename containing
   `& rd /s /q C:\`, quotes or `$(...)` is inert. This is the single biggest correctness win for
@@ -63,6 +64,7 @@ An honest baseline. These are not consolations, they are the parts you should no
   (`generate/index.ts:26-34`). Sidecar paths travel as JSON over stdin (`pid/sidecar.ts:198`).
 
 ### Packaging and paths
+
 - One consistent dev-vs-packaged rule across all six resource trees
   (`toolResolver.ts:10-14, 33-36, 61-64, 89-93`; `pid/paths.ts:48-59`), verified to hold in both
   modes with no drift.
@@ -75,6 +77,7 @@ An honest baseline. These are not consolations, they are the parts you should no
   (`tools/soffice.ts:22-44`).
 
 ### Downloads
+
 - Genuinely atomic and never mistakable for complete: stream to `<dest>.part`, verify byte count
   against Content-Length, delete the part on any failure, rename last
   (`net/download.ts:47-80`, `pid/install.ts:87-116`).
@@ -91,9 +94,10 @@ An honest baseline. These are not consolations, they are the parts you should no
   resumes cleanly instead of reading as a torch-less success.
 
 ### Model identification (the part that already generalizes)
+
 - **Architecture is inferred from the file, not the name.** `archScan.ts:21` reads the 8-byte
   length plus JSON header, capped at 16 MB against a hostile length field; `classifyArch`
-  (`:76-105`) decides from tensor-key signatures. A new *finetune* of a known family works with
+  (`:76-105`) decides from tensor-key signatures. A new _finetune_ of a known family works with
   zero code change. Declared `modelspec.architecture` is preferred where present (`:72`).
 - Non-image DiTs (video/3D/audio) are positively excluded before the image checks
   (`archScan.ts:113-125`), with regression tests for HunyuanVideo, FramePack, Hunyuan3D, Wan and
@@ -110,6 +114,7 @@ An honest baseline. These are not consolations, they are the parts you should no
   (`resolve(dir)` into a `visited` set). Three sibling walkers are missing it (see §3).
 
 ### Live reconciliation
+
 - `resolveAgainstComfy` (`preflight.ts:31-39, 77-131`) fetches `/object_info` before queueing,
   validates every node class and every CLIPLoader `type` enum value, and resolves each of our
   filesystem names to the exact string ComfyUI reports, separator- and case-insensitively. A wrong
@@ -117,12 +122,14 @@ An honest baseline. These are not consolations, they are the parts you should no
   raw HTTP 400. This is rare and excellent.
 
 ### Not downloading things it does not need
+
 - `findComfyPidWeights` (`discover.ts:214-237`) reuses a ComfyUI user's existing PiD weights with
   2 GB / 200 MB size floors, saving ~3 GB. `pythonEnv.ts:96-106` runs the spandrel sidecar in the
   user's **own** ComfyUI Python when it has torch and spandrel, so many ComfyUI users need no
   multi-GB install at all. Models are referenced in place, never copied (`comfy/store.ts:6-8`).
 
 ### Honest, up-front disclosure
+
 - Cost and license are stated **before** the user commits: `PidUpscale.tsx:36-40` leads with
   "non-commercial use only" and "~6 GB"; `OptionsPanel.tsx:673-684` warns about the rembg
   first-run download before files are queued.
@@ -134,6 +141,7 @@ An honest baseline. These are not consolations, they are the parts you should no
   (`registry.ts:838-844`), which pattern-matches the driver error and rewrites it.
 
 ### Electron security posture
+
 - Defaults left secure: no `nodeIntegration: true`, no `contextIsolation: false`, no
   `webSecurity: false`, zero `NODE_TLS_REJECT_UNAUTHORIZED` / `rejectUnauthorized` /
   `certificate-error` handlers. A real CSP ships (`renderer/index.html:8`,
@@ -144,6 +152,7 @@ An honest baseline. These are not consolations, they are the parts you should no
   renderer-supplied model path against the on-disk store (`registry.ts:739`).
 
 ### State portability
+
 - Everything mutable lives under `app.getPath('userData')`: `session.json`,
   `comfy-upscalers.json`, the PiD env and weights, the generated extra-model-paths YAML. Nothing
   is written next to the exe. Per-user NSIS install needs no admin rights. Single-instance lock
@@ -157,6 +166,7 @@ An honest baseline. These are not consolations, they are the parts you should no
 Ranked by (fresh-user impact) x (how many people it hits). Model-extensibility findings are §4.
 
 ### H1. A space in `%TEMP%` crashes every document conversion
+
 **`src/main/tools/soffice.ts:28`** ・ severity **high** ・ breaks for: **any user whose account name
 contains a space** ("John Smith"), or who redirected TEMP to a spaced path.
 
@@ -170,15 +180,15 @@ A raw string splice with no URL encoding. `registry.ts:184-191` builds the profi
 Reproduced by direct execution against the repo's own `resources/libreoffice/program/soffice.com`
 with the exact argv `buildSofficeArgs` emits, varying only the profile dir:
 
-| profile URL | result |
-|---|---|
-| `file:///C:/.../p1/profile` | status 0, `in.pdf` written |
-| `file:///C:/.../p2/pro file` | **status 3765269347 (0xE06D7363, C++ exception), no PDF, empty stdout AND stderr** |
-| `file:///C:/.../p3/pro%20file` | status 0, `in.pdf` written |
+| profile URL                    | result                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| `file:///C:/.../p1/profile`    | status 0, `in.pdf` written                                                         |
+| `file:///C:/.../p2/pro file`   | **status 3765269347 (0xE06D7363, C++ exception), no PDF, empty stdout AND stderr** |
+| `file:///C:/.../p3/pro%20file` | status 0, `in.pdf` written                                                         |
 
 Because stderr is empty, `registry.ts:202-207` falls through to the generic "LibreOffice couldn't
 convert to PDF" with no diagnostic. A `#` in the profile path makes `soffice.bin` **hang
-indefinitely** instead, and there is no timeout anywhere in `run.ts`. Non-ASCII is *not* affected:
+indefinitely** instead, and there is no timeout anywhere in `run.ts`. Non-ASCII is _not_ affected:
 accented and Cyrillic profile dirs both converted fine, so this is specifically an
 unencoded-space/`#` bug, not an encoding bug.
 
@@ -189,6 +199,7 @@ One line, one test.
 ---
 
 ### H2. A build made anywhere but your machine silently ships without LibreOffice, Ghostscript or Real-ESRGAN
+
 **`scripts/fetch-binaries.mjs:342`** and **`electron-builder.yml:26`** ・ severity **high** ・ breaks
 for: **every end user of any installer built on a machine lacking those trees**, and any
 contributor or CI cutting a release from a fresh clone (`resources/` is gitignored).
@@ -225,6 +236,7 @@ past a missing source.
 ---
 
 ### H3. There is no way to tell Filesmith where ComfyUI is, unless you have an NVIDIA GPU and download 3 GB first
+
 **`src/renderer/src/components/OptionsPanel.tsx:405, 974`** and **`ComfyImport.tsx:81`** ・ severity
 **high** ・ breaks for: **any user whose ComfyUI is outside the ~35 guessed paths** (F:/G:/a NAS,
 `C:\AI\comfy`, a OneDrive-redirected Documents, a dev checkout), and **every non-NVIDIA ComfyUI
@@ -261,12 +273,13 @@ drive the entire generation feature.
 **Fix**: promote "ComfyUI location" to a first-class setting, reachable from a Settings surface
 **and** inline in the Generate panel whenever `generate:status.available === false`. Un-gate the
 Browse button from both `hasNvidia` and `engineReady` (ComfyUI is not NVIDIA-only, and picking the
-folder is what *makes* discovery work). One pick then fixes generate, upscale and companion
+folder is what _makes_ discovery work). One pick then fixes generate, upscale and companion
 downloads together, since they all read the same store first.
 
 ---
 
 ### H4. ComfyUI Desktop installs can never be auto-launched, and are reported "not found" forever
+
 **`src/main/comfy/pythonEnv.ts:86`** ・ severity **high** ・ breaks for: **anyone who installed
 ComfyUI via the official Desktop installer**, precisely the non-technical target user, whenever the
 Desktop app is not already running.
@@ -297,11 +310,13 @@ answers `/system_stats`.
 ---
 
 ### M1. ComfyUI port is fixed at 8188/8199, and the launched child's piped stdio is never read
+
 **`src/main/generate/comfy.ts:79, 92`** ・ severity **medium, but the stdio half is a live hang**
 
 ```ts
-for (const p of [8188, FS_PORT])            // FS_PORT = 8199, comfy.ts:13
-proc = spawn(launch.python, args, { cwd, windowsHide: true, env })   // comfy.ts:92
+for (const p of [8188, FS_PORT])
+  // FS_PORT = 8199, comfy.ts:13
+  proc = spawn(launch.python, args, { cwd, windowsHide: true, env }) // comfy.ts:92
 ```
 
 `spawn` with no `stdio` option defaults to **pipes**. The only listener attached is
@@ -321,10 +336,13 @@ port instead of a fixed 8199.
 ---
 
 ### M2. A ComfyUI that is running right now is reported as "not found"
+
 **`src/main/generate/comfy.ts:73`** ・ severity **medium**
 
 ```ts
-export function comfyGenerationAvailable(): boolean { return findComfyLaunch() != null }
+export function comfyGenerationAvailable(): boolean {
+  return findComfyLaunch() != null
+}
 ```
 
 Pure filesystem, and this is what `generate:status` returns (`ipc.ts:258`). Meanwhile
@@ -339,6 +357,7 @@ filesystem scan only when nothing is listening.
 ---
 
 ### M3. A missing bundled binary surfaces as `spawn gswin64c ENOENT` on the queue card
+
 **`src/main/toolResolver.ts:81, 99`** → **`run.ts:40`** → **`registry.ts:106-114`** →
 **`jobQueue.ts:100`** ・ severity **medium**, conditional on H2
 
@@ -359,6 +378,7 @@ run a one-shot startup probe that disables affected operations in the UI rather 
 ---
 
 ### M4. `resolveUv()` cannot see the uv the app itself downloaded
+
 **`src/main/toolResolver.ts:159`** ・ severity **medium** ・ breaks for: a fresh user with no uv, and
 provably **any user who already completed the PiD install**.
 
@@ -381,6 +401,7 @@ hardcoding the hash.
 ---
 
 ### M5. Three of the four recursive model walks have no symlink-cycle guard, and the scan blocks the main process
+
 **`src/main/generate/models.ts:35`**, **`archRegistry.ts:152-177`**, **`comfy/discover.ts:188-209`** ・
 severity **medium**
 
@@ -397,6 +418,7 @@ main thread, and cache keyed on directory mtimes.
 ---
 
 ### M6. No install lock: two concurrent installs destroy each other
+
 **`src/main/ipc.ts:182, 221`** ・ severity **medium**
 
 Neither `pid:install` nor `comfy:install` has in-flight dedupe or a module-level lock, and both
@@ -412,6 +434,7 @@ points (they share every phase anyway); `mkdtempSync` per run instead of fixed t
 ---
 
 ### M7. No disk-space preflight, no resumable downloads, no repair path
+
 **`src/main/pid/install.ts:295`** ・ severity **medium**
 
 `installPid` goes straight from `mkdirSync(pidRoot())` into the phases with no space check
@@ -434,6 +457,7 @@ visible "Repair / remove AI install" button that does `rmSync(pidRoot(), {recurs
 ---
 
 ### M8. `pid/install.ts` forks a weaker downloader than the one in the same repo
+
 **`src/main/pid/install.ts:83`** ・ severity **medium**
 
 `install.ts:70-120` is a private copy of `net/download.ts` missing all three of that file's guards:
@@ -447,6 +471,7 @@ and is populated and is never read by anything.
 ---
 
 ### M9. Downloads use Node's undici `fetch`, not Electron's `net.fetch`
+
 **`src/main/net/download.ts:33`**, **`pid/install.ts:83`** ・ severity **medium**
 
 Both are the Node global: no system-proxy support, and TLS validated against Node's bundled CA list
@@ -467,6 +492,7 @@ traffic, ask IT to allow huggingface.co and github.com".
 ---
 
 ### M10. No integrity verification on anything downloaded, including code that gets executed
+
 **`src/main/net/download.ts:15`**, **`pid/install.ts:70`** ・ severity **medium/high**
 
 `grep -riE "sha256|checksum|createHash|integrity|signature" src/` returns exactly one hit, an
@@ -489,6 +515,7 @@ makes a data-driven model list safe**, so it is a prerequisite for §5, not an o
 ---
 
 ### M11. The GPU gate is "nvidia-smi answered", with no compute-capability or driver floor
+
 **`src/main/pid/gpu.ts:41`** ・ severity **medium**
 
 `detectNvidia` queries only `name,memory.total`; `hasNvidia()` is `detectNvidia() != null`; that is
@@ -511,6 +538,7 @@ chosen per machine.
 ---
 
 ### M12. Zero test coverage for dependency and model resolution
+
 **`test/`** ・ severity **medium**
 
 Grepping all 15 test files for `resolveUv`, `resolveTool`, `resolveSoffice`, `resolveGhostscript`,
@@ -528,6 +556,7 @@ remembered store; `resolveArch()` reports missing companions against a fake mode
 ---
 
 ### Low-severity, worth a cleanup PR
+
 - **`toolResolver.ts:181`** `toolAvailable()` probes with `-version`, which two of the four bundled
   tools reject. Verified against the repo's own binaries: `magick -version` → 0,
   `ffmpeg -version` → 0, **`mutool -version` → exit 1** (prints usage), **`caesiumclt -version` →
@@ -535,7 +564,7 @@ remembered store; `resolveArch()` reports missing companions against a fake mode
   code today (zero renderer callers), but it is the foundation of the M3 preflight.
 - **`toolResolver.ts:43-48, 70`** and **`fetch-binaries.mjs:157-159, 196, 216-219`** hardcode
   `C:\Program Files`. Build from `process.env.ProgramFiles` / `ProgramFiles(x86)` / `ProgramW6432`,
-  keeping the literals as fallback. (Note: Windows localizes only the *display* name; the on-disk
+  keeping the literals as fallback. (Note: Windows localizes only the _display_ name; the on-disk
   path is always `\Program Files`. The real case is a non-C: system drive.) `pid/install.ts:58`
   already does this correctly with `process.env.SystemRoot`.
 - **`generate/comfy.ts:54`** writes `base_path: ${d}` as a bare YAML scalar. A space followed by
@@ -548,7 +577,7 @@ remembered store; `resolveArch()` reports missing companions against a fake mode
   in one line. Copy that.
 - **`fetch-binaries.mjs:94`** uses the **rolling** `ffmpeg-release-essentials.zip`, whose contents
   change with every release, and no download in the file computes a hash. Ghostscript (`:227`) and
-  Real-ESRGAN (`:290`) *are* pinned, so ffmpeg is the only floating URL. `bundleImageMagick`,
+  Real-ESRGAN (`:290`) _are_ pinned, so ffmpeg is the only floating URL. `bundleImageMagick`,
   `bundleCaesium`, `bundleMutool` and `bundleLibreOffice` all source from a **local install found
   via `which()`**, so the shipped bytes depend on your winget state and a bare CI runner cannot
   reproduce the build.
@@ -573,6 +602,7 @@ This is your central worry, and it is correctly placed. Here is the **actual pat
 follow today** to add a new model, per type. I walked each one in the code.
 
 ### 4a. A new ComfyUI checkpoint of a known family (a new Flux 1 finetune, a new SDXL merge)
+
 1. Drop the file in `ComfyUI/models/checkpoints/` or `diffusion_models/`.
 2. Reopen the Generate panel.
 3. It works.
@@ -582,6 +612,7 @@ follow today** to add a new model, per type. I walked each one in the code.
 companions, and the rename-safe byte-size check picks the right Flux 2 encoder. Zero code change.
 
 ### 4b. A new checkpoint **family** (SD3.5, Qwen-Image, Chroma, HiDream, whatever ships next month)
+
 1. Drop the file in `diffusion_models/`.
 2. `classifyArch` returns `'unknown'` (or `'sd3'`).
 3. `models.ts:111-114`: `if (!SUPPORTED.includes(arch)) { unrecognized += 1; continue }`.
@@ -591,6 +622,7 @@ companions, and the rename-safe byte-size check picks the right Flux 2 encoder. 
 5. The user's only recourse is to wait for you to ship a new Filesmith build.
 
 Adding that family requires editing **six places**, none of which is data:
+
 - `src/shared/genArch.ts:14` the `GenArch` union
 - `src/shared/genArch.ts:32` `ARCH_INFO` (sampler, scheduler, steps, cfg, guidance)
 - `src/shared/genArch.ts:152/188/222/255` a hand-written API-format graph, plus the
@@ -613,6 +645,7 @@ it with only a retry button, and the model stays non-runnable forever. There is 
 user-supplied URL, and no "I already have this file, point at it" picker anywhere in the flow.
 
 ### 4c. A new upscaler architecture (DAT, SPAN, ATD, RealPLKSR, SeedVR, the 2026 arch)
+
 **Via ComfyUI import**: 1. Drop the file in `models/upscale_models/`. 2. Click Rescan. 3. spandrel
 probes it and it works, badged "experimental". **This path is genuinely arch-agnostic and needs no
 code change.** Excellent.
@@ -637,6 +670,7 @@ The ncnn binary would happily run any `.param`/`.bin` pair dropped in there, on 
 including AMD. Nothing looks.
 
 ### 4d. A new rembg model (a new BiRefNet generation, BEN2, RMBG-3)
+
 1. There is no UI. Grepping the entire renderer for `bgModel` returns **zero hits**.
 2. `shared/removebg.ts:22` is a four-value compile-time union; `tools/removebg.ts:18-21` clamps
    anything else back to the default.
@@ -652,6 +686,7 @@ not an oversight. It must stay a vetted list. What genuinely rots is that the ve
 compiled code with no data-driven override.
 
 ### 4e. A new PiD backbone
+
 1. There is no UI and no path. `paths.ts:84-91` has exactly one entry, commented "Only flux is wired
    for now".
 2. The identity is hardcoded across four files, **including the IPC boundary**: `ipc.ts:180`
@@ -671,22 +706,22 @@ compiled code with no data-driven override.
 
 ### Where the path rots: the summary table
 
-| Bound thing | File:line | Rots when |
-|---|---|---|
-| `GenArch` union | `shared/genArch.ts:14` | any new checkpoint family ships |
-| `SUPPORTED` allowlist | `generate/models.ts:16` | same; file becomes invisible |
-| Workflow graphs + builder switch | `shared/genArch.ts:152-337` | ComfyUI renames a node |
-| `CLIP_REQ` / `EXTRA_NODES` | `generate/preflight.ts:42-56` | ComfyUI renames a loader `type` enum |
-| 8 companion URLs on `resolve/main` | `generate/archRegistry.ts:36-136` | HF repo reorg or rename |
-| Companion filename regexes | `generate/archRegistry.ts:33-133` | a user's file is named differently |
-| ncnn model names (build + runtime) | `fetch-binaries.mjs:255`, `upscale.ts:13` | any new ncnn upscaler |
-| `VERIFIED_TOKENS` badge list | `shared/comfy.ts:32` | any upscaler released after this build |
-| rembg sessions + version pin | `shared/removebg.ts:22`, `toolResolver.ts:120` | any new matting model |
-| PiD backbone table + IPC literals | `pid/paths.ts:84`, `ipc.ts:180-212` | any new NVIDIA checkpoint |
-| PiD repo `heads/main.zip` + empty marker | `pid/install.ts:30, 135, 170` | upstream touches `_src` |
-| spandrel frozen by version-less marker | `pid/install.ts:305-319` | any new upscaler arch |
-| Dimension clamp 2048, SDXL bucket list | `shared/generate.ts:89-103` | a model with a higher native res |
-| torch pin + cu128 index | `pid/install.ts:236-244` | a non-12.8 CUDA generation |
+| Bound thing                              | File:line                                      | Rots when                              |
+| ---------------------------------------- | ---------------------------------------------- | -------------------------------------- |
+| `GenArch` union                          | `shared/genArch.ts:14`                         | any new checkpoint family ships        |
+| `SUPPORTED` allowlist                    | `generate/models.ts:16`                        | same; file becomes invisible           |
+| Workflow graphs + builder switch         | `shared/genArch.ts:152-337`                    | ComfyUI renames a node                 |
+| `CLIP_REQ` / `EXTRA_NODES`               | `generate/preflight.ts:42-56`                  | ComfyUI renames a loader `type` enum   |
+| 8 companion URLs on `resolve/main`       | `generate/archRegistry.ts:36-136`              | HF repo reorg or rename                |
+| Companion filename regexes               | `generate/archRegistry.ts:33-133`              | a user's file is named differently     |
+| ncnn model names (build + runtime)       | `fetch-binaries.mjs:255`, `upscale.ts:13`      | any new ncnn upscaler                  |
+| `VERIFIED_TOKENS` badge list             | `shared/comfy.ts:32`                           | any upscaler released after this build |
+| rembg sessions + version pin             | `shared/removebg.ts:22`, `toolResolver.ts:120` | any new matting model                  |
+| PiD backbone table + IPC literals        | `pid/paths.ts:84`, `ipc.ts:180-212`            | any new NVIDIA checkpoint              |
+| PiD repo `heads/main.zip` + empty marker | `pid/install.ts:30, 135, 170`                  | upstream touches `_src`                |
+| spandrel frozen by version-less marker   | `pid/install.ts:305-319`                       | any new upscaler arch                  |
+| Dimension clamp 2048, SDXL bucket list   | `shared/generate.ts:89-103`                    | a model with a higher native res       |
+| torch pin + cu128 index                  | `pid/install.ts:236-244`                       | a non-12.8 CUDA generation             |
 
 Thirteen of those fourteen rows are fixed by one mechanism. Build it once.
 
@@ -709,6 +744,7 @@ Three layers, merged by `id`, later layers winning field-by-field:
 ```
 
 Rules, non-negotiable:
+
 - **An app update replaces layer 1 only.** It can never read, write or delete layer 3. This is the
   whole point.
 - **A channel refresh replaces layer 2 wholesale**, only after signature verification. If the
@@ -719,7 +755,7 @@ Rules, non-negotiable:
   user fixes a dead HF URL in 30 seconds without understanding the rest.
 - Each file is `{ "schemaVersion": 1, "entries": [...] }`. On load, entries whose
   `schemaVersion` exceeds the app's are **skipped with a visible note**, never crash the load.
-  A malformed file disables *that file* and surfaces a warning, never bricks the registry.
+  A malformed file disables _that file_ and surfaces a warning, never bricks the registry.
 - `readComfyStore` / `writeComfyStore` (`comfy/store.ts`) is already exactly this pattern at 45
   lines. Generalize it; do not invent something new.
 
@@ -783,6 +819,7 @@ impossible.**
 One entry point, reachable from the Generate panel, the Upscale panel and Settings:
 
 **Add a model** →
+
 - **Point at a file or folder.** App probes it, shows what it inferred (architecture, scale,
   detected companions, missing companions), lets the user correct any field, then registers a user
   entry. This is the 90% case and needs no network.
@@ -872,19 +909,40 @@ This is where a data-driven registry earns its keep or becomes a liability. Non-
 
       "capabilities": {
         "task": "text-to-image",
-        "minDim": 256, "maxDim": 2048, "dimStep": 64,
-        "sizeBuckets": [[1024,1024],[1152,896],[896,1152],[1216,832],[832,1216]]
+        "minDim": 256,
+        "maxDim": 2048,
+        "dimStep": 64,
+        "sizeBuckets": [
+          [1024, 1024],
+          [1152, 896],
+          [896, 1152],
+          [1216, 832],
+          [832, 1216]
+        ]
       },
 
       "sampler": {
-        "name": "res_multistep", "scheduler": "simple",
-        "steps": 8, "cfg": 1, "guidance": 0, "hasGuidance": false
+        "name": "res_multistep",
+        "scheduler": "simple",
+        "steps": 8,
+        "cfg": 1,
+        "guidance": 0,
+        "hasGuidance": false
       },
 
       "requires": {
-        "nodes": ["UNETLoader","CLIPLoader","VAELoader","CLIPTextEncode",
-                  "ModelSamplingAuraFlow","ConditioningZeroOut","EmptySD3LatentImage",
-                  "KSampler","VAEDecode","SaveImage"],
+        "nodes": [
+          "UNETLoader",
+          "CLIPLoader",
+          "VAELoader",
+          "CLIPTextEncode",
+          "ModelSamplingAuraFlow",
+          "ConditioningZeroOut",
+          "EmptySD3LatentImage",
+          "KSampler",
+          "VAEDecode",
+          "SaveImage"
+        ],
         "clipLoader": { "node": "CLIPLoader", "type": "lumina2" },
         "minComfyNote": "Z-Image needs ComfyUI v0.6.0+ (late November 2025)."
       },
@@ -915,27 +973,48 @@ This is where a data-driven registry earns its keep or becomes a liability. Non-
       "workflow": {
         "format": "comfy-api-v1",
         "template": {
-          "1": { "class_type": "UNETLoader",
-                 "inputs": { "unet_name": "${unet}", "weight_dtype": "default" } },
-          "2": { "class_type": "CLIPLoader",
-                 "inputs": { "clip_name": "${clip}", "type": "lumina2", "device": "default" } },
+          "1": {
+            "class_type": "UNETLoader",
+            "inputs": { "unet_name": "${unet}", "weight_dtype": "default" }
+          },
+          "2": {
+            "class_type": "CLIPLoader",
+            "inputs": { "clip_name": "${clip}", "type": "lumina2", "device": "default" }
+          },
           "3": { "class_type": "VAELoader", "inputs": { "vae_name": "${vae}" } },
-          "4": { "class_type": "ModelSamplingAuraFlow",
-                 "inputs": { "model": ["1", 0], "shift": 3 } },
-          "5": { "class_type": "CLIPTextEncode",
-                 "inputs": { "clip": ["2", 0], "text": "${prompt}" } },
+          "4": {
+            "class_type": "ModelSamplingAuraFlow",
+            "inputs": { "model": ["1", 0], "shift": 3 }
+          },
+          "5": {
+            "class_type": "CLIPTextEncode",
+            "inputs": { "clip": ["2", 0], "text": "${prompt}" }
+          },
           "6": { "class_type": "ConditioningZeroOut", "inputs": { "conditioning": ["5", 0] } },
-          "7": { "class_type": "EmptySD3LatentImage",
-                 "inputs": { "width": "${width}", "height": "${height}", "batch_size": 1 } },
-          "8": { "class_type": "KSampler",
-                 "inputs": { "model": ["4", 0], "positive": ["5", 0], "negative": ["6", 0],
-                             "latent_image": ["7", 0], "seed": "${seed}",
-                             "steps": "${steps}", "cfg": "${cfg}",
-                             "sampler_name": "${sampler}", "scheduler": "${scheduler}",
-                             "denoise": 1 } },
+          "7": {
+            "class_type": "EmptySD3LatentImage",
+            "inputs": { "width": "${width}", "height": "${height}", "batch_size": 1 }
+          },
+          "8": {
+            "class_type": "KSampler",
+            "inputs": {
+              "model": ["4", 0],
+              "positive": ["5", 0],
+              "negative": ["6", 0],
+              "latent_image": ["7", 0],
+              "seed": "${seed}",
+              "steps": "${steps}",
+              "cfg": "${cfg}",
+              "sampler_name": "${sampler}",
+              "scheduler": "${scheduler}",
+              "denoise": 1
+            }
+          },
           "9": { "class_type": "VAEDecode", "inputs": { "samples": ["8", 0], "vae": ["3", 0] } },
-          "10": { "class_type": "SaveImage",
-                  "inputs": { "images": ["9", 0], "filename_prefix": "${prefix}" } }
+          "10": {
+            "class_type": "SaveImage",
+            "inputs": { "images": ["9", 0], "filename_prefix": "${prefix}" }
+          }
         }
       }
     }
@@ -954,11 +1033,14 @@ extensibility at all today:
   "label": "Real-ESRGAN anime video v3",
   "provenance": { "source": "user", "addedAt": "2026-07-31T09:12:00Z" },
   "detect": { "ncnnParamBasename": "realesrgan-animevideov3" },
-  "capabilities": { "task": "upscale", "scales": [2, 3, 4],
-                    "inputFormats": [".png", ".jpg", ".webp"] },
+  "capabilities": {
+    "task": "upscale",
+    "scales": [2, 3, 4],
+    "inputFormats": [".png", ".jpg", ".webp"]
+  },
   "files": [
     { "path": "realesrgan-animevideov3.param", "sha256": "..." },
-    { "path": "realesrgan-animevideov3.bin",   "sha256": "..." }
+    { "path": "realesrgan-animevideov3.bin", "sha256": "..." }
   ]
 }
 ```
@@ -997,7 +1079,9 @@ export interface DetectSpec {
 export interface Capabilities {
   task: 'text-to-image' | 'upscale' | 'remove-background'
   /** Generation */
-  minDim?: number; maxDim?: number; dimStep?: number
+  minDim?: number
+  maxDim?: number
+  dimStep?: number
   sizeBuckets?: [number, number][]
   /** Upscale */
   scales?: number[]
@@ -1005,8 +1089,12 @@ export interface Capabilities {
 }
 
 export interface SamplerSpec {
-  name: string; scheduler: string
-  steps: number; cfg: number; guidance: number; hasGuidance: boolean
+  name: string
+  scheduler: string
+  steps: number
+  cfg: number
+  guidance: number
+  hasGuidance: boolean
 }
 
 export interface Requirements {
@@ -1029,8 +1117,7 @@ export interface DownloadSpec {
 }
 
 export type CompanionSubdir =
-  | 'text_encoders' | 'clip' | 'vae' | 'checkpoints' | 'diffusion_models'
-  | 'unet' | 'upscale_models'
+  'text_encoders' | 'clip' | 'vae' | 'checkpoints' | 'diffusion_models' | 'unet' | 'upscale_models'
 
 export interface CompanionSpec {
   role: 'clip' | 'clip2' | 'vae'
@@ -1042,7 +1129,10 @@ export interface CompanionSpec {
 }
 
 /** A companion declared once and referenced by id (e.g. the shared Flux AE). */
-export interface CompanionRef { role: CompanionSpec['role']; ref: string }
+export interface CompanionRef {
+  role: CompanionSpec['role']
+  ref: string
+}
 
 export interface WorkflowSpec {
   format: 'comfy-api-v1'
@@ -1071,19 +1161,26 @@ export interface RegistryEntry {
   schemaVersion?: number
 }
 
-export interface RegistryFile { schemaVersion: number; entries: RegistryEntry[] }
+export interface RegistryFile {
+  schemaVersion: number
+  entries: RegistryEntry[]
+}
 
 /** Merge builtin < channel < user, per id, per field. Pure, unit-testable. */
-export function mergeRegistry(layers: RegistryFile[]): RegistryEntry[] { /* ... */ }
+export function mergeRegistry(layers: RegistryFile[]): RegistryEntry[] {
+  /* ... */
+}
 
 /** Score a probed file against an entry's DetectSpec. 0 = no match. Pure. */
-export function scoreDetect(d: DetectSpec, probe: ProbedFile): number { /* ... */ }
+export function scoreDetect(d: DetectSpec, probe: ProbedFile): number {
+  /* ... */
+}
 ```
 
 Note that `ARCH_INFO` (`shared/genArch.ts:32`) is already a per-arch data table that the UI reads
 from (`OptionsPanel.tsx:999` hides the negative prompt when `info.cfg === 1`), and
 `classifyModel` (`shared/comfy.ts:57`) **already accepts a `tokens` parameter**. The indirection you
-need mostly exists. This is a change of *source*, not of *shape*.
+need mostly exists. This is a change of _source_, not of _shape_.
 
 ---
 
@@ -1094,6 +1191,7 @@ are days of work and remove most of the "only works on the developer's machine" 
 are the registry. Phases 7 to 8 are hardening.
 
 **Phase 1 · Make a build on any machine either correct or loud** (highest impact per line)
+
 - `scripts/fetch-binaries.mjs:342` extend the required-check to the three trees; add `--skip=<tree>`
   that also drops the `extraResources` entry.
 - `src/main/tools/soffice.ts:28` use `pathToFileURL().href`; add the spaced-path test in
@@ -1105,6 +1203,7 @@ are the registry. Phases 7 to 8 are hardening.
   `tools/registry.ts`, `toolResolver.ts`, `test/documents.test.ts`.
 
 **Phase 2 · Let the user say where ComfyUI is, from anywhere**
+
 - Un-gate the picker from `hasNvidia` (`OptionsPanel.tsx:405`) and from `engineReady`
   (`ComfyImport.tsx:81`); add "Locate my ComfyUI" inline in `GenerateOptions` where the dead-end
   text is today (`OptionsPanel.tsx:974`).
@@ -1114,6 +1213,7 @@ are the registry. Phases 7 to 8 are hardening.
 - Touches: `OptionsPanel.tsx`, `ComfyImport.tsx`, `comfy/discover.ts`, `comfy/pythonEnv.ts`.
 
 **Phase 3 · Stop lying about availability, and stop deadlocking**
+
 - `generate/comfy.ts:92` attach `stdout.resume()` + stderr-tail; bail on `exit`; include the tail in
   the timeout error. (This is a live hang fix, not cosmetics.)
 - `generate/comfy.ts:73` make `comfyGenerationAvailable` probe a live server; add a "ComfyUI server
@@ -1123,6 +1223,7 @@ are the registry. Phases 7 to 8 are hardening.
 - Touches: `generate/comfy.ts`, `generate/models.ts`, `ipc.ts`, `OptionsPanel.tsx`.
 
 **Phase 4 · Ship the registry loader with today's data, no behaviour change**
+
 - New `src/shared/registry.ts` (types + `mergeRegistry` + `scoreDetect`, pure) and
   `src/main/registry/load.ts` (three-layer load, schema validation, path constraints, provenance).
 - Move `ARCH_INFO`, the four workflow graphs, `CLIP_REQ`, `EXTRA_NODES` and `requiredCompanions`
@@ -1133,6 +1234,7 @@ are the registry. Phases 7 to 8 are hardening.
   `generate/archRegistry.ts`, `test/gen-registry.test.ts`.
 
 **Phase 5 · Integrity, then the user layer**
+
 - Add `sha256` to `DownloadSpec` and verify while streaming in `net/download.ts`; delete
   `pid/install.ts:70-120`'s private fork and call `downloadFile` with
   `minBytes = approxBytes * 0.9`. Switch both to `net.fetch` and map `err.cause.code` to real
@@ -1142,6 +1244,7 @@ are the registry. Phases 7 to 8 are hardening.
 - Touches: `net/download.ts`, `pid/install.ts`, `generate/companions.ts`, `ipc.ts`, new UI.
 
 **Phase 6 · Retire the remaining hardcoded catalogs**
+
 - Real-ESRGAN: enumerate `resources/realesrgan/models/*.param` plus a user overlay under
   `userData/models/realesrgan`; derive the picker from disk (`upscale.ts:13`,
   `shared/compress.ts:70-73`, `fetch-binaries.mjs:255`). This un-freezes the only AI upscaler an
@@ -1160,6 +1263,7 @@ are the registry. Phases 7 to 8 are hardening.
   `pid/paths.ts`, `pid/install.ts`, `ipc.ts`, `generate/archRegistry.ts`, `shared/comfy.ts`.
 
 **Phase 7 · Channel updates and the "try anyway" escape hatch**
+
 - Ed25519-signed channel refresh into layer 2, once a day, background, silent-fail-to-cache
   (`crypto.verify`, no dependency). This is the lever that fixes a dead HF URL for everyone in a day.
 - "Try anyway" on unknown generation models with a generic graph, surfacing ComfyUI's own error.
@@ -1169,6 +1273,7 @@ are the registry. Phases 7 to 8 are hardening.
   (`shared/generate.ts:89-103`).
 
 **Phase 8 · Robustness and the remaining hardening**
+
 - Install lock + `mkdtempSync` temp dirs (`ipc.ts:182/221`, `install.ts:137/144/205`); disk-space
   preflight via `fs.statfs`; `Range`-resumable downloads; a visible "Repair / remove AI install".
 - Symlink-cycle guards on `models.ts:35`, `archRegistry.ts:152`, `discover.ts:188`; move the scan
@@ -1207,8 +1312,8 @@ Things I looked at and am deliberately **not** recommending you fix.
   an error-message fix, not a security fix.
 - **The rembg model allowlist as a concept.** `shared/removebg.ts:1-12` documents a real per-model
   licence audit (bria-rmbg CC BY-NC, u2net_human_seg's Supervisely provenance, isnet-anime's scraped
-  provenance, sam being the wrong tool). Keep it vetted. Phase 6 moves *where the list lives*, not
-  *whether it is a list*. Do not open it up.
+  provenance, sam being the wrong tool). Keep it vetted. Phase 6 moves _where the list lives_, not
+  _whether it is a list_. Do not open it up.
 - **Localized Windows folder names.** Windows localizes only the Explorer display name;
   `%USERPROFILE%\Desktop` and `\Documents` are the real on-disk paths, which is exactly what
   `join(homedir(), 'Desktop')` produces. The genuine cases are OneDrive redirection and non-C/D/E

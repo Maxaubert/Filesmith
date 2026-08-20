@@ -81,11 +81,21 @@ describe('reading a GGUF header', () => {
   it('skips non-string metadata values of every scalar type', () => {
     // The KV block must be walked exactly, or the tensor names read as garbage.
     const extra = [
-      str('a.u32'), u32(4), u32(7),
-      str('b.f32'), u32(6), Buffer.from(Float32Array.of(1.5).buffer),
-      str('c.bool'), u32(7), Buffer.from([1]),
-      str('d.u64'), u32(10), u64(9),
-      str('e.i16'), u32(3), Buffer.from([0xff, 0xff])
+      str('a.u32'),
+      u32(4),
+      u32(7),
+      str('b.f32'),
+      u32(6),
+      Buffer.from(Float32Array.of(1.5).buffer),
+      str('c.bool'),
+      u32(7),
+      Buffer.from([1]),
+      str('d.u64'),
+      u32(10),
+      u64(9),
+      str('e.i16'),
+      u32(3),
+      Buffer.from([0xff, 0xff])
     ]
     const p = writeGguf('mixed.gguf', ['cap_embedder.w', 'noise_refiner.w'], {}, extra)
     expect(readGgufHeader(p)?.keys).toEqual(['cap_embedder.w', 'noise_refiner.w'])
@@ -151,7 +161,9 @@ describe('the GGUF workflow', () => {
       const wf = registryEntry(id)?.workflow
       expect(wf, `${id} has no workflow`).toBeDefined()
       const derived = deriveGgufWorkflow(wf!)
-      expect(Object.values(derived.template).some((n) => n.class_type === GGUF_UNET_NODE)).toBe(true)
+      expect(Object.values(derived.template).some((n) => n.class_type === GGUF_UNET_NODE)).toBe(
+        true
+      )
     }
   })
 })

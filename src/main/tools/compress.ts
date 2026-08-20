@@ -31,7 +31,9 @@ export function buildCompressArgs(input: string, outDir: string, quality: number
  * single-frame target reads only `input[0]` (so a multi-frame source doesn't
  * split); a multi-frame target keeps every frame (animated GIF -> animated WebP). */
 export function buildMagickCompressArgs(input: string, output: string, quality: number): string[] {
-  const src = MULTIFRAME_TARGETS.includes(normalizeExt(extname(output))) ? input : magickFrame(input)
+  const src = MULTIFRAME_TARGETS.includes(normalizeExt(extname(output)))
+    ? input
+    : magickFrame(input)
   return [src, '-quality', String(quality), output]
 }
 

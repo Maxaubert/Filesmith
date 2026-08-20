@@ -36,7 +36,9 @@ function norm(s: string): string {
 /** Find the exact string ComfyUI reports for a file we resolved from disk. */
 function resolveName(accepted: string[], wanted: string): string | null {
   const w = norm(wanted)
-  return accepted.find((a) => norm(a) === w) ?? accepted.find((a) => norm(a).endsWith('/' + w)) ?? null
+  return (
+    accepted.find((a) => norm(a) === w) ?? accepted.find((a) => norm(a).endsWith('/' + w)) ?? null
+  )
 }
 
 // Which CLIP loader + "type" enum value, and which non-loader nodes, each arch
@@ -71,7 +73,8 @@ function missingNodeError(arch: GenArch, node: string): Error {
     )
   const note = registryEntry(arch)?.requires?.minComfyNote
   return new Error(
-    note ?? `Your ComfyUI is missing the "${node}" node — update ComfyUI to the latest version and try again.`
+    note ??
+      `Your ComfyUI is missing the "${node}" node — update ComfyUI to the latest version and try again.`
   )
 }
 

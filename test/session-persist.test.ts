@@ -39,13 +39,24 @@ const result = (id: string, src: string, out: string): QueueItem => ({
 function stateWith(items: QueueItem[]): AppState {
   return {
     ...initialState,
-    queues: { images: { items, selected: [items[0]?.id].filter(Boolean) as string[], anchor: items[0]?.id ?? null } }
+    queues: {
+      images: {
+        items,
+        selected: [items[0]?.id].filter(Boolean) as string[],
+        anchor: items[0]?.id ?? null
+      }
+    }
   }
 }
 
 describe('session persistence round-trip', () => {
   it('snapshots and restores a session, stripping thumbs and settling in-flight items', () => {
-    const running: QueueItem = { ...source('a', 'C:/in/a.png'), status: 'running', percent: 42, thumb: 'data:big' }
+    const running: QueueItem = {
+      ...source('a', 'C:/in/a.png'),
+      status: 'running',
+      percent: 42,
+      thumb: 'data:big'
+    }
     const state = stateWith([running, result('b', 'C:/in/a.png', 'C:/out/a (converted).png')])
     const snap = sessionSnapshot(state, ['C:/gen/one.png'])
     const parsed = parseSession(snap)
@@ -70,7 +81,10 @@ describe('session persistence round-trip', () => {
   })
 
   it('collects every on-disk path referenced by the session', () => {
-    const state = stateWith([source('a', 'C:/in/a.png'), result('b', 'C:/in/a.png', 'C:/out/b.png')])
+    const state = stateWith([
+      source('a', 'C:/in/a.png'),
+      result('b', 'C:/in/a.png', 'C:/out/b.png')
+    ])
     const paths = sessionPaths(state, ['C:/gen/g.png'])
     expect(new Set(paths)).toEqual(new Set(['C:/in/a.png', 'C:/out/b.png', 'C:/gen/g.png']))
   })
