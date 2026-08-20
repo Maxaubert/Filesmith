@@ -360,12 +360,22 @@ export default function App(): JSX.Element {
   // produced file before dropping the card.
   function dismiss(ids: string[], column: 'input' | 'output'): void {
     for (const id of ids) {
+      const it = cur.items.find((x) => x.id === id)
+      // Removing an in-flight row must not orphan its process: cancel the job
+      // first, or ffmpeg keeps encoding headless and writes an untracked file.
+      if (column === 'input' && it && (it.status === 'queued' || it.status === 'running')) {
+        void window.filesmith.cancelJob(id)
+      }
       if (column === 'output') {
-        const it = cur.items.find((x) => x.id === id)
         if (it?.outputPath) void window.filesmith.trashFile(it.outputPath)
       }
       dispatch({ type: 'dismiss', id, column })
     }
+  }
+
+  /** Stop a queued or running job; the engine emits the terminal 'canceled'. */
+  function cancelJob(id: string): void {
+    void window.filesmith.cancelJob(id)
   }
 
   // Build the right-click / ⋯ menu for a queue item. Destructive actions apply
@@ -383,6 +393,11 @@ export default function App(): JSX.Element {
     const n = targets.length
 
     if (side === 'input') {
+      // Cancel applies to whichever of the targeted rows are actually in flight.
+      const cancellable = targets.filter((id) => {
+        const it = cur.items.find((x) => x.id === id)
+        return it != null && (it.status === 'queued' || it.status === 'running')
+      })
       setMenu({
         x,
         y,
@@ -393,6 +408,15 @@ export default function App(): JSX.Element {
             icon: 'folder',
             onClick: () => window.filesmith.reveal(item.file.path)
           },
+          ...(cancellable.length
+            ? [
+                {
+                  label: cancellable.length > 1 ? `Cancel ${cancellable.length} jobs` : 'Cancel',
+                  icon: 'close' as const,
+                  onClick: () => cancellable.forEach(cancelJob)
+                }
+              ]
+            : []),
           { sep: true },
           {
             label: n > 1 ? `Remove ${n} from list` : 'Remove from list',
@@ -879,6 +903,7 @@ export default function App(): JSX.Element {
                   onItemClick={onItemClick}
                   onOpen={openPreview}
                   onMenu={openMenu}
+                  onCancel={cancelJob}
                 />
               </>
             )}

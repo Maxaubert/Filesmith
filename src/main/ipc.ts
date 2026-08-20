@@ -48,7 +48,14 @@ function isSupported(f: FileInfo): boolean {
 
 /** Wire the renderer <-> engine channels for one window. */
 export function registerIpc(win: BrowserWindow): JobQueue {
-  const queue = new JobQueue((e: JobEvent) => win.webContents.send('job:event', e))
+  // Progress/terminal events can fire while the window is tearing down (the
+  // estimate ticker runs on a 200ms interval; macOS keeps the app alive with
+  // no window at all). Sending to a destroyed webContents throws, so every
+  // engine->renderer push goes through this guard.
+  const send = (channel: string, payload: unknown): void => {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, payload)
+  }
+  const queue = new JobQueue((e: JobEvent) => send('job:event', e))
 
   // Custom (frameless) window controls — act on the sender's window so both the
   // main window and the preview window control themselves.
@@ -217,7 +224,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   ipcMain.handle('pid:installing', () => installInProgress())
   ipcMain.handle('pid:install', async (_e, backbone = 'flux') => {
     try {
-      await installPid(backbone, (step, pct) => win.webContents.send('pid:progress', { step, pct }))
+      await installPid(backbone, (step, pct) => send('pid:progress', { step, pct }))
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
@@ -260,7 +267,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   })
   ipcMain.handle('comfy:install', async () => {
     try {
-      await installComfyEngine((step, pct) => win.webContents.send('comfy:progress', { step, pct }))
+      await installComfyEngine((step, pct) => send('comfy:progress', { step, pct }))
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
@@ -322,9 +329,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
   })
   ipcMain.handle('generate:download', async (_e, id: string, model: string) => {
     try {
-      await downloadCompanions(model, (p) =>
-        win.webContents.send('generate:download-progress', { id, ...p })
-      )
+      await downloadCompanions(model, (p) => send('generate:download-progress', { id, ...p }))
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
@@ -337,9 +342,9 @@ export function registerIpc(win: BrowserWindow): JobQueue {
     try {
       await generateImages(
         opts,
-        (index, path) => win.webContents.send('generate:image', { id, index, path }),
-        (index, pct) => win.webContents.send('generate:progress', { id, index, pct }),
-        (message) => win.webContents.send('generate:progress', { id, index: -1, message }),
+        (index, path) => send('generate:image', { id, index, path }),
+        (index, pct) => send('generate:progress', { id, index, pct }),
+        (message) => send('generate:progress', { id, index: -1, message }),
         ctrl.signal
       )
       return { ok: true }

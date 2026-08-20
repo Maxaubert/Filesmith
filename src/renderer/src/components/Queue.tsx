@@ -108,7 +108,8 @@ function InputCard({
   compatible,
   onClick,
   onOpen,
-  onMenu
+  onMenu,
+  onCancel
 }: {
   item: QueueItem
   tool: ToolId
@@ -118,6 +119,7 @@ function InputCard({
   onClick: (e: MouseEvent) => void
   onOpen: () => void
   onMenu: (x: number, y: number) => void
+  onCancel: () => void
 }): JSX.Element {
   // Determinate only once the job reports a real percentage — a long encode
   // legitimately sits at 0-1% for a while and must NOT fall back to the fake fill.
@@ -174,7 +176,21 @@ function InputCard({
       </div>
       <div className="flex shrink-0 items-center gap-1 pr-0.5">
         <Kebab onOpen={onMenu} />
-        <StatusCell item={item} />
+        {/* An in-flight row is stoppable right where its status shows. */}
+        {item.status === 'running' || item.status === 'queued' ? (
+          <button
+            title="Stop"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCancel()
+            }}
+            className="no-drag grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg text-[#9a9aa6] transition hover:bg-[#f0f0f5] hover:text-[#e0483d]"
+          >
+            <Icon name="close" className="h-3.5 w-3.5" strokeWidth={2.5} />
+          </button>
+        ) : (
+          <StatusCell item={item} />
+        )}
       </div>
     </div>
   )
@@ -263,7 +279,8 @@ export function Queues({
   outThumbs,
   onItemClick,
   onOpen,
-  onMenu
+  onMenu,
+  onCancel
 }: {
   items: QueueItem[]
   tool: ToolId
@@ -274,6 +291,7 @@ export function Queues({
   onItemClick: (id: string, e: MouseEvent) => void
   onOpen: (side: 'input' | 'output', item: QueueItem) => void
   onMenu: (side: 'input' | 'output', item: QueueItem, x: number, y: number) => void
+  onCancel: (id: string) => void
 }): JSX.Element {
   const inputs = items.filter(inInput)
   const done = items.filter(inOutput)
@@ -310,6 +328,7 @@ export function Queues({
             onClick={(e) => onItemClick(i.id, e)}
             onOpen={() => onOpen('input', i)}
             onMenu={(x, y) => onMenu('input', i, x, y)}
+            onCancel={() => onCancel(i.id)}
           />
         ))}
       </Column>

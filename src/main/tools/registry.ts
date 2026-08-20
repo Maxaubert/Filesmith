@@ -725,9 +725,14 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
     }
     output = reserveOutPath(file.path, '.png', 'upscaled')
     ctx.onProgress(undefined, 'Starting PiD…')
+    // The sidecar writes to a temp target, copied onto the reserved name only
+    // on success: a cancelled python run keeps going and writes its target
+    // LATE, which used to land on a path the app had already released (and
+    // could clobber a later job's reserved output).
+    const sidecarOut = join(tmp, 'result.png')
     const { output: out } = await pidSidecar.upscale(
       src,
-      output,
+      sidecarOut,
       factor,
       (phase, detail) => {
         if (phase === 'starting' || phase === 'loading') {
@@ -751,7 +756,8 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
     // Diffusion output is RGB; carry the source's transparency across like the
     // Real-ESRGAN path does, so a transparent PNG doesn't come back opaque.
     await restoreAlpha(file.path, out, ctx, tmp)
-    return out
+    copyFileSync(out, output)
+    return output
   } catch (e) {
     try {
       if (output && existsSync(output)) rmSync(output, { force: true })
@@ -761,7 +767,11 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
     throw e
   } finally {
     stopEst()
-    rmSync(tmp, { recursive: true, force: true })
+    try {
+      rmSync(tmp, { recursive: true, force: true })
+    } catch {
+      /* a just-killed sidecar may still hold a temp file; the startup sweeper gets it */
+    }
   }
 }
 
@@ -797,9 +807,13 @@ async function upscaleWithComfy(
       ? `Upscaling with ${model.name} (background)…`
       : `Upscaling with ${model.name}…`
     ctx.onProgress(0, label)
+    // Temp target, copied onto the reserved name on success — same reasoning
+    // as the PiD path: a cancelled sidecar run finishes late and must not
+    // write onto a released (or re-reserved) name.
+    const sidecarOut = join(tmp, 'result.png')
     // Background: smaller tiles + a VRAM cap + inter-tile pacing so the GPU stays
     // free for other apps, at the cost of speed.
-    const { output: out } = await spandrelSidecar.upscale(model.path, src, output, factor, {
+    const { output: out } = await spandrelSidecar.upscale(model.path, src, sidecarOut, factor, {
       tile: background ? 256 : 512,
       memFraction: background ? 0.3 : 0,
       paceMs: background ? 150 : 0,
@@ -809,7 +823,8 @@ async function upscaleWithComfy(
     if (!existsSync(out) || statSync(out).size === 0)
       throw new Error('The upscaler produced no output')
     await restoreAlpha(file.path, out, ctx, tmp)
-    return out
+    copyFileSync(out, output)
+    return output
   } catch (e) {
     try {
       if (output && existsSync(output)) rmSync(output, { force: true })
@@ -818,7 +833,11 @@ async function upscaleWithComfy(
     }
     throw e
   } finally {
-    rmSync(tmp, { recursive: true, force: true })
+    try {
+      rmSync(tmp, { recursive: true, force: true })
+    } catch {
+      /* a just-killed sidecar may still hold a temp file; the startup sweeper gets it */
+    }
   }
 }
 
