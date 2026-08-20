@@ -43,6 +43,30 @@ export function resolveTool(name: string): string {
 }
 
 /**
+ * Point the bundled ImageMagick at its own coder modules. The shipped magick is
+ * the dynamic *modules* build: every format decoder/encoder is a DLL under
+ * bin/modules/coders, located at runtime via MAGICK_CODER_MODULE_PATH. Without
+ * it, magick falls back to its compiled-in Program Files path — which exists on
+ * a dev machine and hides the problem, and does not exist on a clean install,
+ * where every image operation dies with "no decode delegate".
+ *
+ * Set on process.env once at startup so every spawned child inherits it. Only
+ * set when the bundled magick + modules are actually present: pointing some
+ * other ImageMagick install at our version-specific coders would break it, and
+ * when the bundled magick is present resolveTool() always picks it.
+ */
+export function configureBundledMagickEnv(): void {
+  const bin = bundledDir()
+  const coders = join(bin, 'modules', 'coders')
+  if (!existsSync(join(bin, 'magick' + EXE)) || !existsSync(coders)) return
+  process.env.MAGICK_CODER_MODULE_PATH = coders
+  const filters = join(bin, 'modules', 'filters')
+  if (existsSync(filters)) process.env.MAGICK_CODER_FILTER_PATH = filters
+  // The xml config (delegates, policy, …) sits flat in bin next to magick.exe.
+  process.env.MAGICK_CONFIGURE_PATH = bin
+}
+
+/**
  * Resolve LibreOffice's `soffice`. LibreOffice is a full install tree (not a
  * single exe), so it lives in resources/libreoffice/ rather than the flat bin
  * dir. Prefer the bundled copy, then PATH, then the usual Windows install dirs.

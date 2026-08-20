@@ -7,8 +7,13 @@
  *
  * Strategy per tool:
  *  - ImageMagick (magick.exe + its DLL/XML/ICC runtime): copied from the local
- *    winget/Program Files install. It's the dynamic build, so magick.exe needs
- *    its sibling DLLs — a flat copy into resources/bin keeps them together.
+ *    winget/Program Files install. It's the dynamic *modules* build, so
+ *    magick.exe needs its sibling DLLs — a flat copy into resources/bin keeps
+ *    them together — AND the coder DLLs under modules/coders (one per format:
+ *    PNG, JPEG, WebP, …). Without the modules tree the shipped magick cannot
+ *    decode anything ("no decode delegate"); a dev machine hides that because
+ *    magick falls back to its compiled-in Program Files path. The spawn env
+ *    points at the bundled tree (see toolResolver.magickEnv).
  *  - CaesiumCLT (caesiumclt.exe): a single self-contained exe, copied from the
  *    local install.
  *  - ffmpeg (ffmpeg.exe): downloaded from gyan.dev's "essentials" build. The
@@ -55,7 +60,11 @@ function which(name) {
   }
 }
 
-/** ImageMagick: copy magick.exe plus its runtime siblings (dynamic build). */
+/** ImageMagick: copy magick.exe plus its runtime siblings (dynamic build), AND
+ * the modules/ tree (coders + filters). The winget build loads one DLL per
+ * format from modules/coders at runtime; shipping magick.exe without them
+ * produces an installer where every image operation fails with "no decode
+ * delegate" on any machine that has no system ImageMagick to fall back to. */
 function bundleImageMagick() {
   const magick = which('magick')
   if (!magick) {
@@ -75,7 +84,17 @@ function bundleImageMagick() {
       bytes += statSync(src).size
     }
   }
-  log(`  ✓ ImageMagick: ${files} files (${(bytes / MB).toFixed(1)} MB)`)
+  const modules = join(dir, 'modules')
+  if (existsSync(modules)) {
+    rmSync(join(BIN, 'modules'), { recursive: true, force: true })
+    cpSync(modules, join(BIN, 'modules'), { recursive: true })
+    const coders = join(BIN, 'modules', 'coders')
+    const n = existsSync(coders) ? readdirSync(coders).filter((f) => f.endsWith('.dll')).length : 0
+    log(`  ✓ ImageMagick: ${files} files + ${n} coder modules`)
+  } else {
+    // A static build compiles the coders in; only the modules build needs them.
+    log(`  ✓ ImageMagick: ${files} files (static build, no modules dir)`)
+  }
 }
 
 /** CaesiumCLT: a single self-contained exe. */
@@ -114,14 +133,21 @@ async function bundleFfmpeg() {
     log(`  ✓ ffmpeg: ffmpeg.exe + ffprobe.exe (${mb(join(BIN, 'ffmpeg.exe'))} MB)`)
   } catch (e) {
     log(`  ! ffmpeg download failed (${e.message})`)
-    const local = which('ffmpeg')
-    const localProbe = which('ffprobe')
-    if (local) {
-      copyFileSync(local, join(BIN, 'ffmpeg.exe'))
-      if (localProbe) copyFileSync(localProbe, join(BIN, 'ffprobe.exe'))
-      log(`  ✓ ffmpeg: copied local build (${mb(join(BIN, 'ffmpeg.exe'))} MB — larger than essentials)`)
+    // The local winget build is the ~227 MB "full" static one. Falling back to
+    // it silently once produced a 553 MB installer, so the fallback is opt-in.
+    if (process.argv.includes('--allow-local-ffmpeg')) {
+      const local = which('ffmpeg')
+      const localProbe = which('ffprobe')
+      if (local) {
+        copyFileSync(local, join(BIN, 'ffmpeg.exe'))
+        if (localProbe) copyFileSync(localProbe, join(BIN, 'ffprobe.exe'))
+        log(`  ✓ ffmpeg: copied local build (${mb(join(BIN, 'ffmpeg.exe'))} MB — larger than essentials)`)
+      } else {
+        log('    ffmpeg not bundled; video/audio convert will fall back to PATH')
+      }
     } else {
-      log('    ffmpeg not bundled; video/audio convert will fall back to PATH')
+      log('    NOT falling back to the local "full" build (~227 MB per exe).')
+      log('    Re-run with network access, or pass --allow-local-ffmpeg to accept the size.')
     }
   } finally {
     rmSync(tmp, { recursive: true, force: true })
@@ -380,6 +406,34 @@ function assertBundled() {
         what: 'core convert/compress/PDF',
         how: 'winget install ImageMagick.ImageMagick Gyan.FFmpeg ArtifexSoftware.mutool SaeraSoft.CaesiumCLT'
       })
+
+  // The essentials ffmpeg is ~90 MB; the local "full" static build is ~227 MB
+  // per exe. Existence alone once let a stale full build ride into a 553 MB
+  // installer, so size is part of the contract.
+  const FFMPEG_CEILING = 120 * MB
+  for (const f of ['ffmpeg.exe', 'ffprobe.exe']) {
+    const p = join(BIN, f)
+    if (existsSync(p) && statSync(p).size > FFMPEG_CEILING)
+      missing.push({
+        id: f,
+        what: `installer size (${mb(p)} MB — the "full" build leaked in)`,
+        how: 'delete resources/bin/ffmpeg.exe + ffprobe.exe and re-run to fetch essentials, or pass --allow-local-ffmpeg deliberately'
+      })
+  }
+
+  // A small magick.exe is the modules build: it decodes nothing without its
+  // coder DLLs. A static build (~30+ MB) compiles them in and needs no tree.
+  const magick = join(BIN, 'magick.exe')
+  if (existsSync(magick) && statSync(magick).size < 5 * MB) {
+    const coders = join(BIN, 'modules', 'coders')
+    const ok = existsSync(coders) && readdirSync(coders).some((f) => f.endsWith('.dll'))
+    if (!ok)
+      missing.push({
+        id: 'magick modules',
+        what: 'every image operation ("no decode delegate" on a clean install)',
+        how: 'delete resources/bin/magick.exe and re-run so the modules/ tree is copied too'
+      })
+  }
 
   for (const t of REQUIRED_TREES) {
     const base = t.id.split('-')[0]

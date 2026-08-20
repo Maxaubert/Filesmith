@@ -4,6 +4,7 @@ import { createReadStream, readdirSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { Readable } from 'stream'
 import { registerIpc } from './ipc'
+import { configureBundledMagickEnv } from './toolResolver'
 import { pidSidecar } from './pid/sidecar'
 import { spandrelSidecar } from './comfy/sidecar'
 import { stopComfyServer } from './generate'
@@ -194,6 +195,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     sweepStaleTempDirs()
+    // The bundled magick needs MAGICK_CODER_MODULE_PATH before the first spawn.
+    configureBundledMagickEnv()
 
     // Create the writable registry layers so a user can drop a model file in
     // without having to guess (or create) the path first.
