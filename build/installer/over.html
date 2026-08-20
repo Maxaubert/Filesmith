@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Filesmith setup overlay</title>
+<!--
+  The installer's foreground, drawn once per screen and composited over the
+  video loop at runtime.
+
+  Ported from the Prism setup kit; same treatment: no panel anywhere. Type sits straight on the picture,
+  held up by weight and a shadow rather than a box. Which means every pixel here
+  needs an alpha channel, so make-over.cjs renders each screen twice, once on
+  black and once on white, and solves for the alpha it cannot capture directly.
+
+  Anything the installer has to write at runtime (the install path, the progress
+  fill) is NOT drawn here. It leaves a gap and NSIS paints into it, because the
+  words change and the bitmap cannot.
+-->
+<style>
+  * { box-sizing: border-box; margin: 0 }
+  /* Two panes, same overlay, one on black and one on white, captured together.
+     Swapping a background between two captures does not survive an off-screen
+     window: the second capture comes back stale and the alpha solves to opaque. */
+  html, body { width: 1280px; height: 480px; overflow: hidden }
+  body { display: flex; color: #f6f7fb; -webkit-font-smoothing: antialiased;
+    font: 400 13px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif }
+  .pane { position: relative; width: 640px; height: 480px; overflow: hidden; flex: none }
+  .pane.k { background: #000 } .pane.w { background: #fff }
+  .disp { font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif }
+
+  /* the caption is ours now: no OS title bar behind any of this */
+  .cap { position: absolute; left: 0; right: 0; top: 0; height: 38px; display: flex; align-items: center;
+    padding-left: 14px; gap: 9px }
+  .cap .who { font-size: 12px; font-weight: 620; color: rgba(255,255,255,.92); text-shadow: 0 1px 6px rgba(0,0,0,.8) }
+  .cap .file { font-size: 11px; color: rgba(255,255,255,.45); text-shadow: 0 1px 6px rgba(0,0,0,.8) }
+  .cap .wc { margin-left: auto; display: flex; height: 100% }
+  .cap .wc i { width: 44px; height: 38px; display: grid; place-items: center; font-style: normal; font-size: 12px;
+    color: rgba(255,255,255,.62) }
+  .cap .wc i.hot { background: rgba(255,255,255,.14); color: #fff }
+  .cap .wc i.x.hot { background: #c42b1c; color: #fff }
+
+  /* A shade, not a scrim: an ellipse of darkness under the words only, so the
+     picture stays uncovered everywhere else. The loop runs long enough now that
+     the ink does eventually reach the bottom of the frame. */
+  .shade { position: absolute; left: -60px; right: 20%; bottom: -80px; height: 340px;
+    background: radial-gradient(58% 62% at 34% 62%, rgba(4,5,9,.82), rgba(4,5,9,.5) 45%, transparent 72%) }
+  /* the block of words, bottom left */
+  .pad { position: absolute; left: 34px; right: 34px; bottom: 30px }
+  h1 { font-size: 30px; font-weight: 720; letter-spacing: -.025em; line-height: 1.08;
+    text-shadow: 0 2px 22px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.5) }
+  p { margin-top: 9px; font-size: 12.5px; color: rgba(255,255,255,.74); line-height: 1.5;
+    text-shadow: 0 1px 12px rgba(0,0,0,.85) }
+  .row { margin-top: 20px; display: flex; align-items: center; gap: 10px }
+
+  .cta { height: 36px; border: 0; border-radius: 8px; padding: 0 20px; font: inherit; font-size: 13px;
+    font-weight: 680; background: #5b5bd6; color: #fff; box-shadow: 0 10px 26px -12px #5b5bd6 }
+  .cta.hot { background: #6b6be2 }
+  .ghost { height: 36px; border: 1px solid rgba(255,255,255,.26); border-radius: 8px; padding: 0 16px; font: inherit;
+    font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,.06); color: #cdd2dc }
+  .ghost.hot { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.5) }
+
+  /* The path box is drawn; the path inside it is not. NSIS writes that. */
+  .field { display: flex; align-items: center; gap: 10px; height: 34px; border: 1px solid rgba(255,255,255,.2);
+    border-radius: 9px; padding: 0 5px 0 11px; background: rgba(10,11,17,.62); flex: 1; min-width: 0 }
+  .field .gap { flex: 1; height: 100% }
+  .browse { height: 26px; border: 1px solid rgba(255,255,255,.2); border-radius: 7px; padding: 0 11px; font: inherit;
+    font-size: 11.5px; font-weight: 600; background: rgba(255,255,255,.09); color: #cdd2dc }
+  .browse.hot { background: rgba(255,255,255,.18); color: #fff }
+
+  /* Trough only. The indigo fill is a rectangle NSIS paints as it copies. */
+  .track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.22);
+    box-shadow: 0 2px 14px rgba(0,0,0,.5) }
+  .pct { font-size: 12px; color: rgba(255,255,255,.8); text-shadow: 0 1px 10px rgba(0,0,0,.85);
+    font-variant-numeric: tabular-nums; width: 42px; text-align: right }
+
+  /* The options on the finish screen. `hollow` leaves the box out of the art
+     entirely, so setup can paint it in whichever state it is actually in. */
+  .row.opt { margin-top: 11px; display: flex; align-items: center; gap: 10px; font-size: 12.5px;
+    color: rgba(255,255,255,.82); text-shadow: 0 1px 10px rgba(0,0,0,.85) }
+  .box { width: 18px; height: 18px; border-radius: 5px; flex: none; display: grid; place-items: center;
+    border: 1.5px solid rgba(255,255,255,.34); background: rgba(10,11,17,.5) }
+  .box.hollow { border-color: transparent; background: transparent }
+  .box.on { background: #5b5bd6; border-color: #5b5bd6 }
+  .box.on::after { content: ""; width: 9px; height: 4.5px; border: 2px solid #fff; border-top: 0; border-right: 0;
+    transform: rotate(-45deg) translate(1px,-1px) }
+</style>
+</head>
+<body>
+<div class="pane k" id="k"></div><div class="pane w" id="w"></div>
+<script>
+// The Filesmith mark, straight from the app's own asset.
+const FMARK = 'data:image/png;base64,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'
+const MARK = (s) => `<img src="${FMARK}" width="${s}" height="${s}"
+  style="display:block;flex:none" />`
+const FOLDER = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8b919e" stroke-width="1.7"
+  stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`
+
+const COPY = [
+  ['Install Filesmith', 'Convert, compress, resize and upscale \u2014 images, video, audio and PDFs.'],
+  ['Where it goes', 'Choose where to install Filesmith.'],
+  ['Installing', 'This takes a minute.'],
+  ['Filesmith installed', '']
+]
+
+// The finish screen's options. Their boxes are NOT drawn here: setup paints
+// those every frame from two small images, because three checkboxes have eight
+// states between them and baking all of those would be thirty two overlays.
+// No run-at-startup option, on purpose: a file toolkit has no business in
+// anyone's autostart.
+const OPTIONS = [
+  ['RUN', 'Open Filesmith now'],
+  ['MENU', 'Create start menu shortcut'],
+  ['DESK', 'Create desktop shortcut']
+]
+const NEXT = ['Install Filesmith', 'Install', '', 'Finish']
+
+/* `hot` names the one control drawn hot; `boxes` is 'none' (setup paints them),
+   'on' or 'off' (used only to cut the two box images out). */
+function screen(s, hot, boxes) {
+  const h = (n) => (hot === n ? ' hot' : '')
+  const [title, sub] = COPY[s]
+  return `
+    <div class="shade"></div>
+    <div class="cap">
+      ${MARK(16)}<span class="who">Filesmith Setup</span>
+      <div class="wc"><i class="min${h('min')}" data-a="CAP_MIN">&#8210;</i><i class="x${h('close')}" data-a="CAP_X">&#10005;</i></div>
+    </div>
+    <div class="pad">
+      <h1 class="disp" data-a="TITLE">${title}</h1>
+      ${sub ? `<p>${sub}</p>` : ''}
+      ${s === 1 ? `
+        <div class="row">
+          <div class="field">${FOLDER}<span class="gap" data-a="PATH"></span>
+            <button class="browse${h('browse')}" data-a="BROWSE">Browse</button></div>
+        </div>` : ''}
+      ${s === 2 ? `
+        <div class="row"><div class="track" data-a="TRACK"></div></div>` : ''}
+      ${s === 3 ? OPTIONS.map(([key, label]) => `
+        <div class="row opt" data-a="OPT_${key}">
+          <i class="box${boxes === 'none' ? ' hollow' : boxes === 'on' ? ' on' : ''}" data-a="BOX_${key}"></i>
+          <span>${label}</span>
+        </div>`).join('') : ''}
+      <div class="row">
+        ${s === 1 ? `<button class="ghost${h('back')}" data-a="BACK">Back</button>` : ''}
+        ${NEXT[s] ? `<button class="cta${h('next')}" data-a="NEXT">${NEXT[s]}</button>` : ''}
+      </div>
+    </div>`
+}
+
+window.render = (s, hot, boxes) => {
+  const html = screen(s, hot, boxes)
+  document.getElementById('k').innerHTML = html
+  document.getElementById('w').innerHTML = html
+}
+window.rects = () => {
+  const out = {}
+  document.querySelectorAll('#k [data-a]').forEach((el) => {
+    const r = el.getBoundingClientRect()
+    out[el.dataset.a] = { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }
+  })
+  return out
+}
+window.render(0, null, 'none')
+</script>
+</body>
+</html>
