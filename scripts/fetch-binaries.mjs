@@ -73,7 +73,6 @@ function bundleImageMagick() {
   }
   const dir = dirname(magick)
   let files = 0
-  let bytes = 0
   for (const f of readdirSync(dir)) {
     const ext = f.toLowerCase().slice(f.lastIndexOf('.') + 1)
     const keep = f.toLowerCase() === 'magick.exe' || ['dll', 'xml', 'icc'].includes(ext)
@@ -81,7 +80,6 @@ function bundleImageMagick() {
     if (keep && statSync(src).isFile()) {
       copyFileSync(src, join(BIN, f))
       files++
-      bytes += statSync(src).size
     }
   }
   const modules = join(dir, 'modules')
@@ -120,8 +118,11 @@ async function bundleFfmpeg() {
     const res = await fetch(url)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
-    // Windows 10+ ships bsdtar as `tar`, which extracts .zip.
-    execFileSync('tar', ['-xf', zip, '-C', tmp])
+    // Windows 10+ ships bsdtar (which extracts .zip) in System32. Use it by
+    // full path: a bare `tar` can resolve to Git Bash's GNU tar on PATH, which
+    // parses `C:\…` as a remote host ("Cannot connect to C: resolve failed").
+    const systemTar = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+    execFileSync(existsSync(systemTar) ? systemTar : 'tar', ['-xf', zip, '-C', tmp])
     const top = readdirSync(tmp).find(
       (f) => f.startsWith('ffmpeg-') && statSync(join(tmp, f)).isDirectory()
     )
@@ -141,7 +142,9 @@ async function bundleFfmpeg() {
       if (local) {
         copyFileSync(local, join(BIN, 'ffmpeg.exe'))
         if (localProbe) copyFileSync(localProbe, join(BIN, 'ffprobe.exe'))
-        log(`  ✓ ffmpeg: copied local build (${mb(join(BIN, 'ffmpeg.exe'))} MB — larger than essentials)`)
+        log(
+          `  ✓ ffmpeg: copied local build (${mb(join(BIN, 'ffmpeg.exe'))} MB — larger than essentials)`
+        )
       } else {
         log('    ffmpeg not bundled; video/audio convert will fall back to PATH')
       }
@@ -297,7 +300,8 @@ async function bundleRealesrgan() {
     const src = join(root, 'models')
     for (const m of REALESRGAN_MODELS)
       for (const ext of ['.bin', '.param'])
-        if (existsSync(join(src, m + ext))) cpSync(join(src, m + ext), join(dest, 'models', m + ext))
+        if (existsSync(join(src, m + ext)))
+          cpSync(join(src, m + ext), join(dest, 'models', m + ext))
   }
   // (a) a local copy (RCMM installs the same binary on demand) or $REALESRGAN_DIR
   const local = [
@@ -325,7 +329,11 @@ async function bundleRealesrgan() {
     writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
     execFileSync(
       'powershell',
-      ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${join(tmp, 'x')}' -Force`],
+      [
+        '-NoProfile',
+        '-Command',
+        `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${join(tmp, 'x')}' -Force`
+      ],
       { stdio: 'ignore' }
     )
     copySubset(join(tmp, 'x'))
