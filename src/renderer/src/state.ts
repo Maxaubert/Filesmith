@@ -159,8 +159,8 @@ export type Action =
   | { type: 'setCategory'; category: CategoryId }
   | { type: 'setOperation'; operation: string }
   | { type: 'setOption'; key: string; value: string | number | boolean }
-  | { type: 'addItems'; files: FileInfo[] }
-  | { type: 'addSources'; items: QueueItem[] }
+  | { type: 'addItems'; files: FileInfo[]; category: CategoryId }
+  | { type: 'addSources'; items: QueueItem[]; category: CategoryId }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'dismiss'; id: string; column: 'input' | 'output' }
   | { type: 'markQueued'; ids: string[]; options?: JobOptions }
@@ -218,6 +218,20 @@ export function sessionSnapshot(state: AppState, genResults: string[]): unknown 
   }
 }
 
+/** Structural check on a restored item: a malformed one (hand-edited file,
+ * partial write) must be dropped, not rendered. */
+function isValidItem(i: unknown): i is QueueItem {
+  if (!i || typeof i !== 'object') return false
+  const q = i as QueueItem
+  return (
+    typeof q.id === 'string' &&
+    !!q.file &&
+    typeof q.file.path === 'string' &&
+    typeof q.file.name === 'string' &&
+    (!q.isResult || typeof q.outputPath === 'string')
+  )
+}
+
 interface PersistedSession {
   category: CategoryId
   operation: string
@@ -242,8 +256,9 @@ export function parseSession(raw: unknown): { state: AppState; genResults: strin
         return false
       }
     }
-    const category =
-      validCat(p.category) && findOperation(p.category, p.operation) ? p.category : FIRST_CATEGORY
+    // Two independent checks: a renamed OPERATION must not also discard the
+    // persisted category.
+    const category = validCat(p.category) ? p.category : FIRST_CATEGORY
     const operation = findOperation(category, p.operation)
       ? p.operation
       : defaultOperation(category)
@@ -252,7 +267,7 @@ export function parseSession(raw: unknown): { state: AppState; genResults: strin
     for (const [cat, q] of Object.entries(p.queues ?? {})) {
       if (!q || !validCat(cat)) continue
       queues[cat as CategoryId] = {
-        items: (q.items ?? []).map(normalizeItem),
+        items: (q.items ?? []).filter(isValidItem).map(normalizeItem),
         selected: [],
         anchor: null
       }
@@ -324,8 +339,13 @@ export function pruneMissing(
 /** Replace the current workspace's queue via `fn`. A no-op on the operation
  * grid, where no workspace is open. */
 function mapQueue(state: AppState, fn: (q: QueueState) => QueueState): AppState {
-  const key = state.category
-  return { ...state, queues: { ...state.queues, [key]: fn(state.queues[key] ?? emptyQueue()) } }
+  return mapQueueIn(state, state.category, fn)
+}
+
+/** Replace a SPECIFIC category's queue - for actions dispatched after an
+ * await, which must land where they were initiated, not where the user is. */
+function mapQueueIn(state: AppState, cat: CategoryId, fn: (q: QueueState) => QueueState): AppState {
+  return { ...state, queues: { ...state.queues, [cat]: fn(state.queues[cat] ?? emptyQueue()) } }
 }
 
 /**
@@ -374,8 +394,24 @@ function selectInQueue(q: QueueState, id: string, mode: SelectMode): QueueState 
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case 'hydrate':
-      return action.state
+    case 'hydrate': {
+      // Merge, never replace: the window is interactive while the session
+      // restore round-trips, so files dropped in that gap must survive it.
+      const merged = { ...action.state, queues: { ...action.state.queues } }
+      for (const [cat, q] of Object.entries(state.queues) as [CategoryId, QueueState][]) {
+        if (!q?.items.length) continue
+        const restored = merged.queues[cat]
+        if (!restored) {
+          merged.queues[cat] = q
+          continue
+        }
+        const key = (i: QueueItem): string => (i.isResult ? (i.outputPath ?? i.id) : i.file.path)
+        const have = new Set(restored.items.map(key))
+        const extra = q.items.filter((i) => !have.has(key(i)))
+        if (extra.length) merged.queues[cat] = { ...restored, items: [...restored.items, ...extra] }
+      }
+      return merged
+    }
     case 'setCategory': {
       // Return to the mode last used in this category (if still valid), so
       // Images→Video→Images lands back on your chosen operation, not the default.
@@ -419,7 +455,12 @@ export function reducer(state: AppState, action: Action): AppState {
       }
     }
     case 'addItems': {
-      const q = state.queues[state.category] ?? emptyQueue()
+      // The category rides ON the action: these are dispatched after an await
+      // (files:classify), and the user can switch category during the round
+      // trip - reducing against state.category filed images into whatever
+      // queue was open when the reply landed.
+      const cat = action.category
+      const q = state.queues[cat] ?? emptyQueue()
       // Ignore input-dismissed items so re-dropping a removed file re-adds it.
       const seen = new Set(q.items.filter(inInput).map((i) => i.file.path))
       const add = action.files
@@ -430,10 +471,12 @@ export function reducer(state: AppState, action: Action): AppState {
       // convert group (the first added file's) so a batch is never cross-category.
       const firstGroup = groupOf(add[0].file)
       const ids = add.filter((i) => groupOf(i.file) === firstGroup).map((i) => i.id)
-      return mapQueue(state, (cur) => ({
+      return mapQueueIn(state, cat, (cur) => ({
         items: [...cur.items, ...add],
-        selected: ids,
-        anchor: ids[ids.length - 1]
+        // Only steer the selection when the user is still LOOKING at this
+        // category; a background add must not clobber another queue's state.
+        selected: cat === state.category ? ids : cur.selected,
+        anchor: cat === state.category ? ids[ids.length - 1] : cur.anchor
       }))
     }
     case 'addSources': {
@@ -441,7 +484,7 @@ export function reducer(state: AppState, action: Action): AppState {
       // origin is visible) and select them. The caller (run) already reuses an
       // existing input for a path that's already present, so no dedup here.
       if (!action.items.length) return state
-      return mapQueue(state, (cur) => ({
+      return mapQueueIn(state, action.category, (cur) => ({
         items: [...cur.items, ...action.items],
         selected: action.items.map((i) => i.id),
         anchor: action.items[action.items.length - 1].id

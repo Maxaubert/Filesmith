@@ -611,6 +611,7 @@ function ResizeOptions({
             <input
               type="number"
               placeholder="auto"
+              min={1}
               value={options.width != null ? String(options.width) : ''}
               onChange={(e) => set('width', e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
@@ -621,6 +622,7 @@ function ResizeOptions({
             <input
               type="number"
               placeholder="auto"
+              min={1}
               value={options.height != null ? String(options.height) : ''}
               onChange={(e) => set('height', e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
@@ -1064,6 +1066,47 @@ function AddModel({
   )
 }
 
+/** A dimension field that clamps on BLUR, not on every keystroke: clamping
+ * while typing turned "832" into 256 the moment its first digit landed, which
+ * made the field impossible to use at all. Steps by the model's own dimStep. */
+function DimInput({
+  value,
+  caps,
+  onCommit
+}: {
+  value: number
+  caps?: { minDim?: number; maxDim?: number; dimStep?: number }
+  onCommit: (v: number) => void
+}): JSX.Element {
+  const [text, setText] = useState(String(value))
+  // Re-sync when the committed value changes from OUTSIDE (preset picked):
+  // the render-time adjustment pattern, not an effect (no extra paint).
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    setText(String(value))
+  }
+  const commit = (): void => {
+    const n = Number(text)
+    onCommit(clampDim(Number.isFinite(n) && n > 0 ? n : value, caps))
+  }
+  return (
+    <input
+      type="number"
+      value={text}
+      step={caps?.dimStep ?? 8}
+      min={caps?.minDim ?? 256}
+      max={caps?.maxDim ?? 4096}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+      }}
+      className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+    />
+  )
+}
+
 /**
  * Text-to-image generation options. The prompt lives in the center PromptBox;
  * this panel carries the model + sampling settings and the availability notice.
@@ -1080,7 +1123,12 @@ function GenerateOptions({
   const w = Number(options.width ?? 1024)
   const h = Number(options.height ?? 1024)
   const seed = Number(options.seed ?? -1)
-  const sizeValue = GEN_SIZES.some((s) => s.width === w && s.height === h) ? `${w}x${h}` : 'custom'
+  // An explicit mode: derived-from-dimensions alone made "Custom…" unreachable
+  // (the defaults equal a preset, so the select snapped straight back and the
+  // width/height inputs never mounted in any build).
+  const isPreset = GEN_SIZES.some((s) => s.width === w && s.height === h)
+  const sizeValue =
+    String(options.sizeMode ?? '') === 'custom' || !isPreset ? 'custom' : `${w}x${h}`
 
   const models = useMemo(() => status?.models ?? [], [status])
   const selected = models.find((m) => m.name === model)
@@ -1112,15 +1160,23 @@ function GenerateOptions({
 
   // When the architecture changes, reset the sampler knobs to that arch's sane
   // defaults (cfg MUST be 1 for Flux/Z-Image/Krea; steps differ per family).
+  // Only AFTER the scan resolves, and only on a real change: the ref used to
+  // start null with arch defaulting to 'sdxl' mid-scan, so every mount fired
+  // the reset twice and the persisted Steps/CFG were never once honoured.
   const prevArch = useRef<GenArch | null>(null)
   useEffect(() => {
+    if (!status) return
+    if (prevArch.current === null) {
+      prevArch.current = arch
+      return
+    }
     if (prevArch.current === arch) return
     prevArch.current = arch
     set('tryAnyway', 0)
     set('steps', info.steps)
     set('cfg', info.cfg)
     if (info.hasGuidance) set('guidance', info.guidance)
-  }, [arch, info, set])
+  }, [arch, info, set, status])
 
   return (
     <>
@@ -1218,7 +1274,11 @@ function GenerateOptions({
             { value: 'custom', label: 'Custom…' }
           ]}
           onChange={(v) => {
-            if (v === 'custom') return
+            if (v === 'custom') {
+              set('sizeMode', 'custom')
+              return
+            }
+            set('sizeMode', 'preset')
             const [ww, hh] = v.split('x').map(Number)
             set('width', ww)
             set('height', hh)
@@ -1228,23 +1288,11 @@ function GenerateOptions({
           <div className="mt-2 grid grid-cols-2 gap-3">
             <div>
               <Label>Width</Label>
-              <input
-                type="number"
-                value={w}
-                step={64}
-                onChange={(e) => set('width', clampDim(Number(e.target.value), dimCaps))}
-                className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
-              />
+              <DimInput value={w} caps={dimCaps} onCommit={(v) => set('width', v)} />
             </div>
             <div>
               <Label>Height</Label>
-              <input
-                type="number"
-                value={h}
-                step={64}
-                onChange={(e) => set('height', clampDim(Number(e.target.value), dimCaps))}
-                className="w-full rounded-xl border border-black/[.10] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
-              />
+              <DimInput value={h} caps={dimCaps} onCommit={(v) => set('height', v)} />
             </div>
           </div>
         )}
@@ -1389,8 +1437,12 @@ export function OptionsPanel({
     // Every option control (slider, toggle, run button, selected chip) reads the
     // accent variables, so overriding them here themes the whole panel black in
     // one place, without touching the rail or the coloured switcher above.
+    // Three regions: a fixed header (the switcher), a scrolling middle (the
+    // option groups), and a PINNED footer holding the primary action - which
+    // used to be an ordinary last child of one scroll container and left the
+    // viewport entirely at the app's own default window size.
     <aside
-      className="scroll-thin flex w-[300px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-black/[.06] bg-white/40 px-[22px] py-6"
+      className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-black/[.06] bg-white/40"
       style={
         {
           '--color-accent': '#000000',
@@ -1401,55 +1453,59 @@ export function OptionsPanel({
     >
       {/* The one coloured control: the primary choice. No "Options" header below
           it: the option groups (Target format, Quality) are their own headers. */}
-      <OperationSwitcher operation={operation} operations={operations} onPick={onPickOperation} />
-      <div className="-my-1 h-px bg-black/[.07]" />
-
-      {/* The options are always shown: every file in this category takes the
+      <div className="px-[22px] pt-6">
+        <OperationSwitcher operation={operation} operations={operations} onPick={onPickOperation} />
+        <div className="mt-5 h-px bg-black/[.07]" />
+      </div>
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-[22px] py-5">
+        {/* The options are always shown: every file in this category takes the
           same operation, so its options are known before anything is selected.
           Falls back to the category's kind when there's no selection to read
           one from. Only the run button reflects whether files are ready. */}
-      <>
-        {operation.tool === 'convert' && (
-          <ConvertOptions
-            options={options}
-            activeKind={activeKind ?? fallbackKind}
-            sourceExt={sourceExt}
-            srcExts={srcExts}
-            set={onSet}
-          />
-        )}
-        {operation.tool === 'compress' && (
-          <CompressOptions
-            options={options}
-            activeKind={runKind ?? fallbackKind}
-            videoOutputs={videoOutputs}
-            set={onSet}
-          />
-        )}
-        {operation.tool === 'resize' && (
-          <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
-        )}
-        {operation.tool === 'upscale' && (
-          <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
-        )}
-        {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
-        {operation.tool === 'pdf' && (
-          <PdfOptions options={options} runCount={runCount} set={onSet} />
-        )}
-        {operation.tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
-      </>
-      <div className="flex-1" />
+        <>
+          {operation.tool === 'convert' && (
+            <ConvertOptions
+              options={options}
+              activeKind={activeKind ?? fallbackKind}
+              sourceExt={sourceExt}
+              srcExts={srcExts}
+              set={onSet}
+            />
+          )}
+          {operation.tool === 'compress' && (
+            <CompressOptions
+              options={options}
+              activeKind={runKind ?? fallbackKind}
+              videoOutputs={videoOutputs}
+              set={onSet}
+            />
+          )}
+          {operation.tool === 'resize' && (
+            <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
+          )}
+          {operation.tool === 'upscale' && (
+            <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
+          )}
+          {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
+          {operation.tool === 'pdf' && (
+            <PdfOptions options={options} runCount={runCount} set={onSet} />
+          )}
+          {operation.tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
+        </>
+      </div>
 
-      <button
-        onClick={onRun}
-        disabled={runCount === 0}
-        className="mt-auto rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(0,0,0,.20)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
-      >
-        {operation.label}
-        {operation.tool !== 'generate' && runCount > 0
-          ? ` ${runCount} file${runCount === 1 ? '' : 's'}`
-          : ''}
-      </button>
+      <div className="border-t border-black/[.07] px-[22px] py-4">
+        <button
+          onClick={onRun}
+          disabled={runCount === 0}
+          className="w-full rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(0,0,0,.20)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+        >
+          {operation.label}
+          {operation.tool !== 'generate' && runCount > 0
+            ? ` ${runCount} file${runCount === 1 ? '' : 's'}`
+            : ''}
+        </button>
+      </div>
     </aside>
   )
 }

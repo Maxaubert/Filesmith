@@ -187,7 +187,10 @@ export default function App(): JSX.Element {
         dispatch({ type: 'hydrate', state: pruned.state })
         setGenResults(pruned.genResults)
       } finally {
-        hydrated.current = true
+        // Only the LIVE pass may enable saving: StrictMode's discarded first
+        // run otherwise armed the save before the restore had landed, letting
+        // an early change overwrite the persisted session.
+        if (alive) hydrated.current = true
       }
     })()
     return () => {
@@ -268,8 +271,10 @@ export default function App(): JSX.Element {
         const out = item.outputPath
         if (!out || item.status !== 'done' || outRequested.current.has(out)) continue
         outRequested.current.add(out)
+        // The OUTPUT's kind, not the source's: an MKV -> MP3 output wants
+        // cover-art extraction, not a video frame grab.
         void window.filesmith
-          .thumbnail(out, 128, item.file.kind)
+          .thumbnail(out, 128, fileKind(extOfPath(out)))
           .then((t) => setOutThumbs((m) => ({ ...m, [out]: t })))
       }
     }
@@ -359,18 +364,66 @@ export default function App(): JSX.Element {
   // Dismiss a set of items from a column. For Output we also recycle-bin the
   // produced file before dropping the card.
   function dismiss(ids: string[], column: 'input' | 'output'): void {
+    if (column === 'output') {
+      void trashOutputs(ids)
+      return
+    }
     for (const id of ids) {
       const it = cur.items.find((x) => x.id === id)
       // Removing an in-flight row must not orphan its process: cancel the job
       // first, or ffmpeg keeps encoding headless and writes an untracked file.
-      if (column === 'input' && it && (it.status === 'queued' || it.status === 'running')) {
+      if (it && (it.status === 'queued' || it.status === 'running')) {
         void window.filesmith.cancelJob(id)
       }
-      if (column === 'output') {
-        if (it?.outputPath) void window.filesmith.trashFile(it.outputPath)
-      }
+      if (it) evictProbe(it.file.path)
       dispatch({ type: 'dismiss', id, column })
     }
+  }
+
+  /** Trash output files, honouring the result: a locked/network file that
+   * could NOT be recycled keeps its row instead of silently staying on disk
+   * while the card disappears. */
+  async function trashOutputs(ids: string[]): Promise<void> {
+    const failed: string[] = []
+    for (const id of ids) {
+      const it = cur.items.find((x) => x.id === id)
+      const out = it?.outputPath
+      if (!out) continue
+      const ok = await window.filesmith.trashFile(out)
+      if (!ok) {
+        failed.push(baseName(out))
+        continue
+      }
+      // Evict the caches keyed by this path: output names are reusable after a
+      // delete, and a re-run must not show the previous run's thumbnail.
+      outRequested.current.delete(out)
+      setOutThumbs((m) => {
+        const rest = { ...m }
+        delete rest[out]
+        return rest
+      })
+      evictProbe(out)
+      dispatch({ type: 'dismiss', id, column: 'output' })
+    }
+    if (failed.length)
+      setConfirm({
+        title:
+          failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
+        body: `${failed.join(', ')} could not be moved to the Recycle Bin — the file may be open in another app.`,
+        confirmLabel: 'OK',
+        onConfirm: () => {}
+      })
+  }
+
+  /** Drop a path from the probe caches so a changed file gets re-probed. */
+  function evictProbe(path: string): void {
+    vDimsRequested.current.delete(path)
+    setVDims((m) => {
+      if (!(path in m)) return m
+      const rest = { ...m }
+      delete rest[path]
+      return rest
+    })
   }
 
   /** Stop a queued or running job; the engine emits the terminal 'canceled'. */
@@ -445,7 +498,15 @@ export default function App(): JSX.Element {
           label: n > 1 ? `Delete ${n} files` : 'Delete file',
           icon: 'trash',
           danger: true,
-          onClick: () => dismiss(targets, 'output')
+          onClick: () =>
+            n > 1
+              ? setConfirm({
+                  title: `Delete ${n} files?`,
+                  body: 'They will be moved to the Recycle Bin.',
+                  confirmLabel: 'Delete',
+                  onConfirm: () => dismiss(targets, 'output')
+                })
+              : dismiss(targets, 'output')
         }
       ]
     })
@@ -458,19 +519,24 @@ export default function App(): JSX.Element {
   }
 
   async function browse(): Promise<void> {
+    const category = state.category
     const files = ofCategory(await window.filesmith.pickFiles())
-    if (files.length) dispatch({ type: 'addItems', files })
+    if (files.length) dispatch({ type: 'addItems', files, category })
   }
 
   async function onDrop(e: DragEvent<HTMLElement>): Promise<void> {
     e.preventDefault()
     setDragging(false)
+    // Generate has no queue on screen: a file accepted here would land in an
+    // invisible list with no feedback at all.
+    if (op.tool === 'generate') return
     const paths = Array.from(e.dataTransfer.files)
       .map((f) => window.filesmith.pathForFile(f))
       .filter(Boolean)
     if (!paths.length) return
+    const category = state.category
     const files = ofCategory(await window.filesmith.classify(paths))
-    if (files.length) dispatch({ type: 'addItems', files })
+    if (files.length) dispatch({ type: 'addItems', files, category })
   }
 
   // Build a fresh Input-column source item for a path (a promoted output, or a
@@ -635,7 +701,7 @@ export default function App(): JSX.Element {
       if (anchor.isResult) {
         const src = await makeSource(anchor)
         if (!src) return
-        dispatch({ type: 'addSources', items: [src] })
+        dispatch({ type: 'addSources', items: [src], category: state.category })
         anchorId = src.id
       }
       dispatch({ type: 'markQueued', ids: [anchorId], options: opts })
@@ -665,7 +731,8 @@ export default function App(): JSX.Element {
       newSources.push(src)
       targets.push({ id: src.id, path: src.file.path })
     }
-    if (newSources.length) dispatch({ type: 'addSources', items: newSources })
+    if (newSources.length)
+      dispatch({ type: 'addSources', items: newSources, category: state.category })
     if (!targets.length) return
     dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), options: opts })
     for (const t of targets) {
@@ -799,7 +866,7 @@ export default function App(): JSX.Element {
             className="flex min-w-0 flex-1 flex-col gap-4 px-7 pb-5 pt-1"
             onDragOver={(e) => {
               e.preventDefault()
-              setDragging(true)
+              if (op.tool !== 'generate') setDragging(true)
             }}
             onDragLeave={(e) => {
               if (e.currentTarget === e.target) setDragging(false)

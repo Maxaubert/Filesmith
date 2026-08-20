@@ -24,7 +24,7 @@ describe('per-category queues (shared across operations)', () => {
   it('keeps files when switching operation within a category', () => {
     // The whole point: an image added while converting is still there after
     // switching to compress, because the queue belongs to the file type.
-    let s = reducer(start, { type: 'addItems', files: [img('a.png')] })
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], category: 'images' })
     expect(s.queues[IMAGES]!.items).toHaveLength(1)
     s = open(s, 'compress')
     expect(s.queues[IMAGES]!.items).toHaveLength(1) // retained
@@ -33,18 +33,19 @@ describe('per-category queues (shared across operations)', () => {
   })
 
   it('keeps each file type queue separate', () => {
-    let s = reducer(start, { type: 'addItems', files: [img('a.png')] })
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], category: 'images' })
     s = reducer(s, { type: 'setCategory', category: 'pdf' })
     s = reducer(s, {
       type: 'addItems',
-      files: [{ path: 'C:/x/d.pdf', name: 'd.pdf', ext: '.pdf', kind: 'pdf', size: 5 }]
+      files: [{ path: 'C:/x/d.pdf', name: 'd.pdf', ext: '.pdf', kind: 'pdf', size: 5 }],
+      category: 'pdf'
     })
     expect(s.queues[PDF]!.items).toHaveLength(1)
     expect(s.queues[IMAGES]!.items).toHaveLength(1) // images untouched
   })
 
   it('routes a job event to whichever category queue holds the item', () => {
-    let s = reducer(start, { type: 'addItems', files: [img('a.png')] })
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], category: 'images' })
     const id = s.queues[IMAGES]!.items[0].id
     s = open(s, 'resize')
     s = reducer(s, { type: 'jobEvent', event: { id, status: 'done', outputPath: 'C:/x/a.webp' } })
@@ -58,7 +59,7 @@ describe('per-category queues (shared across operations)', () => {
   })
 
   it('appends a fresh result on each finished run; the source persists', () => {
-    let s = reducer(start, { type: 'addItems', files: [img('a.png')] })
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], category: 'images' })
     const id = s.queues[IMAGES]!.items[0].id
     s = reducer(s, {
       type: 'jobEvent',
@@ -76,7 +77,7 @@ describe('per-category queues (shared across operations)', () => {
   })
 
   it('addSources appends pre-built input rows and selects them', () => {
-    let s = reducer(start, { type: 'addItems', files: [img('a.png')] })
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], category: 'images' })
     const clone = {
       id: 'clone-1',
       file: img('a.png'),
@@ -84,7 +85,7 @@ describe('per-category queues (shared across operations)', () => {
       status: 'ready' as const,
       percent: 0
     }
-    s = reducer(s, { type: 'addSources', items: [clone] })
+    s = reducer(s, { type: 'addSources', items: [clone], category: 'images' })
     expect(s.queues[IMAGES]!.items.filter((i) => !i.isResult)).toHaveLength(2)
     expect(s.queues[IMAGES]!.selected).toEqual(['clone-1'])
   })
@@ -104,7 +105,8 @@ describe('navigation', () => {
     expect(s.operation).toBe('extract-text')
     s = reducer(s, {
       type: 'addItems',
-      files: [{ path: 'C:/x/a.pdf', name: 'a.pdf', ext: '.pdf', kind: 'pdf', size: 10 }]
+      files: [{ path: 'C:/x/a.pdf', name: 'a.pdf', ext: '.pdf', kind: 'pdf', size: 10 }],
+      category: 'pdf'
     })
     expect(s.queues[PDF]!.items).toHaveLength(1)
   })
@@ -112,7 +114,7 @@ describe('navigation', () => {
   it('keeps options per operation while the queue is shared', () => {
     // Set a Convert-only option, switch away and back: the option is remembered,
     // and separate from Compress's options.
-    let s = reducer(start, { type: 'addItems', files: [img('a.png')] })
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], category: 'images' })
     s = reducer(s, { type: 'setOption', key: 'format', value: '.avif' })
     s = open(s, 'compress')
     expect(s.options[workspaceKey('images', 'compress')].quality).toBe(80) // its own default

@@ -10,6 +10,15 @@ const extOf = (p: string): string => {
   return i > 0 ? b.slice(i + 1).toUpperCase() : ''
 }
 
+const PDF_OP_LABEL: Record<string, string> = {
+  'extract-text': 'Extract text',
+  'pages-to-images': 'Pages to PNG',
+  merge: 'Merge PDFs',
+  'split-range': 'Split pages',
+  'split-pages': 'Burst pages',
+  'extract-images': 'Extract images'
+}
+
 function inputSub(item: QueueItem, tool: ToolId, panelOptions: JobOptions): string {
   const src = item.file.ext.replace('.', '').toUpperCase()
   // Once a row has run, describe what IT did; only a not-yet-run row previews
@@ -27,7 +36,13 @@ function inputSub(item: QueueItem, tool: ToolId, panelOptions: JobOptions): stri
     const h = options.height === '' || options.height == null ? 'auto' : options.height
     return `Resize ${w}×${h}${options.fit === 'stretch' ? ' stretched' : ''}`
   }
-  return `Compress ${src}`
+  // Name the operation the row is actually part of - the old fall-through
+  // stamped "Compress" on upscale, removebg and every PDF verb.
+  if (tool === 'upscale') return `Upscale ${options.upscaleFactor ?? 4}×`
+  if (tool === 'removebg') return 'Remove background'
+  if (tool === 'pdf') return PDF_OP_LABEL[String(options.op)] ?? 'PDF'
+  if (tool === 'compress') return `Compress ${src}`
+  return src
 }
 
 function StatusCell({ item }: { item: QueueItem }): JSX.Element | null {
@@ -150,7 +165,15 @@ function InputCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-semibold">{item.file.name}</div>
-        <div className="mt-0.5 truncate text-[11.5px] text-dim" title={item.error ?? undefined}>
+        <div
+          // Failed rows WRAP (up to three lines) and are selectable: engine
+          // errors are full remedial sentences, and a one-line truncate inside
+          // a user-select:none UI made the remedy unreadable AND uncopyable.
+          className={`mt-0.5 text-[11.5px] text-dim ${
+            item.status === 'failed' && item.error ? 'line-clamp-3 select-text' : 'truncate'
+          }`}
+          title={item.error ?? undefined}
+        >
           {item.status === 'failed' && item.error ? (
             // Say WHY it failed. "Failed" alone leaves the user guessing.
             <span className="text-[#e0483d]">{item.error}</span>
