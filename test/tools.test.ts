@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildFfmpegArgs, buildMagickArgs } from '../src/main/tools/convert'
+import {
+  buildFfmpegArgs,
+  buildMagickArgs,
+  ffmpegExtraFor,
+  magickQualityArgs
+} from '../src/main/tools/convert'
 import {
   categoryFormats,
   convertTargets,
@@ -217,6 +222,12 @@ describe('compress', () => {
       '-y',
       '-i',
       'in.mkv',
+      // every audio track, not just the "best" one; subs stay behind (PGS
+      // cannot become mov_text and would fail the job)
+      '-map',
+      '0:v:0',
+      '-map',
+      '0:a?',
       '-c:v',
       'libx264',
       '-preset',
@@ -253,7 +264,10 @@ describe('compress', () => {
       scale: 50
     })
     expect(a).toContain('-vf')
-    expect(a[a.indexOf('-vf') + 1]).toBe('scale=w=iw*0.5:h=ih*0.5:force_divisible_by=2')
+    // trunc(x/2)*2 in the expression: `force_divisible_by` is honoured only
+    // inside the force_original_aspect_ratio branch, so odd results (854 x
+    // 0.25 = 213) aborted the encode with "width not divisible by 2".
+    expect(a[a.indexOf('-vf') + 1]).toBe('scale=w=trunc(iw*0.5/2)*2:h=trunc(ih*0.5/2)*2')
     // 100% (original) adds no filter at all
     const b = buildVideoCompressArgs('in.mp4', 'out.mp4', {
       codec: 'h264',
@@ -270,17 +284,45 @@ describe('compress', () => {
         bitrate: 96,
         sourceExt: '.wav'
       })
-    ).toEqual(['-y', '-i', 'in.wav', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'])
+    ).toEqual(['-y', '-i', 'in.wav', '-map', '0:a', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'])
     expect(
       buildAudioCompressArgs('in.ogg', 'out.ogg', {
         codec: 'keep',
         bitrate: 128,
         sourceExt: '.ogg'
       })
-    ).toEqual(['-y', '-i', 'in.ogg', '-c:a', 'libvorbis', '-b:a', '128k', 'out.ogg'])
+    ).toEqual(['-y', '-i', 'in.ogg', '-map', '0:a', '-c:a', 'libvorbis', '-b:a', '128k', 'out.ogg'])
     expect(audioOutputExt('mp3', '.m4a')).toBe('.mp3')
     expect(audioOutputExt('aac', '.wav')).toBe('.m4a')
     expect(audioOutputExt('keep', '.ogg')).toBe('.ogg')
+    // keep on a codec with no encoder entry must move to a container that
+    // matches the AAC fallback (.amr kept its ext and failed to mux)
+    expect(audioOutputExt('keep', '.amr')).toBe('.m4a')
+    expect(audioOutputExt('keep', '.ac3')).toBe('.ac3')
+    // cover art rides across un-re-encoded where the container supports it;
+    // without the map ffmpeg re-encoded a JPEG cover into a PNG 3x the source
+    expect(
+      buildAudioCompressArgs('in.mp3', 'out.mp3', {
+        codec: 'keep',
+        bitrate: 128,
+        sourceExt: '.mp3'
+      })
+    ).toEqual([
+      '-y',
+      '-i',
+      'in.mp3',
+      '-map',
+      '0:a',
+      '-map',
+      '0:v?',
+      '-c:v',
+      'copy',
+      '-c:a',
+      'libmp3lame',
+      '-b:a',
+      '128k',
+      'out.mp3'
+    ])
   })
 
   it('builds Ghostscript PDF compress args per level + grayscale', () => {
@@ -361,25 +403,18 @@ describe('canCompress', () => {
     expect(canCompress('pdf', '.pdf')).toBe(true)
   })
   it('accepts raster images the compressors handle, not vector/exotic exts', () => {
-    for (const e of [
-      '.png',
-      '.jpg',
-      '.jpeg',
-      '.webp',
-      '.gif',
-      '.tif',
-      '.tiff',
-      '.avif',
-      '.jxl',
-      '.bmp',
-      '.heic'
-    ])
+    for (const e of ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.tif', '.tiff', '.avif', '.jxl'])
       expect(canCompress('image', e)).toBe(true)
     // vector / layered / exotic: would silently rasterize -> excluded
     expect(canCompress('image', '.svg')).toBe(false)
     expect(canCompress('image', '.xcf')).toBe(false)
     expect(canCompress('image', '.tga')).toBe(false)
     expect(canCompress('image', '.ppm')).toBe(false)
+    // HEIC/HEIF: the bundled magick has no HEIC encoder (exit 0 + junk file);
+    // BMP: uncompressed, a "compress" would be a no-op at every quality
+    expect(canCompress('image', '.heic')).toBe(false)
+    expect(canCompress('image', '.heif')).toBe(false)
+    expect(canCompress('image', '.bmp')).toBe(false)
   })
   it('accepts all audio, including lossless (flac/wav -> opus is a big win)', () => {
     expect(canCompress('audio', '.mp3')).toBe(true)
@@ -398,19 +433,77 @@ describe('canCompress', () => {
         bitrate: 192,
         sourceExt: '.wav'
       })
-    ).toEqual(['-y', '-i', 'in.wav', '-c:a', 'flac', '-compression_level', '8', 'out.flac'])
-    // an explicit lossy codec still applies the bitrate
+    ).toEqual([
+      '-y',
+      '-i',
+      'in.wav',
+      '-map',
+      '0:a',
+      '-map',
+      '0:v?',
+      '-c:v',
+      'copy',
+      '-c:a',
+      'flac',
+      '-compression_level',
+      '8',
+      'out.flac'
+    ])
+    // an explicit lossy codec still applies the bitrate (opus: cover dropped,
+    // the ogg container takes no attached-picture stream copy)
     expect(
       buildAudioCompressArgs('in.wav', 'out.opus', {
         codec: 'opus',
         bitrate: 96,
         sourceExt: '.wav'
       })
-    ).toEqual(['-y', '-i', 'in.wav', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'])
+    ).toEqual(['-y', '-i', 'in.wav', '-map', '0:a', '-c:a', 'libopus', '-b:a', '96k', 'out.opus'])
   })
   it('rejects documents, text, and unknown kinds', () => {
     expect(canCompress('document', '.docx')).toBe(false)
     expect(canCompress('text', '.txt')).toBe(false)
     expect(canCompress('other', '.bin')).toBe(false)
+  })
+})
+
+describe('per-target convert args', () => {
+  it('applies -quality only to lossy image targets', () => {
+    expect(magickQualityArgs('.jpg', 'balanced')).toEqual(['-quality', '82'])
+    expect(magickQualityArgs('.webp', 'smaller')).toEqual(['-quality', '60'])
+    // PNG: -quality is zlib-level+filter, not a lossy dial - the old default
+    // (82) produced the LARGEST file. Max deflate instead.
+    expect(magickQualityArgs('.png', 'balanced')).toEqual(['-define', 'png:compression-level=9'])
+    // no meaningful dial for these
+    expect(magickQualityArgs('.gif', 'best')).toEqual([])
+    expect(magickQualityArgs('.ico', 'best')).toEqual([])
+  })
+
+  it('gives video targets real encoder settings instead of bare defaults', () => {
+    // GIF: palette pass + fps cap + width bound (bare defaults: ~75 MB/min)
+    const gif = ffmpegExtraFor('video', '.gif')
+    expect(gif).toContain('-filter_complex')
+    expect(gif.join(' ')).toContain('palettegen')
+    expect(gif).toContain('-an')
+    // WebM: vp9 with row-mt and a realtime-capable cpu-used (0 ran 0.66x)
+    const webm = ffmpegExtraFor('video', '.webm')
+    expect(webm).toContain('libvpx-vp9')
+    expect(webm.join(' ')).toContain('-row-mt 1')
+    // AVI: not mpeg4's worst quantizer
+    expect(ffmpegExtraFor('video', '.avi').join(' ')).toContain('-q:v 5')
+    // MKV keeps subtitles by stream copy; MP4 keeps all audio, no subs
+    expect(ffmpegExtraFor('video', '.mkv').join(' ')).toContain('-map 0:s? -c:s copy')
+    expect(ffmpegExtraFor('video', '.mp4')).toEqual(['-map', '0:v:0', '-map', '0:a?'])
+    // audio convert carries cover art where the container supports it
+    expect(ffmpegExtraFor('audio', '.mp3')).toEqual(['-map', '0:a', '-map', '0:v?', '-c:v', 'copy'])
+    expect(ffmpegExtraFor('audio', '.ogg')).toEqual(['-map', '0:a'])
+  })
+
+  it('rejects zero and negative resize dimensions', () => {
+    // 0x made magick exit 0 with a 1x1 image; -5x silently copied unchanged
+    expect(isValidResizeSpec('0x')).toBe(false)
+    expect(isValidResizeSpec('x0')).toBe(false)
+    expect(isValidResizeSpec('-5x')).toBe(false)
+    expect(isValidResizeSpec('800x')).toBe(true)
+    expect(isValidResizeSpec('800x600!')).toBe(true)
   })
 })

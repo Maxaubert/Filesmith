@@ -42,7 +42,9 @@ export const SCALE_STEP = 5
 export function scaleResolution(w: number, h: number, pct: number): { w: number; h: number } {
   const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, pct)) / 100
   if (s >= 1 || w <= 0 || h <= 0) return { w, h }
-  const even = (n: number): number => Math.max(2, Math.round((n * s) / 2) * 2)
+  // trunc, not round: mirrors the exact ffmpeg expression the encoder runs
+  // (`trunc(iw*s/2)*2`), so the preview promises the pixels ffmpeg produces.
+  const even = (n: number): number => Math.max(2, Math.trunc((n * s) / 2) * 2)
   return { w: even(w), h: even(h) }
 }
 

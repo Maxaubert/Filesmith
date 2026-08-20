@@ -38,11 +38,12 @@ import {
   buildMagickArgs,
   canCompress,
   convertTargets,
+  ffmpegExtraFor,
   isSameFormat,
   magickExtraFor,
   magickFrame,
+  magickQualityArgs,
   normalizeExt,
-  qualityNum,
   toolForKind
 } from './convert'
 import { buildResizeArgs, buildResizeSpec, isValidResizeSpec } from './resize'
@@ -105,15 +106,20 @@ async function runToOutput(
     !onStderr && estimateSec ? estimateProgress(estimateSec, (p) => ctx.onProgress(p)) : null
   try {
     const { code, stderr } = await run(tool, argsFor(toolOut), { signal: ctx.signal, onStderr })
+    // magick prints "no encode delegate for this image format" as a WARNING and
+    // exits 0 - having written the wrong format into the requested extension.
+    const delegateFail = /no (en|de)code delegate/i.test(stderr)
     const wrote = existsSync(toolOut) && (!requireNonEmpty || statSync(toolOut).size > 0)
-    if (code !== 0 || !wrote) {
+    if (code !== 0 || !wrote || delegateFail) {
       // Exit 0 with nothing at the expected path means the tool wrote somewhere
       // else (a printf expansion we missed) or produced nothing — either way,
       // never report success for it.
       throw new Error(
-        code === 0 && !wrote
-          ? `${label} reported success but wrote no output`
-          : describeToolError(stderr, label, code)
+        delegateFail
+          ? `${label} cannot encode this format on this machine (missing encoder)`
+          : code === 0 && !wrote
+            ? `${label} reported success but wrote no output`
+            : describeToolError(stderr, label, code)
       )
     }
     if (tmp) copyFileSync(toolOut, output)
@@ -265,7 +271,7 @@ const convertTool: ToolModule = {
       if (duration) ctx.onProgress(0, 'Converting…')
       return runToOutput(
         resolveTool(kindTool),
-        (out) => buildFfmpegArgs(file.path, out),
+        (out) => buildFfmpegArgs(file.path, out, ffmpegExtraFor(file.kind, targetExt)),
         output,
         ctx,
         kindTool,
@@ -273,8 +279,7 @@ const convertTool: ToolModule = {
         ffmpegProgress(duration, (pct, eta) => ctx.onProgress(pct, 'Converting…', eta))
       )
     }
-    const q = qualityNum(options.quality)
-    const extra = [...magickExtraFor(targetExt), ...(q != null ? ['-quality', String(q)] : [])]
+    const extra = [...magickExtraFor(targetExt), ...magickQualityArgs(targetExt, options.quality)]
     // Single-frame target: read only the first frame so a multi-frame source
     // doesn't split into out-0/out-1/… and leave the exact output path empty.
     const src = MULTIFRAME_TARGETS.includes(normalizeExt(targetExt))
