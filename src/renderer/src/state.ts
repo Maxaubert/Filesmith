@@ -207,9 +207,10 @@ export function sessionSnapshot(state: AppState, genResults: string[]): unknown 
   }
   return {
     version: SESSION_VERSION,
-    category: state.category,
-    operation: state.operation,
-    lastOperation: state.lastOperation,
+    // The category and its operation are deliberately NOT persisted as such:
+    // the app always launches into the first category, and each category's
+    // sub-page rides in lastOperation (kept current by setOperation).
+    lastOperation: { ...state.lastOperation, [state.category]: state.operation },
     options: state.options,
     queues,
     genResults: genResults.slice(0, MAX_GEN)
@@ -231,8 +232,6 @@ function isValidItem(i: unknown): i is QueueItem {
 }
 
 interface PersistedSession {
-  category: CategoryId
-  operation: string
   lastOperation: Partial<Record<CategoryId, string>>
   options: Record<WorkspaceKey, JobOptions>
   queues: AppState['queues']
@@ -254,12 +253,14 @@ export function parseSession(raw: unknown): { state: AppState; genResults: strin
         return false
       }
     }
-    // Two independent checks: a renamed OPERATION must not also discard the
-    // persisted category.
-    const category = validCat(p.category) ? p.category : FIRST_CATEGORY
-    const operation = findOperation(category, p.operation)
-      ? p.operation
-      : defaultOperation(category)
+    // Always launch into the FIRST category (owner decision: coming back to
+    // the remembered one felt wrong). What IS remembered is each category's
+    // last sub-page: Images still opens on Generate if that is where it was,
+    // and switching to Video lands on its own remembered operation.
+    const category = FIRST_CATEGORY
+    const remembered = (p.lastOperation ?? {})[category]
+    const operation =
+      remembered && findOperation(category, remembered) ? remembered : defaultOperation(category)
     // Drop queues for categories no longer in the catalog (a removed/renamed tool).
     const queues: AppState['queues'] = {}
     for (const [cat, q] of Object.entries(p.queues ?? {})) {
