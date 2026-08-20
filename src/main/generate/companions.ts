@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'fs'
 import { join } from 'path'
 import { downloadFile } from '../net/download'
 import { expectedHash, recordHash } from '../net/integrity'
+import { checkDiskSpace } from '../pid/install'
 import { findGenerationModel, primaryModelsDir } from './models'
 
 /** Parse an approxSize like "8 GB" / "335 MB" into bytes (0 if unparseable). */
@@ -48,13 +49,24 @@ export async function downloadCompanions(
   const root = primaryModelsDir(model.baseDir)
   if (!root) throw new Error('Could not find your ComfyUI models folder to download into.')
 
+  // Refuse before a multi-GB download that cannot fit — measured on the volume
+  // the companions actually land on (the ComfyUI tree), not pidRoot's. ENOSPC
+  // otherwise surfaces gigabytes in, as a raw stream error.
+  const needed = missing.reduce((a, f) => a + (f.bytes ?? approxBytes(f.approxSize)), 0)
+  const space = checkDiskSpace(needed, root)
+  if (!space.ok) throw new Error(space.reason)
+
   const total = missing.length
   for (let i = 0; i < missing.length; i += 1) {
     const f = missing[i]
     const dest = join(root, f.subdir, f.filename)
-    // Skip a companion already fetched (non-empty file present).
+    // Skip a companion already fetched. "Complete" means matching the declared
+    // byte size when the registry knows it, not merely non-empty: a file some
+    // other tool is mid-write (or a stale copy of a corrected upstream file)
+    // must not read as done forever.
     try {
-      if (existsSync(dest) && statSync(dest).size > 0) {
+      const st = existsSync(dest) ? statSync(dest) : null
+      if (st && st.size > 0 && (f.bytes == null || st.size === f.bytes)) {
         onProgress({ index: i + 1, total, label: f.label, filename: f.filename, pct: 100 })
         continue
       }

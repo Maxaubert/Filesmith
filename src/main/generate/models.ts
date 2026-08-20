@@ -268,6 +268,7 @@ export function scanGenerationModels(): GenModelScan {
           url: m.download.url,
           urls: m.download.urls,
           sha256: m.download.sha256,
+          bytes: m.download.bytes,
           approxSize: m.download.approxSize,
           subdir: m.download.subdir
         }))

@@ -1,5 +1,13 @@
 import { createHash } from 'crypto'
-import { createWriteStream, mkdirSync, renameSync, rmSync, statSync } from 'fs'
+import {
+  createWriteStream,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'fs'
 import { dirname } from 'path'
 import { Readable, Transform } from 'stream'
 import { pipeline } from 'stream/promises'
@@ -137,18 +145,22 @@ async function downloadOne(
   }
   arm()
   const part = `${dest}.part`
+  const partMeta = `${part}.meta`
   // Resume where we left off. Neither downloader sent a Range header or reused
   // an existing part file — both opened with rmSync — so a 2.6 GB checkpoint
   // that dropped at 95% restarted from zero, every time. Only attempted when no
   // hash is expected for the whole file, since a partial body can't be verified
-  // against one without re-reading what is already on disk.
+  // against one without re-reading what is already on disk. And only for a part
+  // whose sidecar meta says it came from THIS url: resuming another mirror's
+  // bytes would splice two possibly-different files together.
   let resumeAt = 0
   if (!opts.sha256) {
     try {
       const st = statSync(part)
-      if (st.isFile() && st.size > 0) resumeAt = st.size
+      const m = JSON.parse(readFileSync(partMeta, 'utf-8')) as { url?: string }
+      if (st.isFile() && st.size > 0 && m.url === url) resumeAt = st.size
     } catch {
-      /* no part file — a fresh start */
+      /* no part/meta — a fresh start */
     }
   }
   try {
@@ -182,6 +194,7 @@ async function downloadOne(
       )
     if (!resuming) {
       rmSync(part, { force: true })
+      rmSync(partMeta, { force: true })
       resumeAt = 0
     }
 
@@ -206,14 +219,24 @@ async function downloadOne(
         { signal: ac.signal }
       )
     } catch (e) {
-      rmSync(part, { force: true })
+      // KEEP the .part: a dropped socket is exactly the failure resume exists
+      // for (the old code deleted it here, so resume only ever survived a hard
+      // process kill). The meta records which URL the bytes belong to.
+      try {
+        writeFileSync(partMeta, JSON.stringify({ url }))
+      } catch {
+        /* best effort */
+      }
       throw describeNetworkError(e, url)
     }
     // A resumed transfer only hashed the tail, so the digest is meaningless —
     // report it as empty rather than as a wrong-but-confident value.
     const digest = resuming ? '' : hash.digest('hex')
     const fail = (msg: string): never => {
+      // A VERIFICATION failure (wrong size, wrong hash) discards the bytes —
+      // unlike a transport failure, these bytes can never become a good file.
       rmSync(part, { force: true })
+      rmSync(partMeta, { force: true })
       throw new Error(msg)
     }
     if (total && got < total) fail(`Download incomplete: got ${got} of ${total} bytes from ${url}`)
@@ -228,6 +251,7 @@ async function downloadOne(
       )
 
     rmSync(dest, { force: true })
+    rmSync(partMeta, { force: true })
     renameSync(part, dest)
     opts.onPct?.(100)
     return { bytes: got, sha256: digest, url }

@@ -109,6 +109,30 @@ describe('reading a GGUF header', () => {
     expect(readGgufHeader(p)?.keys).toEqual(['txtfusion.w'])
   })
 
+  it('parses a header larger than one refill chunk (the >1 MB regression)', () => {
+    // The refill computed its file offset from a stale `consumed`, so a 50 KB
+    // header parsed while the identical header past 1 MB (CHUNK) lost its
+    // place and misread everything after the first refill. A tokenizer-sized
+    // array value (3 MB of u8s, skipped in chunks) forces several refills;
+    // the tensor names AFTER it must still read back exactly.
+    const blob = Buffer.alloc(3 * 1024 * 1024)
+    const bigArray = [
+      str('tokenizer.blob'),
+      u32(9),
+      Buffer.concat([u32(0), u64(blob.length), blob])
+    ]
+    const p = writeGguf(
+      'big-header.gguf',
+      ['double_blocks.0.w', 'single_blocks.0.w', 'img_in.w', 'txt_in.w'],
+      { 'general.architecture': 'flux' },
+      bigArray
+    )
+    const h = readGgufHeader(p)
+    expect(h?.keys).toContain('double_blocks.0.w')
+    expect(h?.keys).toContain('txt_in.w')
+    expect(h?.metadata['general.architecture']).toBe('flux')
+  })
+
   it('returns null for anything that is not a readable GGUF', () => {
     const bad = join(dir, 'not.gguf')
     writeFileSync(bad, Buffer.from('this is not a gguf file at all'))

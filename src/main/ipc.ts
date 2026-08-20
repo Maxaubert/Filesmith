@@ -35,7 +35,12 @@ import {
   registryDimCaps,
   downloadCompanions
 } from './generate'
-import { loadRegistry, layerDir, ensureUserLayers } from './registry/load'
+import {
+  loadRegistry,
+  layerDir,
+  ensureUserLayers,
+  invalidateRegistryIfChanged
+} from './registry/load'
 import { importRegistryJson } from './registry/userLayer'
 import type { GenerateOptions } from '@shared/generate'
 
@@ -317,6 +322,9 @@ export function registerIpc(win: BrowserWindow): JobQueue {
 
   // --- Text-to-image generation (via headless ComfyUI) -----------------------
   ipcMain.handle('generate:status', async () => {
+    // Pick up hand-edited user registry files (registry:open-folder invites
+    // exactly that) without an app restart.
+    invalidateRegistryIfChanged()
     const scan = scanGenerationModels()
     return {
       available: await comfyGenerationAvailable(),
@@ -327,13 +335,29 @@ export function registerIpc(win: BrowserWindow): JobQueue {
       registryWarnings: loadRegistry().warnings
     }
   })
-  ipcMain.handle('generate:download', async (_e, id: string, model: string) => {
-    try {
-      await downloadCompanions(model, (p) => send('generate:download-progress', { id, ...p }))
-      return { ok: true }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
-    }
+  // One in-flight companion download per model. The renderer's only guard was
+  // component-local state on a conditionally-mounted card, so two clicks (or a
+  // navigate-away-and-back) raced the same .part file: the second starter
+  // deleted the first's completed file mid-rename, then re-fetched ~5 GB from
+  // the UNVERIFIED mirror. A second caller now joins the running download.
+  const companionDownloads = new Map<string, Promise<{ ok: boolean; error?: string }>>()
+  ipcMain.handle('generate:download', (_e, id: string, model: string) => {
+    const running = companionDownloads.get(model)
+    if (running) return running
+    const p = (async (): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        await downloadCompanions(model, (prog) =>
+          send('generate:download-progress', { id, ...prog })
+        )
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      } finally {
+        companionDownloads.delete(model)
+      }
+    })()
+    companionDownloads.set(model, p)
+    return p
   })
   const genControllers = new Map<string, AbortController>()
   ipcMain.handle('generate:run', async (_e, id: string, opts: GenerateOptions) => {
@@ -381,6 +405,7 @@ export function registerIpc(win: BrowserWindow): JobQueue {
     return true
   })
   ipcMain.handle('registry:info', () => {
+    invalidateRegistryIfChanged()
     const { entries, warnings } = loadRegistry()
     return {
       folder: layerDir('user'),

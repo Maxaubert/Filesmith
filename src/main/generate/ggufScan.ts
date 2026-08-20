@@ -40,17 +40,21 @@ class Cursor {
   /** Ensure `n` bytes are available from the current position. */
   private need(n: number): void {
     if (this.pos + n <= this.buf.length) return
-    if (this.consumed + n > MAX_HEADER_BYTES) throw new Error('gguf header too large')
+    // Retire the consumed prefix FIRST: `at` must be computed from the updated
+    // `consumed`, or every refill after the first re-reads from the wrong file
+    // offset (the old code parsed a 50 KB header fine and lost the identical
+    // header the moment it crossed 1 MB).
     const keep = this.buf.subarray(this.pos)
+    this.consumed += this.pos
+    this.pos = 0
+    if (this.consumed + keep.length + n > MAX_HEADER_BYTES) throw new Error('gguf header too large')
     const want = Math.max(CHUNK, n)
     const next = Buffer.alloc(want)
     const at = this.consumed + keep.length
     if (at >= this.size) throw new Error('gguf truncated')
     const got = readSync(this.fd, next, 0, Math.min(want, this.size - at), at)
     if (got <= 0) throw new Error('gguf truncated')
-    this.consumed += this.pos
     this.buf = Buffer.concat([keep, next.subarray(0, got)])
-    this.pos = 0
     if (this.buf.length < n) throw new Error('gguf truncated')
   }
 

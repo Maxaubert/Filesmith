@@ -7,7 +7,7 @@ import {
   validateEntry,
   workflowPlaceholders
 } from '@shared/registry'
-import { ensureUserLayers, layerDir, reloadRegistry } from './load'
+import { ensureUserLayers, layerDir, registryEntry, reloadRegistry } from './load'
 
 // Writing to the user layer: the "add a model without waiting for a release"
 // path. Two shapes are accepted, because those are the two things a user
@@ -48,7 +48,14 @@ function userFile(name: string): string | null {
 
 /** Write a validated pack into the user layer. */
 export function saveUserPack(entries: RegistryEntry[], name: string): ImportResult {
-  const errs = entries.flatMap(validateEntry)
+  // Validate each entry as it will actually be USED: merged field-by-field
+  // onto whatever entry it overrides. A companions-only fragment has no
+  // kind/label of its own, and validating it standalone rejected the exact
+  // partial override the docs promise.
+  const errs = entries.flatMap((e) => {
+    const base = e?.id ? registryEntry(e.id) : undefined
+    return validateEntry(base ? { ...base, ...e } : e)
+  })
   if (errs.length) return { ok: false, error: errs.join('; ') }
   const path = userFile(safeName(name))
   if (!path) return { ok: false, error: 'Could not locate your Filesmith data folder.' }
@@ -223,9 +230,15 @@ export function importRegistryJson(path: string, text: string): ImportResult {
   if (asPack && Array.isArray(asPack.entries))
     return saveUserPack(asPack.entries as RegistryEntry[], stem)
 
-  // (b) a single entry
+  // (b) a single entry — or a partial override of an entry that already
+  // exists (it has an id but no kind of its own).
   const asEntry = parsed as RegistryEntry
-  if (asEntry && typeof asEntry === 'object' && typeof asEntry.id === 'string' && asEntry.kind)
+  if (
+    asEntry &&
+    typeof asEntry === 'object' &&
+    typeof asEntry.id === 'string' &&
+    (asEntry.kind || registryEntry(asEntry.id))
+  )
     return saveUserPack([asEntry], asEntry.id)
 
   // (c) a raw ComfyUI API-format workflow

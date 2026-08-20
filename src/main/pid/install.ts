@@ -12,6 +12,7 @@ import {
 import { basename, dirname, join } from 'path'
 import { run } from '../run'
 import { downloadFile } from '../net/download'
+import { expectedHash, recordHash } from '../net/integrity'
 import { resolveUv } from '../toolResolver'
 import { findComfyPidWeights } from '../comfy/discover'
 import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from './paths'
@@ -37,8 +38,11 @@ const VAE_APPROX_BYTES = 335_000_000
 // code, neither could tell which, and neither could ever receive a fix, because
 // the marker's mere existence counted as "up to date". The ref is now written
 // into the marker and a mismatch forces a re-vendor.
-const PID_REPO_REF = 'main'
-const PID_REPO_ZIP = `https://github.com/nv-tlabs/PiD/archive/refs/heads/${PID_REPO_REF}.zip`
+// Pinned to a COMMIT, not the moving `main`: two installs a month apart must
+// run the same vendored code, and the marker comparison below can only mean
+// something when the ref itself is immutable.
+const PID_REPO_REF = '2c8814c2b91cc41a2be7809962c891e0d0ccff5f'
+const PID_REPO_ZIP = `https://github.com/nv-tlabs/PiD/archive/${PID_REPO_REF}.zip`
 const HF_BASE = 'https://huggingface.co/nvidia/PiD/resolve/main'
 
 // Written at the very end of ensureRepo (after the pin is relaxed), so an
@@ -83,7 +87,12 @@ async function download(
   onPct?: (pct: number) => void,
   minBytes?: number
 ): Promise<void> {
-  await downloadFile(url, dest, { onPct, minBytes })
+  // Trust-on-first-use like every other download in the app: the uv zip, the
+  // vendored source and the multi-GB weights used to be the ONLY fetches that
+  // bypassed the integrity ledger entirely - accepted on a size floor, never
+  // recorded, so a re-download could silently differ from what was installed.
+  const result = await downloadFile(url, dest, { onPct, minBytes, sha256: expectedHash(url) })
+  recordHash(result.url, result.sha256, result.bytes)
 }
 
 /** Copy a file into place atomically (temp + rename), so an interrupted copy
@@ -123,8 +132,8 @@ async function ensureRepo(onProgress: InstallProgress): Promise<void> {
   const ex = await run(winTar(), ['-xf', tmpZip, '-C', extractTo])
   if (ex.code !== 0) throw new Error(`PiD source extract failed: ${ex.stderr.slice(-400)}`)
 
-  const inner = join(extractTo, 'PiD-main')
-  if (!existsSync(inner)) throw new Error('PiD source extract produced no PiD-main folder')
+  const inner = join(extractTo, `PiD-${PID_REPO_REF}`)
+  if (!existsSync(inner)) throw new Error('PiD source extract produced no PiD-* folder')
   rmSync(pidRepoDir(), { recursive: true, force: true })
   renameSync(inner, pidRepoDir())
   rmSync(extractTo, { recursive: true, force: true })
@@ -371,7 +380,13 @@ async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
   // so whatever spandrel resolved on setup day was frozen forever — and a model
   // with a newer architecture then reported "could not be read" with no way in
   // the UI to update the loader.
-  const spec = registryEntry('spandrel')?.engineSpec ?? 'spandrel>=0.4.1'
+  // Never honour a USER-layer engineSpec: with field-by-field merge an
+  // imported pack can override this string, and it is spliced into
+  // `uv pip install`. validateEntry constrains its shape; provenance
+  // constrains who may set it.
+  const entry = registryEntry('spandrel')
+  const spec =
+    (entry && entry.provenance.source !== 'user' && entry.engineSpec) || 'spandrel>=0.4.1'
   if (markerSays(spandrelMarker(), spec)) return
   const uv = await ensureUv(onProgress)
   const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')

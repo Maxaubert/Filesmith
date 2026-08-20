@@ -100,6 +100,8 @@ export interface MissingFile {
   urls?: string[]
   /** Declared checksum, verified while streaming. */
   sha256?: string
+  /** Exact size in bytes when the registry knows it. */
+  bytes?: number
   approxSize: string
   subdir: 'text_encoders' | 'vae'
 }
