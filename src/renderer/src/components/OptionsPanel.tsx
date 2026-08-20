@@ -399,13 +399,20 @@ function UpscaleOptions({
   useEffect(() => {
     void window.filesmith.upscaleModels().then(setNcnn)
   }, [])
-  const comfyModels = comfy.status?.models ?? []
-  const comfyChoices = comfyModels.map((m) => ({
-    value: `comfy:${m.path}`,
-    // Verified models read clean; only flag the unvetted ones, so the marker
-    // isn't mistaken for a "selected" checkmark.
-    label: `${m.name} · ${m.scale}×${m.badge === 'experimental' ? ' · experimental' : ''}`
-  }))
+  const comfyModels = comfy.status?.models
+  // Memoized: the validity effect below depends on this list and calls set()
+  // from inside itself — with a freshly-mapped array every render it escaped
+  // looping only by convergence.
+  const comfyChoices = useMemo(
+    () =>
+      (comfyModels ?? []).map((m) => ({
+        value: `comfy:${m.path}`,
+        // Verified models read clean; only flag the unvetted ones, so the
+        // marker isn't mistaken for a "selected" checkmark.
+        label: `${m.name} · ${m.scale}×${m.badge === 'experimental' ? ' · experimental' : ''}`
+      })),
+    [comfyModels]
+  )
   // Fall back to the legacy Photo/Anime aliases until the disk scan returns, so
   // the picker is never empty for a frame.
   const ncnnChoices: Choice<UpscaleModel>[] = ncnn?.length

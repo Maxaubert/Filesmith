@@ -26,12 +26,17 @@ export async function makeThumbnail(
   size: number,
   kind: FileKind
 ): Promise<string | null> {
-  const os = await osThumbnail(path, size)
-  if (os) return os
-  if (kind === 'image') return magickThumbnail(path, size)
-  if (kind === 'video') return videoFrame(path, size)
-  if (kind === 'audio') return audioCover(path, size)
-  return null
+  // The WHOLE pipeline runs under the limiter: osThumbnail was previously
+  // uncapped, so dropping hundreds of files fired hundreds of concurrent
+  // shell-thumbnail requests in one pass.
+  return withLimit(async () => {
+    const os = await osThumbnail(path, size)
+    if (os) return os
+    if (kind === 'image') return magickThumbnail(path, size)
+    if (kind === 'video') return videoFrame(path, size)
+    if (kind === 'audio') return audioCover(path, size)
+    return null
+  })
 }
 
 async function osThumbnail(path: string, size: number): Promise<string | null> {
@@ -91,13 +96,20 @@ async function toolPng(tool: string, args: string[]): Promise<string | null> {
   // `filesmith-` prefix so the stale-temp sweeper (index.ts) collects it if a
   // hard crash skips the finally cleanup.
   const out = join(tmpdir(), `filesmith-thumb-${randomUUID()}.png`)
+  // A watchdog, because this work has no user-visible failure mode: an ffmpeg
+  // hung on a disconnected network share would otherwise hold a limiter slot
+  // forever and park every later thumbnail behind it.
+  const ac = new AbortController()
+  const watchdog = setTimeout(() => ac.abort(), 20_000)
+  watchdog.unref?.()
   try {
-    const { code } = await withLimit(() => run(resolveTool(tool), [...args, out]))
+    const { code } = await run(resolveTool(tool), [...args, out], { signal: ac.signal })
     if (code !== 0 || !existsSync(out)) return null
     return `data:image/png;base64,${readFileSync(out).toString('base64')}`
   } catch {
     return null
   } finally {
+    clearTimeout(watchdog)
     rmSync(out, { force: true })
   }
 }

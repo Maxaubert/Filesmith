@@ -59,6 +59,12 @@ const api = {
     ipcRenderer.on('preview:update', listener)
     return () => ipcRenderer.removeListener('preview:update', listener)
   },
+  /** The preview window was closed — stop pushing list updates to it. */
+  onPreviewClosed: (cb: () => void): (() => void) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('preview:closed', listener)
+    return () => ipcRenderer.removeListener('preview:closed', listener)
+  },
   /** Push a fresh file list to an open preview window (keeps its position). */
   updatePreviewList: (files: PreviewItem[]): void => ipcRenderer.send('preview:update-list', files),
   /** The preview window listens for live list changes. */

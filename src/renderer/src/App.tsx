@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useReducer,
   useRef,
@@ -164,6 +165,11 @@ export default function App(): JSX.Element {
   const vDimsRequested = useRef<Set<string>>(new Set())
   // Oversize-upscale confirmation, and the flag that lets the confirmed run through.
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  // Stable close handlers: ContextMenu re-registers five window listeners
+  // whenever its onClose identity changes, which an inline arrow made happen
+  // on all ~20 progress renders a second.
+  const closeMenu = useCallback(() => setMenu(null), [])
+  const closeConfirm = useCallback(() => setConfirm(null), [])
   const confirmedHuge = useRef(false)
   // Session persistence: restore the last session (queues + produced files) on
   // launch, pruning anything whose file was deleted since; then save on change.
@@ -359,6 +365,11 @@ export default function App(): JSX.Element {
     const items = state.queues[previewCtx.key as CategoryId]?.items ?? []
     window.filesmith.updatePreviewList(toPreviewFiles(items, previewCtx.side, outThumbs))
   }, [state.queues, outThumbs, previewCtx])
+
+  // Stop the sync the moment the preview window closes — it used to keep
+  // structured-cloning the list (base64 thumbs included) on every progress
+  // tick, forever, into a window that no longer existed.
+  useEffect(() => window.filesmith.onPreviewClosed(() => setPreviewCtx(null)), [])
 
   // Dismiss a set of items from a column. For Output we also recycle-bin the
   // produced file before dropping the card.
@@ -998,8 +1009,8 @@ export default function App(): JSX.Element {
           />
         </>
       </div>
-      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
-      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
+      <ContextMenu menu={menu} onClose={closeMenu} />
+      <ConfirmDialog state={confirm} onClose={closeConfirm} />
     </div>
   )
 }

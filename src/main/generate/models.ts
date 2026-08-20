@@ -16,7 +16,7 @@ import {
   readSafetensorsHeader
 } from './archScan'
 import { readGgufHeader } from './ggufScan'
-import { resolveArch } from './archRegistry'
+import { listCompanionPools, resolveArch } from './archRegistry'
 
 // The generation model list the UI shows: single-file checkpoints AND recognized
 // image-generation diffusion models (Flux 1/2, Z-Image, Krea 2). Both are header-
@@ -144,6 +144,8 @@ export function scanGenerationModels(): GenModelScan {
   let gguf = 0
 
   // --- Single-file checkpoints (CheckpointLoaderSimple) --------------------
+  // One pool walk for the whole scan, not two per model.
+  const pools = listCompanionPools()
   for (const { rel, abs, base } of walkModels(['checkpoints'], /\.(safetensors|ckpt|sft)$/i)) {
     const common = {
       name: rel,
@@ -246,7 +248,7 @@ export function scanGenerationModels(): GenModelScan {
       continue
     }
     const ga = arch as GenArch
-    const { missing, wiring } = resolveArch(ga, rel, fileSize(abs))
+    const { missing, wiring } = resolveArch(ga, rel, fileSize(abs), pools)
     const common = {
       name: rel,
       label: label(rel),
