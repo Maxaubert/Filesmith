@@ -105,10 +105,33 @@ describe('session persistence round-trip', () => {
     expect(pruned.state.queues.images!.selected).toEqual([])
   })
 
-  it('falls back to a valid category/operation when the persisted one is invalid', () => {
-    const snap = sessionSnapshot(initialState, []) as Record<string, unknown>
-    const parsed = parseSession({ ...snap, category: 'nonsense', operation: 'nope' })
+  it('always launches into the first category, whatever was open at close', () => {
+    // The category itself is not restored - only each category's sub-page is.
+    const state: AppState = { ...initialState, category: 'video', operation: 'compress' }
+    const parsed = parseSession(sessionSnapshot(state, []))
     expect(parsed).not.toBeNull()
     expect(parsed!.state.category).toBe('images')
+  })
+
+  it("remembers each category's last sub-page, including the one open at close", () => {
+    const state: AppState = {
+      ...initialState,
+      category: 'video',
+      operation: 'compress',
+      lastOperation: { images: 'generate', video: 'compress' }
+    }
+    const parsed = parseSession(sessionSnapshot(state, []))
+    // Launches into Images ON its remembered sub-page...
+    expect(parsed!.state.category).toBe('images')
+    expect(parsed!.state.operation).toBe('generate')
+    // ...and Video's sub-page survives for when the user switches to it.
+    expect(parsed!.state.lastOperation.video).toBe('compress')
+  })
+
+  it('falls back to the default operation when the remembered one is gone', () => {
+    const state: AppState = { ...initialState, lastOperation: { images: 'renamed-away' } }
+    const parsed = parseSession(sessionSnapshot(state, []))
+    expect(parsed!.state.category).toBe('images')
+    expect(parsed!.state.operation).toBe('convert')
   })
 })
