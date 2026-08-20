@@ -18,6 +18,18 @@ export function buildMagickArgs(input: string, output: string, extra: string[] =
   return [input, ...extra, output]
 }
 
+/**
+ * A source path with a scene spec (`[0]` = first frame) appended, safe for
+ * paths containing `%`. Appending a scene spec switches ImageMagick to
+ * InterpretImageFilename on READ, where `%d`/`%x`/… in the path (or its folder)
+ * are consumed as format codes: `magick "100%off.png[0]" out.jpg` fails with
+ * "unable to open image '1000ff.png'". `%%` round-trips to a literal `%`
+ * (measured against the bundled binary), so escape before appending.
+ */
+export function magickFrame(path: string, frame = 0): string {
+  return `${path.replace(/%/g, '%%')}[${frame}]`
+}
+
 /** ffmpeg args: `ffmpeg -y -i <input> [extra...] <output>`. */
 export function buildFfmpegArgs(input: string, output: string, extra: string[] = []): string[] {
   return ['-y', '-i', input, ...extra, output]

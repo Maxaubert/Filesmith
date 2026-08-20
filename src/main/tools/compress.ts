@@ -1,5 +1,6 @@
 import { extname } from 'path'
 import { isLosslessAudio, normalizeExt } from '@shared/convert'
+import { magickFrame } from './convert'
 import { SCALE_MAX, SCALE_MIN, type AudioCodec, type VideoCodec } from '@shared/compress'
 
 // Image targets that hold multiple frames — keep all frames (an animated GIF
@@ -30,7 +31,7 @@ export function buildCompressArgs(input: string, outDir: string, quality: number
  * single-frame target reads only `input[0]` (so a multi-frame source doesn't
  * split); a multi-frame target keeps every frame (animated GIF -> animated WebP). */
 export function buildMagickCompressArgs(input: string, output: string, quality: number): string[] {
-  const src = MULTIFRAME_TARGETS.includes(normalizeExt(extname(output))) ? input : `${input}[0]`
+  const src = MULTIFRAME_TARGETS.includes(normalizeExt(extname(output))) ? input : magickFrame(input)
   return [src, '-quality', String(quality), output]
 }
 

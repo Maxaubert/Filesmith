@@ -6,6 +6,7 @@ import { nativeImage } from 'electron'
 import type { FileKind } from '@shared/types'
 import { resolveTool } from './toolResolver'
 import { run } from './run'
+import { magickFrame } from './tools/convert'
 
 /**
  * Best-effort thumbnail for a file, returned as a PNG data URL (or null).
@@ -48,7 +49,7 @@ const scale = (size: number): string => `scale=${size}:${size}:force_original_as
 
 /** ImageMagick can decode formats the shell can't; [0] takes the first frame/page. */
 function magickThumbnail(path: string, size: number): Promise<string | null> {
-  return toolPng('magick', [`${path}[0]`, '-thumbnail', `${size}x${size}`])
+  return toolPng('magick', [magickFrame(path), '-thumbnail', `${size}x${size}`])
 }
 
 /** A representative video frame: seek ~1s to skip black lead-in, else frame 0. */
