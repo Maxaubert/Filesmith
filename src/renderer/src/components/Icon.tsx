@@ -8,6 +8,7 @@ export type IconName =
   | 'removebg'
   | 'pdf'
   | 'archive'
+  | 'tools'
   | 'upload'
   | 'check'
   | 'clock'
@@ -60,6 +61,7 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   pdf: <path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5zM14 3.5v5h5" />,
   archive: <path d="M3.5 5.5h17v4h-17zM5.5 9.5v9h13v-9M10 13h4" />,
+  tools: <path d="M14.5 3.5a4.5 4.5 0 0 0 6 6L10 20a3 3 0 0 1-4-4z" />,
   upload: <path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M4 20h16" />,
   check: <path d="M4.5 12.5 9 17 19.5 6.5" />,
   clock: (

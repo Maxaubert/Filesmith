@@ -1,29 +1,29 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
-import { CATEGORIES, type CategoryId } from '@shared/catalog'
+import { TABS, type TabId } from '@shared/tabs'
 import { Icon, type IconName } from './Icon'
 
-const ALL_IDS = CATEGORIES.map((c) => c.id)
-const byId = (id: CategoryId): (typeof CATEGORIES)[number] =>
-  CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[0]
+const ALL_IDS = TABS.map((c) => c.id)
+const byId = (id: TabId): (typeof TABS)[number] => TABS.find((c) => c.id === id) ?? TABS[0]
 
-// The rail's layout is a user preference (order + which types are hidden), so it
+// The rail's layout is a user preference (order + which verbs are hidden), so it
 // lives in localStorage rather than app state: it outlives a session and never
-// needs to reach the engine.
-const ORDER_KEY = 'filesmith.rail.order'
-const HIDDEN_KEY = 'filesmith.rail.hidden'
+// needs to reach the engine. The keys are tab-specific: a stored CATEGORY order
+// from the old rail must not half-apply to verbs.
+const ORDER_KEY = 'filesmith.rail.tabOrder'
+const HIDDEN_KEY = 'filesmith.rail.tabHidden'
 
-function loadOrder(): CategoryId[] {
+function loadOrder(): TabId[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as CategoryId[]
+    const saved = JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as TabId[]
     const kept = saved.filter((id) => ALL_IDS.includes(id))
     return [...kept, ...ALL_IDS.filter((id) => !kept.includes(id))]
   } catch {
     return ALL_IDS
   }
 }
-function loadHidden(): Set<CategoryId> {
+function loadHidden(): Set<TabId> {
   try {
-    return new Set((JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]') as CategoryId[]) ?? [])
+    return new Set((JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]') as TabId[]) ?? [])
   } catch {
     return new Set()
   }
@@ -32,8 +32,9 @@ function loadHidden(): Set<CategoryId> {
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n))
 
 /**
- * The file-type rail, with an iOS-style edit mode: a pencil reveals a drag grip
- * and a visibility checkmark on each row.
+ * The verb rail, with an iOS-style edit mode: a pencil reveals a drag grip and a
+ * visibility checkmark on each row. The rail names what you want DONE; the file
+ * kind is a property of what you dropped, not a place you navigate to.
  *
  * The reorder is a hand-rolled pointer sortable rather than native HTML5 drag,
  * which is janky (no live gap, a ghost image, no control over motion). Here the
@@ -41,17 +42,17 @@ const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.m
  * way with a transition, and the new order commits on release. The maths keys
  * off the measured row pitch so it stays correct regardless of spacing.
  */
-export function CategoryRail({
-  category,
+export function TabRail({
+  tab,
   counts,
   onSelect
 }: {
-  category: CategoryId
+  tab: TabId
   counts: Record<string, number>
-  onSelect: (c: CategoryId) => void
+  onSelect: (c: TabId) => void
 }): JSX.Element {
-  const [order, setOrder] = useState<CategoryId[]>(loadOrder)
-  const [hidden, setHidden] = useState<Set<CategoryId>>(loadHidden)
+  const [order, setOrder] = useState<TabId[]>(loadOrder)
+  const [hidden, setHidden] = useState<Set<TabId>>(loadHidden)
   const [editing, setEditing] = useState(false)
 
   // Live drag state. `pitch` is the row-to-row distance in px, measured on grab.
@@ -69,7 +70,7 @@ export function CategoryRail({
 
   const rows = editing ? order : order.filter((id) => !hidden.has(id))
 
-  function toggleHidden(id: CategoryId): void {
+  function toggleHidden(id: TabId): void {
     setHidden((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -80,7 +81,7 @@ export function CategoryRail({
 
   function stopEditing(): void {
     setEditing(false)
-    if (hidden.has(category)) {
+    if (hidden.has(tab)) {
       const firstVisible = order.find((id) => !hidden.has(id))
       if (firstVisible) onSelect(firstVisible)
     }
@@ -146,7 +147,7 @@ export function CategoryRail({
     <nav className="flex w-[212px] shrink-0 flex-col gap-0.5 border-r border-black/[.06] bg-white/40 px-3 pb-4">
       <div className="flex items-center justify-between px-1 pb-2 pt-3.5">
         <span className="pl-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
-          File types
+          Do
         </span>
         <button
           onClick={() => (editing ? stopEditing() : setEditing(true))}
@@ -165,7 +166,7 @@ export function CategoryRail({
 
       {rows.map((id, i) => {
         const c = byId(id)
-        const active = c.id === category && !editing
+        const active = c.id === tab && !editing
         const isHidden = hidden.has(id)
         const n = counts[c.id] ?? 0
 

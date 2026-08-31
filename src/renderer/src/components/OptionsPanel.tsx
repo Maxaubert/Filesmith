@@ -22,9 +22,8 @@ import { RESIZE_FITS, type ResizeFit } from '@shared/resize'
 import { BG_DEFAULTS, BG_FILLS, type BgFill } from '@shared/removebg'
 import { GEN_SIZES, GEN_STYLES, GEN_MAX_COUNT, clampDim } from '@shared/generate'
 import { archInfoFor, type GenArch, type GenModel } from '@shared/genArch'
-import type { Operation } from '@shared/catalog'
 import { Icon } from './Icon'
-import { OperationSwitcher } from './OperationSwitcher'
+import type { ToolId } from '@shared/types'
 import { PidInstallCard } from './PidUpscale'
 import { usePidStatus } from './usePidStatus'
 import { ComfyImportCard } from './ComfyImport'
@@ -1630,12 +1629,64 @@ function GenerateOptions({
   )
 }
 
+const KIND_COLOR: Record<string, string> = {
+  image: '#5b5bd6',
+  video: '#e0483d',
+  audio: '#f5920b',
+  pdf: '#ef4444',
+  document: '#12b3a6',
+  text: '#12b3a6',
+  archive: '#a16207',
+  other: '#6e6e73'
+}
+const KIND_NOUN: Record<string, (n: number) => string> = {
+  image: (n) => `${n} image${n === 1 ? '' : 's'}`,
+  video: (n) => `${n} video${n === 1 ? '' : 's'}`,
+  audio: (n) => `${n} audio file${n === 1 ? '' : 's'}`,
+  pdf: (n) => `${n} PDF${n === 1 ? '' : 's'}`,
+  document: (n) => `${n} document${n === 1 ? '' : 's'}`,
+  text: (n) => `${n} text file${n === 1 ? '' : 's'}`,
+  archive: (n) => `${n} archive${n === 1 ? '' : 's'}`,
+  other: (n) => `${n} file${n === 1 ? '' : 's'}`
+}
+
+/** What these settings will act on. The queue can hold images and video at the
+ * same time, so "Run" has to say which of them it means. */
+function ScopeChip({
+  kind,
+  count,
+  known
+}: {
+  kind: FileKind
+  count: number
+  known: boolean
+}): JSX.Element {
+  const noun = (KIND_NOUN[kind] ?? KIND_NOUN.other)(count)
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl bg-black/[.035] px-3 py-2.5">
+      <span
+        className="mt-px h-[18px] w-[18px] shrink-0 rounded-md"
+        style={{ background: KIND_COLOR[kind] ?? KIND_COLOR.other }}
+      />
+      <span className="text-[12.5px] font-medium leading-snug text-muted">
+        {known && count > 0 ? (
+          <>
+            Applies to the <span className="font-bold text-ink">{noun}</span> selected.
+          </>
+        ) : (
+          <>Select files to choose what these settings apply to.</>
+        )}
+      </span>
+    </div>
+  )
+}
+
 export function OptionsPanel({
-  operation,
-  operations,
-  onPickOperation,
+  tool,
+  label,
   options,
   activeKind,
+  activeGroup,
   runKind,
   fallbackKind,
   videoOutputs,
@@ -1647,12 +1698,14 @@ export function OptionsPanel({
   onSet,
   onRun
 }: {
-  /** The operation this workspace performs, plus its siblings for the switcher. */
-  operation: Operation
-  operations: Operation[]
-  onPickOperation: (id: string) => void
+  /** The engine tool this workspace runs. */
+  tool: ToolId
+  /** The verb's own name, used by the Run button. */
+  label: string
   options: JobOptions
   activeKind: FileKind | null
+  /** The selected convert group, or null with nothing selected. */
+  activeGroup: string | null
   runKind: FileKind | null
   /** The kind to show options for when nothing is selected: the category's own. */
   fallbackKind: FileKind
@@ -1683,10 +1736,12 @@ export function OptionsPanel({
         } as CSSProperties
       }
     >
-      {/* The one coloured control: the primary choice. No "Options" header below
-          it: the option groups (Target format, Quality) are their own headers. */}
+      {/* No operation switcher: the rail IS the operation now, so a coloured
+          pill here would name the same thing twice. What the panel owes the user
+          instead is WHICH files its settings apply to, because one tab's queue
+          can hold several convert groups at once. */}
       <div className="px-[22px] pt-6">
-        <OperationSwitcher operation={operation} operations={operations} onPick={onPickOperation} />
+        <ScopeChip kind={activeKind ?? fallbackKind} count={runCount} known={activeGroup != null} />
         <div className="mt-5 h-px bg-black/[.07]" />
       </div>
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-[22px] py-5">
@@ -1695,7 +1750,7 @@ export function OptionsPanel({
           Falls back to the category's kind when there's no selection to read
           one from. Only the run button reflects whether files are ready. */}
         <>
-          {operation.tool === 'convert' && (
+          {tool === 'convert' && (
             <ConvertOptions
               options={options}
               activeKind={activeKind ?? fallbackKind}
@@ -1704,7 +1759,7 @@ export function OptionsPanel({
               set={onSet}
             />
           )}
-          {operation.tool === 'compress' && (
+          {tool === 'compress' && (
             <CompressOptions
               options={options}
               activeKind={runKind ?? fallbackKind}
@@ -1712,20 +1767,16 @@ export function OptionsPanel({
               set={onSet}
             />
           )}
-          {operation.tool === 'resize' && (
+          {tool === 'resize' && (
             <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
           )}
-          {operation.tool === 'upscale' && (
+          {tool === 'upscale' && (
             <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
           )}
-          {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
-          {operation.tool === 'pdf' && (
-            <PdfOptions options={options} runCount={runCount} set={onSet} />
-          )}
-          {operation.tool === 'archive' && (
-            <ArchiveOptions options={options} srcExts={srcExts} set={onSet} />
-          )}
-          {operation.tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
+          {tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
+          {tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
+          {tool === 'archive' && <ArchiveOptions options={options} srcExts={srcExts} set={onSet} />}
+          {tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
         </>
       </div>
 
@@ -1735,8 +1786,8 @@ export function OptionsPanel({
           disabled={runCount === 0}
           className="w-full rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(0,0,0,.20)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
         >
-          {operation.label}
-          {operation.tool !== 'generate' && runCount > 0
+          {label}
+          {tool !== 'generate' && runCount > 0
             ? ` ${runCount} file${runCount === 1 ? '' : 's'}`
             : ''}
         </button>

@@ -169,34 +169,38 @@ test.afterAll(async () => {
 
 // --- UI navigation -----------------------------------------------------------
 
-test('every category opens its workspace with the right operations', async () => {
-  const expected: Record<string, string[]> = {
-    Images: ['Convert', 'Compress', 'Resize', 'Remove Background', 'Upscale', 'Generate'],
-    Video: ['Convert', 'Compress'],
-    Audio: ['Convert', 'Compress'],
-    PDF: [
-      'Extract text',
-      'Pages to PNG',
-      'Merge',
-      'Split',
-      'Burst',
-      'Extract images',
-      'To CBZ',
-      'Compress'
-    ],
-    Documents: ['Convert'],
-    Archives: ['Convert', 'Extract', 'To PDF']
+test('the rail lists every verb and opens its workspace', async () => {
+  for (const verb of [
+    'Convert',
+    'Compress',
+    'Resize',
+    'Upscale',
+    'Remove BG',
+    'Generate',
+    'Tools'
+  ]) {
+    await page.locator(`button:has-text("${verb}")`).first().click()
+    await expect(page.locator('h1', { hasText: verb }).first()).toBeVisible()
   }
-  for (const [category, ops] of Object.entries(expected)) {
-    await page.locator(`button:has-text("${category}")`).first().click()
-    // The operation switcher lists every operation of this category.
-    await page.locator('aside button').first().click() // open the switcher
-    for (const op of ops) {
-      await expect(page.locator(`text=${op}`).first()).toBeVisible()
-    }
-    await page.keyboard.press('Escape')
-  }
+  await page.locator('button:has-text("Convert")').first().click()
 })
+
+test('Tools groups its one-off verbs and opens one as a workspace', async () => {
+  await page.locator('button:has-text("Tools")').first().click()
+  for (const t of ['Extract text', 'Merge', 'Burst', 'Archive to PDF', 'PDF to CBZ']) {
+    await expect(page.locator(`text=${t}`).first()).toBeVisible()
+  }
+  await page.locator('button:has-text("Merge")').first().click()
+  // A tool workspace is an ordinary queue titled with the tool's name.
+  await expect(page.locator('h1', { hasText: 'Merge' }).first()).toBeVisible()
+  await expect(page.locator('text=Input').first()).toBeVisible()
+  await page.locator('button:has-text("Convert")').first().click()
+})
+
+// NOTE: the mixed-kind queue, its group headers and the kind-scoped options
+// panel are covered by unit tests (queue-groups, verb-state), not here. Adding
+// files to the UI needs a real OS drop or a native file dialog, and neither is
+// drivable from Playwright without a production-only test seam.
 
 // --- Images ------------------------------------------------------------------
 

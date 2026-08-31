@@ -1,6 +1,7 @@
 import type { JSX, MouseEvent } from 'react'
 import type { JobOptions, ToolId } from '@shared/types'
 import { formatBytes, formatEta, groupOf, inInput, inOutput, type QueueItem } from '../state'
+import { groupItemsByGroup } from './queueGroups'
 import { baseName } from '@shared/fileKind'
 import { Icon } from './Icon'
 
@@ -293,6 +294,17 @@ function OutputCard({
   )
 }
 
+/** A hairline header naming one convert group inside a mixed queue. */
+function GroupHead({ label, count }: { label: string; count: string }): JSX.Element {
+  return (
+    <div className="mb-2 mt-3.5 flex items-center gap-2.5 first:mt-0.5">
+      <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-dim">{label}</span>
+      <span className="text-[11.5px] font-medium text-muted">{count}</span>
+      <span className="h-px flex-1 bg-black/[.07]" />
+    </div>
+  )
+}
+
 export function Queues({
   items,
   tool,
@@ -340,20 +352,32 @@ export function Queues({
   return (
     <div className="flex min-h-0 flex-1 gap-5">
       <Column title="Input">
-        {inputs.map((i) => (
-          <InputCard
-            key={i.id}
-            item={i}
-            tool={tool}
-            options={options}
-            selected={selected.includes(i.id)}
-            compatible={activeGroup === null || groupOf(i.file) === activeGroup}
-            onClick={(e) => onItemClick(i.id, e)}
-            onOpen={() => onOpen('input', i)}
-            onMenu={(x, y) => onMenu('input', i, x, y)}
-            onCancel={() => onCancel(i.id)}
-          />
-        ))}
+        {(() => {
+          const card = (i: QueueItem): JSX.Element => (
+            <InputCard
+              key={i.id}
+              item={i}
+              tool={tool}
+              options={options}
+              selected={selected.includes(i.id)}
+              compatible={activeGroup === null || groupOf(i.file) === activeGroup}
+              onClick={(e) => onItemClick(i.id, e)}
+              onOpen={() => onOpen('input', i)}
+              onMenu={(x, y) => onMenu('input', i, x, y)}
+              onCancel={() => onCancel(i.id)}
+            />
+          )
+          // Headers only when the queue actually holds more than one group, so
+          // the everyday single-kind batch looks exactly as it always has.
+          const groups = groupItemsByGroup(inputs)
+          if (!groups) return inputs.map(card)
+          return groups.map((g) => (
+            <div key={g.group}>
+              <GroupHead label={g.label} count={g.count} />
+              {g.items.map(card)}
+            </div>
+          ))
+        })()}
       </Column>
       <Column title="Output">
         {done.map((i) => (

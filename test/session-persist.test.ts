@@ -40,7 +40,7 @@ function stateWith(items: QueueItem[]): AppState {
   return {
     ...initialState,
     queues: {
-      images: {
+      convert: {
         items,
         selected: [items[0]?.id].filter(Boolean) as string[],
         anchor: items[0]?.id ?? null
@@ -61,7 +61,7 @@ describe('session persistence round-trip', () => {
     const snap = sessionSnapshot(state, ['C:/gen/one.png'])
     const parsed = parseSession(snap)
     expect(parsed).not.toBeNull()
-    const items = parsed!.state.queues.images!.items
+    const items = parsed!.state.queues.convert!.items
     // Thumb dropped (reloadable), running settled back to ready.
     expect(items[0].thumb).toBeNull()
     expect(items[0].status).toBe('ready')
@@ -72,12 +72,18 @@ describe('session persistence round-trip', () => {
     expect(parsed!.genResults).toEqual(['C:/gen/one.png'])
   })
 
-  it('rejects a session with a mismatched version', () => {
-    const snap = sessionSnapshot(initialState, []) as Record<string, unknown>
-    expect(parseSession({ ...snap, version: 999 })).toBeNull()
+  it('rejects junk, but never a merely older session', () => {
     expect(parseSession(null)).toBeNull()
     expect(parseSession('garbage')).toBeNull()
-    expect(parseSession({ version: 1 })).not.toBeNull() // tolerant of missing optional fields
+    // A v1 blob is MIGRATED, not discarded: its files are the user's in-flight
+    // work, and losing them to an upgrade is worse than resetting settings.
+    expect(parseSession({ version: 1 })).not.toBeNull()
+    // A version from the future (a downgrade) takes the same path and yields an
+    // empty but usable session rather than crashing the window.
+    const snap = sessionSnapshot(initialState, []) as Record<string, unknown>
+    const future = parseSession({ ...snap, version: 999 })
+    expect(future).not.toBeNull()
+    expect(future!.state.tab).toBe('convert')
   })
 
   it('collects every on-disk path referenced by the session', () => {
@@ -98,40 +104,30 @@ describe('session persistence round-trip', () => {
     ])
     const exists = new Set(['C:/in/present.png', 'C:/out/present.png', 'C:/gen/keep.png'])
     const pruned = pruneMissing(state, ['C:/gen/keep.png', 'C:/gen/gone.png'], exists)
-    const ids = pruned.state.queues.images!.items.map((i) => i.id)
+    const ids = pruned.state.queues.convert!.items.map((i) => i.id)
     expect(ids).toEqual(['a', 'c']) // b (source gone) and d (output gone) dropped
     expect(pruned.genResults).toEqual(['C:/gen/keep.png'])
     // Selection/anchor are cleared on prune so they can't dangle.
-    expect(pruned.state.queues.images!.selected).toEqual([])
+    expect(pruned.state.queues.convert!.selected).toEqual([])
   })
 
-  it('always launches into the first category, whatever was open at close', () => {
-    // The category itself is not restored - only each category's sub-page is.
-    const state: AppState = { ...initialState, category: 'video', operation: 'compress' }
+  it('always launches into the first verb, whatever was open at close', () => {
+    const state: AppState = { ...initialState, tab: 'compress' }
     const parsed = parseSession(sessionSnapshot(state, []))
     expect(parsed).not.toBeNull()
-    expect(parsed!.state.category).toBe('images')
+    expect(parsed!.state.tab).toBe('convert')
   })
 
-  it("remembers each category's last sub-page, including the one open at close", () => {
-    const state: AppState = {
-      ...initialState,
-      category: 'video',
-      operation: 'compress',
-      lastOperation: { images: 'generate', video: 'compress' }
-    }
+  it('remembers the Tools card that was last open', () => {
+    const state: AppState = { ...initialState, tab: 'tools', lastTool: 'pdf-burst' }
     const parsed = parseSession(sessionSnapshot(state, []))
-    // Launches into Images ON its remembered sub-page...
-    expect(parsed!.state.category).toBe('images')
-    expect(parsed!.state.operation).toBe('generate')
-    // ...and Video's sub-page survives for when the user switches to it.
-    expect(parsed!.state.lastOperation.video).toBe('compress')
+    expect(parsed!.state.tab).toBe('convert')
+    expect(parsed!.state.lastTool).toBe('pdf-burst')
   })
 
-  it('falls back to the default operation when the remembered one is gone', () => {
-    const state: AppState = { ...initialState, lastOperation: { images: 'renamed-away' } }
+  it('forgets a Tools card that no longer exists', () => {
+    const state: AppState = { ...initialState, lastTool: 'renamed-away' }
     const parsed = parseSession(sessionSnapshot(state, []))
-    expect(parsed!.state.category).toBe('images')
-    expect(parsed!.state.operation).toBe('convert')
+    expect(parsed!.state.lastTool).toBeNull()
   })
 })
