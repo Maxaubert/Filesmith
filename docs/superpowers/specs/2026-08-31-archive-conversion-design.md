@@ -40,16 +40,16 @@ Deferred, not forgotten.
 
 ### Formats written
 
-| Target | Container | Availability |
-| --- | --- | --- |
-| `.cbz` | zip | always |
-| `.zip` | zip | always |
-| `.cb7` | 7z | always |
-| `.7z` | 7z | always |
-| `.cbt` | tar | always |
-| `.tar` | tar | always |
-| `.cbr` | rar | only with WinRAR installed |
-| `.rar` | rar | only with WinRAR installed |
+| Target | Container | Availability               |
+| ------ | --------- | -------------------------- |
+| `.cbz` | zip       | always                     |
+| `.zip` | zip       | always                     |
+| `.cb7` | 7z        | always                     |
+| `.7z`  | 7z        | always                     |
+| `.cbt` | tar       | always                     |
+| `.tar` | tar       | always                     |
+| `.cbr` | rar       | only with WinRAR installed |
+| `.rar` | rar       | only with WinRAR installed |
 
 ### Operations
 
@@ -93,10 +93,10 @@ way `pdf.ts` and `convert.ts` are. Pure functions only:
   UI and the engine cannot drift.
 - `buildExtractArgs(input, outDir)` gives `['x', input, '-o' + outDir, '-y', '-bsp2']`
 - `buildPackArgs(output, container, level)` gives `['a', '-t' + container, '-mx' + level,
-  output, '*', '-y', '-bsp2']`, run with `cwd` set to the temp dir so the archive holds
+output, '*', '-y', '-bsp2']`, run with `cwd` set to the temp dir so the archive holds
   the contents, not a wrapper folder. A wrapper folder breaks comic readers.
 - `buildRarPackArgs(output, srcDir)` gives WinRAR's `['a', '-ep1', '-r', '-y', output, '.']`
-- `parse7zProgress(chunk): number | undefined` — the ` 47% ` counter. `-bsp2` sends the
+- `parse7zProgress(chunk): number | undefined` — the `47%` counter. `-bsp2` sends the
   progress stream to stderr, so it arrives through `RunOptions.onStderr` and `run.ts`
   needs no change.
 - `naturalSort(names): string[]` — `page2` before `page10`. Comic page order is the whole

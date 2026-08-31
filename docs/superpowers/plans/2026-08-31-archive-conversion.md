@@ -26,10 +26,12 @@
 ### Task 1: Archive format catalog and container mapping
 
 **Files:**
+
 - Create: `src/shared/archive.ts`
 - Test: `test/archive-catalog.test.ts`
 
 **Interfaces:**
+
 - Consumes: `FormatOption` from `src/shared/convert.ts`.
 - Produces: `type ArchiveContainer = 'zip' | '7z' | 'tar' | 'rar'`; `ARCHIVE_FORMATS: FormatOption[]`; `CONTAINER_OF: Record<string, ArchiveContainer>`; `archiveTargets(sourceExt: string, hasRar: boolean): FormatOption[]`; `containerOf(ext: string): ArchiveContainer | null`; `needsRar(ext: string): boolean`.
 
@@ -167,11 +169,13 @@ git commit -m "feat(archive): add archive format catalog and container mapping"
 ### Task 2: File-kind classification for archives
 
 **Files:**
+
 - Modify: `src/shared/types.ts` (the `FileKind` and `ToolId` unions)
 - Modify: `src/shared/fileKind.ts`
 - Test: `test/archive-kind.test.ts`
 
 **Interfaces:**
+
 - Consumes: `containerOf` from Task 1 is not used here; this task only extends the classifier.
 - Produces: `ARCHIVE_EXTS: string[]` exported from `src/shared/fileKind.ts`; `FileKind` includes `'archive'`; `ToolId` includes `'archive'`.
 
@@ -217,16 +221,10 @@ In `src/shared/types.ts`, extend both unions:
 
 ```ts
 export type ToolId =
-  | 'convert'
-  | 'compress'
-  | 'resize'
-  | 'upscale'
-  | 'removebg'
-  | 'pdf'
-  | 'generate'
-  | 'archive'
+  'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'pdf' | 'generate' | 'archive'
 
-export type FileKind = 'image' | 'video' | 'audio' | 'pdf' | 'document' | 'text' | 'archive' | 'other'
+export type FileKind =
+  'image' | 'video' | 'audio' | 'pdf' | 'document' | 'text' | 'archive' | 'other'
 ```
 
 In `src/shared/fileKind.ts`, add the extension set above the `fileKind` function:
@@ -241,7 +239,7 @@ export const ARCHIVE_EXTS = ['.zip', '.rar', '.7z', '.tar', '.cbz', '.cbr', '.cb
 and add the branch inside `fileKind`, before the `DOC_EXTS` check:
 
 ```ts
-  if (ARCHIVE_EXTS.includes(e)) return 'archive'
+if (ARCHIVE_EXTS.includes(e)) return 'archive'
 ```
 
 - [ ] **Step 4: Run tests and typecheck**
@@ -261,10 +259,12 @@ git commit -m "feat(archive): classify archive extensions as a new file kind"
 ### Task 3: 7-Zip and WinRAR argument builders
 
 **Files:**
+
 - Create: `src/main/tools/archive.ts`
 - Test: `test/archive-args.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ArchiveContainer` from `src/shared/archive.ts` (Task 1).
 - Produces: `buildExtractArgs(input: string, outDir: string): string[]`; `buildPackArgs(output: string, container: ArchiveContainer, store: boolean): string[]`; `buildRarPackArgs(output: string): string[]`; `parse7zProgress(chunk: string): number | undefined`; `naturalSort(names: string[]): string[]`; `batchImages(paths: string[], budget: number): string[][]`; `IMAGE_ENTRY_EXTS: string[]`.
 
@@ -479,11 +479,13 @@ git commit -m "feat(archive): add 7-Zip and WinRAR argument builders"
 ### Task 4: Bundle 7-Zip and detect WinRAR
 
 **Files:**
+
 - Modify: `src/main/toolResolver.ts`
 - Modify: `scripts/fetch-binaries.mjs`
 - Test: `test/archive-resolvers.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks.
 - Produces: `resolveRar(): string | null` and `resolveSevenZip(): string` exported from `src/main/toolResolver.ts`.
 
@@ -570,10 +572,7 @@ In `scripts/fetch-binaries.mjs`, add a step alongside the magick and caesium cop
 
 ```js
 function sevenZip() {
-  const candidates = [
-    'C:\\Program Files\\7-Zip',
-    'C:\\Program Files (x86)\\7-Zip'
-  ]
+  const candidates = ['C:\\Program Files\\7-Zip', 'C:\\Program Files (x86)\\7-Zip']
   const dir = candidates.find((d) => existsSync(join(d, '7z.exe')))
   if (!dir) {
     log('7-Zip: not found. Install it (winget install 7zip.7zip) and re-run.')
@@ -611,10 +610,12 @@ git commit -m "feat(archive): bundle 7-Zip and detect an installed WinRAR"
 ### Task 5: The archive tool in the engine registry
 
 **Files:**
+
 - Modify: `src/main/tools/registry.ts`
 - Test: `test/archive-tool.test.ts`
 
 **Interfaces:**
+
 - Consumes: everything produced by Tasks 1, 3 and 4.
 - Produces: `archiveTool: ToolModule` registered under the `archive` key in the registry's tool map; job options `{ op, format, store, dpi, pageFormat, quality }`.
 
@@ -622,12 +623,12 @@ Read `pdfTool` in `src/main/tools/registry.ts:302` first and mirror its op-switc
 
 Op contract:
 
-| `op` | Input | Output | Options used |
-| --- | --- | --- | --- |
-| `repack` | archive | archive | `format`, `store` |
-| `extract` | archive | directory | none |
-| `to-pdf` | archive | `.pdf` | none |
-| `from-pdf` | `.pdf` | archive | `format`, `dpi`, `pageFormat`, `quality` |
+| `op`       | Input   | Output    | Options used                             |
+| ---------- | ------- | --------- | ---------------------------------------- |
+| `repack`   | archive | archive   | `format`, `store`                        |
+| `extract`  | archive | directory | none                                     |
+| `to-pdf`   | archive | `.pdf`    | none                                     |
+| `from-pdf` | `.pdf`  | archive   | `format`, `dpi`, `pageFormat`, `quality` |
 
 - [ ] **Step 1: Write the failing test**
 
@@ -836,11 +837,9 @@ const archiveTool: ToolModule = {
       const output = reserveOutPath(file.path, targetExt, 'converted')
       try {
         ctx.onProgress(undefined, 'Rendering pages')
-        const draw = await run(
-          resolveTool('mutool'),
-          buildPdfImagesArgs(file.path, temp, dpi),
-          { signal: ctx.signal }
-        )
+        const draw = await run(resolveTool('mutool'), buildPdfImagesArgs(file.path, temp, dpi), {
+          signal: ctx.signal
+        })
         if (draw.code !== 0) throw new Error(draw.stderr.trim() || 'Could not render this PDF')
 
         if (pageFormat === 'jpg') {
@@ -875,7 +874,7 @@ const archiveTool: ToolModule = {
 Register it in the tool map at the bottom of the file, next to `pdf: pdfTool`:
 
 ```ts
-  archive: archiveTool
+archive: archiveTool
 ```
 
 - [ ] **Step 4: Run the unit suite and typecheck**
@@ -895,12 +894,14 @@ git commit -m "feat(archive): add the archive tool with repack, extract and PDF 
 ### Task 6: WinRAR status over IPC
 
 **Files:**
+
 - Modify: `src/main/ipc.ts`
 - Modify: `src/preload/index.ts`
 - Modify: `src/renderer/src/env.d.ts` (the `window.filesmith` type, if the API surface is typed there)
 - Create: `src/renderer/src/components/useArchiveStatus.ts`
 
 **Interfaces:**
+
 - Consumes: `resolveRar` from Task 4.
 - Produces: `window.filesmith.archiveStatus(): Promise<{ rar: boolean }>`; `useArchiveStatus(): { rar: boolean }`.
 
@@ -911,7 +912,7 @@ Read `usePidStatus.ts` first and follow its shape exactly.
 In `src/main/ipc.ts`, next to `removebg:status`:
 
 ```ts
-  ipcMain.handle('archive:status', () => ({ rar: resolveRar() !== null }))
+ipcMain.handle('archive:status', () => ({ rar: resolveRar() !== null }))
 ```
 
 with `resolveRar` added to the existing `../toolResolver` import.
@@ -964,11 +965,13 @@ git commit -m "feat(archive): report WinRAR availability to the renderer"
 ### Task 7: Catalog entries for the Archives category
 
 **Files:**
+
 - Modify: `src/shared/catalog.ts`
 - Modify: `src/renderer/src/components/Icon.tsx`
 - Test: `test/archive-catalog-nav.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ToolId` including `'archive'` (Task 2).
 - Produces: `CategoryId` includes `'archives'`; `OPERATIONS.archives` with ids `convert`, `extract`, `to-pdf`; `OPERATIONS.pdf` gains id `to-cbz`.
 
@@ -1029,35 +1032,35 @@ Append to `CATEGORIES`:
 Append to `OPERATIONS`:
 
 ```ts
-  archives: [
-    {
-      id: 'convert',
-      label: 'Convert',
-      desc: 'Repack as CBZ, CBR, CB7 or ZIP',
-      color: '#5b5bd6',
-      icon: 'convert',
-      tool: 'archive',
-      opKey: 'repack'
-    },
-    {
-      id: 'extract',
-      label: 'Extract',
-      desc: 'Unpack into a folder',
-      color: '#22b364',
-      icon: 'resize',
-      tool: 'archive',
-      opKey: 'extract'
-    },
-    {
-      id: 'to-pdf',
-      label: 'To PDF',
-      desc: 'Turn a comic archive into a PDF',
-      color: '#ef4444',
-      icon: 'pdf',
-      tool: 'archive',
-      opKey: 'to-pdf'
-    }
-  ]
+archives: [
+  {
+    id: 'convert',
+    label: 'Convert',
+    desc: 'Repack as CBZ, CBR, CB7 or ZIP',
+    color: '#5b5bd6',
+    icon: 'convert',
+    tool: 'archive',
+    opKey: 'repack'
+  },
+  {
+    id: 'extract',
+    label: 'Extract',
+    desc: 'Unpack into a folder',
+    color: '#22b364',
+    icon: 'resize',
+    tool: 'archive',
+    opKey: 'extract'
+  },
+  {
+    id: 'to-pdf',
+    label: 'To PDF',
+    desc: 'Turn a comic archive into a PDF',
+    color: '#ef4444',
+    icon: 'pdf',
+    tool: 'archive',
+    opKey: 'to-pdf'
+  }
+]
 ```
 
 Append to the existing `pdf` operations array:
@@ -1102,10 +1105,12 @@ git commit -m "feat(archive): add the Archives category and its operation cards"
 ### Task 8: Options panel for archive operations
 
 **Files:**
+
 - Modify: `src/renderer/src/components/OptionsPanel.tsx`
 - Test: manual, through `npm run dev`
 
 **Interfaces:**
+
 - Consumes: `archiveTargets`, `needsRar` (Task 1); `useArchiveStatus` (Task 6); operation `opKey` values (Task 7).
 - Produces: job options `{ op, format, store, dpi, pageFormat, quality }` matching the contract in Task 5.
 
@@ -1150,11 +1155,13 @@ git commit -m "feat(archive): add archive options with a WinRAR-gated CBR target
 ### Task 9: End-to-end coverage
 
 **Files:**
+
 - Modify: `e2e/workflows.spec.ts`
 - Create: `e2e/fixtures/sample.cbz` (three tiny PNG pages named `p1.png`, `p2.png`, `p10.png`)
 - Create: `e2e/fixtures/sample-pages.pdf` (a 3-page PDF)
 
 **Interfaces:**
+
 - Consumes: the full chain from Tasks 1 through 8.
 - Produces: two e2e cases proving the preload / IPC / engine path unit tests cannot reach.
 
@@ -1211,6 +1218,7 @@ git commit -m "test(archive): cover CBZ to CB7 and PDF to CBZ end to end"
 ### Task 10: Version bump, docs and PR
 
 **Files:**
+
 - Modify: `package.json` (minor version bump: this is a feature)
 - Modify: `CLAUDE.md` (project layout section: note `tools/archive.ts` and the bundled 7-Zip)
 - Modify: `README.md` (the operations list)
