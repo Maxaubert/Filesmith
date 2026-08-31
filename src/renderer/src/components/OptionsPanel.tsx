@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import type { FileKind, JobOptions } from '@shared/types'
-import { familyFormats, isSameFormat } from '@shared/convert'
+import { familyFormats, isSameFormat, type FormatOption } from '@shared/convert'
 import {
   AUDIO_BITRATES,
   AUDIO_CODECS,
@@ -17,6 +17,7 @@ import {
   type Choice,
   type UpscaleModel
 } from '@shared/compress'
+import { ARCHIVE_FORMATS, COMIC_FORMATS, needsRar } from '@shared/archive'
 import { RESIZE_FITS, type ResizeFit } from '@shared/resize'
 import { BG_DEFAULTS, BG_FILLS, type BgFill } from '@shared/removebg'
 import { GEN_SIZES, GEN_STYLES, GEN_MAX_COUNT, clampDim } from '@shared/generate'
@@ -29,6 +30,7 @@ import { usePidStatus } from './usePidStatus'
 import { ComfyImportCard } from './ComfyImport'
 import { useComfyModels } from './useComfyModels'
 import { useGenerateStatus } from './useGenerateStatus'
+import { useArchiveStatus } from './useArchiveStatus'
 
 /** A live "input → output" resolution row for the video resolution preview. */
 export interface VideoOutputRow {
@@ -851,6 +853,167 @@ function PdfOptions({
   )
 }
 
+/** Target-format chips shared by the two archive operations that write one.
+ * A format is greyed rather than hidden when it needs WinRAR: a user looking
+ * for CBR gets an answer on hover instead of a missing option. */
+function ArchiveTargets({
+  formats,
+  value,
+  srcExts,
+  hasRar,
+  set
+}: {
+  formats: FormatOption[]
+  value: string
+  srcExts: string[]
+  hasRar: boolean
+  set: (k: string, v: string | number | boolean) => void
+}): JSX.Element {
+  return (
+    <div>
+      <Label>Target format</Label>
+      <div className="grid grid-cols-2 gap-2">
+        {formats.map((f) => {
+          // .zip and .cbz are the same container but not the same file, so the
+          // comparison is by extension, not by container: repacking a .zip as
+          // a .cbz is exactly what a comic reader needs.
+          const isSource = srcExts.includes(f.ext)
+          const noRar = needsRar(f.ext) && !hasRar
+          const disabled = isSource || noRar
+          const sel = value === f.ext && !disabled
+          return (
+            <button
+              key={f.ext}
+              disabled={disabled}
+              title={
+                noRar ? 'WinRAR not found' : isSource ? 'Files are already this format' : undefined
+              }
+              onClick={() => set('format', f.ext)}
+              className={`rounded-xl border py-2.5 text-[13px] font-semibold transition ${
+                sel
+                  ? 'border-accent bg-accent-soft text-accent shadow-[0_0_0_3px_rgba(0,0,0,.06)]'
+                  : disabled
+                    ? 'cursor-not-allowed border-black/[.06] bg-white text-[#c4c4cc]'
+                    : 'border-black/[.10] bg-white text-[#33333a] hover:border-[#b9b9c8]'
+              }`}
+            >
+              {f.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ArchiveOptions({
+  options,
+  srcExts,
+  set
+}: {
+  options: JobOptions
+  srcExts: string[]
+  set: (k: string, v: string | number | boolean) => void
+}): JSX.Element {
+  const op = String(options.op ?? 'repack')
+  const { rar } = useArchiveStatus()
+  const format = String(options.format ?? '.cbz')
+
+  if (op === 'extract') {
+    return (
+      <p className="text-[12.5px] text-muted">
+        Each archive is unpacked into its own folder next to it.
+      </p>
+    )
+  }
+
+  if (op === 'to-pdf') {
+    return (
+      <p className="text-[12.5px] text-muted">
+        Pages are ordered by filename, the way a reader shows them.
+      </p>
+    )
+  }
+
+  if (op === 'from-pdf') {
+    const pageFormat = String(options.pageFormat ?? 'jpg')
+    return (
+      <>
+        <ArchiveTargets
+          formats={COMIC_FORMATS}
+          value={format}
+          srcExts={[]}
+          hasRar={rar}
+          set={set}
+        />
+        <div>
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
+              Resolution
+            </span>
+            <span className="text-sm font-semibold text-accent">
+              {Number(options.dpi ?? 150)} DPI
+            </span>
+          </div>
+          <input
+            type="range"
+            min={72}
+            max={400}
+            step={2}
+            value={Number(options.dpi ?? 150)}
+            onChange={(e) => set('dpi', Number(e.target.value))}
+            className="w-full accent-accent"
+          />
+        </div>
+        <div>
+          <Label>Page format</Label>
+          <Segmented
+            value={pageFormat}
+            onChange={(v) => set('pageFormat', v)}
+            options={[
+              { value: 'jpg', label: 'JPEG' },
+              { value: 'png', label: 'PNG' }
+            ]}
+          />
+          <p className="mt-2 text-[12px] text-dim">
+            {pageFormat === 'jpg'
+              ? 'Much smaller files, the usual choice for comics.'
+              : 'Lossless, but a long comic runs to hundreds of megabytes.'}
+          </p>
+        </div>
+        {pageFormat === 'jpg' && <QualitySlider options={options} set={set} />}
+      </>
+    )
+  }
+
+  // repack
+  return (
+    <>
+      <ArchiveTargets
+        formats={ARCHIVE_FORMATS}
+        value={format}
+        srcExts={srcExts}
+        hasRar={rar}
+        set={set}
+      />
+      <div>
+        <Label>Compression</Label>
+        <Segmented
+          value={options.store === false ? 'normal' : 'store'}
+          onChange={(v) => set('store', v === 'store')}
+          options={[
+            { value: 'store', label: 'Store' },
+            { value: 'normal', label: 'Normal' }
+          ]}
+        />
+        <p className="mt-2 text-[12px] text-dim">
+          Comic pages are already compressed images, so Store is faster at the same size.
+        </p>
+      </div>
+    </>
+  )
+}
+
 /** A checkpoint whose name marks it as restoration/refiner/inpaint — a valid
  * model but not text-to-image, so we never auto-select it as the default. */
 function isRestoreName(name: string): boolean {
@@ -1558,6 +1721,9 @@ export function OptionsPanel({
           {operation.tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
           {operation.tool === 'pdf' && (
             <PdfOptions options={options} runCount={runCount} set={onSet} />
+          )}
+          {operation.tool === 'archive' && (
+            <ArchiveOptions options={options} srcExts={srcExts} set={onSet} />
           )}
           {operation.tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
         </>

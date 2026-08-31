@@ -36,7 +36,7 @@ function forceDuration(m: HTMLMediaElement): boolean {
 
 /**
  * Centered fallback card shown when a file has no inline preview — the native
- * kind for 'document'/'other', and the graceful landing spot when Chromium
+ * kind for 'document'/'archive'/'other', and the graceful landing spot when Chromium
  * can't decode an image/video/audio the file-kind heuristic still classified as
  * playable (e.g. .heic, .mkv, .wma). Single source of truth for that markup.
  */
@@ -417,7 +417,9 @@ function PreviewView({
               {text && text.path === textPath ? text.text : ''}
             </pre>
           ))}
-        {(f.kind === 'document' || f.kind === 'other' || showFallback) && <FallbackCard file={f} />}
+        {(f.kind === 'document' || f.kind === 'archive' || f.kind === 'other' || showFallback) && (
+          <FallbackCard file={f} />
+        )}
 
         {/* Non-video formats: a corner "expand" button to view fullscreen. */}
         {(f.kind === 'image' || f.kind === 'audio') && !showFallback && (
