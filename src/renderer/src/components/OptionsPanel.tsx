@@ -1777,6 +1777,50 @@ export function OptionsPanel({
   // aimed at .cbz still picks its target in the same place a .png does.
   const isConvertTab = tab === 'convert'
   const { rar } = useArchiveStatus()
+
+  function renderOptions(): JSX.Element | null {
+    if (!showOptions) return null
+    // Convert owns its target grid for every route it can take, including the
+    // archive ones, so the choice lives in one place whatever the file is.
+    if (isConvertTab) {
+      return (
+        <ConvertOptions
+          options={options}
+          activeKind={activeKind ?? fallbackKind}
+          sourceExt={sourceExt}
+          srcExts={srcExts}
+          verb={tool === 'archive' ? String(options.op ?? '') : undefined}
+          hasRar={rar}
+          set={onSet}
+        />
+      )
+    }
+    switch (tool) {
+      case 'compress':
+        return (
+          <CompressOptions
+            options={options}
+            activeKind={runKind ?? fallbackKind}
+            videoOutputs={videoOutputs}
+            set={onSet}
+          />
+        )
+      case 'resize':
+        return <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
+      case 'upscale':
+        return <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
+      case 'removebg':
+        return <RemoveBgOptions options={options} set={onSet} />
+      case 'pdf':
+        return <PdfOptions options={options} runCount={runCount} set={onSet} />
+      case 'archive':
+        return <ArchiveOptions options={options} srcExts={srcExts} set={onSet} />
+      case 'generate':
+        return <GenerateOptions options={options} set={onSet} />
+      default:
+        return null
+    }
+  }
   return (
     // Every option control (slider, toggle, run button, selected chip) reads the
     // accent variables, so overriding them here themes the whole panel black in
@@ -1798,40 +1842,17 @@ export function OptionsPanel({
       {/* No operation switcher (the rail IS the operation) and no scope banner:
           the Run button already names what it will act on. */}
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-5 pt-5 lg:gap-5 lg:px-[22px] lg:pt-6">
-        {/* Options appear only once something is selected. Offering PNG / JPG
+        {/* EXACTLY ONE panel, chosen here. This used to be a list of
+            `tool === x &&` lines, and two of them lost their guard in a
+            reformat, so the Convert tab rendered its own options AND the
+            archive tool's: two Target format grids, two Resolution sliders.
+            A single return makes that impossible rather than merely fixed.
+
+            Options appear only once something is selected: offering PNG / JPG
             targets with an empty queue invited a choice that could not be
-            acted on, and said nothing about what it would apply to. */}
-        <>
-          {showOptions && isConvertTab && (
-            <ConvertOptions
-              options={options}
-              activeKind={activeKind ?? fallbackKind}
-              sourceExt={sourceExt}
-              srcExts={srcExts}
-              verb={tool === 'archive' ? String(options.op ?? '') : undefined}
-              hasRar={rar}
-              set={onSet}
-            />
-          )}
-          {showOptions && tool === 'compress' && (
-            <CompressOptions
-              options={options}
-              activeKind={runKind ?? fallbackKind}
-              videoOutputs={videoOutputs}
-              set={onSet}
-            />
-          )}
-          {showOptions && tool === 'resize' && (
-            <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
-          )}
-          {showOptions && tool === 'upscale' && (
-            <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
-          )}
-          {showOptions && tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
-          {tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
-          {tool === 'archive' && <ArchiveOptions options={options} srcExts={srcExts} set={onSet} />}
-          {tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
-        </>
+            acted on. Generate is the exception, since its prompt IS the
+            input. */}
+        {renderOptions()}
       </div>
 
       <div className="border-t border-black/[.07] px-4 py-3 lg:px-[22px] lg:py-4">
