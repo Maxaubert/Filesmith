@@ -348,13 +348,9 @@ export default function App(): JSX.Element {
   function onItemClick(id: string, e: MouseEvent): void {
     const item = cur.items.find((i) => i.id === id)
     if (!item) return
-    const modified = e.shiftKey || e.ctrlKey || e.metaKey
-    if (modified) {
-      // Multi-select stays within one convert group (docs/text/pdf batch
-      // together): ignore modified clicks on files from another group.
-      const anchor = selectedItems.length ? effectiveFile(selectedItems[0]) : effectiveFile(item)
-      if (groupOf(effectiveFile(item)) !== groupOf(anchor)) return
-    }
+    // The one-group rule lives in the reducer, which MOVES the selection to a
+    // file from another group rather than extending into it. Swallowing the
+    // click here instead made ctrl+click on a dimmed row do nothing at all.
     const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
     dispatch({ type: 'select', id, mode })
   }
@@ -1028,6 +1024,7 @@ export default function App(): JSX.Element {
               options={curOptions}
               activeKind={activeKind}
               activeGroup={activeGroup}
+              optGroup={optGroup}
               runKind={runKind}
               fallbackKind={fallbackKind}
               videoOutputs={videoOutputs}

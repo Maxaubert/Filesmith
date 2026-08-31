@@ -26,6 +26,25 @@ const GROUP_LABEL: Record<string, string> = {
   archive: 'Archives'
 }
 
+/** The dot colour beside a group's name in the options panel. */
+export const GROUP_COLOR: Record<string, string> = {
+  image: '#5b5bd6',
+  video: '#e0483d',
+  audio: '#f5920b',
+  doc: '#12b3a6',
+  sheet: '#12b3a6',
+  slide: '#12b3a6',
+  archive: '#a16207'
+}
+
+/** "2 images" / "1 document" / "3 archives". Named by CONVERT GROUP, not file
+ * kind: a pdf plus a txt is "2 documents", because they run as one batch and
+ * the options panel describes them as one. */
+export function groupNoun(group: string, n: number): string {
+  const f = GROUP_NOUN[group]
+  return f ? f(n) : `${n} file${n === 1 ? '' : 's'}`
+}
+
 export interface ItemGroup {
   group: string
   label: string

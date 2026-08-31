@@ -24,6 +24,7 @@ import { GEN_SIZES, GEN_STYLES, GEN_MAX_COUNT, clampDim } from '@shared/generate
 import { archInfoFor, type GenArch, type GenModel } from '@shared/genArch'
 import { Icon } from './Icon'
 import type { ToolId } from '@shared/types'
+import { GROUP_COLOR, groupNoun } from './queueGroups'
 import { PidInstallCard } from './PidUpscale'
 import { usePidStatus } from './usePidStatus'
 import { ComfyImportCard } from './ComfyImport'
@@ -1629,49 +1630,30 @@ function GenerateOptions({
   )
 }
 
-const KIND_COLOR: Record<string, string> = {
-  image: '#5b5bd6',
-  video: '#e0483d',
-  audio: '#f5920b',
-  pdf: '#ef4444',
-  document: '#12b3a6',
-  text: '#12b3a6',
-  archive: '#a16207',
-  other: '#6e6e73'
-}
-const KIND_NOUN: Record<string, (n: number) => string> = {
-  image: (n) => `${n} image${n === 1 ? '' : 's'}`,
-  video: (n) => `${n} video${n === 1 ? '' : 's'}`,
-  audio: (n) => `${n} audio file${n === 1 ? '' : 's'}`,
-  pdf: (n) => `${n} PDF${n === 1 ? '' : 's'}`,
-  document: (n) => `${n} document${n === 1 ? '' : 's'}`,
-  text: (n) => `${n} text file${n === 1 ? '' : 's'}`,
-  archive: (n) => `${n} archive${n === 1 ? '' : 's'}`,
-  other: (n) => `${n} file${n === 1 ? '' : 's'}`
-}
-
 /** What these settings will act on. The queue can hold images and video at the
- * same time, so "Run" has to say which of them it means. */
+ * same time, so Run has to say which of them it means. Named by CONVERT GROUP,
+ * not file kind: a pdf plus a txt is "2 documents", because they run as one
+ * batch under one target set. */
 function ScopeChip({
-  kind,
+  group,
   count,
   known
 }: {
-  kind: FileKind
+  group: string
   count: number
   known: boolean
 }): JSX.Element {
-  const noun = (KIND_NOUN[kind] ?? KIND_NOUN.other)(count)
   return (
     <div className="flex items-start gap-2.5 rounded-xl bg-black/[.035] px-3 py-2.5">
       <span
         className="mt-px h-[18px] w-[18px] shrink-0 rounded-md"
-        style={{ background: KIND_COLOR[kind] ?? KIND_COLOR.other }}
+        style={{ background: GROUP_COLOR[group] ?? '#6e6e73' }}
       />
       <span className="text-[12.5px] font-medium leading-snug text-muted">
         {known && count > 0 ? (
           <>
-            Applies to the <span className="font-bold text-ink">{noun}</span> selected.
+            Applies to the <span className="font-bold text-ink">{groupNoun(group, count)}</span>{' '}
+            selected.
           </>
         ) : (
           <>Select files to choose what these settings apply to.</>
@@ -1687,6 +1669,7 @@ export function OptionsPanel({
   options,
   activeKind,
   activeGroup,
+  optGroup,
   runKind,
   fallbackKind,
   videoOutputs,
@@ -1706,6 +1689,8 @@ export function OptionsPanel({
   activeKind: FileKind | null
   /** The selected convert group, or null with nothing selected. */
   activeGroup: string | null
+  /** The group the options actually belong to (falls back when nothing is selected). */
+  optGroup: string
   runKind: FileKind | null
   /** The kind to show options for when nothing is selected: the category's own. */
   fallbackKind: FileKind
@@ -1741,7 +1726,7 @@ export function OptionsPanel({
           instead is WHICH files its settings apply to, because one tab's queue
           can hold several convert groups at once. */}
       <div className="px-[22px] pt-6">
-        <ScopeChip kind={activeKind ?? fallbackKind} count={runCount} known={activeGroup != null} />
+        <ScopeChip group={optGroup} count={runCount} known={activeGroup != null} />
         <div className="mt-5 h-px bg-black/[.07]" />
       </div>
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-[22px] py-5">
@@ -1787,9 +1772,9 @@ export function OptionsPanel({
           className="w-full rounded-[13px] bg-accent py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(0,0,0,.20)] transition hover:bg-accent-hi disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
         >
           {label}
-          {tool !== 'generate' && runCount > 0
-            ? ` ${runCount} file${runCount === 1 ? '' : 's'}`
-            : ''}
+          {/* Name the GROUP, not "files": in a mixed queue "Convert 2 files"
+              hides which two. */}
+          {tool !== 'generate' && runCount > 0 ? ` ${groupNoun(optGroup, runCount)}` : ''}
         </button>
       </div>
     </aside>
