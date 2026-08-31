@@ -9,6 +9,13 @@ export type IconName =
   | 'pdf'
   | 'archive'
   | 'tools'
+  | 'merge'
+  | 'split'
+  | 'burst'
+  | 'pull'
+  | 'unpack'
+  | 'topdf'
+  | 'tocbz'
   | 'upload'
   | 'check'
   | 'clock'
@@ -62,6 +69,15 @@ const PATHS: Record<IconName, JSX.Element> = {
   pdf: <path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5zM14 3.5v5h5" />,
   archive: <path d="M3.5 5.5h17v4h-17zM5.5 9.5v9h13v-9M10 13h4" />,
   tools: <path d="M14.5 3.5a4.5 4.5 0 0 0 6 6L10 20a3 3 0 0 1-4-4z" />,
+  // One glyph per tool card: reusing convert/resize/upscale here made Split,
+  // Burst and Extract read as the same action at a glance.
+  merge: <path d="M5 5v6a3 3 0 0 0 3 3h11M5 19v-6M15 10l4 4-4 4" />,
+  split: <path d="M19 5v6a3 3 0 0 1-3 3H5M9 10l-4 4 4 4M19 19v-6" />,
+  burst: <path d="M4 4h9v9H4zM11 11h9v9h-9" />,
+  pull: <path d="M12 3v10M8.5 9.5 12 13l3.5-3.5M4.5 17v3h15v-3" />,
+  unpack: <path d="M3.5 5.5h17v4h-17zM5.5 9.5v9h13v-9M9 13.5l3 3 3-3" />,
+  topdf: <path d="M4 4.5h9l4 4v11H4zM13 4.5v4h4M8 15h8" />,
+  tocbz: <path d="M3.5 6.5h17v4h-17zM5.5 10.5v8h13v-8M12 17v-4M10 14.5l2-2 2 2" />,
   upload: <path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M4 20h16" />,
   check: <path d="M4.5 12.5 9 17 19.5 6.5" />,
   clock: (

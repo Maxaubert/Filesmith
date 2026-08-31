@@ -136,7 +136,7 @@ export const TOOL_CARDS: ToolCard[] = [
     desc: 'Combine PDFs into one',
     group: 'PDF',
     color: '#ef4444',
-    icon: 'convert',
+    icon: 'merge',
     tool: 'pdf',
     opKey: 'merge',
     kinds: ['pdf']
@@ -147,7 +147,7 @@ export const TOOL_CARDS: ToolCard[] = [
     desc: 'Keep only the pages you list',
     group: 'PDF',
     color: '#ef4444',
-    icon: 'resize',
+    icon: 'split',
     tool: 'pdf',
     opKey: 'split-range',
     kinds: ['pdf']
@@ -158,7 +158,7 @@ export const TOOL_CARDS: ToolCard[] = [
     desc: 'Save every page separately',
     group: 'PDF',
     color: '#ef4444',
-    icon: 'upscale',
+    icon: 'burst',
     tool: 'pdf',
     opKey: 'split-pages',
     kinds: ['pdf']
@@ -169,7 +169,7 @@ export const TOOL_CARDS: ToolCard[] = [
     desc: 'Pull out embedded images',
     group: 'PDF',
     color: '#ef4444',
-    icon: 'removebg',
+    icon: 'pull',
     tool: 'pdf',
     opKey: 'extract-images',
     kinds: ['pdf']
@@ -180,7 +180,7 @@ export const TOOL_CARDS: ToolCard[] = [
     desc: 'Unpack into a folder',
     group: 'Archives',
     color: '#a16207',
-    icon: 'resize',
+    icon: 'unpack',
     tool: 'archive',
     opKey: 'extract',
     kinds: ['archive']
@@ -191,7 +191,7 @@ export const TOOL_CARDS: ToolCard[] = [
     desc: 'Comic archive becomes a PDF',
     group: 'Archives',
     color: '#a16207',
-    icon: 'pdf',
+    icon: 'topdf',
     tool: 'archive',
     opKey: 'to-pdf',
     kinds: ['archive']
@@ -202,7 +202,7 @@ export const TOOL_CARDS: ToolCard[] = [
     desc: 'Pack pages as a comic archive',
     group: 'Archives',
     color: '#a16207',
-    icon: 'archive',
+    icon: 'tocbz',
     tool: 'archive',
     opKey: 'from-pdf',
     kinds: ['pdf']
