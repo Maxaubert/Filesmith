@@ -12,7 +12,7 @@ import type {
 import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared/fileKind'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
-import { removebgStatus } from './toolResolver'
+import { removebgStatus, resolveRar } from './toolResolver'
 import { ensureUserNcnnDir, listNcnnModels, userNcnnDir } from './tools/ncnnModels'
 import { probeDimensions, probeImageDimensions } from './probe'
 import { makeThumbnail } from './thumbnail'
@@ -146,6 +146,9 @@ export function registerGlobalIpc(): JobQueue {
     return true
   })
   ipcMain.handle('removebg:status', () => removebgStatus())
+  // Only WRITING rar/cbr needs WinRAR (it cannot be bundled). Reading one uses
+  // the bundled 7-Zip, so this gates the target chips and nothing else.
+  ipcMain.handle('archive:status', () => ({ rar: resolveRar() !== null }))
   // The AI upscalers actually present on disk (bundled + the user's overlay),
   // so the picker reflects what is installed instead of a build-time literal.
   ipcMain.handle('upscale:models', () => {

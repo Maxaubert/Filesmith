@@ -188,6 +188,9 @@ const api = {
     return () => ipcRenderer.removeListener('generate:image', listener)
   },
 
+  // Whether WinRAR is installed, which is the only way to WRITE a rar/cbr.
+  archiveStatus: (): Promise<{ rar: boolean }> => ipcRenderer.invoke('archive:status'),
+
   // Remove Background availability (discloses the AI model + one-time download).
   removebgStatus: (): Promise<{ ready: boolean; uvAvailable: boolean }> =>
     ipcRenderer.invoke('removebg:status'),
