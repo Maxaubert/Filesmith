@@ -1,10 +1,18 @@
 import { _electron, type ElectronApplication, type Page } from 'playwright'
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'child_process'
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'fs'
 import { tmpdir } from 'os'
 import { basename, join } from 'path'
-import { FFMPEG, FFPROBE, MAGICK, MAIN, MUTOOL, ROOT, magickEnv, runJob } from './helpers'
+import { FFMPEG, FFPROBE, MAGICK, MAIN, MUTOOL, ROOT, SEVENZIP, magickEnv, runJob } from './helpers'
 
 // The full workflow matrix, run against the REAL built app: every operation of
 // every category, through the actual preload bridge -> IPC -> queue -> engine
@@ -12,7 +20,7 @@ import { FFMPEG, FFPROBE, MAGICK, MAIN, MUTOOL, ROOT, magickEnv, runJob } from '
 // synthesized into one temp dir (outputs land beside their sources, so the
 // teardown sweep removes everything the suite produced).
 
-const binariesPresent = [MAGICK, FFMPEG, FFPROBE, MUTOOL].every(existsSync)
+const binariesPresent = [MAGICK, FFMPEG, FFPROBE, MUTOOL, SEVENZIP].every(existsSync)
 
 let app: ElectronApplication
 let page: Page
@@ -31,6 +39,16 @@ const ffprobeJson = (args: string[]): unknown =>
       encoding: 'utf-8'
     })
   )
+const sevenZip = (args: string[], cwd?: string): string =>
+  execFileSync(SEVENZIP, args, { cwd, encoding: 'utf-8' })
+/** Entry names inside an archive, via `7z l -slt` (the first Path is the
+ * archive itself). */
+const entriesOf = (archive: string): string[] =>
+  sevenZip(['l', '-slt', archive])
+    .split('\n')
+    .filter((l) => l.startsWith('Path = '))
+    .map((l) => l.slice(7).trim())
+    .slice(1)
 const identify = (fmt: string, file: string): string =>
   magick(['identify', '-format', fmt, file]).trim()
 const pageCount = (pdf: string): number => {
@@ -121,6 +139,14 @@ test.beforeAll(async () => {
     join(dir, 'pages3.pdf')
   ])
 
+  // Comic archive: pages named so a lexicographic sort would scramble them
+  // (p10 before p2), which is exactly what the natural ordering has to fix.
+  const comicSrc = join(dir, 'comic-src')
+  mkdirSync(comicSrc)
+  for (const n of ['p1.png', 'p2.png', 'p10.png'])
+    magick(['-size', '120x160', 'gradient:white-black', join(comicSrc, n)])
+  sevenZip(['a', '-tzip', join(dir, 'comic.cbz'), '*', '-y'], comicSrc)
+
   // Document: real prose so extract-text has something to find.
   writeFileSync(
     join(dir, 'notes.txt'),
@@ -148,8 +174,18 @@ test('every category opens its workspace with the right operations', async () =>
     Images: ['Convert', 'Compress', 'Resize', 'Remove Background', 'Upscale', 'Generate'],
     Video: ['Convert', 'Compress'],
     Audio: ['Convert', 'Compress'],
-    PDF: ['Extract text', 'Pages to PNG', 'Merge', 'Split', 'Burst', 'Extract images', 'Compress'],
-    Documents: ['Convert']
+    PDF: [
+      'Extract text',
+      'Pages to PNG',
+      'Merge',
+      'Split',
+      'Burst',
+      'Extract images',
+      'To CBZ',
+      'Compress'
+    ],
+    Documents: ['Convert'],
+    Archives: ['Convert', 'Extract', 'To PDF']
   }
   for (const [category, ops] of Object.entries(expected)) {
     await page.locator(`button:has-text("${category}")`).first().click()
@@ -481,4 +517,84 @@ test('generate: one 512px image through headless ComfyUI, then delete it', async
   // Clean up: the generated image is the one output that lands OUTSIDE the
   // suite's temp dir (the app writes to the user's output folder).
   for (const p of produced.paths) fs.rmSync(p, { force: true })
+})
+
+// --- Archives ----------------------------------------------------------------
+
+test('archive convert: cbz -> cb7, contents flat and page order intact', async () => {
+  const e = await runJob(page, 'archive', join(dir, 'comic.cbz'), {
+    op: 'repack',
+    format: '.cb7',
+    store: true
+  })
+  expect(e.status).toBe('done')
+  expect(e.outputPath!.endsWith('.cb7')).toBe(true)
+  expect(statSync(e.outputPath!).size).toBeGreaterThan(0)
+  // No wrapper folder: a nested path here shows as an empty book in a reader.
+  expect(entriesOf(e.outputPath!).sort()).toEqual(['p1.png', 'p10.png', 'p2.png'])
+})
+
+test('archive convert: cbz -> zip and -> cbt', async () => {
+  for (const format of ['.zip', '.cbt']) {
+    const e = await runJob(page, 'archive', join(dir, 'comic.cbz'), { op: 'repack', format })
+    expect(e.status, format).toBe('done')
+    expect(entriesOf(e.outputPath!)).toHaveLength(3)
+  }
+})
+
+test('archive extract: unpacks into its own folder', async () => {
+  const e = await runJob(page, 'archive', join(dir, 'comic.cbz'), { op: 'extract' })
+  expect(e.status).toBe('done')
+  expect(readdirSync(e.outputPath!).sort()).toEqual(['p1.png', 'p10.png', 'p2.png'])
+})
+
+test('archive to-pdf: one page per image, in reading order', async () => {
+  const e = await runJob(page, 'archive', join(dir, 'comic.cbz'), { op: 'to-pdf' })
+  expect(e.status).toBe('done')
+  expect(pageCount(e.outputPath!)).toBe(3)
+})
+
+test('archive to-pdf: an archive with no images fails instead of writing an empty PDF', async () => {
+  const src = join(dir, 'noimg-src')
+  mkdirSync(src)
+  writeFileSync(join(src, 'readme.txt'), 'no pages here')
+  sevenZip(['a', '-tzip', join(dir, 'noimg.cbz'), '*', '-y'], src)
+  const e = await runJob(page, 'archive', join(dir, 'noimg.cbz'), { op: 'to-pdf' })
+  expect(e.status).toBe('failed')
+  expect(e.error).toMatch(/No images/i)
+})
+
+test('pdf to-cbz: pages are zero-padded jpegs so a reader orders them correctly', async () => {
+  const e = await runJob(page, 'archive', join(dir, 'pages3.pdf'), {
+    op: 'from-pdf',
+    format: '.cbz',
+    dpi: 72,
+    pageFormat: 'jpg',
+    quality: 80
+  })
+  expect(e.status).toBe('done')
+  expect(e.outputPath!.endsWith('.cbz')).toBe(true)
+  expect(entriesOf(e.outputPath!).sort()).toEqual([
+    'page-0001.jpg',
+    'page-0002.jpg',
+    'page-0003.jpg'
+  ])
+})
+
+test('pdf to-cbz: PNG pages when asked', async () => {
+  const e = await runJob(page, 'archive', join(dir, 'pages3.pdf'), {
+    op: 'from-pdf',
+    format: '.cb7',
+    dpi: 72,
+    pageFormat: 'png'
+  })
+  expect(e.status).toBe('done')
+  expect(entriesOf(e.outputPath!).every((n) => n.endsWith('.png'))).toBe(true)
+})
+
+test('archive collision safety: the same conversion twice yields two files', async () => {
+  const a = await runJob(page, 'archive', join(dir, 'comic.cbz'), { op: 'repack', format: '.cb7' })
+  const b = await runJob(page, 'archive', join(dir, 'comic.cbz'), { op: 'repack', format: '.cb7' })
+  expect(a.outputPath).not.toBe(b.outputPath)
+  expect(existsSync(a.outputPath!) && existsSync(b.outputPath!)).toBe(true)
 })

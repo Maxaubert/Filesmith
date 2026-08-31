@@ -9,6 +9,7 @@ export const MAGICK = join(BIN, 'magick.exe')
 export const FFMPEG = join(BIN, 'ffmpeg.exe')
 export const FFPROBE = join(BIN, 'ffprobe.exe')
 export const MUTOOL = join(BIN, 'mutool.exe')
+export const SEVENZIP = join(BIN, '7z.exe')
 
 /** Env so the bundled modules-build magick finds its coder DLLs when the specs
  * call it directly (the app sets the same env for its own spawns). */
