@@ -9,7 +9,7 @@ import type {
   PreviewItem,
   PreviewPayload
 } from '@shared/types'
-import { AUDIO_EXTS, DOC_EXTS, IMAGE_EXTS, TEXT_EXTS, VIDEO_EXTS } from '@shared/fileKind'
+import { imageFilters, pickerFilters } from './pickerFilters'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
 import { removebgStatus, resolveRar } from './toolResolver'
@@ -45,7 +45,6 @@ import type { ComfyStatus, PidStatus } from '@shared/ipc'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
 // is hidden from the picker and dropped from drag-and-drop.
-const bare = (exts: string[]): string[] => exts.map((e) => e.replace('.', ''))
 function isSupported(f: FileInfo): boolean {
   return f.kind !== 'other'
 }
@@ -172,31 +171,14 @@ export function registerGlobalIpc(): JobQueue {
   ipcMain.handle('image:pick', async (e) => {
     const r = await openDialog(e, {
       properties: ['openFile'],
-      filters: [{ name: 'Images', extensions: bare(IMAGE_EXTS) }]
+      filters: imageFilters()
     })
     return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
   })
   ipcMain.handle('files:pick', async (e) => {
     const r = await openDialog(e, {
       properties: ['openFile', 'multiSelections'],
-      filters: [
-        {
-          name: 'All supported',
-          extensions: bare([
-            ...IMAGE_EXTS,
-            ...VIDEO_EXTS,
-            ...AUDIO_EXTS,
-            '.pdf',
-            ...DOC_EXTS,
-            ...TEXT_EXTS
-          ])
-        },
-        { name: 'Images', extensions: bare(IMAGE_EXTS) },
-        { name: 'Video', extensions: bare(VIDEO_EXTS) },
-        { name: 'Audio', extensions: bare(AUDIO_EXTS) },
-        { name: 'Documents', extensions: bare(['.pdf', ...DOC_EXTS]) },
-        { name: 'Text', extensions: bare(TEXT_EXTS) }
-      ]
+      filters: pickerFilters()
     })
     return r.canceled ? [] : r.filePaths.map(fileInfoFromPath).filter(isSupported)
   })
