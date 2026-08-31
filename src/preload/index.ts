@@ -1,12 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type {
-  FileInfo,
-  FileKind,
-  JobEvent,
-  JobRequest,
-  PreviewItem,
-  PreviewPayload
-} from '@shared/types'
+import type { FileInfo, FileKind, JobEvent, JobRequest } from '@shared/types'
 import type { ComfyModel } from '@shared/comfy'
 import type { ComfyStatus, PidStatus } from '@shared/ipc'
 import type { GenerateOptions } from '@shared/generate'
@@ -36,12 +29,8 @@ const api = {
   reveal: (path: string): void => ipcRenderer.send('reveal', path),
   /** Open a file in its OS-default app. */
   openFile: (path: string): void => ipcRenderer.send('file:open', path),
-  /** A streamable URL for a local file, for the in-app preview. */
-  mediaUrl: (path: string): string => `fsmedia://local/${encodeURIComponent(path)}`,
   /** Raw file bytes — audio plays from a same-origin blob so Web Audio can read it. */
-  readBytes: (path: string): Promise<Uint8Array | null> => ipcRenderer.invoke('file:bytes', path),
   /** A text file's contents (capped at 1 MB) for the text preview. */
-  readText: (path: string): Promise<string | null> => ipcRenderer.invoke('file:text', path),
   /** Video pixel dimensions (via ffprobe) for the resolution-preview list. */
   videoDimensions: (path: string): Promise<{ width: number; height: number } | null> =>
     ipcRenderer.invoke('video:dimensions', path),
@@ -49,30 +38,11 @@ const api = {
   imageDimensions: (path: string): Promise<{ width: number; height: number } | null> =>
     ipcRenderer.invoke('image:dimensions', path),
   /** Open (or reuse + refocus) the standalone preview window. */
-  openPreviewWindow: (files: PreviewItem[], index: number): Promise<void> =>
-    ipcRenderer.invoke('preview:open', { files, index }),
   /** The preview window fetches its file list on load. */
-  getPreviewData: (): Promise<PreviewPayload> => ipcRenderer.invoke('preview:data'),
   /** The preview window listens for a new file list when reused. */
-  onPreviewUpdate: (cb: (p: PreviewPayload) => void): (() => void) => {
-    const listener = (_: unknown, p: PreviewPayload): void => cb(p)
-    ipcRenderer.on('preview:update', listener)
-    return () => ipcRenderer.removeListener('preview:update', listener)
-  },
   /** The preview window was closed — stop pushing list updates to it. */
-  onPreviewClosed: (cb: () => void): (() => void) => {
-    const listener = (): void => cb()
-    ipcRenderer.on('preview:closed', listener)
-    return () => ipcRenderer.removeListener('preview:closed', listener)
-  },
   /** Push a fresh file list to an open preview window (keeps its position). */
-  updatePreviewList: (files: PreviewItem[]): void => ipcRenderer.send('preview:update-list', files),
   /** The preview window listens for live list changes. */
-  onPreviewList: (cb: (files: PreviewItem[]) => void): (() => void) => {
-    const listener = (_: unknown, files: PreviewItem[]): void => cb(files)
-    ipcRenderer.on('preview:list', listener)
-    return () => ipcRenderer.removeListener('preview:list', listener)
-  },
   /** Move a file to the recycle bin (reversible). */
   trashFile: (path: string): Promise<boolean> => ipcRenderer.invoke('file:trash', path),
 

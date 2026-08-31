@@ -8,7 +8,7 @@ import {
   type JSX,
   type MouseEvent
 } from 'react'
-import type { FileInfo, FileKind, PreviewItem } from '@shared/types'
+import type { FileInfo, FileKind } from '@shared/types'
 import {
   canCompress,
   convertGroup,
@@ -107,34 +107,6 @@ function effectiveFile(i: QueueItem): FileInfo {
   return i.file
 }
 
-/** Build the preview window's file list for a column of a queue. */
-function toPreviewFiles(
-  items: QueueItem[],
-  side: 'input' | 'output',
-  outThumbs: Record<string, string | null>
-): PreviewItem[] {
-  if (side === 'input') {
-    return items.filter(inInput).map((it) => ({
-      path: it.file.path,
-      name: it.file.name,
-      kind: it.file.kind,
-      size: it.file.size,
-      thumb: it.thumb
-    }))
-  }
-  return items.filter(inOutput).map((it) => {
-    const out = it.outputPath as string
-    // Classify the OUTPUT by its own extension — a PDF made from a .txt is a
-    // pdf, not text (using the input's kind previewed it as raw bytes).
-    return {
-      path: out,
-      name: baseName(out),
-      kind: fileKind(extOfPath(out)),
-      thumb: outThumbs[out] ?? null
-    }
-  })
-}
-
 export default function App(): JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [dragging, setDragging] = useState(false)
@@ -153,9 +125,6 @@ export default function App(): JSX.Element {
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
   // list updates to it when the queue changes.
-  const [previewCtx, setPreviewCtx] = useState<{ side: 'input' | 'output'; key: string } | null>(
-    null
-  )
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
   // Cached video dimensions (via ffprobe) for the compress resolution preview.
@@ -373,30 +342,14 @@ export default function App(): JSX.Element {
     dispatch({ type: 'select', id, mode })
   }
 
-  // Open the standalone preview window for a clicked item, letting the user page
-  // through the whole column it lives in (all inputs, or all finished outputs).
-  function openPreview(side: 'input' | 'output', item: QueueItem): void {
-    const list = cur.items.filter(side === 'input' ? inInput : inOutput)
-    const index = Math.max(
-      0,
-      list.findIndex((it) => it.id === item.id)
-    )
-    void window.filesmith.openPreviewWindow(toPreviewFiles(cur.items, side, outThumbs), index)
-    setPreviewCtx({ side, key: qKey })
+  // Hand the file to whatever the OS already uses for it. Filesmith used to
+  // carry its own viewer window (image, video, audio, PDF and text renderers,
+  // plus a media bar), which was a second app living inside this one for a job
+  // the desktop already does well.
+  function openExternally(side: 'input' | 'output', item: QueueItem): void {
+    const path = side === 'output' ? item.outputPath : item.file.path
+    if (path) window.filesmith.openFile(path)
   }
-
-  // Keep an open preview window's list in sync with the queue (it manages its
-  // own position; a no-op in main if the window is closed).
-  useEffect(() => {
-    if (!previewCtx) return
-    const items = state.queues[previewCtx.key]?.items ?? []
-    window.filesmith.updatePreviewList(toPreviewFiles(items, previewCtx.side, outThumbs))
-  }, [state.queues, outThumbs, previewCtx])
-
-  // Stop the sync the moment the preview window closes — it used to keep
-  // structured-cloning the list (base64 thumbs included) on every progress
-  // tick, forever, into a window that no longer existed.
-  useEffect(() => window.filesmith.onPreviewClosed(() => setPreviewCtx(null)), [])
 
   // Dismiss a set of items from a column. For Output we also recycle-bin the
   // produced file before dropping the card.
@@ -493,7 +446,7 @@ export default function App(): JSX.Element {
         x,
         y,
         items: [
-          { label: 'Preview', icon: 'eye', onClick: () => openPreview('input', item) },
+          { label: 'Open', icon: 'expand', onClick: () => openExternally('input', item) },
           {
             label: 'Reveal in Explorer',
             icon: 'folder',
@@ -525,7 +478,7 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Preview', icon: 'eye', onClick: () => openPreview('output', item) },
+        { label: 'Open', icon: 'expand', onClick: () => openExternally('output', item) },
         {
           label: 'Reveal in Explorer',
           icon: 'folder',
@@ -613,23 +566,9 @@ export default function App(): JSX.Element {
       : `The largest result will be roughly ${formatBytes(worst)} (about ${formatBytes(total)} in total), and may take a long time.`
   }
 
-  /** The images currently on screen, for preview navigation: the finished tiles
-   * of an in-flight run, else the saved results. */
-  function genVisible(): string[] {
-    const running = genRun.slots.filter((s) => s.path).map((s) => s.path as string)
-    return running.length ? running : genResults
-  }
-
-  /** Open a generated image in Filesmith's standalone preview window, with all
-   * the on-screen generated images navigable alongside it. */
+  /** Open a generated image in whatever views images on this machine. */
   function previewGen(path: string): void {
-    const list = genVisible()
-    const files: PreviewItem[] = list.map((p) => ({
-      path: p,
-      name: p.split(/[\\/]/).pop() ?? p,
-      kind: 'image'
-    }))
-    void window.filesmith.openPreviewWindow(files, Math.max(0, list.indexOf(path)))
+    window.filesmith.openFile(path)
   }
 
   function openGenMenu(path: string, x: number, y: number): void {
@@ -637,7 +576,7 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Preview', icon: 'eye', onClick: () => previewGen(path) },
+        { label: 'Open', icon: 'expand', onClick: () => previewGen(path) },
         {
           label: 'Open in default app',
           icon: 'upload',
@@ -1027,7 +966,7 @@ export default function App(): JSX.Element {
                   activeGroup={activeGroup}
                   outThumbs={outThumbs}
                   onItemClick={onItemClick}
-                  onOpen={openPreview}
+                  onOpen={openExternally}
                   onMenu={openMenu}
                   onCancel={cancelJob}
                 />
