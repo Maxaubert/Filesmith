@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
-import { TABS, type TabId } from '@shared/tabs'
+import { COMPLETED_TAB, TABS, type TabId } from '@shared/tabs'
 import { Icon, type IconName } from './Icon'
 
 const ALL_IDS = TABS.map((c) => c.id)
@@ -45,10 +45,13 @@ const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.m
 export function TabRail({
   tab,
   counts,
+  completedCount,
   onSelect
 }: {
   tab: TabId
   counts: Record<string, number>
+  /** Produced files across every workspace. */
+  completedCount: number
   onSelect: (c: TabId) => void
 }): JSX.Element {
   const [order, setOrder] = useState<TabId[]>(loadOrder)
@@ -243,6 +246,40 @@ export function TabRail({
           </button>
         )
       })}
+      {/* Pinned to the bottom, below everything the user can reorder: results
+          are where you END up, not something you set out to do. */}
+      <button
+        onClick={() => onSelect('completed')}
+        aria-current={tab === 'completed' ? 'true' : undefined}
+        className={`mt-auto flex items-center gap-2.5 rounded-[13px] px-2.5 py-2 text-left transition ${
+          tab === 'completed' ? 'bg-[#22b364]' : 'hover:bg-black/[.035]'
+        }`}
+      >
+        <span
+          className="grid h-[24px] w-[24px] shrink-0 place-items-center rounded-lg text-white shadow-sm"
+          style={{
+            background: tab === 'completed' ? 'rgba(255,255,255,.24)' : COMPLETED_TAB.color
+          }}
+        >
+          <Icon name="check" className="h-[14px] w-[14px]" />
+        </span>
+        <span
+          className={`text-[13.5px] font-semibold tracking-tight ${
+            tab === 'completed' ? 'text-white' : ''
+          }`}
+        >
+          Completed
+        </span>
+        {completedCount > 0 && (
+          <span
+            className={`ml-auto rounded-md px-1.5 py-px text-[11px] font-bold ${
+              tab === 'completed' ? 'bg-white/25 text-white' : 'bg-black/[.055] text-dim'
+            }`}
+          >
+            {completedCount}
+          </span>
+        )}
+      </button>
     </nav>
   )
 }

@@ -77,7 +77,7 @@ describe('switching route seeds its settings', () => {
     expect(s.options['convert:doc'].pageFormat).toBe('jpg')
     // pageQuality, not quality: convert stores a preset STRING under `quality`,
     // and Number('balanced') is NaN.
-    expect(s.options['convert:doc'].pageQuality).toBe(85)
+    expect(s.options['convert:doc'].pageQuality).toBe(100)
   })
 
   it('never overwrites a setting the user already chose', () => {

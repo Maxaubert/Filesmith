@@ -7,7 +7,7 @@ import { routeConvert } from './convert'
 // same verb (Convert) had to exist five times over, once per file type.
 
 export type TabId =
-  'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'generate' | 'tools'
+  'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'generate' | 'tools' | 'completed'
 
 export interface Tab {
   id: TabId
@@ -91,6 +91,21 @@ export const TABS: Tab[] = [
     tool: 'pdf'
   }
 ]
+
+/**
+ * Everything Filesmith has produced, in one place. Deliberately NOT in TABS: it
+ * is a view rather than a verb, it takes no dropped files, and it is pinned to
+ * the bottom of the rail instead of being reorderable with the verbs.
+ */
+export const COMPLETED_TAB: Tab = {
+  id: 'completed',
+  label: 'Completed',
+  desc: 'Everything Filesmith has produced',
+  color: '#22b364',
+  icon: 'check',
+  kinds: [],
+  tool: 'convert'
+}
 
 export interface ToolCard {
   id: string
@@ -206,6 +221,7 @@ export function engineFor(
 }
 
 export function tabById(id: TabId): Tab {
+  if (id === 'completed') return COMPLETED_TAB
   return TABS.find((t) => t.id === id) ?? TABS[0]
 }
 

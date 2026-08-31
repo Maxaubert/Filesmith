@@ -112,7 +112,7 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
     store: true,
     dpi: 150,
     pageFormat: 'jpg',
-    pageQuality: 85
+    pageQuality: 100
   },
   generate: {
     prompt: '',

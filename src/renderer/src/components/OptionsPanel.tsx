@@ -236,7 +236,7 @@ function PageRenderOptions({
         </p>
       </div>
       {pageFormat === 'jpg' && (
-        <QualitySlider options={options} set={set} field="pageQuality" fallback={85} />
+        <QualitySlider options={options} set={set} field="pageQuality" fallback={100} />
       )}
     </>
   )

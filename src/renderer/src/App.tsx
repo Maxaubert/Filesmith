@@ -44,11 +44,13 @@ import {
   type QueueItem,
   type SelectMode
 } from './state'
-import { engineFor, tabAccepts, tabById, toolCardById } from '@shared/tabs'
+import { engineFor, tabAccepts, tabById, toolCardById, type TabId } from '@shared/tabs'
 import { TopBar } from './components/TopBar'
 import { TabRail } from './components/TabRail'
 import { OperationTitle } from './components/OperationTitle'
 import { ToolsGrid } from './components/ToolsGrid'
+import { CompletedView } from './components/CompletedView'
+import { collectCompleted } from './components/completed'
 import { DropZone } from './components/DropZone'
 import { PromptBox } from './components/PromptBox'
 import type { GenerateOptions } from '@shared/generate'
@@ -207,6 +209,8 @@ export default function App(): JSX.Element {
   const cur = state.queues[qKey] ?? emptyQueue()
   // The Tools grid is a chooser, not a workspace: no queue, no options panel.
   const onToolsGrid = state.tab === 'tools' && !card
+  // Completed is a view of results, not a place you do work.
+  const onCompleted = state.tab === 'completed'
 
   // Stream job progress/terminal events into state.
   useEffect(() => window.filesmith.onJobEvent((e) => dispatch({ type: 'jobEvent', event: e })), [])
@@ -527,7 +531,7 @@ export default function App(): JSX.Element {
     setDragging(false)
     // Generate has no queue on screen: a file accepted here would land in an
     // invisible list with no feedback at all.
-    if (tool === 'generate' || onToolsGrid) return
+    if (tool === 'generate' || onToolsGrid || onCompleted) return
     const paths = Array.from(e.dataTransfer.files)
       .map((f) => window.filesmith.pathForFile(f))
       .filter(Boolean)
@@ -829,6 +833,12 @@ export default function App(): JSX.Element {
         })
       : []
 
+  // Everything produced, across every workspace, for the Completed tab.
+  const completed = collectCompleted(state.queues, (key) => {
+    if (key.startsWith('tools:')) return toolCardById(key.slice(6))?.label ?? 'Tools'
+    return tabById(key as TabId).label
+  })
+
   // Files waiting in each verb, so the rail shows where work is sitting even
   // while you're looking elsewhere. Every Tools workspace rolls up into Tools.
   const counts: Record<string, number> = {}
@@ -846,6 +856,7 @@ export default function App(): JSX.Element {
         <TabRail
           tab={state.tab}
           counts={counts}
+          completedCount={completed.length}
           onSelect={(t) => dispatch({ type: 'setTab', tab: t })}
         />
 
@@ -854,7 +865,7 @@ export default function App(): JSX.Element {
             className="flex min-w-0 flex-1 flex-col gap-3 px-4 pb-4 pt-1 lg:gap-4 lg:px-7 lg:pb-5"
             onDragOver={(e) => {
               e.preventDefault()
-              if (tool !== 'generate' && !onToolsGrid) setDragging(true)
+              if (tool !== 'generate' && !onToolsGrid && !onCompleted) setDragging(true)
             }}
             onDragLeave={(e) => {
               if (e.currentTarget === e.target) setDragging(false)
@@ -867,10 +878,19 @@ export default function App(): JSX.Element {
               title={card ? card.label : tab.label}
               desc={card ? card.desc : tab.desc}
               color={card ? card.color : tab.color}
-              fileCount={onToolsGrid ? 0 : cur.items.filter(inInput).length}
+              fileCount={
+                onCompleted ? completed.length : onToolsGrid ? 0 : cur.items.filter(inInput).length
+              }
               onBack={card ? () => dispatch({ type: 'setActiveTool', tool: null }) : undefined}
             />
-            {onToolsGrid ? (
+            {onCompleted ? (
+              <CompletedView
+                entries={completed}
+                thumbs={outThumbs}
+                onOpen={(item) => openExternally('output', item)}
+                onMenu={(item, x, y) => openMenu('output', item, x, y)}
+              />
+            ) : onToolsGrid ? (
               <ToolsGrid onPick={(id) => dispatch({ type: 'setActiveTool', tool: id })} />
             ) : tool === 'generate' ? (
               <>
@@ -964,7 +984,6 @@ export default function App(): JSX.Element {
                   options={curOptions}
                   selected={cur.selected}
                   activeGroup={activeGroup}
-                  outThumbs={outThumbs}
                   onItemClick={onItemClick}
                   onOpen={openExternally}
                   onMenu={openMenu}
@@ -974,7 +993,7 @@ export default function App(): JSX.Element {
             )}
           </section>
 
-          {!onToolsGrid && (
+          {!onToolsGrid && !onCompleted && (
             <OptionsPanel
               tab={state.tab}
               tool={tool}

@@ -195,7 +195,7 @@ test('Tools groups its one-off verbs and opens one as a workspace', async () => 
   await page.locator('button:has-text("Merge")').first().click()
   // A tool workspace is an ordinary queue titled with the tool's name.
   await expect(page.locator('h1', { hasText: 'Merge' }).first()).toBeVisible()
-  await expect(page.locator('text=Input').first()).toBeVisible()
+  await expect(page.locator('text=Files').first()).toBeVisible()
   // Back returns to the grid, which is the app's only second level.
   await page.locator('button[aria-label="Back to Tools"]').first().click()
   await expect(page.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
