@@ -31,7 +31,7 @@ A local file toolkit for Windows. Drop files, pick a tool, get results.
 
 ## What it is
 
-Filesmith puts the everyday file jobs behind one clean window: convert, compress, resize, and more, across **images, video, audio, PDFs, documents, and archives**. Drop a pile of files, pick a tool, and it runs the batch with thumbnails, live per-file progress, rich previews, and collision-safe output that never overwrites your originals.
+Filesmith puts the everyday file jobs behind one clean window. Pick **what you want done** - convert, compress, resize, and more - then drop files of any supported type: **images, video, audio, PDFs, documents, and archives**. Drop a pile of files, pick a tool, and it runs the batch with thumbnails, live per-file progress, rich previews, and collision-safe output that never overwrites your originals.
 
 Everything runs **locally on your machine**, and your queue and produced files are **remembered across restarts**, so you can close the app mid-batch and pick up where you left off.
 
@@ -66,7 +66,7 @@ Download **`Filesmith-Setup-x64-<version>.exe`** from the [latest release](https
 ## Use
 
 1. Open **Filesmith** from the Start menu.
-2. Pick a file type in the left rail (Images, Video, Audio, PDF, Documents, Archives).
+2. Pick what you want to do in the left rail (Convert, Compress, Resize, Upscale, Remove BG, Generate, Tools).
 3. Choose a tool from the top-right (Convert, Compress, Resize, …), set its options.
 4. Drop files onto the drop zone (or click **browse**), then run.
 

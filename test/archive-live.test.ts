@@ -94,7 +94,7 @@ describe.skipIf(!existsSync(SEVEN) || !existsSync(MAGICK))('archive engine (live
     const pdf = await tool.run(info(cbz, '.cbz'), { op: 'to-pdf' }, ctx)
     const out = await tool.run(
       { ...info(pdf, '.pdf'), kind: 'pdf' },
-      { op: 'from-pdf', format: '.cbz', dpi: 72, pageFormat: 'jpg', quality: 80 },
+      { op: 'from-pdf', format: '.cbz', dpi: 72, pageFormat: 'jpg', pageQuality: 80 },
       ctx
     )
     const entries = list(out).sort()

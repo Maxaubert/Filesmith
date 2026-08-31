@@ -1,14 +1,8 @@
 import type { JSX, MouseEvent } from 'react'
 import type { JobOptions, ToolId } from '@shared/types'
-import { formatBytes, formatEta, groupOf, inInput, inOutput, type QueueItem } from '../state'
-import { baseName } from '@shared/fileKind'
+import { formatBytes, formatEta, groupOf, inInput, type QueueItem } from '../state'
+import { groupItemsByGroup } from './queueGroups'
 import { Icon } from './Icon'
-
-const extOf = (p: string): string => {
-  const b = baseName(p)
-  const i = b.lastIndexOf('.')
-  return i > 0 ? b.slice(i + 1).toUpperCase() : ''
-}
 
 const PDF_OP_LABEL: Record<string, string> = {
   'extract-text': 'Extract text',
@@ -219,76 +213,13 @@ function InputCard({
   )
 }
 
-function OutputCard({
-  item,
-  thumb,
-  selected,
-  onClick,
-  onOpen,
-  onMenu
-}: {
-  item: QueueItem
-  thumb: string | null
-  selected: boolean
-  onClick: (e: MouseEvent) => void
-  onOpen: () => void
-  onMenu: (x: number, y: number) => void
-}): JSX.Element {
-  const out = item.outputPath ?? ''
+/** A hairline header naming one convert group inside a mixed queue. */
+function GroupHead({ label, count }: { label: string; count: string }): JSX.Element {
   return (
-    <div
-      onClick={onClick}
-      onDoubleClick={onOpen}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onMenu(e.clientX, e.clientY)
-      }}
-      className={`group flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-[0_1px_3px_rgba(0,0,0,.05),0_8px_22px_rgba(20,20,40,.05)] transition ${
-        selected
-          ? 'border-accent ring-2 ring-accent/60'
-          : 'border-black/[.07] hover:border-black/[.14]'
-      }`}
-    >
-      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[9px] bg-[#ececf1] shadow-[inset_0_0_0_1px_rgba(0,0,0,.05)]">
-        {thumb ? (
-          <img src={thumb} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span className="grid h-full w-full place-items-center text-[9px] font-semibold uppercase text-dim">
-            {extOf(out)}
-          </span>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold">{baseName(out)}</div>
-        <div className="mt-0.5 truncate text-[11.5px] text-dim">
-          {extOf(out)}
-          {item.outputSize != null && (
-            <>
-              <span className="mx-0.5 text-[#c3c3cc]">·</span>
-              {formatBytes(item.outputSize)}
-              {/* Change vs the source. Green when it shrank; amber when it grew
-                  (re-encoding an already-optimised file can do that) — hiding
-                  that just makes compression look broken. */}
-              {item.file.size > 0 &&
-                (item.outputSize < item.file.size ? (
-                  <span className="ml-1 font-semibold text-[#12a150]">
-                    −{Math.round((1 - item.outputSize / item.file.size) * 100)}%
-                  </span>
-                ) : (
-                  <span
-                    className="ml-1 font-semibold text-[#b7791f]"
-                    title="Bigger than the original — this file was already well compressed"
-                  >
-                    +{Math.round((item.outputSize / item.file.size - 1) * 100)}%
-                  </span>
-                ))}
-            </>
-          )}
-        </div>
-      </div>
-      <div className="shrink-0 pr-0.5">
-        <Kebab onOpen={onMenu} />
-      </div>
+    <div className="mb-2 mt-3.5 flex items-center gap-2.5 first:mt-0.5">
+      <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-dim">{label}</span>
+      <span className="text-[11.5px] font-medium text-muted">{count}</span>
+      <span className="h-px flex-1 bg-black/[.07]" />
     </div>
   )
 }
@@ -299,7 +230,6 @@ export function Queues({
   options,
   selected,
   activeGroup,
-  outThumbs,
   onItemClick,
   onOpen,
   onMenu,
@@ -310,63 +240,50 @@ export function Queues({
   options: JobOptions
   selected: string[]
   activeGroup: string | null
-  outThumbs: Record<string, string | null>
   onItemClick: (id: string, e: MouseEvent) => void
   onOpen: (side: 'input' | 'output', item: QueueItem) => void
   onMenu: (side: 'input' | 'output', item: QueueItem, x: number, y: number) => void
   onCancel: (id: string) => void
 }): JSX.Element {
   const inputs = items.filter(inInput)
-  const done = items.filter(inOutput)
-  // A single "No items in queue" centred under the two headers, rather than a
-  // separate placeholder per column, so the empty state reads as one message.
-  if (items.length === 0) {
+  if (inputs.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex gap-5">
-          <div className="flex-1">
-            <ColumnHead title="Input" />
-          </div>
-          <div className="flex-1">
-            <ColumnHead title="Output" />
-          </div>
-        </div>
+        <ColumnHead title="Files" />
         <div className="grid flex-1 place-items-center">
           <span className="text-[13.5px] font-medium text-[#a2a2ac]">No items in queue</span>
         </div>
       </div>
     )
   }
+  const card = (i: QueueItem): JSX.Element => (
+    <InputCard
+      key={i.id}
+      item={i}
+      tool={tool}
+      options={options}
+      selected={selected.includes(i.id)}
+      compatible={activeGroup === null || groupOf(i.file) === activeGroup}
+      onClick={(e) => onItemClick(i.id, e)}
+      onOpen={() => onOpen('input', i)}
+      onMenu={(x, y) => onMenu('input', i, x, y)}
+      onCancel={() => onCancel(i.id)}
+    />
+  )
+  // Headers only when the queue actually holds more than one group, so the
+  // everyday single-kind batch looks exactly as it always has.
+  const groups = groupItemsByGroup(inputs)
   return (
-    <div className="flex min-h-0 flex-1 gap-5">
-      <Column title="Input">
-        {inputs.map((i) => (
-          <InputCard
-            key={i.id}
-            item={i}
-            tool={tool}
-            options={options}
-            selected={selected.includes(i.id)}
-            compatible={activeGroup === null || groupOf(i.file) === activeGroup}
-            onClick={(e) => onItemClick(i.id, e)}
-            onOpen={() => onOpen('input', i)}
-            onMenu={(x, y) => onMenu('input', i, x, y)}
-            onCancel={() => onCancel(i.id)}
-          />
-        ))}
-      </Column>
-      <Column title="Output">
-        {done.map((i) => (
-          <OutputCard
-            key={i.id}
-            item={i}
-            thumb={i.outputPath ? (outThumbs[i.outputPath] ?? null) : null}
-            selected={selected.includes(i.id)}
-            onClick={(e) => onItemClick(i.id, e)}
-            onOpen={() => onOpen('output', i)}
-            onMenu={(x, y) => onMenu('output', i, x, y)}
-          />
-        ))}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <Column title="Files">
+        {groups
+          ? groups.map((g) => (
+              <div key={g.group}>
+                <GroupHead label={g.label} count={g.count} />
+                {g.items.map(card)}
+              </div>
+            ))
+          : inputs.map(card)}
       </Column>
     </div>
   )

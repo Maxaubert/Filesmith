@@ -1,4 +1,5 @@
 import type { FileKind } from './types'
+import { ARCHIVE_FORMATS, COMIC_FORMATS, containerOf } from './archive'
 
 // Convert catalogs + rules, shared by the engine and the UI so they never drift.
 // Convert works WITHIN a file kind (image↔image, audio↔audio, video↔video); you
@@ -83,10 +84,52 @@ export function categoryFormats(kind: FileKind): FormatOption[] {
 }
 
 /** Full format family for a source, including its own format (for the UI grid
- * that greys out the source's own). Document families need the source ext. */
+ * that greys out the source's own). Document families need the source ext.
+ *
+ * Two families deliberately reach ACROSS convert groups, because the pairing is
+ * what people actually want: a PDF can become a comic archive, and any archive
+ * can become a PDF. Both are ordinary Converts to a user; the engine routing
+ * (see `routeConvert`) is what differs. Only a real .pdf gets the comic
+ * targets: a .docx in the same 'doc' group cannot become a CBZ. */
 export function familyFormats(kind: FileKind, srcExt: string): FormatOption[] {
+  if (kind === 'archive') return [...ARCHIVE_FORMATS, { label: 'PDF', ext: '.pdf' }]
+  if (normalizeExt(srcExt) === '.pdf') return [...docFormats(srcExt), ...COMIC_FORMATS]
   if (kind === 'document' || kind === 'pdf' || kind === 'text') return docFormats(srcExt)
   return categoryFormats(kind)
+}
+
+/**
+ * The engine that performs one Convert. The tab-to-tool mapping is not 1:1: the
+ * `convert` tool handles image/video/audio/document work, while anything
+ * touching an archive container is the `archive` tool under a different verb.
+ */
+export function routeConvert(
+  kind: FileKind,
+  srcExt: string,
+  targetExt: string
+): { tool: 'convert' | 'archive'; op?: string } {
+  const target = normalizeExt(targetExt)
+  if (kind === 'archive') {
+    // Unpacking an archive INTO a PDF is a different job from repacking it.
+    return target === '.pdf' ? { tool: 'archive', op: 'to-pdf' } : { tool: 'archive', op: 'repack' }
+  }
+  // A PDF aimed at a comic container: render its pages, then pack them.
+  if (normalizeExt(srcExt) === '.pdf' && containerOf(target)) {
+    return { tool: 'archive', op: 'from-pdf' }
+  }
+  return { tool: 'convert' }
+}
+
+/** Targets valid for EVERY selected source, so a mixed pdf+docx selection never
+ * offers CBZ (which only the pdf could do). */
+export function sharedTargets(kind: FileKind, srcExts: string[]): FormatOption[] {
+  if (!srcExts.length) return []
+  const lists = srcExts.map((e) => familyFormats(kind, e).map((f) => f.ext))
+  const common = lists.reduce((a, b) => a.filter((x) => b.includes(x)))
+  const seen = new Set<string>()
+  return familyFormats(kind, srcExts[0]).filter(
+    (f) => common.includes(f.ext) && !seen.has(f.ext) && seen.add(f.ext)
+  )
 }
 
 /** Fold alias extensions so .tif == .tiff and .jpeg == .jpg. */
@@ -116,11 +159,18 @@ export function defaultTargetExt(kind: FileKind, srcExt: string): string | null 
 /**
  * The batch-conversion group a file belongs to: files in the same group share a
  * target-format set and can be multi-selected + converted together. Word docs,
- * plain text, and PDF all share one 'doc' group; spreadsheets and slides get
- * their own (their targets differ).
+ * plain text, and PDF all share one 'doc' group; spreadsheets, slides and
+ * archives get their own (their targets differ).
+ *
+ * This is also the app's NAVIGATION grouping axis: the queue groups by it and
+ * a selection may never span two groups, because one options panel can only
+ * describe one target set.
  */
 export function convertGroup(kind: FileKind, ext: string): string {
   if (kind === 'image' || kind === 'video' || kind === 'audio') return kind
+  // Archives share no target set with documents. Without this branch the
+  // fall-through below returns 'doc' and a .cbz batches with a .docx.
+  if (kind === 'archive') return 'archive'
   const e = normalizeExt(ext)
   if (SHEET_EXTS.includes(e)) return 'sheet'
   if (SLIDE_EXTS.includes(e)) return 'slide'

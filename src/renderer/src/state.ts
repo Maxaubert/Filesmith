@@ -1,18 +1,24 @@
-import type { FileInfo, JobEvent, JobOptions, ToolId } from '@shared/types'
+import type { FileInfo, FileKind, JobEvent, JobOptions, ToolId } from '@shared/types'
 import { convertGroup } from '@shared/convert'
 import { BG_DEFAULTS } from '@shared/removebg'
 import { GEN_DEFAULTS } from '@shared/generate'
-import {
-  defaultOperation,
-  findOperation,
-  operationsFor,
-  workspaceKey,
-  type CategoryId,
-  type WorkspaceKey
-} from '@shared/catalog'
+import { TABS, engineFor, toolCardById, type TabId } from '@shared/tabs'
 
 /** The batch group a file belongs to (files that convert together). */
 export const groupOf = (f: FileInfo): string => convertGroup(f.kind, f.ext)
+
+/** A workspace's queue key: the tab, or the open Tools card's own workspace. */
+export type QueueKey = string
+export function queueKey(tab: TabId, activeTool: string | null): QueueKey {
+  return tab === 'tools' && activeTool ? `tools:${activeTool}` : tab
+}
+
+/** Options live per (workspace, convert group): one Convert tab holds an image
+ * target and a video target side by side. Keyed by GROUP, not kind, so a pdf
+ * and a docx share one option set exactly as they do today. */
+export function optionsKey(tab: TabId, activeTool: string | null, group: string): string {
+  return `${queueKey(tab, activeTool)}:${group}`
+}
 
 export type ItemStatus = 'ready' | 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 
@@ -67,26 +73,21 @@ export interface QueueState {
 }
 
 export interface AppState {
-  /** The file type selected in the left rail. */
-  category: CategoryId
-  /** The operation this workspace performs. Always set: a category opens
-   * directly on its default operation, with no intermediate chooser. */
-  operation: string
-  /** One queue per FILE TYPE, shared across that type's operations. Files added
-   * while converting images are still there after switching to compress: the
-   * queue belongs to the category, not the operation. */
-  queues: Partial<Record<CategoryId, QueueState>>
-  /** Options are per (category, operation): converting and compressing images
-   * are configured separately even though they share the same files. */
-  options: Record<WorkspaceKey, JobOptions>
-  /** The last operation chosen in each category, so switching away and back
-   * returns to the mode you were using instead of the category default. */
-  lastOperation: Partial<Record<CategoryId, string>>
-}
-
-/** The queue key (the file type) and the options key (file type + operation). */
-export function optionsKey(state: AppState): WorkspaceKey {
-  return workspaceKey(state.category, state.operation)
+  /** The verb selected in the left rail. */
+  tab: TabId
+  /** Which Tools card is open, or null for the Tools grid. Only meaningful
+   * while `tab` is 'tools'. */
+  activeTool: string | null
+  /** One queue per WORKSPACE: a tab, or `tools:<cardId>`. Files belong to the
+   * verb you are performing, and a tab's queue may hold several convert groups
+   * at once (images and video in the same Convert queue). */
+  queues: Partial<Record<QueueKey, QueueState>>
+  /** Options are per (workspace, convert group): converting images and
+   * converting video are configured separately inside one Convert tab. */
+  options: Record<string, JobOptions>
+  /** The last Tools card opened. Kept for the session file's shape only: the
+   * Tools tab deliberately opens on its grid every time. */
+  lastTool: string | null
 }
 
 export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
@@ -105,7 +106,14 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   upscale: { upscaleFactor: 4, upscaleModel: 'photo' },
   removebg: { ...BG_DEFAULTS },
   pdf: { op: 'extract-text', dpi: 150, range: '' },
-  archive: { op: 'repack', format: '.cbz', store: true, dpi: 150, pageFormat: 'jpg', quality: 85 },
+  archive: {
+    op: 'repack',
+    format: '.cbz',
+    store: true,
+    dpi: 150,
+    pageFormat: 'jpg',
+    pageQuality: 100
+  },
   generate: {
     prompt: '',
     model: '',
@@ -123,29 +131,31 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
 
 export const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })
 
-/** A fresh workspace's options: its tool's defaults, plus the operation's verb
- * when its tool carries several (the pdf and archive tools both do). */
-export function defaultOptionsFor(category: CategoryId, opId: string): JobOptions {
-  const op = findOperation(category, opId)
-  if (!op) return {}
-  const base = DEFAULT_OPTIONS[op.tool] ?? {}
-  return op.opKey ? { ...base, op: op.opKey } : { ...base }
+/** A fresh workspace's options for one convert group: the engine tool's
+ * defaults, plus the verb when that tool carries several (pdf and archive both
+ * do). The engine is resolved per group because the Convert tab runs the
+ * archive tool for a .cbz and the convert tool for everything else. */
+export function defaultOptionsFor(
+  tab: TabId,
+  activeTool: string | null,
+  group: string,
+  source?: { kind: FileKind; ext: string },
+  targetExt?: string
+): JobOptions {
+  const card = activeTool ? toolCardById(activeTool) : null
+  const { tool, op } = engineFor(tab, group, card, source, targetExt)
+  const base = DEFAULT_OPTIONS[tool] ?? {}
+  return op ? { ...base, op } : { ...base }
 }
 
-const FIRST_CATEGORY: CategoryId = 'images'
-const FIRST_OPERATION = defaultOperation(FIRST_CATEGORY)
+const FIRST_TAB: TabId = 'convert'
 
 export const initialState: AppState = {
-  category: FIRST_CATEGORY,
-  operation: FIRST_OPERATION,
-  queues: { [FIRST_CATEGORY]: emptyQueue() },
-  options: {
-    [workspaceKey(FIRST_CATEGORY, FIRST_OPERATION)]: defaultOptionsFor(
-      FIRST_CATEGORY,
-      FIRST_OPERATION
-    )
-  },
-  lastOperation: {}
+  tab: FIRST_TAB,
+  activeTool: null,
+  queues: { [FIRST_TAB]: emptyQueue() },
+  options: {},
+  lastTool: null
 }
 
 let counter = 0
@@ -155,11 +165,11 @@ export function newId(): string {
 }
 
 export type Action =
-  | { type: 'setCategory'; category: CategoryId }
-  | { type: 'setOperation'; operation: string }
-  | { type: 'setOption'; key: string; value: string | number | boolean }
-  | { type: 'addItems'; files: FileInfo[]; category: CategoryId }
-  | { type: 'addSources'; items: QueueItem[]; category: CategoryId }
+  | { type: 'setTab'; tab: TabId }
+  | { type: 'setActiveTool'; tool: string | null }
+  | { type: 'setOption'; group: string; key: string; value: string | number | boolean }
+  | { type: 'addItems'; files: FileInfo[]; key: QueueKey }
+  | { type: 'addSources'; items: QueueItem[]; key: QueueKey }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'dismiss'; id: string; column: 'input' | 'output' }
   | { type: 'markQueued'; ids: string[]; options?: JobOptions }
@@ -170,8 +180,9 @@ export type Action =
 
 // --- Session persistence ---------------------------------------------------
 
-/** Bump when AppState's persisted shape changes so old sessions are discarded. */
-const SESSION_VERSION = 1
+/** Bump when AppState's persisted shape changes. v1 (category-keyed) is not
+ * discarded but MIGRATED: a user mid-batch must not lose their files. */
+const SESSION_VERSION = 2
 
 /** Normalize a queue item for persistence/restore: drop the (reloadable) thumb
  * and settle any in-flight status, since a run doesn't survive a restart. */
@@ -208,10 +219,10 @@ export function sessionSnapshot(state: AppState, genResults: string[]): unknown 
   }
   return {
     version: SESSION_VERSION,
-    // The category and its operation are deliberately NOT persisted as such:
-    // the app always launches into the first category, and each category's
-    // sub-page rides in lastOperation (kept current by setOperation).
-    lastOperation: { ...state.lastOperation, [state.category]: state.operation },
+    // The tab is deliberately NOT persisted: the app always launches into the
+    // first verb. What IS remembered is the last Tools card, so returning to
+    // Tools lands where you were.
+    lastTool: state.lastTool,
     options: state.options,
     queues,
     genResults: genResults.slice(0, MAX_GEN)
@@ -233,10 +244,57 @@ function isValidItem(i: unknown): i is QueueItem {
 }
 
 interface PersistedSession {
-  lastOperation: Partial<Record<CategoryId, string>>
-  options: Record<WorkspaceKey, JobOptions>
+  lastTool: string | null
+  options: Record<string, JobOptions>
   queues: AppState['queues']
   genResults: string[]
+}
+
+/** Old category ids and the verb each one's operations mapped to. Used only by
+ * the v1 migration. */
+const V1_OP_TO_TAB: Record<string, TabId> = {
+  convert: 'convert',
+  compress: 'compress',
+  resize: 'resize',
+  upscale: 'upscale',
+  removebg: 'removebg',
+  generate: 'generate',
+  // Every PDF and archive verb became a Tools card.
+  'extract-text': 'tools',
+  'pages-to-images': 'tools',
+  merge: 'tools',
+  'split-range': 'tools',
+  'split-pages': 'tools',
+  'extract-images': 'tools',
+  'to-cbz': 'tools',
+  extract: 'tools',
+  'to-pdf': 'tools'
+}
+
+/**
+ * Move a v1 (category-keyed) session into the tab-keyed shape. Files are the
+ * valuable part of a session and must survive the upgrade; options are dropped
+ * because they were keyed by an axis that no longer exists, and re-deriving
+ * them per group would guess wrong more often than it would help.
+ */
+export function migrateV1Queues(raw: Record<string, unknown>): AppState['queues'] {
+  const lastOperation = (raw.lastOperation ?? {}) as Record<string, string>
+  const oldQueues = (raw.queues ?? {}) as Record<string, { items?: unknown[] }>
+  const out: AppState['queues'] = {}
+  for (const [cat, q] of Object.entries(oldQueues)) {
+    if (!q) continue
+    const verb = lastOperation[cat]
+    // A Tools verb has no single home queue, so its files land in Convert
+    // rather than being dropped on the floor.
+    const mapped = verb ? V1_OP_TO_TAB[verb] : undefined
+    const tab: TabId = mapped && mapped !== 'tools' ? mapped : 'convert'
+    const items = (q.items ?? []).filter(isValidItem).map(normalizeItem)
+    const cur = out[tab] ?? emptyQueue()
+    const have = new Set(cur.items.map((i) => (i.isResult ? (i.outputPath ?? i.id) : i.file.path)))
+    const extra = items.filter((i) => !have.has(i.isResult ? (i.outputPath ?? i.id) : i.file.path))
+    out[tab] = { ...cur, items: [...cur.items, ...extra] }
+  }
+  return out
 }
 
 /** Parse a persisted blob into an AppState + genResults, or null if unusable.
@@ -244,56 +302,52 @@ interface PersistedSession {
 export function parseSession(raw: unknown): { state: AppState; genResults: string[] } | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
-  if (r.version !== SESSION_VERSION) return null
-  const p = r as unknown as PersistedSession
   try {
-    const validCat = (c: string): boolean => {
-      try {
-        return operationsFor(c as CategoryId).length > 0
-      } catch {
-        return false
+    const genResults = Array.isArray(r.genResults)
+      ? (r.genResults as unknown[]).filter((x): x is string => typeof x === 'string')
+      : []
+
+    // v1 was keyed by file-type category. Migrate rather than discard: the
+    // files are a user's in-flight work, and losing them to an upgrade is a
+    // worse failure than resetting their format settings.
+    if (r.version !== SESSION_VERSION) {
+      return {
+        state: { ...initialState, queues: migrateV1Queues(r), options: {} },
+        genResults
       }
     }
-    // Always launch into the FIRST category (owner decision: coming back to
-    // the remembered one felt wrong). What IS remembered is each category's
-    // last sub-page: Images still opens on Generate if that is where it was,
-    // and switching to Video lands on its own remembered operation.
-    const category = FIRST_CATEGORY
-    const remembered = (p.lastOperation ?? {})[category]
-    const operation =
-      remembered && findOperation(category, remembered) ? remembered : defaultOperation(category)
-    // Drop queues for categories no longer in the catalog (a removed/renamed tool).
+
+    const p = r as unknown as PersistedSession
+    const validKey = (k: string): boolean => {
+      if (k.startsWith('tools:')) return !!toolCardById(k.slice(6))
+      return TABS.some((t) => t.id === k)
+    }
+    // Always launch into the FIRST verb: coming back to the remembered one
+    // felt wrong (owner decision, carried over from the category rail).
     const queues: AppState['queues'] = {}
-    for (const [cat, q] of Object.entries(p.queues ?? {})) {
-      if (!q || !validCat(cat)) continue
-      queues[cat as CategoryId] = {
+    for (const [k, q] of Object.entries(p.queues ?? {})) {
+      if (!q || !validKey(k)) continue
+      queues[k] = {
         items: (q.items ?? []).filter(isValidItem).map(normalizeItem),
         selected: [],
         anchor: null
       }
     }
-    // Keep only options whose (category:operation) key still resolves to a real op.
-    const options: Record<WorkspaceKey, JobOptions> = {}
+    // Keep only options whose workspace still exists.
+    const options: Record<string, JobOptions> = {}
     for (const [k, v] of Object.entries(p.options ?? {})) {
-      const idx = k.indexOf(':')
-      const c = idx >= 0 ? k.slice(0, idx) : ''
-      const o = idx >= 0 ? k.slice(idx + 1) : ''
-      if (validCat(c) && findOperation(c as CategoryId, o))
-        options[k as WorkspaceKey] = v as JobOptions
+      const cut = k.lastIndexOf(':')
+      if (cut < 0) continue
+      if (validKey(k.slice(0, cut))) options[k] = v as JobOptions
     }
-    const key = workspaceKey(category, operation)
-    if (!options[key]) options[key] = defaultOptionsFor(category, operation)
-    // Keep only valid lastOperation entries.
-    const lastOperation: Partial<Record<CategoryId, string>> = {}
-    for (const [c, o] of Object.entries(p.lastOperation ?? {}))
-      if (validCat(c) && o && findOperation(c as CategoryId, o)) lastOperation[c as CategoryId] = o
-    const state: AppState = { category, operation, lastOperation, queues, options }
-    return {
-      state,
-      genResults: Array.isArray(p.genResults)
-        ? p.genResults.filter((x) => typeof x === 'string')
-        : []
+    const lastTool = typeof p.lastTool === 'string' && toolCardById(p.lastTool) ? p.lastTool : null
+    const state: AppState = {
+      ...initialState,
+      lastTool,
+      queues: { ...queues, [FIRST_TAB]: queues[FIRST_TAB] ?? emptyQueue() },
+      options
     }
+    return { state, genResults }
   } catch {
     return null
   }
@@ -321,14 +375,14 @@ export function pruneMissing(
   exists: Set<string>
 ): { state: AppState; genResults: string[] } {
   const queues: AppState['queues'] = {}
-  for (const [cat, q] of Object.entries(state.queues)) {
+  for (const [k, q] of Object.entries(state.queues)) {
     if (!q) continue
     const items = q.items.filter((it) =>
       it.isResult
         ? !!it.outputPath && exists.has(it.outputPath)
         : !!it.file?.path && exists.has(it.file.path)
     )
-    queues[cat as CategoryId] = { items, selected: [], anchor: null }
+    queues[k] = { items, selected: [], anchor: null }
   }
   return {
     state: { ...state, queues },
@@ -336,16 +390,15 @@ export function pruneMissing(
   }
 }
 
-/** Replace the current workspace's queue via `fn`. A no-op on the operation
- * grid, where no workspace is open. */
+/** Replace the current workspace's queue via `fn`. */
 function mapQueue(state: AppState, fn: (q: QueueState) => QueueState): AppState {
-  return mapQueueIn(state, state.category, fn)
+  return mapQueueIn(state, queueKey(state.tab, state.activeTool), fn)
 }
 
-/** Replace a SPECIFIC category's queue - for actions dispatched after an
+/** Replace a SPECIFIC workspace's queue - for actions dispatched after an
  * await, which must land where they were initiated, not where the user is. */
-function mapQueueIn(state: AppState, cat: CategoryId, fn: (q: QueueState) => QueueState): AppState {
-  return { ...state, queues: { ...state.queues, [cat]: fn(state.queues[cat] ?? emptyQueue()) } }
+function mapQueueIn(state: AppState, key: QueueKey, fn: (q: QueueState) => QueueState): AppState {
+  return { ...state, queues: { ...state.queues, [key]: fn(state.queues[key] ?? emptyQueue()) } }
 }
 
 /**
@@ -355,7 +408,7 @@ function mapQueueIn(state: AppState, cat: CategoryId, fn: (q: QueueState) => Que
  */
 function mapItemById(state: AppState, id: string, fn: (i: QueueItem) => QueueItem): AppState {
   const queues = { ...state.queues }
-  for (const [k, q] of Object.entries(queues) as [CategoryId, QueueState][]) {
+  for (const [k, q] of Object.entries(queues) as [QueueKey, QueueState][]) {
     if (q.items.some((i) => i.id === id)) {
       queues[k] = { ...q, items: q.items.map((i) => (i.id === id ? fn(i) : i)) }
     }
@@ -366,6 +419,15 @@ function mapItemById(state: AppState, id: string, fn: (i: QueueItem) => QueueIte
 function selectInQueue(q: QueueState, id: string, mode: SelectMode): QueueState {
   const order = q.items.map((i) => i.id)
   if (mode === 'toggle') {
+    const clicked = q.items.find((i) => i.id === id)
+    const first = q.selected.length ? q.items.find((i) => i.id === q.selected[0]) : null
+    // One convert group at a time. The options panel describes exactly one
+    // target set, so ctrl+clicking another group MOVES the selection instead of
+    // extending it into something Run could not honour. Range already did this;
+    // toggle did not, which only stayed invisible while a queue held one
+    // file type.
+    if (clicked && first && groupOf(clicked.file) !== groupOf(first.file))
+      return { ...q, selected: [id], anchor: id }
     const has = q.selected.includes(id)
     return {
       ...q,
@@ -398,68 +460,71 @@ export function reducer(state: AppState, action: Action): AppState {
       // Merge, never replace: the window is interactive while the session
       // restore round-trips, so files dropped in that gap must survive it.
       const merged = { ...action.state, queues: { ...action.state.queues } }
-      for (const [cat, q] of Object.entries(state.queues) as [CategoryId, QueueState][]) {
+      for (const [k, q] of Object.entries(state.queues) as [QueueKey, QueueState][]) {
         if (!q?.items.length) continue
-        const restored = merged.queues[cat]
+        const restored = merged.queues[k]
         if (!restored) {
-          merged.queues[cat] = q
+          merged.queues[k] = q
           continue
         }
         const key = (i: QueueItem): string => (i.isResult ? (i.outputPath ?? i.id) : i.file.path)
         const have = new Set(restored.items.map(key))
         const extra = q.items.filter((i) => !have.has(key(i)))
-        if (extra.length) merged.queues[cat] = { ...restored, items: [...restored.items, ...extra] }
+        if (extra.length) merged.queues[k] = { ...restored, items: [...restored.items, ...extra] }
       }
       return merged
     }
-    case 'setCategory': {
-      // Return to the mode last used in this category (if still valid), so
-      // Images→Video→Images lands back on your chosen operation, not the default.
-      const remembered = state.lastOperation[action.category]
-      const opId =
-        remembered && findOperation(action.category, remembered)
-          ? remembered
-          : defaultOperation(action.category)
-      const key = workspaceKey(action.category, opId)
+    case 'setTab': {
+      // Tools ALWAYS opens on its grid. Landing straight back inside the last
+      // card hid the other tools and made the tab feel like it had lost them.
+      const activeTool = null
+      const key = queueKey(action.tab, activeTool)
       return {
         ...state,
-        category: action.category,
-        operation: opId,
-        queues: {
-          ...state.queues,
-          [action.category]: state.queues[action.category] ?? emptyQueue()
-        },
-        options: {
-          ...state.options,
-          [key]: state.options[key] ?? defaultOptionsFor(action.category, opId)
-        }
+        tab: action.tab,
+        activeTool,
+        queues: { ...state.queues, [key]: state.queues[key] ?? emptyQueue() }
       }
     }
-    case 'setOperation': {
-      const key = workspaceKey(state.category, action.operation)
+    case 'setActiveTool': {
+      const key = queueKey('tools', action.tool)
       return {
         ...state,
-        operation: action.operation,
-        lastOperation: { ...state.lastOperation, [state.category]: action.operation },
-        options: {
-          ...state.options,
-          [key]: state.options[key] ?? defaultOptionsFor(state.category, action.operation)
-        }
+        activeTool: action.tool,
+        lastTool: action.tool ?? state.lastTool,
+        queues: { ...state.queues, [key]: state.queues[key] ?? emptyQueue() }
       }
     }
     case 'setOption': {
-      const key = optionsKey(state)
+      const key = optionsKey(state.tab, state.activeTool, action.group)
+      const base =
+        state.options[key] ?? defaultOptionsFor(state.tab, state.activeTool, action.group)
+      // Changing the VERB changes which engine reads this bag, and that engine
+      // has settings the previous one never stored (a PDF aimed at a comic
+      // archive suddenly needs a DPI). Seed those, without disturbing anything
+      // the user has already chosen.
+      const seeded =
+        action.key === 'op'
+          ? Object.fromEntries(
+              Object.entries(DEFAULT_OPTIONS.archive ?? {}).filter(
+                ([k]) => k !== 'op' && k !== 'format' && !(k in base)
+              )
+            )
+          : {}
       return {
         ...state,
-        options: { ...state.options, [key]: { ...state.options[key], [action.key]: action.value } }
+        options: {
+          ...state.options,
+          [key]: { ...base, ...seeded, [action.key]: action.value }
+        }
       }
     }
     case 'addItems': {
-      // The category rides ON the action: these are dispatched after an await
-      // (files:classify), and the user can switch category during the round
-      // trip - reducing against state.category filed images into whatever
+      // The workspace key rides ON the action: these are dispatched after an
+      // await (files:classify), and the user can switch tabs during the round
+      // trip - reducing against the current tab filed images into whatever
       // queue was open when the reply landed.
-      const cat = action.category
+      const cat = action.key
       const q = state.queues[cat] ?? emptyQueue()
       // Ignore input-dismissed items so re-dropping a removed file re-adds it.
       const seen = new Set(q.items.filter(inInput).map((i) => i.file.path))
@@ -471,12 +536,13 @@ export function reducer(state: AppState, action: Action): AppState {
       // convert group (the first added file's) so a batch is never cross-category.
       const firstGroup = groupOf(add[0].file)
       const ids = add.filter((i) => groupOf(i.file) === firstGroup).map((i) => i.id)
+      const here = cat === queueKey(state.tab, state.activeTool)
       return mapQueueIn(state, cat, (cur) => ({
         items: [...cur.items, ...add],
         // Only steer the selection when the user is still LOOKING at this
-        // category; a background add must not clobber another queue's state.
-        selected: cat === state.category ? ids : cur.selected,
-        anchor: cat === state.category ? ids[ids.length - 1] : cur.anchor
+        // workspace; a background add must not clobber another queue's state.
+        selected: here ? ids : cur.selected,
+        anchor: here ? ids[ids.length - 1] : cur.anchor
       }))
     }
     case 'addSources': {
@@ -484,7 +550,7 @@ export function reducer(state: AppState, action: Action): AppState {
       // origin is visible) and select them. The caller (run) already reuses an
       // existing input for a path that's already present, so no dedup here.
       if (!action.items.length) return state
-      return mapQueueIn(state, action.category, (cur) => ({
+      return mapQueueIn(state, action.key, (cur) => ({
         items: [...cur.items, ...action.items],
         selected: action.items.map((i) => i.id),
         anchor: action.items[action.items.length - 1].id
@@ -537,7 +603,7 @@ export function reducer(state: AppState, action: Action): AppState {
       // checkmark persists until the next run replaces it with a progress bar.
       if (e.status === 'done' && e.outputPath) {
         const queues = { ...state.queues }
-        for (const [k, q] of Object.entries(queues) as [CategoryId, QueueState][]) {
+        for (const [k, q] of Object.entries(queues) as [QueueKey, QueueState][]) {
           const src = q.items.find((i) => i.id === e.id && !i.isResult)
           if (!src) continue
           const result: QueueItem = {

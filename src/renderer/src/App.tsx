@@ -8,12 +8,13 @@ import {
   type JSX,
   type MouseEvent
 } from 'react'
-import type { FileInfo, FileKind, PreviewItem } from '@shared/types'
+import type { FileInfo, FileKind } from '@shared/types'
 import {
   canCompress,
-  familyFormats,
+  convertGroup,
   isSameFormat,
   normalizeExt,
+  sharedTargets,
   toolForKind
 } from '@shared/convert'
 import {
@@ -29,6 +30,8 @@ import {
   reducer,
   initialState,
   optionsKey,
+  queueKey,
+  defaultOptionsFor,
   emptyQueue,
   inInput,
   inOutput,
@@ -41,16 +44,13 @@ import {
   type QueueItem,
   type SelectMode
 } from './state'
-import {
-  acceptsKind,
-  categoryOf,
-  findOperation,
-  operationsFor,
-  type CategoryId
-} from '@shared/catalog'
+import { engineFor, tabAccepts, tabById, toolCardById, type TabId } from '@shared/tabs'
 import { TopBar } from './components/TopBar'
-import { CategoryRail } from './components/CategoryRail'
+import { TabRail } from './components/TabRail'
 import { OperationTitle } from './components/OperationTitle'
+import { ToolsGrid } from './components/ToolsGrid'
+import { CompletedView } from './components/CompletedView'
+import { collectCompleted } from './components/completed'
 import { DropZone } from './components/DropZone'
 import { PromptBox } from './components/PromptBox'
 import type { GenerateOptions } from '@shared/generate'
@@ -109,34 +109,6 @@ function effectiveFile(i: QueueItem): FileInfo {
   return i.file
 }
 
-/** Build the preview window's file list for a column of a queue. */
-function toPreviewFiles(
-  items: QueueItem[],
-  side: 'input' | 'output',
-  outThumbs: Record<string, string | null>
-): PreviewItem[] {
-  if (side === 'input') {
-    return items.filter(inInput).map((it) => ({
-      path: it.file.path,
-      name: it.file.name,
-      kind: it.file.kind,
-      size: it.file.size,
-      thumb: it.thumb
-    }))
-  }
-  return items.filter(inOutput).map((it) => {
-    const out = it.outputPath as string
-    // Classify the OUTPUT by its own extension — a PDF made from a .txt is a
-    // pdf, not text (using the input's kind previewed it as raw bytes).
-    return {
-      path: out,
-      name: baseName(out),
-      kind: fileKind(extOfPath(out)),
-      thumb: outThumbs[out] ?? null
-    }
-  })
-}
-
 export default function App(): JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [dragging, setDragging] = useState(false)
@@ -155,9 +127,6 @@ export default function App(): JSX.Element {
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
   // list updates to it when the queue changes.
-  const [previewCtx, setPreviewCtx] = useState<{ side: 'input' | 'output'; key: string } | null>(
-    null
-  )
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
   // Cached video dimensions (via ffprobe) for the compress resolution preview.
@@ -231,14 +200,17 @@ export default function App(): JSX.Element {
     return () => window.removeEventListener('beforeunload', flush)
   }, [])
 
-  // The queue belongs to the file type and is shared across its operations, so
-  // switching Convert -> Compress keeps the same files. Options are per
-  // operation, keyed by (category, operation).
-  const op = findOperation(state.category, state.operation) ?? operationsFor(state.category)[0]
-  const tool = op.tool
-  const category = categoryOf(state.category)
-  const cur = state.queues[state.category] ?? emptyQueue()
-  const curOptions = state.options[optionsKey(state)] ?? {}
+  // The queue belongs to the VERB: one Convert queue can hold images and video
+  // at once. Options are per (workspace, convert group), so the image target and
+  // the video target live side by side inside that one tab.
+  const tab = tabById(state.tab)
+  const card = state.activeTool ? toolCardById(state.activeTool) : null
+  const qKey = queueKey(state.tab, state.activeTool)
+  const cur = state.queues[qKey] ?? emptyQueue()
+  // The Tools grid is a chooser, not a workspace: no queue, no options panel.
+  const onToolsGrid = state.tab === 'tools' && !card
+  // Completed is a view of results, not a place you do work.
+  const onCompleted = state.tab === 'completed'
 
   // Stream job progress/terminal events into state.
   useEffect(() => window.filesmith.onJobEvent((e) => dispatch({ type: 'jobEvent', event: e })), [])
@@ -258,6 +230,7 @@ export default function App(): JSX.Element {
   // (incl. exotic formats via magick), videos (ffmpeg frame), audio cover art.
   useEffect(() => {
     for (const q of Object.values(state.queues)) {
+      if (!q) continue
       for (const item of q.items) {
         if (item.thumb !== null || requested.current.has(item.id)) continue
         requested.current.add(item.id)
@@ -272,6 +245,7 @@ export default function App(): JSX.Element {
   // input's kind — convert never crosses categories).
   useEffect(() => {
     for (const q of Object.values(state.queues)) {
+      if (!q) continue
       for (const item of q.items) {
         const out = item.outputPath
         if (!out || item.status !== 'done' || outRequested.current.has(out)) continue
@@ -292,9 +266,27 @@ export default function App(): JSX.Element {
   const selEff = selectedItems.map(effectiveFile)
   const activeKind: FileKind | null = selEff.length ? selEff[0].kind : null
   const activeGroup: string | null = selEff.length ? groupOf(selEff[0]) : null
+  // Nothing selected yet: fall back to the first kind this verb accepts, so the
+  // options panel can still show what it would do.
+  const fallbackKind: FileKind = tab.kinds[0] ?? card?.kinds[0] ?? 'image'
+  const optGroup = activeGroup ?? convertGroup(fallbackKind, '')
   const srcNorms = new Set(selEff.map((f) => normalizeExt(f.ext)))
   const srcExts = [...srcNorms] // every selected source format (for greying targets)
   const sourceExt: string | null = srcNorms.size === 1 ? [...srcNorms][0] : null
+  const optKey = optionsKey(state.tab, state.activeTool, optGroup)
+  const curOptions =
+    state.options[optKey] ?? defaultOptionsFor(state.tab, state.activeTool, optGroup)
+  // On Convert the engine depends on the TARGET as well as the source: a .cbz
+  // to .cb7 is archive/repack, a .pdf to .cbz is archive/from-pdf, and a .png
+  // to .webp is the plain convert tool.
+  const engine = engineFor(
+    state.tab,
+    optGroup,
+    card,
+    activeKind && sourceExt ? { kind: activeKind, ext: sourceExt } : undefined,
+    String(curOptions.format ?? '')
+  )
+  const tool = engine.tool
 
   // A source is runnable when idle (incl. already-done, so it can run again); a
   // result is always runnable — running it promotes its output back to input.
@@ -306,14 +298,17 @@ export default function App(): JSX.Element {
   const runList: QueueItem[] = selectedItems.filter((i) => {
     if (!canRun(i)) return false
     const f = effectiveFile(i)
-    // The workspace is type-locked, so the category already guarantees the kind.
-    // What is left to check is whether this specific file can take this operation.
-    if (!acceptsKind(state.category, f.kind)) return false
-    if (op.tool === 'convert') {
+    // The queue can hold several kinds, so check this file against the verb AND
+    // against the selected group: Run only ever acts on one group.
+    if (!accepts(f.kind)) return false
+    if (activeGroup && groupOf(f) !== activeGroup) return false
+    if (state.tab === 'convert') {
       const fmt = String(curOptions.format ?? '')
-      return toolForKind(f.kind) != null && !isSameFormat(f.ext, fmt)
+      if (isSameFormat(f.ext, fmt)) return false
+      // Archive work routes to the archive tool, which has no toolForKind entry.
+      return tool === 'archive' || toolForKind(f.kind) != null
     }
-    if (op.tool === 'compress') return canCompress(f.kind, f.ext)
+    if (tool === 'compress') return canCompress(f.kind, f.ext)
     return true
   })
 
@@ -322,54 +317,43 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (!activeKind || tool !== 'convert') return
     const fmt = String(curOptions.format ?? '')
-    const opts = familyFormats(activeKind, sourceExt ?? '')
+    const opts = sharedTargets(activeKind, srcExts)
     const isSource = (ext: string): boolean => srcExts.some((e) => isSameFormat(ext, e))
     const valid = opts.some((f) => f.ext === fmt) && !isSource(fmt)
     if (!valid) {
       const def = opts.find((f) => !isSource(f.ext))?.ext
-      if (def) dispatch({ type: 'setOption', key: 'format', value: def })
+      if (def) dispatch({ type: 'setOption', group: optGroup, key: 'format', value: def })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKind, sourceExt, srcExts.join('|'), curOptions.format, tool])
 
+  // The chosen target decides the verb (repack / to-pdf / from-pdf), so keep the
+  // stored op in step with it. Without this a .cbz switched to .pdf would still
+  // run 'repack' and write a .pdf that is really a zip.
+  useEffect(() => {
+    if (state.tab !== 'convert' || !engine.op) return
+    if (curOptions.op === engine.op) return
+    dispatch({ type: 'setOption', group: optGroup, key: 'op', value: engine.op })
+  }, [engine.op, curOptions.op, optGroup, state.tab])
+
   function onItemClick(id: string, e: MouseEvent): void {
     const item = cur.items.find((i) => i.id === id)
     if (!item) return
-    const modified = e.shiftKey || e.ctrlKey || e.metaKey
-    if (modified) {
-      // Multi-select stays within one convert group (docs/text/pdf batch
-      // together): ignore modified clicks on files from another group.
-      const anchor = selectedItems.length ? effectiveFile(selectedItems[0]) : effectiveFile(item)
-      if (groupOf(effectiveFile(item)) !== groupOf(anchor)) return
-    }
+    // The one-group rule lives in the reducer, which MOVES the selection to a
+    // file from another group rather than extending into it. Swallowing the
+    // click here instead made ctrl+click on a dimmed row do nothing at all.
     const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
     dispatch({ type: 'select', id, mode })
   }
 
-  // Open the standalone preview window for a clicked item, letting the user page
-  // through the whole column it lives in (all inputs, or all finished outputs).
-  function openPreview(side: 'input' | 'output', item: QueueItem): void {
-    const list = cur.items.filter(side === 'input' ? inInput : inOutput)
-    const index = Math.max(
-      0,
-      list.findIndex((it) => it.id === item.id)
-    )
-    void window.filesmith.openPreviewWindow(toPreviewFiles(cur.items, side, outThumbs), index)
-    setPreviewCtx({ side, key: state.category })
+  // Hand the file to whatever the OS already uses for it. Filesmith used to
+  // carry its own viewer window (image, video, audio, PDF and text renderers,
+  // plus a media bar), which was a second app living inside this one for a job
+  // the desktop already does well.
+  function openExternally(side: 'input' | 'output', item: QueueItem): void {
+    const path = side === 'output' ? item.outputPath : item.file.path
+    if (path) window.filesmith.openFile(path)
   }
-
-  // Keep an open preview window's list in sync with the queue (it manages its
-  // own position; a no-op in main if the window is closed).
-  useEffect(() => {
-    if (!previewCtx) return
-    const items = state.queues[previewCtx.key as CategoryId]?.items ?? []
-    window.filesmith.updatePreviewList(toPreviewFiles(items, previewCtx.side, outThumbs))
-  }, [state.queues, outThumbs, previewCtx])
-
-  // Stop the sync the moment the preview window closes — it used to keep
-  // structured-cloning the list (base64 thumbs included) on every progress
-  // tick, forever, into a window that no longer existed.
-  useEffect(() => window.filesmith.onPreviewClosed(() => setPreviewCtx(null)), [])
 
   // Dismiss a set of items from a column. For Output we also recycle-bin the
   // produced file before dropping the card.
@@ -466,7 +450,7 @@ export default function App(): JSX.Element {
         x,
         y,
         items: [
-          { label: 'Preview', icon: 'eye', onClick: () => openPreview('input', item) },
+          { label: 'Open', icon: 'expand', onClick: () => openExternally('input', item) },
           {
             label: 'Reveal in Explorer',
             icon: 'folder',
@@ -498,7 +482,7 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Preview', icon: 'eye', onClick: () => openPreview('output', item) },
+        { label: 'Open', icon: 'expand', onClick: () => openExternally('output', item) },
         {
           label: 'Reveal in Explorer',
           icon: 'folder',
@@ -524,16 +508,22 @@ export default function App(): JSX.Element {
     })
   }
 
-  /** Keep only what this workspace accepts. The screen promises one file type,
-   * so silently taking a video into the Images queue would break that promise. */
-  function ofCategory(files: FileInfo[]): FileInfo[] {
-    return files.filter((f) => acceptsKind(state.category, f.kind))
+  /** Whether this workspace can act on a kind at all. A tool card names its own
+   * kinds; every other tab uses the verb's. */
+  function accepts(kind: FileKind): boolean {
+    return card ? card.kinds.includes(kind) : tabAccepts(state.tab, kind)
+  }
+
+  /** Keep only what this workspace can actually do. Upscale silently swallowing
+   * an MP4 would promise work it cannot perform. */
+  function ofTab(files: FileInfo[]): FileInfo[] {
+    return files.filter((f) => accepts(f.kind))
   }
 
   async function browse(): Promise<void> {
-    const category = state.category
-    const files = ofCategory(await window.filesmith.pickFiles())
-    if (files.length) dispatch({ type: 'addItems', files, category })
+    const key = qKey
+    const files = ofTab(await window.filesmith.pickFiles())
+    if (files.length) dispatch({ type: 'addItems', files, key })
   }
 
   async function onDrop(e: DragEvent<HTMLElement>): Promise<void> {
@@ -541,14 +531,14 @@ export default function App(): JSX.Element {
     setDragging(false)
     // Generate has no queue on screen: a file accepted here would land in an
     // invisible list with no feedback at all.
-    if (op.tool === 'generate') return
+    if (tool === 'generate' || onToolsGrid || onCompleted) return
     const paths = Array.from(e.dataTransfer.files)
       .map((f) => window.filesmith.pathForFile(f))
       .filter(Boolean)
     if (!paths.length) return
-    const category = state.category
-    const files = ofCategory(await window.filesmith.classify(paths))
-    if (files.length) dispatch({ type: 'addItems', files, category })
+    const key = qKey
+    const files = ofTab(await window.filesmith.classify(paths))
+    if (files.length) dispatch({ type: 'addItems', files, key })
   }
 
   // Build a fresh Input-column source item for a path (a promoted output, or a
@@ -580,23 +570,9 @@ export default function App(): JSX.Element {
       : `The largest result will be roughly ${formatBytes(worst)} (about ${formatBytes(total)} in total), and may take a long time.`
   }
 
-  /** The images currently on screen, for preview navigation: the finished tiles
-   * of an in-flight run, else the saved results. */
-  function genVisible(): string[] {
-    const running = genRun.slots.filter((s) => s.path).map((s) => s.path as string)
-    return running.length ? running : genResults
-  }
-
-  /** Open a generated image in Filesmith's standalone preview window, with all
-   * the on-screen generated images navigable alongside it. */
+  /** Open a generated image in whatever views images on this machine. */
   function previewGen(path: string): void {
-    const list = genVisible()
-    const files: PreviewItem[] = list.map((p) => ({
-      path: p,
-      name: p.split(/[\\/]/).pop() ?? p,
-      kind: 'image'
-    }))
-    void window.filesmith.openPreviewWindow(files, Math.max(0, list.indexOf(path)))
+    window.filesmith.openFile(path)
   }
 
   function openGenMenu(path: string, x: number, y: number): void {
@@ -604,7 +580,7 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Preview', icon: 'eye', onClick: () => previewGen(path) },
+        { label: 'Open', icon: 'expand', onClick: () => previewGen(path) },
         {
           label: 'Open in default app',
           icon: 'upload',
@@ -683,7 +659,7 @@ export default function App(): JSX.Element {
   }
 
   async function run(): Promise<void> {
-    if (op.tool === 'generate') return generate()
+    if (tool === 'generate') return generate()
     if (!runList.length) return
     const opts = curOptions
 
@@ -707,7 +683,7 @@ export default function App(): JSX.Element {
 
     // Merge is N-in/1-out, so it doesn't follow the 1:1 rule: run the anchor in
     // place (promoting it first if it's an output) with all paths as inputs.
-    if (op.tool === 'pdf' && opts.op === 'merge') {
+    if (tool === 'pdf' && opts.op === 'merge') {
       if (runList.length < 2) return
       const paths = runList.map((i) => effectiveFile(i).path)
       const anchor = runList[0]
@@ -715,7 +691,7 @@ export default function App(): JSX.Element {
       if (anchor.isResult) {
         const src = await makeSource(anchor)
         if (!src) return
-        dispatch({ type: 'addSources', items: [src], category: state.category })
+        dispatch({ type: 'addSources', items: [src], key: qKey })
         anchorId = src.id
       }
       dispatch({ type: 'markQueued', ids: [anchorId], options: opts })
@@ -745,21 +721,20 @@ export default function App(): JSX.Element {
       newSources.push(src)
       targets.push({ id: src.id, path: src.file.path })
     }
-    if (newSources.length)
-      dispatch({ type: 'addSources', items: newSources, category: state.category })
+    if (newSources.length) dispatch({ type: 'addSources', items: newSources, key: qKey })
     if (!targets.length) return
     dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), options: opts })
     for (const t of targets) {
-      void window.filesmith.runJob({ id: t.id, tool: op.tool, input: t.path, options: opts })
+      void window.filesmith.runJob({ id: t.id, tool, input: t.path, options: opts })
     }
   }
 
   // Merge needs 2+ PDFs before it can run; every other op runs per selected file.
-  const isMerge = op.tool === 'pdf' && String(curOptions.op) === 'merge'
+  const isMerge = tool === 'pdf' && String(curOptions.op) === 'merge'
   const promptFilled = String(curOptions.prompt ?? '').trim().length > 0
   const genAspect = `${Number(curOptions.width ?? 1024)} / ${Number(curOptions.height ?? 1024)}`
   const runCount =
-    op.tool === 'generate'
+    tool === 'generate'
       ? promptFilled && !genRun.running
         ? 1
         : 0
@@ -858,43 +833,72 @@ export default function App(): JSX.Element {
         })
       : []
 
-  // Files waiting in each category, summed across that category's workspaces, so
-  // the rail shows where work is sitting even while you're looking elsewhere.
+  // Everything produced, across every workspace, for the Completed tab.
+  const completed = collectCompleted(state.queues, (key) => {
+    if (key.startsWith('tools:')) return toolCardById(key.slice(6))?.label ?? 'Tools'
+    return tabById(key as TabId).label
+  })
+
+  // Files waiting in each verb, so the rail shows where work is sitting even
+  // while you're looking elsewhere. Every Tools workspace rolls up into Tools.
   const counts: Record<string, number> = {}
-  for (const [cat, q] of Object.entries(state.queues)) {
-    counts[cat] = q.items.filter(inInput).length
+  for (const [k, q] of Object.entries(state.queues)) {
+    if (!q) continue
+    const n = q.items.filter(inInput).length
+    const bucket = k.startsWith('tools:') ? 'tools' : k
+    counts[bucket] = (counts[bucket] ?? 0) + n
   }
 
   return (
     <div className="flex h-screen flex-col">
       <TopBar />
       <div className="flex min-h-0 flex-1">
-        <CategoryRail
-          category={state.category}
+        <TabRail
+          tab={state.tab}
           counts={counts}
-          onSelect={(c) => dispatch({ type: 'setCategory', category: c })}
+          completedCount={completed.length}
+          onSelect={(t) => dispatch({ type: 'setTab', tab: t })}
         />
 
         <>
           <section
-            className="flex min-w-0 flex-1 flex-col gap-4 px-7 pb-5 pt-1"
+            className="flex min-w-0 flex-1 flex-col gap-3 px-4 pb-4 pt-1 lg:gap-4 lg:px-7 lg:pb-5"
             onDragOver={(e) => {
               e.preventDefault()
-              if (op.tool !== 'generate') setDragging(true)
+              if (tool !== 'generate' && !onToolsGrid && !onCompleted) setDragging(true)
             }}
             onDragLeave={(e) => {
               if (e.currentTarget === e.target) setDragging(false)
             }}
             onDrop={onDrop}
           >
-            {/* The rail names the file type; the sidebar switcher names (and
-                  colours) the operation. This heading is just a heading. */}
-            <OperationTitle category={category} fileCount={cur.items.filter(inInput).length} />
-            {op.tool === 'generate' ? (
+            {/* The rail names the verb, so this heading just repeats it back and
+                  carries the file count (or the open tool's name inside Tools). */}
+            <OperationTitle
+              title={card ? card.label : tab.label}
+              desc={card ? card.desc : tab.desc}
+              color={card ? card.color : tab.color}
+              fileCount={
+                onCompleted ? completed.length : onToolsGrid ? 0 : cur.items.filter(inInput).length
+              }
+              onBack={card ? () => dispatch({ type: 'setActiveTool', tool: null }) : undefined}
+            />
+            {onCompleted ? (
+              <CompletedView
+                entries={completed}
+                thumbs={outThumbs}
+                onOpen={(item) => openExternally('output', item)}
+                onMenu={(item, x, y) => openMenu('output', item, x, y)}
+              />
+            ) : onToolsGrid ? (
+              <ToolsGrid onPick={(id) => dispatch({ type: 'setActiveTool', tool: id })} />
+            ) : tool === 'generate' ? (
               <>
                 <PromptBox
                   value={String(curOptions.prompt ?? '')}
-                  onChange={(v) => dispatch({ type: 'setOption', key: 'prompt', value: v })}
+                  onChange={(v) =>
+                    dispatch({ type: 'setOption', group: optGroup, key: 'prompt', value: v })
+                  }
                 />
                 {genRun.running && (
                   <div className="flex justify-end">
@@ -971,18 +975,17 @@ export default function App(): JSX.Element {
               <>
                 <DropZone
                   dragging={dragging}
-                  label={`Drop ${category.label.toLowerCase()} here`}
+                  label={`Drop files to ${(card ? card.label : tab.label).toLowerCase()}`}
                   onBrowse={() => void browse()}
                 />
                 <Queues
                   items={cur.items}
-                  tool={op.tool}
+                  tool={tool}
                   options={curOptions}
                   selected={cur.selected}
                   activeGroup={activeGroup}
-                  outThumbs={outThumbs}
                   onItemClick={onItemClick}
-                  onOpen={openPreview}
+                  onOpen={openExternally}
                   onMenu={openMenu}
                   onCancel={cancelJob}
                 />
@@ -990,23 +993,27 @@ export default function App(): JSX.Element {
             )}
           </section>
 
-          <OptionsPanel
-            operation={op}
-            operations={operationsFor(state.category)}
-            onPickOperation={(id) => dispatch({ type: 'setOperation', operation: id })}
-            options={curOptions}
-            activeKind={activeKind}
-            runKind={runKind}
-            fallbackKind={category.kinds[0]}
-            videoOutputs={videoOutputs}
-            upscaleOutputs={upscaleOutputs}
-            resizeOutputs={resizeOutputs}
-            sourceExt={sourceExt}
-            srcExts={srcExts}
-            runCount={runCount}
-            onSet={(k, v) => dispatch({ type: 'setOption', key: k, value: v })}
-            onRun={() => void run()}
-          />
+          {!onToolsGrid && !onCompleted && (
+            <OptionsPanel
+              tab={state.tab}
+              tool={tool}
+              label={card ? card.label : tab.label}
+              options={curOptions}
+              activeKind={activeKind}
+              activeGroup={activeGroup}
+              optGroup={optGroup}
+              runKind={runKind}
+              fallbackKind={fallbackKind}
+              videoOutputs={videoOutputs}
+              upscaleOutputs={upscaleOutputs}
+              resizeOutputs={resizeOutputs}
+              sourceExt={sourceExt}
+              srcExts={srcExts}
+              runCount={runCount}
+              onSet={(k, v) => dispatch({ type: 'setOption', group: optGroup, key: k, value: v })}
+              onRun={() => void run()}
+            />
+          )}
         </>
       </div>
       <ContextMenu menu={menu} onClose={closeMenu} />

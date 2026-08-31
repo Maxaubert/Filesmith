@@ -1,29 +1,29 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
-import { CATEGORIES, type CategoryId } from '@shared/catalog'
+import { COMPLETED_TAB, TABS, type TabId } from '@shared/tabs'
 import { Icon, type IconName } from './Icon'
 
-const ALL_IDS = CATEGORIES.map((c) => c.id)
-const byId = (id: CategoryId): (typeof CATEGORIES)[number] =>
-  CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[0]
+const ALL_IDS = TABS.map((c) => c.id)
+const byId = (id: TabId): (typeof TABS)[number] => TABS.find((c) => c.id === id) ?? TABS[0]
 
-// The rail's layout is a user preference (order + which types are hidden), so it
+// The rail's layout is a user preference (order + which verbs are hidden), so it
 // lives in localStorage rather than app state: it outlives a session and never
-// needs to reach the engine.
-const ORDER_KEY = 'filesmith.rail.order'
-const HIDDEN_KEY = 'filesmith.rail.hidden'
+// needs to reach the engine. The keys are tab-specific: a stored CATEGORY order
+// from the old rail must not half-apply to verbs.
+const ORDER_KEY = 'filesmith.rail.tabOrder'
+const HIDDEN_KEY = 'filesmith.rail.tabHidden'
 
-function loadOrder(): CategoryId[] {
+function loadOrder(): TabId[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as CategoryId[]
+    const saved = JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as TabId[]
     const kept = saved.filter((id) => ALL_IDS.includes(id))
     return [...kept, ...ALL_IDS.filter((id) => !kept.includes(id))]
   } catch {
     return ALL_IDS
   }
 }
-function loadHidden(): Set<CategoryId> {
+function loadHidden(): Set<TabId> {
   try {
-    return new Set((JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]') as CategoryId[]) ?? [])
+    return new Set((JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]') as TabId[]) ?? [])
   } catch {
     return new Set()
   }
@@ -32,8 +32,9 @@ function loadHidden(): Set<CategoryId> {
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n))
 
 /**
- * The file-type rail, with an iOS-style edit mode: a pencil reveals a drag grip
- * and a visibility checkmark on each row.
+ * The verb rail, with an iOS-style edit mode: a pencil reveals a drag grip and a
+ * visibility checkmark on each row. The rail names what you want DONE; the file
+ * kind is a property of what you dropped, not a place you navigate to.
  *
  * The reorder is a hand-rolled pointer sortable rather than native HTML5 drag,
  * which is janky (no live gap, a ghost image, no control over motion). Here the
@@ -41,17 +42,20 @@ const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.m
  * way with a transition, and the new order commits on release. The maths keys
  * off the measured row pitch so it stays correct regardless of spacing.
  */
-export function CategoryRail({
-  category,
+export function TabRail({
+  tab,
   counts,
+  completedCount,
   onSelect
 }: {
-  category: CategoryId
+  tab: TabId
   counts: Record<string, number>
-  onSelect: (c: CategoryId) => void
+  /** Produced files across every workspace. */
+  completedCount: number
+  onSelect: (c: TabId) => void
 }): JSX.Element {
-  const [order, setOrder] = useState<CategoryId[]>(loadOrder)
-  const [hidden, setHidden] = useState<Set<CategoryId>>(loadHidden)
+  const [order, setOrder] = useState<TabId[]>(loadOrder)
+  const [hidden, setHidden] = useState<Set<TabId>>(loadHidden)
   const [editing, setEditing] = useState(false)
 
   // Live drag state. `pitch` is the row-to-row distance in px, measured on grab.
@@ -69,7 +73,7 @@ export function CategoryRail({
 
   const rows = editing ? order : order.filter((id) => !hidden.has(id))
 
-  function toggleHidden(id: CategoryId): void {
+  function toggleHidden(id: TabId): void {
     setHidden((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -80,7 +84,7 @@ export function CategoryRail({
 
   function stopEditing(): void {
     setEditing(false)
-    if (hidden.has(category)) {
+    if (hidden.has(tab)) {
       const firstVisible = order.find((id) => !hidden.has(id))
       if (firstVisible) onSelect(firstVisible)
     }
@@ -143,10 +147,10 @@ export function CategoryRail({
   }
 
   return (
-    <nav className="flex w-[212px] shrink-0 flex-col gap-0.5 border-r border-black/[.06] bg-white/40 px-3 pb-4">
+    <nav className="flex w-[176px] shrink-0 flex-col gap-0.5 border-r border-black/[.06] bg-white/40 px-2 pb-4 lg:w-[212px] lg:px-3">
       <div className="flex items-center justify-between px-1 pb-2 pt-3.5">
         <span className="pl-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
-          File types
+          Do
         </span>
         <button
           onClick={() => (editing ? stopEditing() : setEditing(true))}
@@ -165,7 +169,7 @@ export function CategoryRail({
 
       {rows.map((id, i) => {
         const c = byId(id)
-        const active = c.id === category && !editing
+        const active = c.id === tab && !editing
         const isHidden = hidden.has(id)
         const n = counts[c.id] ?? 0
 
@@ -242,6 +246,40 @@ export function CategoryRail({
           </button>
         )
       })}
+      {/* Pinned to the bottom, below everything the user can reorder: results
+          are where you END up, not something you set out to do. */}
+      <button
+        onClick={() => onSelect('completed')}
+        aria-current={tab === 'completed' ? 'true' : undefined}
+        className={`mt-auto flex items-center gap-2.5 rounded-[13px] px-2.5 py-2 text-left transition ${
+          tab === 'completed' ? 'bg-[#22b364]' : 'hover:bg-black/[.035]'
+        }`}
+      >
+        <span
+          className="grid h-[24px] w-[24px] shrink-0 place-items-center rounded-lg text-white shadow-sm"
+          style={{
+            background: tab === 'completed' ? 'rgba(255,255,255,.24)' : COMPLETED_TAB.color
+          }}
+        >
+          <Icon name="check" className="h-[14px] w-[14px]" />
+        </span>
+        <span
+          className={`text-[13.5px] font-semibold tracking-tight ${
+            tab === 'completed' ? 'text-white' : ''
+          }`}
+        >
+          Completed
+        </span>
+        {completedCount > 0 && (
+          <span
+            className={`ml-auto rounded-md px-1.5 py-px text-[11px] font-bold ${
+              tab === 'completed' ? 'bg-white/25 text-white' : 'bg-black/[.055] text-dim'
+            }`}
+          >
+            {completedCount}
+          </span>
+        )}
+      </button>
     </nav>
   )
 }

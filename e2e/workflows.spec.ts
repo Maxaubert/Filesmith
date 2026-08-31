@@ -169,34 +169,43 @@ test.afterAll(async () => {
 
 // --- UI navigation -----------------------------------------------------------
 
-test('every category opens its workspace with the right operations', async () => {
-  const expected: Record<string, string[]> = {
-    Images: ['Convert', 'Compress', 'Resize', 'Remove Background', 'Upscale', 'Generate'],
-    Video: ['Convert', 'Compress'],
-    Audio: ['Convert', 'Compress'],
-    PDF: [
-      'Extract text',
-      'Pages to PNG',
-      'Merge',
-      'Split',
-      'Burst',
-      'Extract images',
-      'To CBZ',
-      'Compress'
-    ],
-    Documents: ['Convert'],
-    Archives: ['Convert', 'Extract', 'To PDF']
+/** Tools always opens on its grid, however you last left it. */
+async function openToolsGrid(p: Page): Promise<void> {
+  await p.locator('button:has-text("Tools")').first().click()
+  await expect(p.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
+}
+
+test('the rail lists every verb and opens its workspace', async () => {
+  for (const verb of ['Convert', 'Compress', 'Resize', 'Upscale', 'Remove BG', 'Generate']) {
+    await page.locator(`button:has-text("${verb}")`).first().click()
+    await expect(page.locator('h1', { hasText: verb }).first()).toBeVisible()
   }
-  for (const [category, ops] of Object.entries(expected)) {
-    await page.locator(`button:has-text("${category}")`).first().click()
-    // The operation switcher lists every operation of this category.
-    await page.locator('aside button').first().click() // open the switcher
-    for (const op of ops) {
-      await expect(page.locator(`text=${op}`).first()).toBeVisible()
-    }
-    await page.keyboard.press('Escape')
-  }
+  await openToolsGrid(page)
+  await page.locator('button:has-text("Convert")').first().click()
 })
+
+test('Tools groups its one-off verbs and opens one as a workspace', async () => {
+  await openToolsGrid(page)
+  for (const t of ['Extract text', 'Pages to PNG', 'Merge', 'Split', 'Burst']) {
+    await expect(page.locator(`text=${t}`).first()).toBeVisible()
+  }
+  // Archive work is an ordinary Convert now, not a tool hidden in here.
+  await expect(page.locator('text=Archive to PDF')).toHaveCount(0)
+  await expect(page.locator('text=PDF to CBZ')).toHaveCount(0)
+  await page.locator('button:has-text("Merge")').first().click()
+  // A tool workspace is an ordinary queue titled with the tool's name.
+  await expect(page.locator('h1', { hasText: 'Merge' }).first()).toBeVisible()
+  await expect(page.locator('text=Files').first()).toBeVisible()
+  // Back returns to the grid, which is the app's only second level.
+  await page.locator('button[aria-label="Back to Tools"]').first().click()
+  await expect(page.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
+  await page.locator('button:has-text("Convert")').first().click()
+})
+
+// NOTE: the mixed-kind queue, its group headers and the kind-scoped options
+// panel are covered by unit tests (queue-groups, verb-state), not here. Adding
+// files to the UI needs a real OS drop or a native file dialog, and neither is
+// drivable from Playwright without a production-only test seam.
 
 // --- Images ------------------------------------------------------------------
 
@@ -570,7 +579,7 @@ test('pdf to-cbz: pages are zero-padded jpegs so a reader orders them correctly'
     format: '.cbz',
     dpi: 72,
     pageFormat: 'jpg',
-    quality: 80
+    pageQuality: 80
   })
   expect(e.status).toBe('done')
   expect(e.outputPath!.endsWith('.cbz')).toBe(true)

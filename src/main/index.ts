@@ -33,7 +33,8 @@ function sweepStaleTempDirs(): void {
   }
 }
 
-// A private scheme the renderer uses to load local media for the preview
+// A private scheme the renderer uses to load local media (generated-image
+// thumbnails) without a file:// origin
 // window. Registered as a standard, streaming scheme so <video>/<audio> can
 // seek — the renderer can't touch file:// directly under web security.
 const MEDIA_SCHEME = 'fsmedia'
@@ -151,7 +152,7 @@ function createWindow(): void {
   // Open external links in the OS browser, never in-app.
   mainWindow.webContents.setWindowOpenHandler((details) => {
     // Scheme allowlist: shell.openExternal will happily launch a file:// or a
-    // registered protocol handler. previewWindow.ts already does this; not
+    // registered protocol handler; not
     // reachable today (the CSP is script-src 'self' and this window renders no
     // untrusted markup) but it costs one line to keep it that way.
     if (/^https?:/i.test(details.url)) void shell.openExternal(details.url)
@@ -203,7 +204,7 @@ if (!app.requestSingleInstanceLock()) {
     // lever that fixes a dead model URL for every install without a release.
     scheduleChannelRefresh()
 
-    // Serve local files for the preview: fsmedia://local/<encoded-abs-path>.
+    // Serve local files to the renderer: fsmedia://local/<encoded-abs-path>.
     protocol.handle(MEDIA_SCHEME, (request) => serveMedia(request))
 
     // ONCE per process, before any window: handlers are process-global, and

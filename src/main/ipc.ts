@@ -1,14 +1,7 @@
-import { open, readFile, stat } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import type {
-  FileInfo,
-  FileKind,
-  JobEvent,
-  JobRequest,
-  PreviewItem,
-  PreviewPayload
-} from '@shared/types'
+import type { FileInfo, FileKind, JobEvent, JobRequest } from '@shared/types'
 import { imageFilters, pickerFilters } from './pickerFilters'
 import { JobQueue } from './jobQueue'
 import { fileInfoFromPath } from './fileInfo'
@@ -16,7 +9,6 @@ import { removebgStatus, resolveRar } from './toolResolver'
 import { ensureUserNcnnDir, listNcnnModels, userNcnnDir } from './tools/ncnnModels'
 import { probeDimensions, probeImageDimensions } from './probe'
 import { makeThumbnail } from './thumbnail'
-import { openPreviewWindow, getPreviewPayload, updatePreviewFiles } from './previewWindow'
 import { cudaTierSupport, detectNvidia } from './pid/gpu'
 import { basename } from 'path'
 import { pidInstalled, comfyEngineReady, pidEnvMarker, PID_BACKBONES } from './pid/paths'
@@ -94,7 +86,7 @@ export function registerGlobalIpc(): JobQueue {
   const queue = new JobQueue((e: JobEvent) => broadcast('job:event', e))
 
   // Custom (frameless) window controls — act on the sender's window so both the
-  // main window and the preview window control themselves.
+  // The window controls itself.
   ipcMain.on('window:minimize', (e) => BrowserWindow.fromWebContents(e.sender)?.minimize())
   ipcMain.on('window:toggle-maximize', (e) => {
     const w = BrowserWindow.fromWebContents(e.sender)
@@ -104,17 +96,8 @@ export function registerGlobalIpc(): JobQueue {
   })
   ipcMain.on('window:close', (e) => BrowserWindow.fromWebContents(e.sender)?.close())
 
-  // Preview window: open/reuse it, and let it fetch its file list on load.
-  ipcMain.handle('preview:open', (_e, p: PreviewPayload) => openPreviewWindow(p))
-  ipcMain.handle('preview:data', () => getPreviewPayload())
-  ipcMain.on('preview:update-list', (_e, files: PreviewItem[]) => updatePreviewFiles(files))
-
-  // Reveal an output file in the OS file manager.
-  ipcMain.on('reveal', (_e, p: string) => {
-    if (p) shell.showItemInFolder(p)
-  })
-
-  // Open a file in its OS-default application (the "Preview" action).
+  // Open a file in whatever the OS already uses for it. Filesmith used to
+  // ship its own viewer window; the desktop already does this job.
   ipcMain.on('file:open', (_e, p: string) => {
     if (p) void shell.openPath(p)
   })
@@ -181,36 +164,6 @@ export function registerGlobalIpc(): JobQueue {
       filters: pickerFilters()
     })
     return r.canceled ? [] : r.filePaths.map(fileInfoFromPath).filter(isSupported)
-  })
-  // Read a file's bytes so the renderer can play audio / show a PDF from a
-  // same-origin blob URL (Web Audio needs no CORS taint). Guard the size first:
-  // a whole-file read into a Uint8Array over IPC would OOM on a huge input, so
-  // reject it and let the renderer fall back to "open in default app".
-  ipcMain.handle('file:bytes', async (_e, p: string) => {
-    try {
-      const st = await stat(p)
-      const MAX = 256 * 1024 * 1024 // 256 MB — generous for media/PDF, bounded
-      if (st.size > MAX) return null
-      return new Uint8Array(await readFile(p))
-    } catch {
-      return null
-    }
-  })
-  // Read the first slice of a text file for the preview. Read ONLY the cap via a
-  // file handle — never load a multi-GB log fully into memory just to truncate.
-  ipcMain.handle('file:text', async (_e, p: string) => {
-    let fh
-    try {
-      fh = await open(p, 'r')
-      const cap = 1024 * 1024 // 1 MB — enough for preview
-      const buf = Buffer.alloc(cap)
-      const { bytesRead } = await fh.read(buf, 0, cap, 0)
-      return buf.subarray(0, bytesRead).toString('utf8')
-    } catch {
-      return null
-    } finally {
-      await fh?.close()
-    }
   })
   // Video DISPLAY dimensions (rotation-aware) for the compress scale preview.
   ipcMain.handle('video:dimensions', (_e, p: string) => probeDimensions(p))
