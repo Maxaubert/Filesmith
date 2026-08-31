@@ -1,14 +1,17 @@
 # Filesmith
 
 A desktop **file toolkit**: drop files and run operations — convert, compress, resize,
-upscale, remove background, and PDF tools (extract text, PDF→images, compress) — across
-images, video, audio, and PDFs, with batch queues, thumbnails, and live progress.
+upscale, remove background, PDF tools (extract text, PDF→images, compress) and archive
+tools (repack CBZ/CBR/CB7/CBT, extract, archive↔PDF) — across images, video, audio,
+PDFs, documents and archives, with batch queues, thumbnails, and live progress.
 
 ## What it is
 
 Electron + TypeScript desktop app. Renderer is React + TypeScript + Vite + Tailwind v4.
 The heavy lifting is done by external CLI tools (ffmpeg, ImageMagick, mutool, CaesiumCLT,
-Real-ESRGAN, rembg); the app orchestrates them. Windows-first, unsigned installer via
+7-Zip, Real-ESRGAN, rembg); the app orchestrates them. Writing RAR/CBR is the one
+operation that needs a tool we cannot bundle (WinRAR's Rar.exe), so it is detected at
+runtime and the target is greyed out when absent. Windows-first, unsigned installer via
 GitHub Releases (mirrors the sibling RCMM project's distribution).
 
 Origin: the operations are ported from RCMM's audited `rcmm-convert/compress/upscale/removebg`
@@ -32,7 +35,7 @@ without design ceremony.
 3. **Media + PDF** — video/audio convert & compress (ffmpeg), PDF extract-text / images /
    compress (mutool).
 
-Dependencies: bundle the core tools (ffmpeg, ImageMagick, mutool, CaesiumCLT) in
+Dependencies: bundle the core tools (ffmpeg, ImageMagick, mutool, CaesiumCLT, 7-Zip) in
 `resources/bin` so images/PDF work offline out of the box; fetch the AI tools on demand.
 
 Each phase is its own checkpoint — confirm scope before starting the next.
@@ -43,7 +46,7 @@ Each phase is its own checkpoint — confirm scope before starting the next.
 src/
   main/        Node/Electron main process — the engine
     index.ts        app + window bootstrap
-    (planned) tools/{convert,compress,resize,upscale,removebg,pdf}.ts — one per operation
+    tools/{convert,compress,resize,upscale,removebg,pdf,archive}.ts — one per operation
     (planned) toolResolver.ts  find bundled/PATH binaries; on-demand AI-tool download
     (planned) jobQueue.ts      batch queue: spawn, stream progress, cancel
     (planned) output.ts        collision-safe output naming (ported from RCMM Get-UniqueOutPath)
