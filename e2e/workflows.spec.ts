@@ -169,12 +169,9 @@ test.afterAll(async () => {
 
 // --- UI navigation -----------------------------------------------------------
 
-/** Tools remembers the card you last had open (and that survives a restart via
- * session.json), so reaching the grid means backing out of any open tool. */
+/** Tools always opens on its grid, however you last left it. */
 async function openToolsGrid(p: Page): Promise<void> {
   await p.locator('button:has-text("Tools")').first().click()
-  const back = p.locator('button[aria-label="Back to Tools"]')
-  if (await back.count()) await back.first().click()
   await expect(p.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
 }
 
@@ -189,9 +186,12 @@ test('the rail lists every verb and opens its workspace', async () => {
 
 test('Tools groups its one-off verbs and opens one as a workspace', async () => {
   await openToolsGrid(page)
-  for (const t of ['Extract text', 'Merge', 'Burst', 'Archive to PDF', 'PDF to CBZ']) {
+  for (const t of ['Extract text', 'Pages to PNG', 'Merge', 'Split', 'Burst']) {
     await expect(page.locator(`text=${t}`).first()).toBeVisible()
   }
+  // Archive work is an ordinary Convert now, not a tool hidden in here.
+  await expect(page.locator('text=Archive to PDF')).toHaveCount(0)
+  await expect(page.locator('text=PDF to CBZ')).toHaveCount(0)
   await page.locator('button:has-text("Merge")').first().click()
   // A tool workspace is an ordinary queue titled with the tool's name.
   await expect(page.locator('h1', { hasText: 'Merge' }).first()).toBeVisible()
@@ -579,7 +579,7 @@ test('pdf to-cbz: pages are zero-padded jpegs so a reader orders them correctly'
     format: '.cbz',
     dpi: 72,
     pageFormat: 'jpg',
-    quality: 80
+    pageQuality: 80
   })
   expect(e.status).toBe('done')
   expect(e.outputPath!.endsWith('.cbz')).toBe(true)

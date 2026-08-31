@@ -1,4 +1,5 @@
 import type { FileKind, ToolId } from './types'
+import { routeConvert } from './convert'
 
 // The app's navigation model: pick what you want DONE, then drop files. The
 // rail is the verb; the file kind is a property of what you dropped, not a
@@ -104,9 +105,9 @@ export interface ToolCard {
   kinds: FileKind[]
 }
 
-// A conversion that crosses a convert group is a tool, not a Convert: Convert
-// works WITHIN a group, so archive-to-PDF and PDF-to-CBZ live here while
-// archive repack (.cbz to .cb7) stays on the Convert tab.
+// Only the PDF one-offs live here. Anything that produces another FILE from a
+// file - archive repack, PDF to CBZ, archive to PDF - is an ordinary Convert
+// and belongs on the Convert tab, where a user goes looking for it.
 export const TOOL_CARDS: ToolCard[] = [
   {
     id: 'pdf-text',
@@ -173,39 +174,6 @@ export const TOOL_CARDS: ToolCard[] = [
     tool: 'pdf',
     opKey: 'extract-images',
     kinds: ['pdf']
-  },
-  {
-    id: 'archive-extract',
-    label: 'Extract',
-    desc: 'Unpack into a folder',
-    group: 'Archives',
-    color: '#a16207',
-    icon: 'unpack',
-    tool: 'archive',
-    opKey: 'extract',
-    kinds: ['archive']
-  },
-  {
-    id: 'archive-to-pdf',
-    label: 'Archive to PDF',
-    desc: 'Comic archive becomes a PDF',
-    group: 'Archives',
-    color: '#a16207',
-    icon: 'topdf',
-    tool: 'archive',
-    opKey: 'to-pdf',
-    kinds: ['archive']
-  },
-  {
-    id: 'pdf-to-cbz',
-    label: 'PDF to CBZ',
-    desc: 'Pack pages as a comic archive',
-    group: 'Archives',
-    color: '#a16207',
-    icon: 'tocbz',
-    tool: 'archive',
-    opKey: 'from-pdf',
-    kinds: ['pdf']
   }
 ]
 
@@ -215,12 +183,24 @@ export const TOOL_CARDS: ToolCard[] = [
  * images, video, audio and documents, but an archive repack is the `archive`
  * tool with op `repack`. A tool card names its own tool and op outright.
  */
+/**
+ * The engine tool (and verb) that performs a tab's work. A tool card names its
+ * own outright. On the Convert tab the answer depends on the TARGET as well as
+ * the source, so `routeConvert` decides: a .cbz to .cb7 is archive/repack, a
+ * .pdf to .cbz is archive/from-pdf, and a .png to .webp is the convert tool.
+ */
 export function engineFor(
   tab: TabId,
   group: string,
-  card?: ToolCard | null
+  card?: ToolCard | null,
+  source?: { kind: FileKind; ext: string },
+  targetExt?: string
 ): { tool: ToolId; op?: string } {
   if (card) return { tool: card.tool, op: card.opKey }
+  if (tab === 'convert' && source && targetExt) {
+    return routeConvert(source.kind, source.ext, targetExt)
+  }
+  // No selection yet: name the tab's default tool so the panel has something.
   if (tab === 'convert' && group === 'archive') return { tool: 'archive', op: 'repack' }
   return { tool: tabById(tab).tool }
 }

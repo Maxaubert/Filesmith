@@ -55,22 +55,34 @@ describe('tab model', () => {
     for (const t of TABS) expect(tools, t.id).toContain(t.tool)
   })
 
-  it('groups tool cards by what they act on', () => {
-    expect(toolGroups().map((g) => g.name)).toEqual(['PDF', 'Archives'])
+  it('keeps only the PDF one-offs in Tools', () => {
+    // Anything that turns a file into another FILE is an ordinary Convert and
+    // belongs on the Convert tab, where people go looking for it.
+    expect(toolGroups().map((g) => g.name)).toEqual(['PDF'])
+    expect(toolCardById('archive-to-pdf')).toBeUndefined()
+    expect(toolCardById('pdf-to-cbz')).toBeUndefined()
+    expect(toolCardById('archive-extract')).toBeUndefined()
   })
 
-  it('keeps cross-group conversions in Tools, not Convert', () => {
-    expect(toolCardById('archive-to-pdf')?.tool).toBe('archive')
-    expect(toolCardById('archive-to-pdf')?.opKey).toBe('to-pdf')
-    expect(toolCardById('pdf-to-cbz')?.opKey).toBe('from-pdf')
-    expect(toolCardById('archive-extract')?.opKey).toBe('extract')
-  })
-
-  it('routes an archive Convert to the archive engine, not the convert one', () => {
-    // The tab-to-tool mapping is not 1:1: repacking a .cbz is the archive tool
-    // with op 'repack', even though the tab is Convert.
-    expect(engineFor('convert', 'archive')).toEqual({ tool: 'archive', op: 'repack' })
-    expect(engineFor('convert', 'image')).toEqual({ tool: 'convert' })
+  it('routes a Convert by its TARGET, not just its source', () => {
+    const cbz = { kind: 'archive' as const, ext: '.cbz' }
+    const pdf = { kind: 'pdf' as const, ext: '.pdf' }
+    const png = { kind: 'image' as const, ext: '.png' }
+    expect(engineFor('convert', 'archive', null, cbz, '.cb7')).toEqual({
+      tool: 'archive',
+      op: 'repack'
+    })
+    // Same source, different target, different verb entirely.
+    expect(engineFor('convert', 'archive', null, cbz, '.pdf')).toEqual({
+      tool: 'archive',
+      op: 'to-pdf'
+    })
+    expect(engineFor('convert', 'doc', null, pdf, '.cbz')).toEqual({
+      tool: 'archive',
+      op: 'from-pdf'
+    })
+    expect(engineFor('convert', 'doc', null, pdf, '.docx')).toEqual({ tool: 'convert' })
+    expect(engineFor('convert', 'image', null, png, '.webp')).toEqual({ tool: 'convert' })
     expect(engineFor('compress', 'doc')).toEqual({ tool: 'compress' })
   })
 

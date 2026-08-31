@@ -12,9 +12,9 @@ import type { FileInfo, FileKind, PreviewItem } from '@shared/types'
 import {
   canCompress,
   convertGroup,
-  familyFormats,
   isSameFormat,
   normalizeExt,
+  sharedTargets,
   toolForKind
 } from '@shared/convert'
 import {
@@ -297,16 +297,23 @@ export default function App(): JSX.Element {
   // options panel can still show what it would do.
   const fallbackKind: FileKind = tab.kinds[0] ?? card?.kinds[0] ?? 'image'
   const optGroup = activeGroup ?? convertGroup(fallbackKind, '')
-  // The engine is resolved per group: the Convert tab runs the archive tool for
-  // a .cbz and the convert tool for everything else.
-  const engine = engineFor(state.tab, optGroup, card)
-  const tool = engine.tool
-  const curOptions = state.options[optionsKey(state.tab, state.activeTool, optGroup)] ?? {
-    ...defaultOptionsFor(state.tab, state.activeTool, optGroup)
-  }
   const srcNorms = new Set(selEff.map((f) => normalizeExt(f.ext)))
   const srcExts = [...srcNorms] // every selected source format (for greying targets)
   const sourceExt: string | null = srcNorms.size === 1 ? [...srcNorms][0] : null
+  const optKey = optionsKey(state.tab, state.activeTool, optGroup)
+  const curOptions =
+    state.options[optKey] ?? defaultOptionsFor(state.tab, state.activeTool, optGroup)
+  // On Convert the engine depends on the TARGET as well as the source: a .cbz
+  // to .cb7 is archive/repack, a .pdf to .cbz is archive/from-pdf, and a .png
+  // to .webp is the plain convert tool.
+  const engine = engineFor(
+    state.tab,
+    optGroup,
+    card,
+    activeKind && sourceExt ? { kind: activeKind, ext: sourceExt } : undefined,
+    String(curOptions.format ?? '')
+  )
+  const tool = engine.tool
 
   // A source is runnable when idle (incl. already-done, so it can run again); a
   // result is always runnable — running it promotes its output back to input.
@@ -322,9 +329,11 @@ export default function App(): JSX.Element {
     // against the selected group: Run only ever acts on one group.
     if (!accepts(f.kind)) return false
     if (activeGroup && groupOf(f) !== activeGroup) return false
-    if (tool === 'convert') {
+    if (state.tab === 'convert') {
       const fmt = String(curOptions.format ?? '')
-      return toolForKind(f.kind) != null && !isSameFormat(f.ext, fmt)
+      if (isSameFormat(f.ext, fmt)) return false
+      // Archive work routes to the archive tool, which has no toolForKind entry.
+      return tool === 'archive' || toolForKind(f.kind) != null
     }
     if (tool === 'compress') return canCompress(f.kind, f.ext)
     return true
@@ -335,7 +344,7 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (!activeKind || tool !== 'convert') return
     const fmt = String(curOptions.format ?? '')
-    const opts = familyFormats(activeKind, sourceExt ?? '')
+    const opts = sharedTargets(activeKind, srcExts)
     const isSource = (ext: string): boolean => srcExts.some((e) => isSameFormat(ext, e))
     const valid = opts.some((f) => f.ext === fmt) && !isSource(fmt)
     if (!valid) {
@@ -344,6 +353,15 @@ export default function App(): JSX.Element {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKind, sourceExt, srcExts.join('|'), curOptions.format, tool])
+
+  // The chosen target decides the verb (repack / to-pdf / from-pdf), so keep the
+  // stored op in step with it. Without this a .cbz switched to .pdf would still
+  // run 'repack' and write a .pdf that is really a zip.
+  useEffect(() => {
+    if (state.tab !== 'convert' || !engine.op) return
+    if (curOptions.op === engine.op) return
+    dispatch({ type: 'setOption', group: optGroup, key: 'op', value: engine.op })
+  }, [engine.op, curOptions.op, optGroup, state.tab])
 
   function onItemClick(id: string, e: MouseEvent): void {
     const item = cur.items.find((i) => i.id === id)
@@ -894,7 +912,7 @@ export default function App(): JSX.Element {
 
         <>
           <section
-            className="flex min-w-0 flex-1 flex-col gap-4 px-7 pb-5 pt-1"
+            className="flex min-w-0 flex-1 flex-col gap-3 px-4 pb-4 pt-1 lg:gap-4 lg:px-7 lg:pb-5"
             onDragOver={(e) => {
               e.preventDefault()
               if (tool !== 'generate' && !onToolsGrid) setDragging(true)
@@ -1019,6 +1037,7 @@ export default function App(): JSX.Element {
 
           {!onToolsGrid && (
             <OptionsPanel
+              tab={state.tab}
               tool={tool}
               label={card ? card.label : tab.label}
               options={curOptions}

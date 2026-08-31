@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import type { FileKind, JobOptions } from '@shared/types'
-import { familyFormats, isSameFormat, type FormatOption } from '@shared/convert'
+import { familyFormats, isSameFormat, sharedTargets, type FormatOption } from '@shared/convert'
 import {
   AUDIO_BITRATES,
   AUDIO_CODECS,
@@ -18,13 +18,14 @@ import {
   type UpscaleModel
 } from '@shared/compress'
 import { ARCHIVE_FORMATS, COMIC_FORMATS, needsRar } from '@shared/archive'
+import type { TabId } from '@shared/tabs'
 import { RESIZE_FITS, type ResizeFit } from '@shared/resize'
 import { BG_DEFAULTS, BG_FILLS, type BgFill } from '@shared/removebg'
 import { GEN_SIZES, GEN_STYLES, GEN_MAX_COUNT, clampDim } from '@shared/generate'
 import { archInfoFor, type GenArch, type GenModel } from '@shared/genArch'
 import { Icon } from './Icon'
 import type { ToolId } from '@shared/types'
-import { GROUP_COLOR, groupNoun } from './queueGroups'
+import { groupNoun } from './queueGroups'
 import { PidInstallCard } from './PidUpscale'
 import { usePidStatus } from './usePidStatus'
 import { ComfyImportCard } from './ComfyImport'
@@ -93,16 +94,25 @@ function ConvertOptions({
   activeKind,
   sourceExt,
   srcExts,
+  verb,
+  hasRar,
   set
 }: {
   options: JobOptions
   activeKind: FileKind | null
   sourceExt: string | null
   srcExts: string[]
-  set: (k: string, v: string | number) => void
+  /** The archive verb this target resolves to, if any: repack / to-pdf / from-pdf. */
+  verb?: string
+  hasRar: boolean
+  set: (k: string, v: string | number | boolean) => void
 }): JSX.Element {
   const kind = activeKind ?? 'image'
-  const formats = familyFormats(kind, sourceExt ?? '')
+  // Targets valid for EVERY selected source, so a mixed pdf+docx selection
+  // never offers CBZ (which only the pdf could do).
+  const formats = srcExts.length
+    ? sharedTargets(kind, srcExts)
+    : familyFormats(kind, sourceExt ?? '')
   return (
     <>
       <div>
@@ -111,13 +121,21 @@ function ConvertOptions({
           {formats.map((f) => {
             // Grey out (and block) any format a selected source already is: with
             // a PNG + JPEG selection, neither PNG nor JPEG is a valid target.
-            const disabled = srcExts.some((e) => isSameFormat(f.ext, e))
+            const isSource = srcExts.some((e) => isSameFormat(f.ext, e))
+            const noRar = needsRar(f.ext) && !hasRar
+            const disabled = isSource || noRar
             const sel = options.format === f.ext && !disabled
             return (
               <button
                 key={f.ext}
                 disabled={disabled}
-                title={disabled ? 'Files are already this format' : undefined}
+                title={
+                  noRar
+                    ? 'WinRAR not found'
+                    : isSource
+                      ? 'Files are already this format'
+                      : undefined
+                }
                 onClick={() => set('format', f.ext)}
                 className={`rounded-xl border py-2.5 text-[13px] font-semibold transition ${
                   sel
@@ -146,6 +164,79 @@ function ConvertOptions({
             ]}
           />
         </div>
+      )}
+      {/* Repacking an archive: the pages are already compressed images, so
+          storing them is the same size and faster. */}
+      {verb === 'repack' && (
+        <div>
+          <Label>Compression</Label>
+          <Segmented
+            value={options.store === false ? 'normal' : 'store'}
+            onChange={(v) => set('store', v === 'store')}
+            options={[
+              { value: 'store', label: 'Store' },
+              { value: 'normal', label: 'Normal' }
+            ]}
+          />
+          <p className="mt-2 text-[12px] text-dim">
+            Comic pages are already compressed images, so Store is faster at the same size.
+          </p>
+        </div>
+      )}
+      {/* PDF into a comic archive: its pages have to be rendered first. */}
+      {verb === 'from-pdf' && <PageRenderOptions options={options} set={set} />}
+    </>
+  )
+}
+
+/** Page-rendering controls shared by every route that turns a PDF into images. */
+function PageRenderOptions({
+  options,
+  set
+}: {
+  options: JobOptions
+  set: (k: string, v: string | number | boolean) => void
+}): JSX.Element {
+  const pageFormat = String(options.pageFormat ?? 'jpg')
+  return (
+    <>
+      <div>
+        <div className="mb-2.5 flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-dim">
+            Resolution
+          </span>
+          <span className="text-sm font-semibold text-accent">
+            {Number(options.dpi ?? 150)} DPI
+          </span>
+        </div>
+        <input
+          type="range"
+          min={72}
+          max={400}
+          step={2}
+          value={Number(options.dpi ?? 150)}
+          onChange={(e) => set('dpi', Number(e.target.value))}
+          className="w-full accent-accent"
+        />
+      </div>
+      <div>
+        <Label>Page format</Label>
+        <Segmented
+          value={pageFormat}
+          onChange={(v) => set('pageFormat', v)}
+          options={[
+            { value: 'jpg', label: 'JPEG' },
+            { value: 'png', label: 'PNG' }
+          ]}
+        />
+        <p className="mt-2 text-[12px] text-dim">
+          {pageFormat === 'jpg'
+            ? 'Much smaller files, the usual choice for comics.'
+            : 'Lossless, but a long comic runs to hundreds of megabytes.'}
+        </p>
+      </div>
+      {pageFormat === 'jpg' && (
+        <QualitySlider options={options} set={set} field="pageQuality" fallback={85} />
       )}
     </>
   )
@@ -191,12 +282,18 @@ function ChoiceSelect<T extends string>({
 
 function QualitySlider({
   options,
-  set
+  set,
+  field = 'quality',
+  fallback = 80
 }: {
   options: JobOptions
   set: (k: string, v: string | number | boolean) => void
+  /** Which option this drives. Page rendering uses `pageQuality` so it cannot
+   * collide with convert's preset `quality` in a shared option bag. */
+  field?: string
+  fallback?: number
 }): JSX.Element {
-  const q = Number(options.quality ?? 80)
+  const q = Number(options[field] ?? fallback)
   return (
     <div>
       <div className="mb-2.5 flex items-center justify-between">
@@ -208,7 +305,7 @@ function QualitySlider({
         min={10}
         max={100}
         value={q}
-        onChange={(e) => set('quality', Number(e.target.value))}
+        onChange={(e) => set(field, Number(e.target.value))}
         className="w-full accent-accent"
       />
       <div className="mt-1.5 flex justify-between text-[11px] text-dim">
@@ -1630,40 +1727,8 @@ function GenerateOptions({
   )
 }
 
-/** What these settings will act on. The queue can hold images and video at the
- * same time, so Run has to say which of them it means. Named by CONVERT GROUP,
- * not file kind: a pdf plus a txt is "2 documents", because they run as one
- * batch under one target set. */
-function ScopeChip({
-  group,
-  count,
-  known
-}: {
-  group: string
-  count: number
-  known: boolean
-}): JSX.Element {
-  return (
-    <div className="flex items-start gap-2.5 rounded-xl bg-black/[.035] px-3 py-2.5">
-      <span
-        className="mt-px h-[18px] w-[18px] shrink-0 rounded-md"
-        style={{ background: GROUP_COLOR[group] ?? '#6e6e73' }}
-      />
-      <span className="text-[12.5px] font-medium leading-snug text-muted">
-        {known && count > 0 ? (
-          <>
-            Applies to the <span className="font-bold text-ink">{groupNoun(group, count)}</span>{' '}
-            selected.
-          </>
-        ) : (
-          <>Select files to choose what these settings apply to.</>
-        )}
-      </span>
-    </div>
-  )
-}
-
 export function OptionsPanel({
+  tab,
   tool,
   label,
   options,
@@ -1681,6 +1746,8 @@ export function OptionsPanel({
   onSet,
   onRun
 }: {
+  /** The rail tab this workspace belongs to. */
+  tab: TabId
   /** The engine tool this workspace runs. */
   tool: ToolId
   /** The verb's own name, used by the Run button. */
@@ -1703,6 +1770,13 @@ export function OptionsPanel({
   onSet: (k: string, v: string | number | boolean) => void
   onRun: () => void
 }): JSX.Element {
+  // Generate is the one tab whose options exist without any file selected: its
+  // prompt IS the input.
+  const showOptions = tool === 'generate' || activeGroup != null
+  // On Convert, ONE component owns the target grid for every route, so a .pdf
+  // aimed at .cbz still picks its target in the same place a .png does.
+  const isConvertTab = tab === 'convert'
+  const { rar } = useArchiveStatus()
   return (
     // Every option control (slider, toggle, run button, selected chip) reads the
     // accent variables, so overriding them here themes the whole panel black in
@@ -1712,7 +1786,7 @@ export function OptionsPanel({
     // used to be an ordinary last child of one scroll container and left the
     // viewport entirely at the app's own default window size.
     <aside
-      className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-black/[.06] bg-white/40"
+      className="flex w-[248px] shrink-0 flex-col overflow-hidden border-l border-black/[.06] bg-white/40 lg:w-[300px]"
       style={
         {
           '--color-accent': '#000000',
@@ -1721,30 +1795,25 @@ export function OptionsPanel({
         } as CSSProperties
       }
     >
-      {/* No operation switcher: the rail IS the operation now, so a coloured
-          pill here would name the same thing twice. What the panel owes the user
-          instead is WHICH files its settings apply to, because one tab's queue
-          can hold several convert groups at once. */}
-      <div className="px-[22px] pt-6">
-        <ScopeChip group={optGroup} count={runCount} known={activeGroup != null} />
-        <div className="mt-5 h-px bg-black/[.07]" />
-      </div>
-      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-[22px] py-5">
-        {/* The options are always shown: every file in this category takes the
-          same operation, so its options are known before anything is selected.
-          Falls back to the category's kind when there's no selection to read
-          one from. Only the run button reflects whether files are ready. */}
+      {/* No operation switcher (the rail IS the operation) and no scope banner:
+          the Run button already names what it will act on. */}
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-5 pt-5 lg:gap-5 lg:px-[22px] lg:pt-6">
+        {/* Options appear only once something is selected. Offering PNG / JPG
+            targets with an empty queue invited a choice that could not be
+            acted on, and said nothing about what it would apply to. */}
         <>
-          {tool === 'convert' && (
+          {showOptions && isConvertTab && (
             <ConvertOptions
               options={options}
               activeKind={activeKind ?? fallbackKind}
               sourceExt={sourceExt}
               srcExts={srcExts}
+              verb={tool === 'archive' ? String(options.op ?? '') : undefined}
+              hasRar={rar}
               set={onSet}
             />
           )}
-          {tool === 'compress' && (
+          {showOptions && tool === 'compress' && (
             <CompressOptions
               options={options}
               activeKind={runKind ?? fallbackKind}
@@ -1752,20 +1821,20 @@ export function OptionsPanel({
               set={onSet}
             />
           )}
-          {tool === 'resize' && (
+          {showOptions && tool === 'resize' && (
             <ResizeOptions options={options} outputs={resizeOutputs} set={onSet} />
           )}
-          {tool === 'upscale' && (
+          {showOptions && tool === 'upscale' && (
             <UpscaleOptions options={options} outputs={upscaleOutputs} set={onSet} />
           )}
-          {tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
+          {showOptions && tool === 'removebg' && <RemoveBgOptions options={options} set={onSet} />}
           {tool === 'pdf' && <PdfOptions options={options} runCount={runCount} set={onSet} />}
           {tool === 'archive' && <ArchiveOptions options={options} srcExts={srcExts} set={onSet} />}
           {tool === 'generate' && <GenerateOptions options={options} set={onSet} />}
         </>
       </div>
 
-      <div className="border-t border-black/[.07] px-[22px] py-4">
+      <div className="border-t border-black/[.07] px-4 py-3 lg:px-[22px] lg:py-4">
         <button
           onClick={onRun}
           disabled={runCount === 0}

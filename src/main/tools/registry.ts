@@ -1295,7 +1295,10 @@ const archiveTool: ToolModule = {
       assertRarTarget(targetExt)
       const dpi = Math.max(36, Math.min(600, Number(options.dpi ?? 150)))
       const pageFormat = String(options.pageFormat ?? 'jpg')
-      const quality = Math.max(1, Math.min(100, Number(options.quality ?? 85)))
+      // `pageQuality`, not `quality`: on the Convert tab one option bag can
+      // reach either the convert tool (quality is a preset STRING) or this
+      // one, and Number('balanced') is NaN.
+      const quality = Math.max(1, Math.min(100, Number(options.pageQuality ?? 85)))
 
       // Always a neutral temp dir, so mutool draw's printf `-o` pattern can
       // never expand a `%` inherited from the source file's name.

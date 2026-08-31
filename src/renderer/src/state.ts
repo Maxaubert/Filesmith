@@ -1,4 +1,4 @@
-import type { FileInfo, JobEvent, JobOptions, ToolId } from '@shared/types'
+import type { FileInfo, FileKind, JobEvent, JobOptions, ToolId } from '@shared/types'
 import { convertGroup } from '@shared/convert'
 import { BG_DEFAULTS } from '@shared/removebg'
 import { GEN_DEFAULTS } from '@shared/generate'
@@ -85,7 +85,8 @@ export interface AppState {
   /** Options are per (workspace, convert group): converting images and
    * converting video are configured separately inside one Convert tab. */
   options: Record<string, JobOptions>
-  /** The last Tools card opened, so returning to Tools lands where you were. */
+  /** The last Tools card opened. Kept for the session file's shape only: the
+   * Tools tab deliberately opens on its grid every time. */
   lastTool: string | null
 }
 
@@ -105,7 +106,14 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   upscale: { upscaleFactor: 4, upscaleModel: 'photo' },
   removebg: { ...BG_DEFAULTS },
   pdf: { op: 'extract-text', dpi: 150, range: '' },
-  archive: { op: 'repack', format: '.cbz', store: true, dpi: 150, pageFormat: 'jpg', quality: 85 },
+  archive: {
+    op: 'repack',
+    format: '.cbz',
+    store: true,
+    dpi: 150,
+    pageFormat: 'jpg',
+    pageQuality: 85
+  },
   generate: {
     prompt: '',
     model: '',
@@ -130,10 +138,12 @@ export const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: 
 export function defaultOptionsFor(
   tab: TabId,
   activeTool: string | null,
-  group: string
+  group: string,
+  source?: { kind: FileKind; ext: string },
+  targetExt?: string
 ): JobOptions {
   const card = activeTool ? toolCardById(activeTool) : null
-  const { tool, op } = engineFor(tab, group, card)
+  const { tool, op } = engineFor(tab, group, card, source, targetExt)
   const base = DEFAULT_OPTIONS[tool] ?? {}
   return op ? { ...base, op } : { ...base }
 }
@@ -465,9 +475,9 @@ export function reducer(state: AppState, action: Action): AppState {
       return merged
     }
     case 'setTab': {
-      // Returning to Tools lands on the card you last had open; every other
-      // verb is a single workspace, so there is nothing to remember.
-      const activeTool = action.tab === 'tools' ? state.lastTool : null
+      // Tools ALWAYS opens on its grid. Landing straight back inside the last
+      // card hid the other tools and made the tab feel like it had lost them.
+      const activeTool = null
       const key = queueKey(action.tab, activeTool)
       return {
         ...state,
@@ -489,9 +499,24 @@ export function reducer(state: AppState, action: Action): AppState {
       const key = optionsKey(state.tab, state.activeTool, action.group)
       const base =
         state.options[key] ?? defaultOptionsFor(state.tab, state.activeTool, action.group)
+      // Changing the VERB changes which engine reads this bag, and that engine
+      // has settings the previous one never stored (a PDF aimed at a comic
+      // archive suddenly needs a DPI). Seed those, without disturbing anything
+      // the user has already chosen.
+      const seeded =
+        action.key === 'op'
+          ? Object.fromEntries(
+              Object.entries(DEFAULT_OPTIONS.archive ?? {}).filter(
+                ([k]) => k !== 'op' && k !== 'format' && !(k in base)
+              )
+            )
+          : {}
       return {
         ...state,
-        options: { ...state.options, [key]: { ...base, [action.key]: action.value } }
+        options: {
+          ...state.options,
+          [key]: { ...base, ...seeded, [action.key]: action.value }
+        }
       }
     }
     case 'addItems': {

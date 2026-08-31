@@ -106,13 +106,15 @@ describe('navigation', () => {
     expect(initialState.activeTool).toBeNull()
   })
 
-  it('returns to the Tools card you last had open', () => {
+  it('always opens Tools on its grid, never inside the last card', () => {
+    // Landing straight back inside a card hid every other tool and made the
+    // tab look like it had lost them.
     let s = reducer(initialState, { type: 'setTab', tab: 'tools' })
     s = reducer(s, { type: 'setActiveTool', tool: 'pdf-burst' })
     s = reducer(s, { type: 'setTab', tab: 'convert' })
     expect(s.activeTool).toBeNull()
     s = reducer(s, { type: 'setTab', tab: 'tools' })
-    expect(s.activeTool).toBe('pdf-burst')
+    expect(s.activeTool).toBeNull()
   })
 
   it('keeps options per convert group inside one verb', () => {
@@ -141,7 +143,10 @@ describe('navigation', () => {
     expect(defaultOptionsFor('tools', 'pdf-merge', 'doc').op).toBe('merge')
     // Converting an image is the plain convert tool, so it carries no verb.
     expect(defaultOptionsFor('convert', null, 'image').op).toBeUndefined()
-    // Converting an ARCHIVE is the archive tool with op 'repack', on the same tab.
+    // An archive Convert is the archive tool, and the TARGET picks the verb.
     expect(defaultOptionsFor('convert', null, 'archive').op).toBe('repack')
+    expect(defaultOptionsFor('convert', null, 'doc', { kind: 'pdf', ext: '.pdf' }, '.cbz').op).toBe(
+      'from-pdf'
+    )
   })
 })

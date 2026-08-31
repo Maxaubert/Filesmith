@@ -144,7 +144,7 @@ export function TabRail({
   }
 
   return (
-    <nav className="flex w-[212px] shrink-0 flex-col gap-0.5 border-r border-black/[.06] bg-white/40 px-3 pb-4">
+    <nav className="flex w-[176px] shrink-0 flex-col gap-0.5 border-r border-black/[.06] bg-white/40 px-2 pb-4 lg:w-[212px] lg:px-3">
       <div className="flex items-center justify-between px-1 pb-2 pt-3.5">
         <span className="pl-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
           Do
