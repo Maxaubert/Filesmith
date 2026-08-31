@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync
@@ -15,13 +16,15 @@ import type { FileInfo, ToolId } from '@shared/types'
 import type { AudioCodec, ImageFormat, PdfLevel, UpscaleModel, VideoCodec } from '@shared/compress'
 import {
   resolveGhostscript,
+  resolveRar,
+  resolveSevenZip,
   resolveRealesrgan,
   resolveRembg,
   resolveSoffice,
   resolveTool,
   toolMissingMessage
 } from '../toolResolver'
-import { run, ToolMissingError } from '../run'
+import { run, ToolMissingError, type RunResult } from '../run'
 import { estimateProgress, estimateSecForBytes } from './estimate'
 import { reserveOutPath, uniqueOutDir } from '../output'
 import { ffmpegProgress, probeDuration, probeImageDimensions } from '../probe'
@@ -33,6 +36,16 @@ import { pidInstalled } from '../pid/paths'
 import { spandrelSidecar } from '../comfy/sidecar'
 import { comfyModelByPath } from '../comfy/store'
 import type { ToolContext, ToolModule } from './tool'
+import { containerOf, needsRar } from '@shared/archive'
+import {
+  batchImages,
+  buildExtractArgs,
+  buildPackArgs,
+  buildRarPackArgs,
+  IMAGE_ENTRY_EXTS,
+  naturalSort,
+  parse7zProgress
+} from './archive'
 import {
   buildFfmpegArgs,
   buildMagickArgs,
@@ -1033,13 +1046,323 @@ function describeRembgError(stderr: string, code: number): string {
   return describeToolError(stderr, 'rembg', code)
 }
 
+/** Every file under `root`, as paths relative to it (archives nest folders). */
+function listFilesRec(root: string, rel = ''): string[] {
+  const out: string[] = []
+  for (const e of readdirSync(join(root, rel), { withFileTypes: true })) {
+    const r = rel ? join(rel, e.name) : e.name
+    if (e.isDirectory()) out.push(...listFilesRec(root, r))
+    else out.push(r)
+  }
+  return out
+}
+
+/** 7-Zip exits non-zero rather than blocking when an archive wants a password,
+ * which is the one archive failure worth naming for the user. */
+function describeArchiveError(res: RunResult, fallback: string): string {
+  const all = res.stderr + res.stdout
+  if (/wrong password|encrypted|Cannot open encrypted/i.test(all))
+    return 'This archive is password-protected.'
+  return describeToolError(res.stderr, '7-Zip', res.code) || fallback
+}
+
+/** Extract `input` into a fresh temp dir and return its path. The caller owns
+ * the directory and must remove it. */
+async function extractToTemp(input: string, ctx: ToolContext): Promise<string> {
+  const dir = mkdtempSync(join(tmpdir(), 'filesmith-arc-'))
+  try {
+    const res = await run(resolveSevenZip(), buildExtractArgs(input, dir), {
+      signal: ctx.signal,
+      onStderr: (c) => {
+        const p = parse7zProgress(c)
+        if (p !== undefined) ctx.onProgress(p, 'Reading archive…')
+      }
+    })
+    if (res.code !== 0) throw new Error(describeArchiveError(res, 'Could not read this archive'))
+    return dir
+  } catch (e) {
+    rmSync(dir, { recursive: true, force: true })
+    throw e instanceof ToolMissingError ? new Error(toolMissingMessage(e.tool), { cause: e }) : e
+  }
+}
+
+/**
+ * Pack the CONTENTS of `dir` into `output`, choosing 7-Zip or WinRAR by target
+ * format. Both are run with cwd set to `dir` so nothing is nested under a
+ * wrapper folder, which comic readers show as an empty book.
+ *
+ * The archive is built in its own temp dir and then copied onto `output`.
+ * reserveOutPath leaves a 0-byte placeholder to hold the name, and `7z a` /
+ * `rar a` are ADD commands: handed an existing empty file they try to update it
+ * and die with "Incorrect function" / "Bad archive". Building elsewhere also
+ * keeps a half-written archive from ever appearing at the final path, and keeps
+ * the archive out of the very directory being packed.
+ */
+async function packDir(
+  dir: string,
+  output: string,
+  targetExt: string,
+  store: boolean,
+  ctx: ToolContext
+): Promise<void> {
+  const container = containerOf(targetExt)
+  if (!container) throw new Error(`Unsupported archive format: ${targetExt}`)
+
+  const onStderr = (c: string): void => {
+    const p = parse7zProgress(c)
+    if (p !== undefined) ctx.onProgress(p, 'Writing archive…')
+  }
+
+  const outTmp = mkdtempSync(join(tmpdir(), 'filesmith-arcout-'))
+  const built = join(outTmp, 'out' + targetExt)
+  try {
+    if (container === 'rar') {
+      const rar = resolveRar()
+      // Also guarded in the UI, but session-restored options can still land a
+      // CBR target here on a machine where WinRAR has since been removed.
+      if (!rar) throw new Error(RAR_MISSING)
+      const res = await run(rar, buildRarPackArgs(built), { signal: ctx.signal, cwd: dir })
+      if (res.code !== 0)
+        throw new Error(describeToolError(res.stderr, 'WinRAR', res.code) || 'WinRAR failed')
+    } else {
+      const res = await run(resolveSevenZip(), buildPackArgs(built, container, store), {
+        signal: ctx.signal,
+        cwd: dir,
+        onStderr
+      })
+      if (res.code !== 0) throw new Error(describeArchiveError(res, '7-Zip failed'))
+    }
+    if (!existsSync(built) || statSync(built).size === 0)
+      throw new Error('The archive tool reported success but wrote no output')
+    copyFileSync(built, output)
+  } catch (e) {
+    throw e instanceof ToolMissingError ? new Error(toolMissingMessage(e.tool), { cause: e }) : e
+  } finally {
+    rmSync(outTmp, { recursive: true, force: true })
+  }
+}
+
+/** Refuse a RAR target early when WinRAR is absent, before any work is done. */
+function assertRarTarget(targetExt: string): void {
+  if (needsRar(targetExt) && !resolveRar()) throw new Error(RAR_MISSING)
+}
+
+const RAR_MISSING = 'WinRAR not found. CBR and RAR output need WinRAR installed.'
+
+/**
+ * Archive operations. Comic archives are the driving case: .cbz/.cbr/.cb7/.cbt
+ * are zip/rar/7z/tar with a renamed extension, so converting between them is
+ * extract-and-repack. Reading every format is free; only WRITING rar needs
+ * WinRAR, which cannot be bundled.
+ */
+const archiveTool: ToolModule = {
+  async run(file, options, ctx) {
+    const op = String(options.op ?? 'repack')
+
+    // Unpack into a new folder next to the source.
+    if (op === 'extract') {
+      const dir = uniqueOutDir(
+        dirname(file.path),
+        basename(file.path, extname(file.path)) + ' (extracted)'
+      )
+      mkdirSync(dir, { recursive: true })
+      ctx.onProgress(undefined, 'Extracting…')
+      try {
+        const res = await run(resolveSevenZip(), buildExtractArgs(file.path, dir), {
+          signal: ctx.signal,
+          onStderr: (c) => {
+            const p = parse7zProgress(c)
+            if (p !== undefined) ctx.onProgress(p, 'Extracting…')
+          }
+        })
+        if (res.code !== 0)
+          throw new Error(describeArchiveError(res, 'Could not read this archive'))
+        return dir
+      } catch (e) {
+        // Never strand a half-extracted folder: the next run would make
+        // "name (extracted) (2)" and leave the broken one behind forever.
+        try {
+          rmSync(dir, { recursive: true, force: true })
+        } catch {
+          /* best effort */
+        }
+        throw e instanceof ToolMissingError
+          ? new Error(toolMissingMessage(e.tool), { cause: e })
+          : e
+      }
+    }
+
+    // Repack into another container (the Convert card).
+    if (op === 'repack') {
+      const targetExt = normalizeExt(String(options.format ?? '.cbz'))
+      assertRarTarget(targetExt)
+      const store = options.store !== false
+      const temp = await extractToTemp(file.path, ctx)
+      const output = reserveOutPath(file.path, targetExt, 'converted')
+      try {
+        await packDir(temp, output, targetExt, store, ctx)
+        if (!existsSync(output) || statSync(output).size === 0)
+          throw new Error('The archive tool reported success but wrote no output')
+        return output
+      } catch (e) {
+        try {
+          rmSync(output, { force: true })
+        } catch {
+          /* best effort */
+        }
+        throw e
+      } finally {
+        rmSync(temp, { recursive: true, force: true })
+      }
+    }
+
+    // Comic archive to PDF, pages in natural reading order.
+    if (op === 'to-pdf') {
+      const temp = await extractToTemp(file.path, ctx)
+      try {
+        const entries = naturalSort(
+          listFilesRec(temp).filter((p) => IMAGE_ENTRY_EXTS.includes(extname(p).toLowerCase()))
+        )
+        if (entries.length === 0) throw new Error('No images found in this archive')
+
+        // Rename to neutral, zero-padded names in a flat folder: an entry like
+        // `100%off.jpg` would otherwise be printf-expanded by ImageMagick, and
+        // the flat list is what fixes page order for good.
+        const pagesDir = join(temp, '__pages')
+        mkdirSync(pagesDir, { recursive: true })
+        const width = String(entries.length).length
+        const pages = entries.map((e, i) => {
+          const p = join(pagesDir, `p${String(i + 1).padStart(width, '0')}${extname(e)}`)
+          renameSync(join(temp, e), p)
+          return p
+        })
+
+        const output = reserveOutPath(file.path, '.pdf', 'converted')
+        const magick = resolveTool('magick')
+        // Windows caps a command line at 32767 characters and a long comic
+        // blows past it, so build part PDFs and let mutool merge join them.
+        const batches = batchImages(pages, 30000)
+        try {
+          if (batches.length === 1) {
+            return await runToOutput(
+              magick,
+              (out) => [...batches[0], out],
+              output,
+              ctx,
+              'ImageMagick',
+              true,
+              undefined,
+              estimateSecForBytes(file.size, 0.2)
+            )
+          }
+          const parts: string[] = []
+          for (const [i, b] of batches.entries()) {
+            if (ctx.signal.aborted) throw new Error('Canceled')
+            ctx.onProgress(
+              Math.round((i / batches.length) * 90),
+              `Building PDF ${i + 1}/${batches.length}…`
+            )
+            const part = join(temp, `part-${i}.pdf`)
+            const res = await run(magick, [...b, part], { signal: ctx.signal })
+            if (res.code !== 0 || !existsSync(part))
+              throw new Error(describeToolError(res.stderr, 'ImageMagick', res.code))
+            parts.push(part)
+          }
+          ctx.onProgress(95, 'Joining pages…')
+          return await runToOutput(
+            resolveTool('mutool'),
+            (out) => buildPdfMergeArgs(parts, out),
+            output,
+            ctx,
+            'mutool'
+          )
+        } catch (e) {
+          try {
+            rmSync(output, { force: true })
+          } catch {
+            /* best effort */
+          }
+          throw e
+        }
+      } finally {
+        rmSync(temp, { recursive: true, force: true })
+      }
+    }
+
+    // PDF to comic archive: render the pages, then pack them.
+    if (op === 'from-pdf') {
+      const targetExt = normalizeExt(String(options.format ?? '.cbz'))
+      assertRarTarget(targetExt)
+      const dpi = Math.max(36, Math.min(600, Number(options.dpi ?? 150)))
+      const pageFormat = String(options.pageFormat ?? 'jpg')
+      const quality = Math.max(1, Math.min(100, Number(options.quality ?? 85)))
+
+      // Always a neutral temp dir, so mutool draw's printf `-o` pattern can
+      // never expand a `%` inherited from the source file's name.
+      const temp = mkdtempSync(join(tmpdir(), 'filesmith-arc-'))
+      const output = reserveOutPath(file.path, targetExt, 'converted')
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p) =>
+        ctx.onProgress(Math.min(p, 90))
+      )
+      try {
+        ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)
+        // Zero-padded, because a reader sorts entries by name: page-10 must not
+        // come before page-2.
+        const draw = await run(
+          resolveTool('mutool'),
+          buildPdfImagesArgs(file.path, temp, dpi, 'page-%04d.png'),
+          { signal: ctx.signal }
+        )
+        if (draw.code !== 0) throw new Error(describeToolError(draw.stderr, 'mutool', draw.code))
+        if (readdirSync(temp).length === 0) throw new Error('This PDF has no pages to render')
+
+        if (pageFormat === 'jpg') {
+          // mutool draw has no JPEG writer, so convert the rendered PNGs in one
+          // mogrify pass. A 200-page PNG comic runs to hundreds of megabytes.
+          est.stop()
+          ctx.onProgress(60, 'Compressing pages…')
+          const mog = await run(
+            resolveTool('magick'),
+            ['mogrify', '-format', 'jpg', '-quality', String(quality), '*.png'],
+            { signal: ctx.signal, cwd: temp }
+          )
+          if (mog.code !== 0)
+            throw new Error(describeToolError(mog.stderr, 'ImageMagick', mog.code))
+          for (const f of readdirSync(temp))
+            if (f.toLowerCase().endsWith('.png')) rmSync(join(temp, f), { force: true })
+        }
+
+        await packDir(temp, output, targetExt, true, ctx)
+        if (!existsSync(output) || statSync(output).size === 0)
+          throw new Error('The archive tool reported success but wrote no output')
+        return output
+      } catch (e) {
+        try {
+          rmSync(output, { force: true })
+        } catch {
+          /* best effort */
+        }
+        throw e instanceof ToolMissingError
+          ? new Error(toolMissingMessage(e.tool), { cause: e })
+          : e
+      } finally {
+        est.stop()
+        rmSync(temp, { recursive: true, force: true })
+      }
+    }
+
+    throw new Error(`Unknown archive operation: ${op}`)
+  }
+}
+
 const TOOLS: Partial<Record<ToolId, ToolModule>> = {
   convert: convertTool,
   compress: compressTool,
   resize: resizeTool,
   upscale: upscaleTool,
   removebg: removebgTool,
-  pdf: pdfTool
+  pdf: pdfTool,
+  archive: archiveTool
 }
 
 export function getTool(id: ToolId): ToolModule | undefined {
