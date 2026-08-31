@@ -105,6 +105,7 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   upscale: { upscaleFactor: 4, upscaleModel: 'photo' },
   removebg: { ...BG_DEFAULTS },
   pdf: { op: 'extract-text', dpi: 150, range: '' },
+  archive: { op: 'repack', format: '.cbz', store: true, dpi: 150, pageFormat: 'jpg', quality: 85 },
   generate: {
     prompt: '',
     model: '',
@@ -122,8 +123,8 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
 
 export const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })
 
-/** A fresh workspace's options: its tool's defaults, plus the PDF verb when the
- * operation is one of the several the pdf tool carries. */
+/** A fresh workspace's options: its tool's defaults, plus the operation's verb
+ * when its tool carries several (the pdf and archive tools both do). */
 export function defaultOptionsFor(category: CategoryId, opId: string): JobOptions {
   const op = findOperation(category, opId)
   if (!op) return {}

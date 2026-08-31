@@ -1,8 +1,10 @@
 // Shared types crossing the main <-> renderer boundary. No Node or DOM imports.
 
-export type ToolId = 'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'pdf' | 'generate'
+export type ToolId =
+  'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'pdf' | 'generate' | 'archive'
 
-export type FileKind = 'image' | 'video' | 'audio' | 'pdf' | 'document' | 'text' | 'other'
+export type FileKind =
+  'image' | 'video' | 'audio' | 'pdf' | 'document' | 'text' | 'archive' | 'other'
 
 /** A file the user has added, as the renderer knows it. */
 export interface FileInfo {

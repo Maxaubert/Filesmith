@@ -120,6 +120,35 @@ export function resolveGhostscript(): string {
   return exe.replace('.exe', '') // hope it's on PATH
 }
 
+/** 7-Zip's console binary: bundled in resources/bin like ffmpeg and magick,
+ * falling back to the bare name so a PATH install still works in dev. Reading
+ * a rar needs nothing beyond this; only WRITING one needs WinRAR. */
+export function resolveSevenZip(): string {
+  return resolveTool('7z')
+}
+
+/** First `<root>/WinRAR/Rar.exe` that exists, or null. Split out from
+ * resolveRar so the search itself is testable against temp fixtures instead of
+ * whatever happens to be installed on the machine running the suite. */
+export function findRarIn(roots: string[]): string | null {
+  for (const root of roots) {
+    const p = join(root, 'WinRAR', 'Rar.exe')
+    if (existsSync(p)) return p
+  }
+  return null
+}
+
+/**
+ * WinRAR's Rar.exe, the only thing that can WRITE a rar (and therefore a .cbr).
+ * It is proprietary and cannot be bundled, and 7-Zip's unRAR licence forbids
+ * using its RAR code to build a compressor. So this returns null when WinRAR is
+ * absent and the UI greys the RAR targets out with a reason.
+ */
+export function resolveRar(): string | null {
+  if (process.platform !== 'win32') return null
+  return findRarIn(programFilesRoots())
+}
+
 /**
  * Resolve Real-ESRGAN's binary. Like Ghostscript it's a small tree (exe + dlls
  * + models/), so it lives in resources/realesrgan and the binary finds its

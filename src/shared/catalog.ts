@@ -9,7 +9,7 @@ import type { FileKind, ToolId } from './types'
 // deserves its own card, while "Compress" maps to the compress tool under four
 // different categories. This table is the mapping between the two.
 
-export type CategoryId = 'images' | 'video' | 'audio' | 'pdf' | 'documents'
+export type CategoryId = 'images' | 'video' | 'audio' | 'pdf' | 'documents' | 'archives'
 
 export interface Category {
   id: CategoryId
@@ -31,7 +31,8 @@ export const CATEGORIES: Category[] = [
     kinds: ['document', 'text'],
     color: '#12b3a6',
     icon: 'doc'
-  }
+  },
+  { id: 'archives', label: 'Archives', kinds: ['archive'], color: '#a16207', icon: 'archive' }
 ]
 
 export interface Operation {
@@ -159,9 +160,47 @@ export const OPERATIONS: Record<CategoryId, Operation[]> = {
       tool: 'pdf',
       opKey: 'extract-images'
     },
+    {
+      id: 'to-cbz',
+      label: 'To CBZ',
+      desc: 'Pack the pages as a comic archive',
+      color: '#a16207',
+      icon: 'archive',
+      tool: 'archive',
+      opKey: 'from-pdf'
+    },
     COMPRESS('Shrink file size')
   ],
-  documents: [CONVERT('Convert to PDF, DOCX, TXT')]
+  documents: [CONVERT('Convert to PDF, DOCX, TXT')],
+  archives: [
+    {
+      id: 'convert',
+      label: 'Convert',
+      desc: 'Repack as CBZ, CBR, CB7 or ZIP',
+      color: '#5b5bd6',
+      icon: 'convert',
+      tool: 'archive',
+      opKey: 'repack'
+    },
+    {
+      id: 'extract',
+      label: 'Extract',
+      desc: 'Unpack into a folder',
+      color: '#22b364',
+      icon: 'resize',
+      tool: 'archive',
+      opKey: 'extract'
+    },
+    {
+      id: 'to-pdf',
+      label: 'To PDF',
+      desc: 'Turn a comic archive into a PDF',
+      color: '#ef4444',
+      icon: 'pdf',
+      tool: 'archive',
+      opKey: 'to-pdf'
+    }
+  ]
 }
 
 /** Every workspace is one (category, operation) pair, and that pair is its key. */

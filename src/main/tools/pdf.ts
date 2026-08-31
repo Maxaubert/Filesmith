@@ -52,9 +52,18 @@ export function normalizePageRange(input: string): string | null {
   return cleaned
 }
 
-/** `mutool draw -F png -r <dpi> -o <dir>/page-%d.png <in.pdf>` — render each page. */
-export function buildPdfImagesArgs(input: string, outDir: string, dpi: number): string[] {
-  return ['draw', '-F', 'png', '-r', String(dpi), '-o', join(outDir, 'page-%d.png'), input]
+/** `mutool draw -F png -r <dpi> -o <dir>/page-%d.png <in.pdf>` — render each page.
+ * `pattern` is a printf template mutool expands per page. The default keeps the
+ * unpadded names the Pages-to-PNG folder has always used; packing pages into a
+ * comic archive passes a zero-padded one instead, because a reader sorts entries
+ * by name and `page-10.png` would otherwise land before `page-2.png`. */
+export function buildPdfImagesArgs(
+  input: string,
+  outDir: string,
+  dpi: number,
+  pattern = 'page-%d.png'
+): string[] {
+  return ['draw', '-F', 'png', '-r', String(dpi), '-o', join(outDir, pattern), input]
 }
 
 /** `mutool clean -gggg -z <in> <out>` — garbage-collect + compress streams

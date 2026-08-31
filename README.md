@@ -31,7 +31,7 @@ A local file toolkit for Windows. Drop files, pick a tool, get results.
 
 ## What it is
 
-Filesmith puts the everyday file jobs behind one clean window: convert, compress, resize, and more, across **images, video, audio, PDFs, and documents**. Drop a pile of files, pick a tool, and it runs the batch with thumbnails, live per-file progress, rich previews, and collision-safe output that never overwrites your originals.
+Filesmith puts the everyday file jobs behind one clean window: convert, compress, resize, and more, across **images, video, audio, PDFs, documents, and archives**. Drop a pile of files, pick a tool, and it runs the batch with thumbnails, live per-file progress, rich previews, and collision-safe output that never overwrites your originals.
 
 Everything runs **locally on your machine**, and your queue and produced files are **remembered across restarts**, so you can close the app mid-batch and pick up where you left off.
 
@@ -39,8 +39,9 @@ Everything runs **locally on your machine**, and your queue and produced files a
 
 - **Images** — convert (PNG / WebP / AVIF / JPG / JXL / TIFF / BMP / GIF / ICO), compress, resize, remove background, upscale (2–4×), and **generate** from a text prompt.
 - **Video / Audio** — convert (container / codec) and compress, with live `ffmpeg` progress and a resolution preview.
-- **PDF** — extract text, PDF to images, and compress.
+- **PDF** — extract text, PDF to images, merge, split, burst, extract images, compress, and pack pages into a comic archive.
 - **Documents** — convert office documents to PDF.
+- **Archives** — convert between ZIP / RAR / 7z / TAR and the comic formats CBZ / CBR / CB7 / CBT, extract to a folder, and turn a comic archive into a PDF. Writing CBR/RAR needs WinRAR installed (it cannot be bundled); everything else works offline.
 
 Plus batch queues, thumbnails for every kind (images, video frames, audio cover art), a **built-in viewer** for images, video, and audio (with a live circular visualizer), per-file progress with ETA, and cancel.
 
@@ -65,7 +66,7 @@ Download **`Filesmith-Setup-x64-<version>.exe`** from the [latest release](https
 ## Use
 
 1. Open **Filesmith** from the Start menu.
-2. Pick a file type in the left rail (Images, Video, Audio, PDF, Documents).
+2. Pick a file type in the left rail (Images, Video, Audio, PDF, Documents, Archives).
 3. Choose a tool from the top-right (Convert, Compress, Resize, …), set its options.
 4. Drop files onto the drop zone (or click **browse**), then run.
 
@@ -85,7 +86,7 @@ npm run binaries   # populate resources/ with the bundled tools (once, before pa
 npm run package    # build the Windows installer into dist/
 ```
 
-Stack: Electron + TypeScript, with a React + Vite + Tailwind renderer. Operations are performed by external tools (ffmpeg, ImageMagick, mutool, Ghostscript, CaesiumCLT, LibreOffice, Real-ESRGAN, rembg, ComfyUI) that the app orchestrates; the core tools are bundled and the AI tools are resolved from your machine or fetched on first use. See `CLAUDE.md` for architecture and scope.
+Stack: Electron + TypeScript, with a React + Vite + Tailwind renderer. Operations are performed by external tools (ffmpeg, ImageMagick, mutool, Ghostscript, CaesiumCLT, 7-Zip, LibreOffice, Real-ESRGAN, rembg, ComfyUI) that the app orchestrates; the core tools are bundled and the AI tools are resolved from your machine or fetched on first use. See `CLAUDE.md` for architecture and scope.
 
 ## License
 
