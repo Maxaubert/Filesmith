@@ -106,6 +106,31 @@ function bundleCaesium() {
   log(`  ✓ CaesiumCLT: caesiumclt.exe (${mb(join(BIN, 'caesiumclt.exe'))} MB)`)
 }
 
+/** 7-Zip: 7z.exe plus its 7z.dll. Handles every archive container the Archives
+ * category reads and writes (zip, 7z, tar, and READING rar). Copied from a
+ * local install like ImageMagick and Caesium; the standalone 7zr.exe is not an
+ * option because it only speaks 7z. */
+function bundleSevenZip() {
+  const dirs = [
+    process.env.ProgramW6432 && join(process.env.ProgramW6432, '7-Zip'),
+    process.env.ProgramFiles && join(process.env.ProgramFiles, '7-Zip'),
+    join('C:', 'Program Files', '7-Zip'),
+    join('C:', 'Program Files (x86)', '7-Zip')
+  ].filter(Boolean)
+  const dir = dirs.find((d) => existsSync(join(d, '7z.exe')))
+  if (!dir) {
+    log('  ! 7-Zip not found — skip (winget install 7zip.7zip)')
+    return
+  }
+  // 7z.exe needs 7z.dll beside it. License.txt travels with them: 7-Zip is
+  // LGPL with the unRAR restriction, so the licence has to ship too.
+  for (const f of ['7z.exe', '7z.dll', 'License.txt']) {
+    const src = join(dir, f)
+    if (existsSync(src)) copyFileSync(src, join(BIN, f === 'License.txt' ? '7-Zip-License.txt' : f))
+  }
+  log(`  ✓ 7-Zip: 7z.exe (${mb(join(BIN, '7z.exe'))} MB)`)
+}
+
 /** ffmpeg: download the smaller "essentials" static build and extract ffmpeg.exe. */
 async function bundleFfmpeg() {
   const url = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
@@ -406,13 +431,21 @@ function markSkipped(id) {
 function assertBundled() {
   const missing = []
 
-  const required = ['magick.exe', 'ffmpeg.exe', 'ffprobe.exe', 'caesiumclt.exe', 'mutool.exe']
+  const required = [
+    'magick.exe',
+    'ffmpeg.exe',
+    'ffprobe.exe',
+    'caesiumclt.exe',
+    'mutool.exe',
+    '7z.exe',
+    '7z.dll'
+  ]
   for (const f of required)
     if (!existsSync(join(BIN, f)))
       missing.push({
         id: f,
-        what: 'core convert/compress/PDF',
-        how: 'winget install ImageMagick.ImageMagick Gyan.FFmpeg ArtifexSoftware.mutool SaeraSoft.CaesiumCLT'
+        what: 'core convert/compress/PDF/archive',
+        how: 'winget install ImageMagick.ImageMagick Gyan.FFmpeg ArtifexSoftware.mutool SaeraSoft.CaesiumCLT 7zip.7zip'
       })
 
   // The essentials ffmpeg is ~90 MB; the local "full" static build is ~227 MB
@@ -476,6 +509,7 @@ if (process.argv.includes('--lo-only')) {
   log('Populating resources/bin …')
   bundleImageMagick()
   bundleCaesium()
+  bundleSevenZip()
   await bundleFfmpeg()
   bundleMutool()
   if (!SKIPPED.has('ghostscript')) await bundleGhostscript()
