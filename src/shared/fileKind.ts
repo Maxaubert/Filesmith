@@ -102,6 +102,11 @@ export const TEXT_EXTS = [
   '.sh'
 ]
 
+// Archive containers, including the comic variants (.cbz/.cbr/.cb7/.cbt are
+// zip/rar/7z/tar with a renamed extension). Compound extensions (.tar.gz) are
+// deliberately out: FileInfo.ext is a single lowercased extension.
+export const ARCHIVE_EXTS = ['.zip', '.rar', '.7z', '.tar', '.cbz', '.cbr', '.cb7', '.cbt']
+
 /** Classify a file by its extension (lowercased, with or without a leading dot). */
 export function fileKind(ext: string): FileKind {
   const e = (ext.startsWith('.') ? ext : '.' + ext).toLowerCase()
@@ -109,6 +114,7 @@ export function fileKind(ext: string): FileKind {
   if (IMAGE_EXTS.includes(e)) return 'image'
   if (VIDEO_EXTS.includes(e)) return 'video'
   if (AUDIO_EXTS.includes(e)) return 'audio'
+  if (ARCHIVE_EXTS.includes(e)) return 'archive'
   if (TEXT_EXTS.includes(e)) return 'text'
   if (DOC_EXTS.includes(e)) return 'document'
   return 'other'

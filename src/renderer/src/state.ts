@@ -105,6 +105,7 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
   upscale: { upscaleFactor: 4, upscaleModel: 'photo' },
   removebg: { ...BG_DEFAULTS },
   pdf: { op: 'extract-text', dpi: 150, range: '' },
+  archive: { op: 'repack', format: '.cbz', store: true, dpi: 150, pageFormat: 'jpg', quality: 85 },
   generate: {
     prompt: '',
     model: '',
