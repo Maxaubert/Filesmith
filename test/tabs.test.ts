@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { TABS, TOOL_CARDS, tabAccepts, tabById, toolCardById, toolGroups } from '@shared/tabs'
+import {
+  TABS,
+  TOOL_CARDS,
+  engineFor,
+  tabAccepts,
+  tabById,
+  toolCardById,
+  toolGroups
+} from '@shared/tabs'
 
 describe('tab model', () => {
   it('lists the seven verbs in rail order', () => {
@@ -56,6 +64,21 @@ describe('tab model', () => {
     expect(toolCardById('archive-to-pdf')?.opKey).toBe('to-pdf')
     expect(toolCardById('pdf-to-cbz')?.opKey).toBe('from-pdf')
     expect(toolCardById('archive-extract')?.opKey).toBe('extract')
+  })
+
+  it('routes an archive Convert to the archive engine, not the convert one', () => {
+    // The tab-to-tool mapping is not 1:1: repacking a .cbz is the archive tool
+    // with op 'repack', even though the tab is Convert.
+    expect(engineFor('convert', 'archive')).toEqual({ tool: 'archive', op: 'repack' })
+    expect(engineFor('convert', 'image')).toEqual({ tool: 'convert' })
+    expect(engineFor('compress', 'doc')).toEqual({ tool: 'compress' })
+  })
+
+  it('lets a tool card name its own tool and verb', () => {
+    expect(engineFor('tools', 'pdf', toolCardById('pdf-merge'))).toEqual({
+      tool: 'pdf',
+      op: 'merge'
+    })
   })
 
   it('gives every tool card a unique id and an accepted kind', () => {

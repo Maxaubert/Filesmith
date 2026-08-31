@@ -116,11 +116,18 @@ export function defaultTargetExt(kind: FileKind, srcExt: string): string | null 
 /**
  * The batch-conversion group a file belongs to: files in the same group share a
  * target-format set and can be multi-selected + converted together. Word docs,
- * plain text, and PDF all share one 'doc' group; spreadsheets and slides get
- * their own (their targets differ).
+ * plain text, and PDF all share one 'doc' group; spreadsheets, slides and
+ * archives get their own (their targets differ).
+ *
+ * This is also the app's NAVIGATION grouping axis: the queue groups by it and
+ * a selection may never span two groups, because one options panel can only
+ * describe one target set.
  */
 export function convertGroup(kind: FileKind, ext: string): string {
   if (kind === 'image' || kind === 'video' || kind === 'audio') return kind
+  // Archives share no target set with documents. Without this branch the
+  // fall-through below returns 'doc' and a .cbz batches with a .docx.
+  if (kind === 'archive') return 'archive'
   const e = normalizeExt(ext)
   if (SHEET_EXTS.includes(e)) return 'sheet'
   if (SLIDE_EXTS.includes(e)) return 'slide'

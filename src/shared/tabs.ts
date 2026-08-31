@@ -6,13 +6,7 @@ import type { FileKind, ToolId } from './types'
 // same verb (Convert) had to exist five times over, once per file type.
 
 export type TabId =
-  | 'convert'
-  | 'compress'
-  | 'resize'
-  | 'upscale'
-  | 'removebg'
-  | 'generate'
-  | 'tools'
+  'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'generate' | 'tools'
 
 export interface Tab {
   id: TabId
@@ -214,6 +208,22 @@ export const TOOL_CARDS: ToolCard[] = [
     kinds: ['pdf']
   }
 ]
+
+/**
+ * The engine tool (and verb) that actually performs a tab's work for one convert
+ * group. The mapping is not 1:1: the Convert tab runs the `convert` tool for
+ * images, video, audio and documents, but an archive repack is the `archive`
+ * tool with op `repack`. A tool card names its own tool and op outright.
+ */
+export function engineFor(
+  tab: TabId,
+  group: string,
+  card?: ToolCard | null
+): { tool: ToolId; op?: string } {
+  if (card) return { tool: card.tool, op: card.opKey }
+  if (tab === 'convert' && group === 'archive') return { tool: 'archive', op: 'repack' }
+  return { tool: tabById(tab).tool }
+}
 
 export function tabById(id: TabId): Tab {
   return TABS.find((t) => t.id === id) ?? TABS[0]
