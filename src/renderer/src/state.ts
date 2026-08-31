@@ -123,8 +123,8 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
 
 export const emptyQueue = (): QueueState => ({ items: [], selected: [], anchor: null })
 
-/** A fresh workspace's options: its tool's defaults, plus the PDF verb when the
- * operation is one of the several the pdf tool carries. */
+/** A fresh workspace's options: its tool's defaults, plus the operation's verb
+ * when its tool carries several (the pdf and archive tools both do). */
 export function defaultOptionsFor(category: CategoryId, opId: string): JobOptions {
   const op = findOperation(category, opId)
   if (!op) return {}
