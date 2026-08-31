@@ -71,8 +71,10 @@ function runJob(tool: string, input: string, options: Record<string, unknown>): 
   )
 }
 
-test('the app boots to the Images workspace', async () => {
-  await expect(page.locator('text=Images').first()).toBeVisible()
+test('the app boots to the Convert workspace', async () => {
+  // The rail names the verb, so the app opens on the first one rather than on
+  // a file type.
+  await expect(page.locator('h1', { hasText: 'Convert' }).first()).toBeVisible()
   // The primary action is on screen without scrolling (the pinned footer).
   await expect(page.locator('button', { hasText: 'Convert' }).last()).toBeVisible()
 })

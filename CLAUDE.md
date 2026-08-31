@@ -19,6 +19,11 @@ PowerShell scripts (`../RCMM/manager/src/RCMM/`), lifted into a real GUI app.
 
 ## Design process — READ THIS
 
+Navigation is VERB-first: the rail is Convert / Compress / Resize / Upscale /
+Remove BG / Generate / Tools, each owning one queue that may hold several
+convert groups at once. A selection never spans two convert groups, because one
+options panel can only describe one target set. See `src/shared/tabs.ts`.
+
 **The look is designed collaboratively with the owner. Make NO visual assumptions.**
 Before building or restyling any UI, present mockups (self-contained browser HTML, like the
 RCMM Show/Hide exploration), offer options, and iterate to explicit sign-off. This covers
@@ -53,7 +58,8 @@ src/
     (planned) ipc.ts           renderer <-> engine wiring
   preload/     contextBridge — the typed `window.filesmith` API
   renderer/    React UI (placeholder until designed)
-  shared/      (planned) types.ts — Job, ToolId, FileKind, Options, progress events
+  shared/      types.ts — Job, ToolId, FileKind, Options, progress events
+               tabs.ts  — the VERB-first navigation model (rail tabs + Tools cards)
 resources/bin/ bundled CLI binaries (gitignored; fetched by scripts, packed by electron-builder)
 ```
 

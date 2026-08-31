@@ -169,24 +169,26 @@ test.afterAll(async () => {
 
 // --- UI navigation -----------------------------------------------------------
 
+/** Tools remembers the card you last had open (and that survives a restart via
+ * session.json), so reaching the grid means backing out of any open tool. */
+async function openToolsGrid(p: Page): Promise<void> {
+  await p.locator('button:has-text("Tools")').first().click()
+  const back = p.locator('button[aria-label="Back to Tools"]')
+  if (await back.count()) await back.first().click()
+  await expect(p.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
+}
+
 test('the rail lists every verb and opens its workspace', async () => {
-  for (const verb of [
-    'Convert',
-    'Compress',
-    'Resize',
-    'Upscale',
-    'Remove BG',
-    'Generate',
-    'Tools'
-  ]) {
+  for (const verb of ['Convert', 'Compress', 'Resize', 'Upscale', 'Remove BG', 'Generate']) {
     await page.locator(`button:has-text("${verb}")`).first().click()
     await expect(page.locator('h1', { hasText: verb }).first()).toBeVisible()
   }
+  await openToolsGrid(page)
   await page.locator('button:has-text("Convert")').first().click()
 })
 
 test('Tools groups its one-off verbs and opens one as a workspace', async () => {
-  await page.locator('button:has-text("Tools")').first().click()
+  await openToolsGrid(page)
   for (const t of ['Extract text', 'Merge', 'Burst', 'Archive to PDF', 'PDF to CBZ']) {
     await expect(page.locator(`text=${t}`).first()).toBeVisible()
   }
@@ -194,6 +196,9 @@ test('Tools groups its one-off verbs and opens one as a workspace', async () => 
   // A tool workspace is an ordinary queue titled with the tool's name.
   await expect(page.locator('h1', { hasText: 'Merge' }).first()).toBeVisible()
   await expect(page.locator('text=Input').first()).toBeVisible()
+  // Back returns to the grid, which is the app's only second level.
+  await page.locator('button[aria-label="Back to Tools"]').first().click()
+  await expect(page.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
   await page.locator('button:has-text("Convert")').first().click()
 })
 
