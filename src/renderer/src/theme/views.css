@@ -407,6 +407,11 @@
   font-weight: 600;
   color: var(--fg1);
 }
+.menu-item:disabled {
+  color: var(--fg-disabled);
+  font-weight: 400;
+  background: none;
+}
 .menu-sep {
   height: 1px;
   margin: 4px 0;

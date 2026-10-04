@@ -1,10 +1,24 @@
-import { useEffect, useLayoutEffect, useRef, type JSX } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type JSX,
+  type KeyboardEvent as ReactKeyboardEvent
+} from 'react'
 import type { IconName } from '@shared/icons'
 import { Icon } from './icons/Icon'
 
 export type MenuItem =
   | { sep: true }
-  | { sep?: false; label: string; icon: IconName; danger?: boolean; onClick: () => void }
+  | {
+      sep?: false
+      label: string
+      icon: IconName
+      danger?: boolean
+      /** Shown greyed out, so the menu keeps one shape for every selection. */
+      disabled?: boolean
+      onClick: () => void
+    }
 
 export interface MenuState {
   x: number
@@ -31,6 +45,7 @@ export function ContextMenu({
   useLayoutEffect(() => {
     const el = ref.current
     if (!menu || !el) return
+    const prev = document.activeElement as HTMLElement | null
     const { width, height } = el.getBoundingClientRect()
     const pad = 8
     const left = menu.x + width > window.innerWidth - pad ? menu.x - width : menu.x
@@ -38,7 +53,37 @@ export function ContextMenu({
     el.style.left = `${Math.max(pad, left)}px`
     el.style.top = `${Math.max(pad, top)}px`
     el.style.visibility = 'visible'
+    // Keyboard users land on the first live entry, as in a native menu.
+    el.querySelector<HTMLButtonElement>('.menu-item:not(:disabled)')?.focus()
+    // Hand focus back to whatever opened the menu (a table row) on close,
+    // unless the user has already moved it somewhere else.
+    return () => {
+      const a = document.activeElement
+      if ((!a || a === document.body || el.contains(a)) && prev?.isConnected) prev.focus()
+    }
   }, [menu])
+
+  // Arrow keys walk the enabled entries (disabled buttons are skipped, since
+  // they cannot take focus); Home/End jump to the ends.
+  function onMenuKey(e: ReactKeyboardEvent<HTMLDivElement>): void {
+    const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End']
+    if (!keys.includes(e.key)) return
+    e.preventDefault()
+    const items = Array.from(
+      ref.current?.querySelectorAll<HTMLButtonElement>('.menu-item:not(:disabled)') ?? []
+    )
+    if (!items.length) return
+    const i = items.indexOf(document.activeElement as HTMLButtonElement)
+    const next =
+      e.key === 'Home'
+        ? 0
+        : e.key === 'End'
+          ? items.length - 1
+          : e.key === 'ArrowDown'
+            ? (i + 1) % items.length
+            : (i - 1 + items.length) % items.length
+    items[next].focus()
+  }
 
   // Dismiss on any outside interaction.
   useEffect(() => {
@@ -69,6 +114,7 @@ export function ContextMenu({
       role="menu"
       onMouseDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
+      onKeyDown={onMenuKey}
       className="ctx-pop menu"
       style={{ left: menu.x, top: menu.y, visibility: 'hidden' }}
     >
@@ -78,7 +124,9 @@ export function ContextMenu({
         ) : (
           <button
             key={i}
+            type="button"
             role="menuitem"
+            disabled={item.disabled}
             className={`menu-item${item.danger ? ' danger' : ''}`}
             onClick={() => {
               item.onClick()

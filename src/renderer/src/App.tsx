@@ -62,6 +62,14 @@ import {
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
 import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
+import {
+  deleteConfirm,
+  menuTargets,
+  removeConfirm,
+  revealPath,
+  rowMenuModel,
+  type RowMenuAction
+} from './components/queue/rowMenu'
 import { groupedRows, nextSort, visibleOrder, type SortState } from './components/queue/tableSort'
 import { estimateBatch, estimateOutputBytes } from '@shared/sizeEstimate'
 import { EmptyState } from './components/queue/EmptyState'
@@ -492,66 +500,95 @@ export default function App(): JSX.Element {
     else retry([id])
   }
 
-  // Build the right-click / ⋯ menu for a queue item. Destructive actions apply
-  // to the whole selection when the clicked item is part of a multi-selection;
-  // otherwise just to that one item.
-  function openMenu(
-    side: 'input' | 'output',
-    item: QueueItem,
-    x: number,
-    y: number,
-    targetIds?: string[]
-  ): void {
-    const inSel = cur.selected.includes(item.id) && cur.selected.length > 1
-    // The output side is driven by the Completed view, which passes its own
-    // selection; it is not the current queue's.
-    const targets =
-      side === 'output'
-        ? (targetIds ?? [item.id])
-        : inSel
-          ? cur.selected.filter((id) => {
-              const it = cur.items.find((x) => x.id === id)
-              return it != null && inInput(it)
-            })
-          : [item.id]
-    const n = targets.length
+  /** "Are you sure" before rows leave the list; files on disk stay put. */
+  function confirmRemove(ids: string[]): void {
+    if (!ids.length) return
+    setConfirm({
+      ...removeConfirm(ids.length),
+      confirmLabel: 'Remove',
+      danger: true,
+      onConfirm: () => dismiss(ids, 'input')
+    })
+  }
 
-    if (side === 'input') {
-      // Cancel applies to whichever of the targeted rows are actually in flight.
-      const cancellable = targets.filter((id) => {
-        const it = cur.items.find((x) => x.id === id)
-        return it != null && (it.status === 'queued' || it.status === 'running')
-      })
-      setMenu({
-        x,
-        y,
-        items: [
-          { label: 'Open', icon: 'eye', onClick: () => openExternally('input', item) },
-          {
-            label: 'Reveal in Explorer',
-            icon: 'folder',
-            onClick: () => window.filesmith.reveal(item.file.path)
-          },
-          ...(cancellable.length
-            ? [
-                {
-                  label: cancellable.length > 1 ? `Cancel ${cancellable.length} jobs` : 'Cancel',
-                  icon: 'close' as const,
-                  onClick: () => cancellable.forEach(cancelJob)
-                }
-              ]
-            : []),
-          { sep: true },
-          {
-            label: n > 1 ? `Remove ${n} from list` : 'Remove from list',
-            icon: 'trash',
-            danger: true,
-            onClick: () => dismiss(targets, 'input')
-          }
-        ]
-      })
-      return
+  /** Move the rows' SOURCE files to the Recycle Bin (reversible, never a hard
+   * delete), then drop those rows. A file that could not be recycled keeps its
+   * row and is named in an alert. */
+  async function trashSources(ids: string[]): Promise<void> {
+    const rows = cur.items.filter((i) => ids.includes(i.id) && inInput(i))
+    const failed: string[] = []
+    // One source can sit in several rows (a re-run clone): recycle it once.
+    for (const path of [...new Set(rows.map((r) => r.file.path))]) {
+      const ok = await window.filesmith.trashFile(path)
+      if (!ok) {
+        failed.push(baseName(path))
+        continue
+      }
+      evictProbe(path)
+      for (const r of rows)
+        if (r.file.path === path) dispatch({ type: 'dismiss', id: r.id, column: 'input' })
     }
+    if (failed.length)
+      setConfirm({
+        title:
+          failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
+        body: `${failed.join(', ')} could not be moved to the Recycle Bin, the file may be open in another app.`,
+        confirmLabel: 'OK',
+        hideCancel: true,
+        onConfirm: () => {}
+      })
+  }
+
+  /** The files table's right-click menu. A selected row acts on the whole
+   * selection; any other row becomes the selection first (the reducer keeps it
+   * inside one convert group). */
+  function openRowMenu(id: string, x: number, y: number): void {
+    const ids = menuTargets(id, cur.selected)
+    if (!cur.selected.includes(id)) dispatch({ type: 'select', id, mode: 'single', order })
+    const rows = cur.items.filter((i) => ids.includes(i.id))
+    const act = (a: RowMenuAction): void => {
+      const one = rows.length === 1 ? rows[0] : null
+      if (a === 'open') {
+        if (one) openExternally('input', one)
+      } else if (a === 'reveal') {
+        if (one) window.filesmith.reveal(revealPath(one))
+      } else if (a === 'retry') retry(rows.map((r) => r.id))
+      else if (a === 'stop')
+        rows
+          .filter((r) => r.status === 'queued' || r.status === 'running')
+          .forEach((r) => cancelJob(r.id))
+      else if (a === 'clear') dispatch({ type: 'hideFinished' })
+      else if (a === 'remove') confirmRemove(rows.map((r) => r.id))
+      else
+        setConfirm({
+          ...deleteConfirm(rows.length),
+          confirmLabel: rows.length > 1 ? `Delete ${rows.length} files` : 'Delete',
+          danger: true,
+          onConfirm: () => void trashSources(rows.map((r) => r.id))
+        })
+    }
+    setMenu({
+      x,
+      y,
+      items: rowMenuModel(rows, cur.items).map((e) =>
+        e.sep
+          ? e
+          : {
+              label: e.label,
+              icon: e.icon,
+              danger: e.danger,
+              disabled: e.disabled,
+              onClick: () => act(e.action)
+            }
+      )
+    })
+  }
+
+  // The Completed view's right-click menu: acts on that view's own selection,
+  // which spans every queue's results.
+  function openOutputMenu(item: QueueItem, x: number, y: number, targetIds?: string[]): void {
+    const targets = targetIds ?? [item.id]
+    const n = targets.length
     const out = item.outputPath
     if (!out) return
     setMenu({
@@ -560,7 +597,7 @@ export default function App(): JSX.Element {
       items: [
         { label: 'Open', icon: 'eye', onClick: () => openExternally('output', item) },
         {
-          label: 'Reveal in Explorer',
+          label: 'Show in File Explorer',
           icon: 'folder',
           onClick: () => window.filesmith.reveal(out)
         },
@@ -664,7 +701,7 @@ export default function App(): JSX.Element {
           onClick: () => window.filesmith.openFile(path)
         },
         {
-          label: 'Reveal in Explorer',
+          label: 'Show in File Explorer',
           icon: 'folder',
           onClick: () => window.filesmith.reveal(path)
         },
@@ -879,10 +916,11 @@ export default function App(): JSX.Element {
             .map((f) => f.path)
         : []
   const compressVideoPaths = tool === 'compress' ? probePaths : []
-  // The focused file, shown by the Preview and Info panes (spec 4.6).
-  const focused = cur.items.find(
-    (i) => i.id === (cur.anchor && cur.selected.includes(cur.anchor) ? cur.anchor : cur.selected[0])
-  )
+  // The focused file, shown by the Preview and Info panes (spec 4.6). Both
+  // describe ONE file, so a multi-selection shows neither rather than quietly
+  // picking one of the files.
+  const multiSelected = cur.selected.length > 1
+  const focused = multiSelected ? undefined : cur.items.find((i) => i.id === cur.selected[0])
   // Preview and Info show the focused file's pixels, so probe it too.
   const focusedProbe =
     inspTab !== 'options' &&
@@ -1045,7 +1083,9 @@ export default function App(): JSX.Element {
       : inspTab !== 'options'
         ? focused
           ? 'selected'
-          : ''
+          : multiSelected
+            ? `${cur.selected.length} selected`
+            : ''
         : cur.selected.length
           ? `${cur.selected.length} selected`
           : scopeCount
@@ -1116,7 +1156,7 @@ export default function App(): JSX.Element {
                 thumbs={outThumbs}
                 onOpen={(item) => openExternally('output', item)}
                 onReveal={(p) => window.filesmith.reveal(p)}
-                onMenu={(item, x, y, ids) => openMenu('output', item, x, y, ids)}
+                onMenu={openOutputMenu}
                 onDelete={(ids) =>
                   setConfirm({
                     title: ids.length === 1 ? 'Delete this file?' : `Delete ${ids.length} files?`,
@@ -1156,21 +1196,7 @@ export default function App(): JSX.Element {
                   files={inputs.length}
                   selected={cur.selected.length}
                   dropping={dragging}
-                  canRemove={cur.selected.length > 0}
-                  canClear={inputs.some((i) => i.status === 'done' || i.status === 'canceled')}
                   onAdd={() => void browse()}
-                  onRemove={() => {
-                    const ids = cur.selected
-                    const n = ids.length
-                    setConfirm({
-                      title: n === 1 ? 'Remove this file?' : `Remove ${n} files?`,
-                      body: 'They leave the list. Files on disk are not touched; running jobs are stopped.',
-                      confirmLabel: 'Remove',
-                      danger: true,
-                      onConfirm: () => dismiss(ids, 'input')
-                    })
-                  }}
-                  onClear={() => dispatch({ type: 'hideFinished' })}
                 />
                 <QueueTable
                   groups={groups}
@@ -1195,14 +1221,9 @@ export default function App(): JSX.Element {
                     const it = cur.items.find((i) => i.id === id)
                     if (it) openExternally('input', it)
                   }}
-                  onMenu={(id, x, y) => {
-                    const it = cur.items.find((i) => i.id === id)
-                    if (it) openMenu('input', it, x, y)
-                  }}
+                  onMenu={openRowMenu}
                   onAction={onRowAction}
-                  onRemove={(id) =>
-                    dismiss(cur.selected.includes(id) ? cur.selected : [id], 'input')
-                  }
+                  onRemove={(id) => confirmRemove(menuTargets(id, cur.selected))}
                   onSelectGroup={(g) =>
                     dispatch({
                       type: 'selectIds',
@@ -1286,6 +1307,16 @@ export default function App(): JSX.Element {
                     target={typeof curOptions.format === 'string' ? curOptions.format : null}
                   />
                 )
+              ) : multiSelected ? (
+                <EmptyState
+                  icon={inspTab === 'preview' ? 'eye' : 'info'}
+                  title={`${cur.selected.length} files selected`}
+                  line={
+                    inspTab === 'preview'
+                      ? 'Select one file to preview'
+                      : 'Select one file to see its info'
+                  }
+                />
               ) : (
                 <EmptyState
                   icon={inspTab === 'preview' ? 'eye' : 'info'}

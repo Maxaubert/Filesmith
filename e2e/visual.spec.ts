@@ -129,6 +129,16 @@ test('capture the redesign next to the mockup', async () => {
   })
   await page.screenshot({ path: join(SHOTS, 'impl-10-s2.png') })
 
+  // The right-click menu on the selected row.
+  await page.getByRole('row', { name: /beach-panorama/ }).click({ button: 'right' })
+  await expect(page.getByRole('menu')).toBeVisible()
+  // Let the fade-in finish so the shot shows the settled menu.
+  await expect
+    .poll(() => page.getByRole('menu').evaluate((el) => el.getAnimations().length))
+    .toBe(0)
+  await page.screenshot({ path: join(SHOTS, 'impl-menu.png') })
+  await page.keyboard.press('Escape')
+
   await page
     .getByRole('navigation', { name: 'Operations' })
     .getByRole('button', { name: /sidebar/ })
