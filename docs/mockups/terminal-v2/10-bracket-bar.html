@@ -1,0 +1,136 @@
+<!doctype html>
+<!--
+  Filesmith round 2, mockup #10: Bracket bar
+  Pitch: fully mono and flat. Square brackets are the only device: the running
+  file shows a text bar [######····], the chosen format reads [webp], and the
+  action is a square white block. No pills, no fills, no dividers, no percentages.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440, initial-scale=1">
+<title>Filesmith Bracket Bar</title>
+<style>
+  :root {
+    --bg: #000000;
+    --fg: #f2f2f2;
+    --fg2: #d0d0d0;
+    --fg3: #8f8f8f;
+    --glyph: #b0b0b0;
+    --hover: #121212;
+    --m: "Cascadia Mono", Consolas, ui-monospace, monospace;
+    --ease: cubic-bezier(.2,.7,.2,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body {
+    width: 1440px; height: 900px; overflow: hidden;
+    color: var(--fg); font: 13px/1.4 var(--m);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; border-radius: 0; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  button:active { transform: scale(.97); }
+
+  /* title bar */
+  .chrome { height: 38px; display: flex; align-items: center; padding-left: 20px; -webkit-app-region: drag; }
+  .mark { width: 10px; height: 10px; border: 1.5px solid var(--glyph); margin-right: 12px; }
+  .appname { color: var(--fg3); font-size: 12px; }
+  .win { margin-left: auto; display: flex; height: 38px; }
+  .win button { width: 46px; height: 38px; display: grid; place-items: center; color: var(--glyph); transition: background-color 150ms var(--ease); }
+  .win button:hover { background: var(--hover); }
+  .win button:active { transform: none; }
+  .win svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1; fill: none; }
+
+  .app { display: grid; grid-template-columns: 200px 1fr; height: 862px; }
+
+  /* verb rail: lowercase text, active marked with a leading prompt */
+  nav { padding: 60px 0 0 20px; display: flex; flex-direction: column; }
+  nav button {
+    height: 32px; text-align: left; font-size: 13px; color: var(--fg3);
+    transition: color 150ms var(--ease);
+  }
+  nav button::before { content: "\00a0\00a0"; }
+  nav button:hover { color: var(--fg); }
+  nav button[aria-current="page"] { color: var(--fg); }
+  nav button[aria-current="page"]::before { content: "\203a\00a0"; }
+
+  /* content */
+  main { padding: 60px 0 0 140px; }
+  .col { width: 440px; }
+  h1 { font-size: 13px; font-weight: 400; color: var(--fg3); margin-bottom: 40px; height: 32px; line-height: 32px; }
+
+  ol { list-style: none; }
+  li { height: 36px; display: flex; align-items: center; justify-content: space-between; }
+  .name { color: var(--fg2); }
+  .st { color: var(--fg3); white-space: pre; }
+  .st.done { color: var(--fg2); }
+  .st.run { color: var(--fg); }
+  .st.run .dots { color: var(--fg3); }
+  li.bad .name { color: var(--fg); }
+  .st.fail { color: var(--fg); font-weight: 700; }
+
+  /* format: bracketed text, no fill */
+  .fmt { display: flex; margin-top: 72px; margin-left: -8px; }
+  .fmt button { height: 32px; padding: 0 8px; color: var(--fg3); transition: color 150ms var(--ease); }
+  .fmt button::before, .fmt button::after { content: "\00a0"; }
+  .fmt button:hover { color: var(--fg); }
+  .fmt button[aria-pressed="true"] { color: var(--fg); }
+  .fmt button[aria-pressed="true"]::before { content: "["; }
+  .fmt button[aria-pressed="true"]::after { content: "]"; }
+
+  /* action: one square white block */
+  .go {
+    margin-top: 32px; height: 40px; padding: 0 20px;
+    background: #ffffff; color: #000000; font-weight: 600;
+    transition: opacity 150ms var(--ease);
+  }
+  .go:hover { opacity: .88; }
+</style>
+</head>
+<body>
+  <header class="chrome">
+    <span class="mark" aria-hidden="true"></span>
+    <span class="appname">filesmith</span>
+    <div class="win">
+      <button aria-label="Minimise"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximise"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="app">
+    <nav aria-label="Operations">
+      <button aria-current="page">convert</button>
+      <button>compress</button>
+      <button>resize</button>
+      <button>upscale</button>
+      <button>remove bg</button>
+      <button>generate</button>
+      <button>tools</button>
+    </nav>
+
+    <main>
+      <div class="col">
+        <h1>convert</h1>
+
+        <ol>
+          <li><span class="name">IMG_4821.HEIC</span><span class="st done">done</span></li>
+          <li><span class="name">screenshot.png</span><span class="st run" role="progressbar" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100">[######<span class="dots">····</span>]</span></li>
+          <li><span class="name">hero-banner.png</span><span class="st">queued</span></li>
+          <li class="bad"><span class="name">scan_0091.tiff</span><span class="st fail">failed</span></li>
+        </ol>
+
+        <div class="fmt" role="group" aria-label="Target format">
+          <button aria-pressed="true">webp</button>
+          <button aria-pressed="false">jpg</button>
+          <button aria-pressed="false">png</button>
+          <button aria-pressed="false">avif</button>
+        </div>
+
+        <button class="go">convert 4 files</button>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

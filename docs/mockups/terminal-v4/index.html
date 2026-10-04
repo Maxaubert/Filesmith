@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Filesmith IDE mockups</title>
+<style>
+:root{--bg:#000;--fg:#e6e6e6;--mid:#9a9a9a;--dim:#6a6a6a;--line:#262626;--hover:#555}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 ui-monospace,"Cascadia Mono",Consolas,monospace;padding:32px 24px 48px}
+header{max-width:1600px;margin:0 auto 24px;border-bottom:1px solid var(--line);padding-bottom:16px}
+h1{font-size:15px;font-weight:600}
+header p{color:var(--mid);margin-top:4px;max-width:90ch}
+.grid{max-width:1600px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px}
+.card{display:block;color:inherit;text-decoration:none;border:1px solid var(--line);padding:10px;transition:border-color .12s}
+.card:hover,.card:focus-visible{border-color:var(--hover);outline:none}
+.card img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;object-position:top left;border:1px solid var(--line);background:#0a0a0a}
+.meta{display:flex;gap:10px;align-items:baseline;margin-top:10px}
+.num{color:var(--dim)}
+.name{font-weight:600}
+.src{color:var(--dim);font-size:11.5px;margin-top:4px}
+.pitch{color:var(--mid);margin-top:6px}
+@media (max-width:420px){body{padding:20px 16px}.grid{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>Filesmith / terminal-v4 / IDE-inspired layouts</h1>
+<p>20 directions that borrow from how IDEs lay out simple, easy to navigate settings pages and menus. Click a card to open the mockup.</p></header>
+<main class="grid">
+  <a class="card" href="01-activity-explorer.html">
+    <img src="shots/01-activity-explorer.png" alt="Explorer mockup" loading="lazy">
+    <div class="meta"><span class="num">01</span><span class="name">Explorer</span></div>
+    <p class="src">VS Code activity bar (2px edge bar active, badge), Explorer sidebar view with 22px collapsible section headers, empty editor as preview, status bar</p>
+    <p class="pitch">The VS Code Explorer turned into a file tool. A narrow activity bar holds the verbs, and a 300px sidebar stacks collapsible QUEUE, OPTIONS and OUTPUT sections. The editor area previews the selected file. It is calm and familiar, and nothing floats.</p>
+  </a>
+  <a class="card" href="02-settings-editor.html">
+    <img src="shots/02-settings-editor.png" alt="Settings Editor mockup" loading="lazy">
+    <div class="meta"><span class="num">02</span><span class="name">Settings Editor</span></div>
+    <p class="src">VS Code Settings editor (search + category tree + stacked rows, modified bar), VS Code secondary side bar, activity bar</p>
+    <p class="pitch">Convert options read like VS Code's Settings UI: a search field, a category tree and stacked setting rows with a one-line description each. The queue lives in a secondary sidebar on the right. It is the literal 'IDE settings page' feel the owner asked for.</p>
+  </a>
+  <a class="card" href="03-twin-stripes.html">
+    <img src="shots/03-twin-stripes.png" alt="Twin Stripes mockup" loading="lazy">
+    <div class="meta"><span class="num">03</span><span class="name">Twin Stripes</span></div>
+    <p class="src">JetBrains New UI stripes (filled square active, separators), run widget in the title bar, tool windows (Options docked right), compact toolbar</p>
+    <p class="pitch">JetBrains New UI framing: a tool window stripe on each edge, the queue as the main table, and a run widget in the title bar that holds the primary action, the way IntelliJ holds Run.</p>
+  </a>
+  <a class="card" href="04-verb-tabs.html">
+    <img src="shots/04-verb-tabs.png" alt="Verb Tabs mockup" loading="lazy">
+    <div class="meta"><span class="num">04</span><span class="name">Verb Tabs</span></div>
+    <p class="src">VS Code editor tabs (active top border, merges into content), breadcrumbs bar, JetBrains-style property inspector rows</p>
+    <p class="pitch">The verbs are editor tabs across the top, each with an icon, and Convert is the active tab merging into the content. A breadcrumb names the target. A plain property inspector holds the options. There is no rail at all.</p>
+  </a>
+  <a class="card" href="05-project-widget.html">
+    <img src="shots/05-project-widget.png" alt="Project Widget mockup" loading="lazy">
+    <div class="meta"><span class="num">05</span><span class="name">Project Widget</span></div>
+    <p class="src">Zed / JetBrains title bar project picker, Zed flat list panes, inspector pane with disclosure groups</p>
+    <p class="pitch">Zed and JetBrains style: no rail. The verb is picked from a 'Convert ▾' widget in the title bar, so the whole window belongs to a flat queue list and an inspector. The most uncluttered take.</p>
+  </a>
+  <a class="card" href="06-preferences-tree.html">
+    <img src="shots/06-preferences-tree.png" alt="Preferences Tree mockup" loading="lazy">
+    <div class="meta"><span class="num">06</span><span class="name">Preferences Tree</span></div>
+    <p class="src">JetBrains Settings dialog (tree with search, breadcrumb header, titled-separator groups), horizontal split</p>
+    <p class="pitch">The JetBrains Settings dialog as a whole app. A 220px tree lists the verbs, and each verb expands to its option pages (Convert › Format, Quality, Output). A breadcrumb header and titled separators replace cards, and the queue sits in a lower split.</p>
+  </a>
+  <a class="card" href="07-zed-hairline.html">
+    <img src="shots/07-zed-hairline.png" alt="Hairline mockup" loading="lazy">
+    <div class="meta"><span class="num">07</span><span class="name">Hairline</span></div>
+    <p class="src">Zed (thin dock, crisp mono, hairline panes, slim pane headers), VS Code status bar</p>
+    <p class="pitch">Zed minimalism with enough substance: a 40px icon column, one hairline split between queue and options, mono for data. Quiet, but every verb, row and button carries an icon.</p>
+  </a>
+  <a class="card" href="08-fleet-grid.html">
+    <img src="shots/08-fleet-grid.png" alt="Fleet Grid mockup" loading="lazy">
+    <div class="meta"><span class="num">08</span><span class="name">Fleet Grid</span></div>
+    <p class="src">JetBrains Fleet top toolbar and centred workspace, property grid / key-value table, compact toolbar</p>
+    <p class="pitch">JetBrains Fleet: a top toolbar instead of a rail, a centred workspace, and options as a crisp key-value property grid. Modern IDE-lite with air, still compact.</p>
+  </a>
+  <a class="card" href="09-walkthrough-steps.html">
+    <img src="shots/09-walkthrough-steps.png" alt="Walkthrough mockup" loading="lazy">
+    <div class="meta"><span class="num">09</span><span class="name">Walkthrough</span></div>
+    <p class="src">VS Code Welcome / Walkthrough step list (expanding step, check glyphs), activity bar, status bar</p>
+    <p class="pitch">Borrowed from VS Code's Get Started walkthroughs: the left pane is a short numbered checklist (Add files, Format, Quality, Output), the active step expands inline to its control, finished steps show a check and their value. Setup becomes a guided menu, the queue fills the rest.</p>
+  </a>
+  <a class="card" href="10-explorer-details.html">
+    <img src="shots/10-explorer-details.png" alt="Details + Inspector mockup" loading="lazy">
+    <div class="meta"><span class="num">10</span><span class="name">Details + Inspector</span></div>
+    <p class="src">JetBrains / Explorer list with sortable column headers, Xcode inspector segmented icon tabs, property grid for Info</p>
+    <p class="pitch">Explorer details view meets the Xcode inspector. The queue is a sortable column table, and the right inspector switches between Options, Preview and Info with icon segments. Power-user, but tidy.</p>
+  </a>
+  <a class="card" href="11-nova-prefpane.html">
+    <img src="shots/11-nova-prefpane.png" alt="Pref Pane mockup" loading="lazy">
+    <div class="meta"><span class="num">11</span><span class="name">Pref Pane</span></div>
+    <p class="src">Nova / macOS preference-pane icon toolbar (square, monochrome), two-column right-aligned label forms, status bar</p>
+    <p class="pitch">Panic Nova and classic preference panes: a top toolbar of square verb icons with small labels, and a two-column right-aligned form beside the queue. Reads like a well-made desktop app, not a web page.</p>
+  </a>
+  <a class="card" href="12-options-sidebar.html">
+    <img src="shots/12-options-sidebar.png" alt="Options Sidebar mockup" loading="lazy">
+    <div class="meta"><span class="num">12</span><span class="name">Options Sidebar</span></div>
+    <p class="src">VS Code activity bar, a sidebar view titled like settings with stacked setting rows, editor area as details list, editor header actions</p>
+    <p class="pitch">An activity bar plus a sidebar that IS the options: flush setting rows stacked in a 320px view, separated by hairlines, no cards, no row icons. The editor area is a large, airy details list of the queue.</p>
+  </a>
+  <a class="card" href="13-run-configurations.html">
+    <img src="shots/13-run-configurations.png" alt="Run Configurations mockup" loading="lazy">
+    <div class="meta"><span class="num">13</span><span class="name">Run Configurations</span></div>
+    <p class="src">JetBrains Run/Debug Configurations dialog (config list + form), JetBrains stripe, compact toolbar</p>
+    <p class="pitch">JetBrains Run/Debug Configurations as the options model: a short list of named targets on the left, the selected one's form on the right, and the queue below. Picking a setup feels like picking a run config.</p>
+  </a>
+  <a class="card" href="14-command-center.html">
+    <img src="shots/14-command-center.png" alt="Command Center mockup" loading="lazy">
+    <div class="meta"><span class="num">14</span><span class="name">Command Center</span></div>
+    <p class="src">VS Code Command Center in the title bar, quick pick (closed trigger), breadcrumbs, status bar</p>
+    <p class="pitch">The VS Code Command Center drives everything: a flat title-bar field searches verbs, files and settings. The verb and format show as a breadcrumb of dropdown triggers. Minimal chrome for keyboard users.</p>
+  </a>
+  <a class="card" href="15-split-editor.html">
+    <img src="shots/15-split-editor.png" alt="Split Editor mockup" loading="lazy">
+    <div class="meta"><span class="num">15</span><span class="name">Split Editor</span></div>
+    <p class="src">VS Code split editor groups with their own tabs, property grid, sidebar collapsible sections</p>
+    <p class="pitch">Two editor groups side by side: the queue on the left, and a per-file before/after view on the right with a property grid. Options sit in a collapsible sidebar section. Best layout for checking results.</p>
+  </a>
+  <a class="card" href="16-state-tree.html">
+    <img src="shots/16-state-tree.png" alt="State Tree mockup" loading="lazy">
+    <div class="meta"><span class="num">16</span><span class="name">State Tree</span></div>
+    <p class="src">VS Code tree view with indent guides and focus outline, Problems view grouping, inspector disclosure groups</p>
+    <p class="pitch">The queue is a tree whose top nodes are states (Failed, Running, Queued, Done) with counts, and indent guides lead to the files. Problems surface first, the way an IDE's Problems view does. Options sit as a centred form.</p>
+  </a>
+  <a class="card" href="17-sublime-quiet.html">
+    <img src="shots/17-sublime-quiet.png" alt="Quiet mockup" loading="lazy">
+    <div class="meta"><span class="num">17</span><span class="name">Quiet</span></div>
+    <p class="src">Sublime Text quiet chrome, tab top-line, single-line inline bar (Find panel), status bar</p>
+    <p class="pitch">Sublime-quiet: almost no chrome, verb tabs with icon and label in the title bar, and every option squeezed into one inline bar above the queue, like Sublime's Find panel. The window is almost all files.</p>
+  </a>
+  <a class="card" href="18-labelled-activity.html">
+    <img src="shots/18-labelled-activity.png" alt="Labelled Bar mockup" loading="lazy">
+    <div class="meta"><span class="num">18</span><span class="name">Labelled Bar</span></div>
+    <p class="src">Labelled tool-window bar (Android Studio / Fleet), JetBrains property rows, status bar</p>
+    <p class="pitch">An activity bar with a small label under every icon, like IDE tool-window names, so it is easy to navigate without tooltips, next to a compact property panel. Friendliest for non-developers.</p>
+  </a>
+  <a class="card" href="19-properties-window.html">
+    <img src="shots/19-properties-window.png" alt="Properties Window mockup" loading="lazy">
+    <div class="meta"><span class="num">19</span><span class="name">Properties Window</span></div>
+    <p class="src">Visual Studio Properties window (categorised grid, description pane), tool window title bars with tab wells, document tab toolbar</p>
+    <p class="pitch">Classic Visual Studio docking: the queue is a document tab, and a Properties tool window holds the options as a categorised property grid with a description box at the bottom that explains the focused setting. Familiar, structured, explanation only on demand.</p>
+  </a>
+  <a class="card" href="20-navigator-selector.html">
+    <img src="shots/20-navigator-selector.png" alt="Navigator mockup" loading="lazy">
+    <div class="meta"><span class="num">20</span><span class="name">Navigator</span></div>
+    <p class="src">Xcode navigator selector bar and jump bar, JetBrains titled separators, VS Code status bar</p>
+    <p class="pitch">Xcode's navigator selector bar: the verbs are a row of icons across the top of the left pane, which holds the queue below them. A jump bar names the target, and an inspector holds the options. A single-pane-per-job layout that is not any one IDE.</p>
+  </a>
+</main>
+</body></html>

@@ -1,0 +1,366 @@
+<!doctype html>
+<!--
+  Filesmith round 4, mockup 18: "Labelled Bar"
+  Pitch: an activity bar with a small label under every icon, like IDE tool-window names
+  (Android Studio / Fleet), so every verb reads at a glance without tooltips. The queue takes the
+  full height as a calm list with roomy 48px rows, and the options live in a 340px property panel
+  with 13px labels, a 3x2 format grid and the two actions (Add files, Convert 6 files) side by
+  side at its foot. A quiet three-item status bar closes the window. Friendliest for non-developers.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Filesmith Labelled Bar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0b0b0b; --bg-1:#111111; --bg-panel:#101010; --bg-chrome:#141414;
+  --bg-input:#1a1a1a; --raised:#1e1e1e; --hover:#1f1f1f; --selected:#262626; --selected-strong:#2e2e2e;
+  --hairline:#222222; --hairline-strong:#333333;
+  --fg1:#e8e8e8; --fg2:#b0b0b0; --fg3:#8a8a8a; --fg-disabled:#5a5a5a;
+  --accent-bg:#d6d6d6; --accent-fg:#0b0b0b; --focus:#cfcfcf; --bar:#e8e8e8; --track:#2a2a2a;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;width:1440px;height:900px;overflow:hidden;background:var(--bg-0);color:var(--fg1);
+  font:13px/1.4 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.ico{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ico.i20{width:20px;height:20px}
+.ico.i12{width:12px;height:12px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:1px solid var(--focus);outline-offset:1px}
+
+/* window frame */
+.app{display:grid;grid-template-rows:32px 1fr 24px;height:900px}
+.titlebar{display:flex;align-items:center;background:var(--bg-chrome);border-bottom:1px solid var(--hairline);height:32px;-webkit-app-region:drag}
+.brand{display:flex;align-items:center;gap:8px;padding:0 12px 0 24px;color:var(--fg2);font-weight:500;line-height:1}
+.brand .ico{color:var(--fg1)}
+.crumbs{display:flex;align-items:center;gap:2px;color:var(--fg3);font-size:12px;line-height:1}
+.crumbs span.crumb{padding:4px 6px;border-radius:3px}
+.crumbs span.crumb:hover{background:var(--hover);color:var(--fg2)}
+.crumbs span.last{color:var(--fg2)}
+.winctl{margin-left:auto;display:flex}
+.winctl button{width:46px;height:32px;display:grid;place-items:center;color:var(--fg2)}
+.winctl button:hover{background:var(--hover);color:var(--fg1)}
+.winctl button.close:hover{background:#3a3a3a}
+.winctl svg{width:10px;height:10px;stroke:currentColor;stroke-width:1;fill:none}
+
+.body{display:grid;grid-template-columns:72px 1fr 340px;min-height:0}
+
+/* labelled activity bar */
+.activity{background:var(--bg-chrome);border-right:1px solid var(--hairline);display:flex;flex-direction:column;padding:4px 0}
+.act{position:relative;height:60px;width:71px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg3)}
+.act .lbl{font-size:11px;line-height:1;white-space:nowrap}
+.act:hover{color:var(--fg2);background:rgba(255,255,255,.03)}
+.act:active{color:var(--fg1)}
+.act[aria-current="page"]{color:var(--fg1)}
+.act[aria-current="page"]::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--bar)}
+.act[aria-current="page"] .lbl{font-weight:600}
+.act .icowrap{position:relative;display:block;height:20px}
+.badge{position:absolute;left:13px;top:-5px;min-width:14px;height:14px;padding:0 3px;border-radius:3px;background:#bdbdbd;color:var(--bg-0);
+  font:600 10px/14px var(--mono);text-align:center}
+.actsep{height:1px;background:var(--hairline-strong);margin:6px 20px}
+.spacer{flex:1}
+
+/* centre: queue */
+.centre{display:flex;flex-direction:column;min-width:0;background:var(--bg-0)}
+.qhead{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 20px;border-bottom:1px solid var(--hairline)}
+.qhead h2{margin:0;font-size:14px;font-weight:600;line-height:1}
+.qhead .count{color:var(--fg3);font-size:12px}
+.qhead .right{margin-left:auto;display:flex;align-items:center;gap:2px}
+.ibtn{width:28px;height:28px;display:grid;place-items:center;border-radius:3px;color:var(--fg2)}
+.ibtn:hover{background:var(--hover);color:var(--fg1)}
+.ibtn:active{background:var(--selected)}
+.tbtn{height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:3px;color:var(--fg2);font-size:13px;line-height:1}
+.tbtn:hover{background:var(--hover);color:var(--fg1)}
+.tbtn:active{background:var(--selected)}
+.vsep{width:1px;height:16px;background:var(--hairline-strong);margin:0 6px}
+
+.cols,.row{display:grid;grid-template-columns:52px 1fr 220px 300px 52px;align-items:center}
+.cols{height:28px;flex:none;border-bottom:1px solid var(--hairline);color:var(--fg3);font-size:12px;line-height:1}
+.cols .sort{display:inline-flex;align-items:center;gap:4px;color:var(--fg2)}
+.cols .sort:hover{color:var(--fg1)}
+.row{position:relative;height:48px;color:var(--fg1);cursor:default;border-bottom:1px solid #161616}
+.row:hover{background:var(--hover)}
+.row:active{background:var(--selected)}
+.row.sel{background:var(--selected)}
+.row.sel.focus,.row:focus-visible{box-shadow:inset 0 0 0 1px var(--fg3);outline:none}
+.row .kind{justify-self:end;margin-right:14px;color:var(--fg2)}
+.row .name{font-family:var(--mono);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:16px}
+.row .size{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--fg2);display:flex;align-items:center;gap:6px}
+.row .size .before{color:var(--fg3)}
+.row.sel .size .before,.row:hover .size .before{color:var(--fg2)}
+.row .size .after{color:var(--fg1);font-weight:600}
+.row .size .arr{color:var(--fg3)}
+.row .st{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg2)}
+.row .st.q{color:var(--fg3)}
+.row:hover .st.q{color:var(--fg2)}
+.track{width:150px;height:2px;background:var(--track);position:relative}
+.track i{position:absolute;left:0;top:0;bottom:0;width:62%;background:var(--bar)}
+.row .pct{font-family:var(--mono);font-size:12px;color:var(--fg1)}
+.row.fail::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.row.fail .st{color:var(--fg1);font-weight:600}
+.row .act-end{justify-self:center;opacity:0;width:28px;height:28px;display:grid;place-items:center;border-radius:3px;color:var(--fg2)}
+.row:hover .act-end,.row.sel .act-end,.row.fail .act-end{opacity:1}
+.row .act-end:hover{background:var(--selected-strong);color:var(--fg1)}
+.drop{margin:20px 20px 0;height:88px;flex:none;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--fg3);font-size:13px;
+  border:1px dashed var(--hairline-strong);border-radius:2px}
+.drop:hover{border-color:#4a4a4a;color:var(--fg2);background:rgba(255,255,255,.015)}
+
+/* options property panel */
+.options{background:var(--bg-panel);border-left:1px solid var(--hairline);display:flex;flex-direction:column;min-height:0}
+.ohead{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 16px;border-bottom:1px solid var(--hairline);
+  font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);line-height:1}
+.ohead .right{margin-left:auto;display:flex}
+.group{padding:6px 0 12px}
+.group + .group{border-top:1px solid var(--hairline)}
+.ghead{height:32px;display:flex;align-items:center;gap:6px;padding:0 16px 0 10px;font-size:13px;font-weight:600;color:var(--fg1);width:100%;text-align:left;line-height:1}
+.ghead:hover{background:var(--hover)}
+.ghead .ico{color:var(--fg3)}
+.ghead .meta{margin-left:auto;font:400 12px var(--mono);color:var(--fg3)}
+.prop{display:grid;grid-template-columns:84px 1fr;align-items:center;min-height:40px;padding:0 16px 0 32px}
+.prop .k{font-size:13px;color:var(--fg2)}
+.prop.top{align-items:start;padding-top:6px;padding-bottom:4px}
+.prop.top .k{padding-top:6px}
+
+/* one selected style everywhere: --selected-strong fill, fg1 semibold, 1px fg3 edge */
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.fgrid button{height:30px;border:1px solid var(--hairline-strong);border-radius:2px;background:var(--bg-input);color:var(--fg2);
+  font:500 13px/1 var(--mono);letter-spacing:.02em}
+.fgrid button:hover{background:var(--hover);color:var(--fg1);border-color:#444444}
+.fgrid button:active{background:var(--selected)}
+.fgrid button[aria-pressed="true"],.seg button[aria-pressed="true"]{background:var(--selected-strong);color:var(--fg1);font-weight:600;box-shadow:inset 0 0 0 1px var(--fg3)}
+
+.seg{display:flex;border:1px solid var(--hairline-strong);border-radius:3px;height:30px;overflow:hidden}
+.seg button{flex:1;display:grid;place-items:center;color:var(--fg2);font-size:13px;line-height:1;border-left:1px solid var(--hairline-strong);background:var(--bg-input)}
+.seg button:first-child{border-left:0}
+.seg button:hover{background:var(--hover);color:var(--fg1)}
+.seg button:active{background:var(--selected)}
+
+.radios{display:flex;flex-direction:column;gap:2px}
+.radio{display:flex;align-items:center;gap:8px;height:28px;font-size:13px;color:var(--fg2);border-radius:2px;padding:0 6px;margin-left:-6px}
+.radio:hover{background:var(--hover);color:var(--fg1)}
+.radio .dot{width:16px;height:16px;border-radius:50%;border:1px solid var(--fg3);display:grid;place-items:center;flex:none}
+.radio[aria-checked="true"]{color:var(--fg1)}
+.radio[aria-checked="true"] .dot{border-color:var(--fg2)}
+.radio[aria-checked="true"] .dot::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg1)}
+.radio .ico{color:var(--fg3);margin-left:auto}
+
+.check{display:flex;align-items:center;gap:8px;height:28px;font-size:13px;color:var(--fg1);padding:0 6px;margin-left:-6px;border-radius:2px}
+.check:hover{background:var(--hover)}
+.check .box{width:16px;height:16px;border-radius:2px;background:var(--accent-bg);display:grid;place-items:center;color:var(--accent-fg);flex:none}
+.check .box .ico{width:12px;height:12px;stroke-width:2.25}
+
+.ofoot{margin-top:auto;padding:16px;border-top:1px solid var(--hairline);display:grid;grid-template-columns:auto 1fr;gap:8px}
+.btn2{height:32px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;border-radius:3px;background:var(--bg-input);border:1px solid var(--hairline-strong);font-size:13px;line-height:1;color:var(--fg1)}
+.btn2:hover{background:var(--hover);border-color:#444444}
+.btn2:active{background:var(--selected)}
+.primary{height:32px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:3px;background:var(--accent-bg);color:var(--accent-fg);font-size:13px;font-weight:600;line-height:1}
+.primary:hover{background:#e8e8e8}
+.primary:active{background:#bdbdbd}
+.primary:focus-visible,.btn2:focus-visible{outline:1px solid var(--focus);outline-offset:2px}
+.primary .ico{fill:currentColor;stroke:none;width:14px;height:14px}
+
+/* status bar */
+.status{display:flex;align-items:stretch;background:var(--bg-chrome);border-top:1px solid var(--hairline);font-size:12px;color:var(--fg2);line-height:1}
+.sitem{display:flex;align-items:center;gap:6px;padding:0 10px}
+.sitem:first-child{padding-left:16px}
+.sitem:hover{background:var(--hover);color:var(--fg1)}
+.sitem .ico{width:14px;height:14px}
+.sitem .hl{width:80px;height:2px;background:var(--track);position:relative}
+.sitem .hl i{position:absolute;inset:0 auto 0 0;width:36%;background:var(--bar)}
+.sitem.warn{color:var(--fg1);font-weight:600}
+.status .push{margin-left:auto;padding-right:16px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-convert" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4"/></symbol>
+    <symbol id="i-compress" viewBox="0 0 24 24"><path d="M12 22v-6M12 8V2M3 12h18M15 19l-3-3-3 3M15 5l-3 3-3-3"/></symbol>
+    <symbol id="i-resize" viewBox="0 0 24 24"><path d="M21 3 9 15M12 3H3v18h18v-9M16 3h5v5M14 15H9v-5"/></symbol>
+    <symbol id="i-upscale" viewBox="0 0 24 24"><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M14 3h7v7M21 3l-8.5 8.5"/></symbol>
+    <symbol id="i-removebg" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21M22 21H7M5 11l9 9"/></symbol>
+    <symbol id="i-generate" viewBox="0 0 24 24"><path d="M9.94 15.5a2 2 0 0 0-1.44-1.44l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.13a.5.5 0 0 1 .96 0l1.58 6.13a2 2 0 0 0 1.44 1.44l6.13 1.58a.5.5 0 0 1 0 .96l-6.13 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.13a.5.5 0 0 1-.96 0zM20 3v4M22 5h-4"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="i-completed" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><circle cx="9.5" cy="12" r="1.5"/><path d="m20 17-2.3-2.3a2 2 0 0 0-2.8 0L8 21.5"/></symbol>
+    <symbol id="i-addfile" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 12v6M9 15h6"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3.5v17L20 12z"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></symbol>
+    <symbol id="i-sortdown" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-anvil" viewBox="0 0 24 24"><path d="M3 6.5h15.5c0 3-2.2 4.5-5.5 4.5v3l3 3.5H7l3-3.5v-3H6.5z"/><path d="M5 20.5h14"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <header class="titlebar">
+    <div class="brand"><svg class="ico"><use href="#i-anvil"/></svg>Filesmith</div>
+    <nav class="crumbs" aria-label="Location">
+      <svg class="ico i12"><use href="#i-right"/></svg>
+      <span class="crumb">Convert</span>
+      <svg class="ico i12"><use href="#i-right"/></svg>
+      <span class="crumb last">Images to WebP</span>
+    </nav>
+    <div class="winctl">
+      <button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button class="close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0 0 10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <!-- labelled activity bar -->
+    <nav class="activity" aria-label="Operations">
+      <button class="act" aria-current="page"><span class="icowrap"><svg class="ico i20"><use href="#i-convert"/></svg><span class="badge">6</span></span><span class="lbl">Convert</span></button>
+      <button class="act"><span class="icowrap"><svg class="ico i20"><use href="#i-compress"/></svg></span><span class="lbl">Compress</span></button>
+      <button class="act"><span class="icowrap"><svg class="ico i20"><use href="#i-resize"/></svg></span><span class="lbl">Resize</span></button>
+      <button class="act"><span class="icowrap"><svg class="ico i20"><use href="#i-upscale"/></svg></span><span class="lbl">Upscale</span></button>
+      <button class="act"><span class="icowrap"><svg class="ico i20"><use href="#i-removebg"/></svg></span><span class="lbl">Remove BG</span></button>
+      <button class="act"><span class="icowrap"><svg class="ico i20"><use href="#i-generate"/></svg></span><span class="lbl">Generate</span></button>
+      <div class="actsep"></div>
+      <button class="act"><span class="icowrap"><svg class="ico i20"><use href="#i-tools"/></svg></span><span class="lbl">Tools</span></button>
+      <div class="spacer"></div>
+      <button class="act"><span class="icowrap"><svg class="ico i20"><use href="#i-completed"/></svg><span class="badge">142</span></span><span class="lbl">Completed</span></button>
+      <button class="act"><span class="icowrap"><svg class="ico i20"><use href="#i-settings"/></svg></span><span class="lbl">Settings</span></button>
+    </nav>
+
+    <!-- centre: the queue gets the full height -->
+    <main class="centre">
+      <div class="qhead">
+        <h2>Queue</h2><span class="count num">6 files</span>
+        <div class="right">
+          <button class="tbtn"><svg class="ico"><use href="#i-retry"/></svg>Retry failed</button>
+          <button class="tbtn"><svg class="ico"><use href="#i-trash"/></svg>Clear finished</button>
+          <span class="vsep"></span>
+          <button class="ibtn" aria-label="More"><svg class="ico"><use href="#i-more"/></svg></button>
+        </div>
+      </div>
+
+      <div class="cols" role="row">
+        <span></span>
+        <span class="sort">Name <svg class="ico i12"><use href="#i-sortdown"/></svg></span>
+        <span>Size</span>
+        <span>Status</span>
+        <span></span>
+      </div>
+        <div class="row" role="row">
+          <svg class="ico kind"><use href="#i-image"/></svg>
+          <span class="name">IMG_4821.HEIC</span>
+          <span class="size"><span class="before">3.2 MB</span><svg class="ico i12 arr"><use href="#i-arrow"/></svg><span class="after">640 KB</span></span>
+          <span class="st"><svg class="ico"><use href="#i-check"/></svg>Done</span>
+          <button class="act-end" aria-label="Remove"><svg class="ico"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="row" role="row">
+          <svg class="ico kind"><use href="#i-image"/></svg>
+          <span class="name">product-shot.jpg</span>
+          <span class="size"><span class="before">2.1 MB</span><svg class="ico i12 arr"><use href="#i-arrow"/></svg><span class="after">486 KB</span></span>
+          <span class="st"><svg class="ico"><use href="#i-check"/></svg>Done</span>
+          <button class="act-end" aria-label="Remove"><svg class="ico"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="row sel focus" role="row" tabindex="0">
+          <svg class="ico kind"><use href="#i-image"/></svg>
+          <span class="name">screenshot-2026-10-03.png</span>
+          <span class="size">1.8 MB</span>
+          <span class="st"><span class="track"><i></i></span><span class="pct">62%</span></span>
+          <button class="act-end" aria-label="Cancel"><svg class="ico"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="row" role="row">
+          <svg class="ico kind"><use href="#i-image"/></svg>
+          <span class="name">hero-banner@2x.png</span>
+          <span class="size">4.6 MB</span>
+          <span class="st q"><svg class="ico"><use href="#i-clock"/></svg>Queued</span>
+          <button class="act-end" aria-label="Remove"><svg class="ico"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="row fail" role="row">
+          <svg class="ico kind"><use href="#i-image"/></svg>
+          <span class="name">scan_0091.tiff</span>
+          <span class="size">22.4 MB</span>
+          <span class="st"><svg class="ico"><use href="#i-warn"/></svg>Unsupported compression</span>
+          <button class="act-end" aria-label="Retry"><svg class="ico"><use href="#i-retry"/></svg></button>
+        </div>
+        <div class="row" role="row">
+          <svg class="ico kind"><use href="#i-image"/></svg>
+          <span class="name">logo-final.bmp</span>
+          <span class="size">1.1 MB</span>
+          <span class="st q"><svg class="ico"><use href="#i-clock"/></svg>Queued</span>
+          <button class="act-end" aria-label="Remove"><svg class="ico"><use href="#i-x"/></svg></button>
+        </div>
+
+      <div class="drop"><svg class="ico i20"><use href="#i-addfile"/></svg>Drop more files here</div>
+    </main>
+
+    <!-- options property panel -->
+    <aside class="options" aria-label="Options">
+      <div class="ohead">Options
+        <div class="right"><button class="ibtn" aria-label="Reset to defaults"><svg class="ico"><use href="#i-reset"/></svg></button></div>
+      </div>
+
+      <div class="group">
+        <button class="ghead" aria-expanded="true"><svg class="ico"><use href="#i-down"/></svg>Output format<span class="meta">.webp</span></button>
+        <div class="prop top">
+          <span class="k">Format</span>
+          <div class="fgrid" role="group" aria-label="Format">
+            <button aria-pressed="true">WebP</button><button>JPG</button><button>PNG</button><button>AVIF</button><button>JXL</button><button>TIFF</button>
+          </div>
+        </div>
+        <div class="prop">
+          <span class="k">Quality</span>
+          <div class="seg" role="group" aria-label="Quality">
+            <button>Smaller</button><button aria-pressed="true">Balanced</button><button>Best</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <button class="ghead" aria-expanded="true"><svg class="ico"><use href="#i-down"/></svg>Saving</button>
+        <div class="prop top">
+          <span class="k">Save to</span>
+          <div class="radios" role="radiogroup" aria-label="Save to">
+            <button class="radio" role="radio" aria-checked="true"><span class="dot"></span>Next to source</button>
+            <button class="radio" role="radio" aria-checked="false"><span class="dot"></span>Choose folder…<svg class="ico"><use href="#i-folder"/></svg></button>
+          </div>
+        </div>
+        <div class="prop">
+          <span class="k">Metadata</span>
+          <button class="check" role="checkbox" aria-checked="true"><span class="box"><svg class="ico"><use href="#i-check"/></svg></span>Keep metadata</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <button class="ghead" aria-expanded="false"><svg class="ico"><use href="#i-right"/></svg>Advanced</button>
+      </div>
+
+      <div class="ofoot">
+        <button class="btn2"><svg class="ico"><use href="#i-addfile"/></svg>Add files</button>
+        <button class="primary"><svg class="ico"><use href="#i-play"/></svg>Convert 6 files</button>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="status">
+    <button class="sitem"><svg class="ico"><use href="#i-spin"/></svg>Converting 3 of 6<span class="hl"><i></i></span></button>
+    <button class="sitem warn"><svg class="ico"><use href="#i-warn"/></svg>1 failed</button>
+    <button class="sitem push"><span class="num">2 of 6 done</span></button>
+  </footer>
+</div>
+</body>
+</html>

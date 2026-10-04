@@ -1,0 +1,522 @@
+<!--
+  Filesmith round 4, mockup 15: Split Editor
+  Pitch: Two editor groups side by side: the queue on the left, and a per-file
+  before/after view on the right with a property grid. Options sit in a collapsible
+  sidebar section. Best layout for checking results.
+  IDE source: VS Code split editor groups with their own tabs, property grid,
+  sidebar collapsible sections, activity bar, status bar.
+  Type: IBM Plex Sans + IBM Plex Mono. Strict monochrome, every colour r=g=b.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0b0b0b; --bg-1:#111111; --bg-chrome:#141414; --bg-input:#1a1a1a;
+  --raised:#1e1e1e; --hover:#1f1f1f; --selected:#262626; --selected-strong:#2e2e2e;
+  --hairline:#222222; --hairline-strong:#333333; --divider:#2a2a2a;
+  --fg1:#e8e8e8; --fg2:#b0b0b0; --fg3:#8a8a8a; --fg-disabled:#5a5a5a;
+  --accent-bg:#d6d6d6; --accent-fg:#0b0b0b; --focus:#cfcfcf; --bar:#e8e8e8; --track:#2a2a2a;
+  --sans:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:var(--bg-0);color:var(--fg1);
+  font:13px/1.4 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+svg.i *{vector-effect:non-scaling-stroke}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:1px solid var(--focus);outline-offset:1px}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-rows:34px 1fr 22px;height:900px}
+.titlebar{display:flex;align-items:center;background:var(--bg-chrome);border-bottom:1px solid var(--hairline);height:34px}
+.tb-brand{display:flex;align-items:center;gap:8px;padding:0 12px 0 14px;color:var(--fg1);font-weight:500;line-height:1}
+.tb-brand svg{width:16px;height:16px}
+.tb-widget{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:4px;color:var(--fg2);line-height:1}
+.tb-widget:hover{background:var(--hover);color:var(--fg1)}
+.tb-widget:active{background:var(--selected)}
+.tb-widget svg.i{width:12px;height:12px}
+.tb-sep{width:1px;height:16px;background:var(--hairline-strong);margin:0 4px}
+.tb-spacer{flex:1}
+.tb-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:3px;color:var(--fg3)}
+.tb-icon:hover{background:var(--hover);color:var(--fg1)}
+.tb-icon:active{background:var(--selected)}
+.tb-icon.on{color:var(--fg1)}
+.winctl{display:flex;margin-left:8px}
+.winctl button{width:46px;height:34px;display:grid;place-items:center;color:var(--fg2)}
+.winctl button:hover{background:var(--hover);color:var(--fg1)}
+.winctl button.close:hover{background:#3a3a3a}
+.winctl svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1}
+
+.body{display:grid;grid-template-columns:44px 260px 1fr;min-height:0}
+
+/* ---------- activity bar ---------- */
+.activity{background:var(--bg-chrome);border-right:1px solid var(--hairline);display:flex;flex-direction:column;justify-content:space-between}
+.activity nav{display:flex;flex-direction:column}
+.act{position:relative;width:44px;height:44px;display:grid;place-items:center;color:var(--fg3)}
+.act svg.i{width:20px;height:20px}
+.act:hover{color:var(--fg2)}
+.act:active{color:var(--fg1)}
+.act.on{color:var(--fg1)}
+.act.on::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.badge{position:absolute;right:6px;bottom:7px;min-width:14px;height:14px;padding:0 3px;border-radius:3px;
+  background:#bdbdbd;color:var(--bg-0);font:600 10px/14px var(--mono);text-align:center}
+.act .tip{display:none}
+
+/* ---------- sidebar ---------- */
+.sidebar{background:var(--bg-1);border-right:1px solid var(--hairline);display:flex;flex-direction:column;min-height:0}
+.view-title{height:35px;display:flex;align-items:center;padding:0 8px 0 16px;gap:2px}
+.view-title h2{margin:0;flex:1;font:600 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--fg3)}
+.icon-btn{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--fg3)}
+.icon-btn:hover{background:var(--hover);color:var(--fg1)}
+.icon-btn:active{background:var(--selected)}
+.sec{border-top:1px solid var(--hairline)}
+.sec-head{width:100%;height:22px;display:flex;align-items:center;gap:2px;padding:0 8px 0 4px;color:var(--fg2);text-align:left}
+.sec-head:hover{background:var(--hover);color:var(--fg1)}
+.sec-head:active{background:var(--selected)}
+.sec-head .lbl{flex:1;font:600 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase}
+.sec-head .meta{font:400 11px/1 var(--mono);color:var(--fg3);text-transform:none;letter-spacing:0}
+.sec-body{padding:6px 16px 16px 20px}
+.field{margin-top:12px}
+.field:first-child{margin-top:6px}
+.f-title{font-weight:600;font-size:13px;color:var(--fg1);line-height:1.3}
+.f-desc{font-size:12px;color:var(--fg2);margin:2px 0 8px}
+/* segmented */
+.seg{display:flex;border:1px solid var(--hairline-strong);border-radius:3px;overflow:hidden;height:24px;background:var(--bg-input)}
+.seg button{flex:1;display:grid;place-items:center;color:var(--fg2);font-size:12px;line-height:1;border-left:1px solid var(--hairline-strong)}
+.seg button:first-child{border-left:0}
+.seg button:hover{background:var(--hover);color:var(--fg1)}
+.seg button:active{background:var(--selected)}
+.seg button.on{background:var(--selected-strong);color:var(--fg1);font-weight:600;box-shadow:inset 0 -2px 0 var(--fg1)}
+.seg.mono button{font-family:var(--mono);font-size:12px}
+.seg button:focus-visible{outline-offset:-2px}
+/* checkbox */
+.check{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--fg2);font-size:12px;padding:2px 0}
+.check .box{width:16px;height:16px;border-radius:2px;border:1px solid var(--fg3);display:grid;place-items:center;flex:none}
+.check.on .box{background:var(--accent-bg);border-color:var(--accent-bg);color:var(--accent-fg)}
+.check .box svg{width:12px;height:12px;stroke-width:1.75}
+.check:hover .box{border-color:var(--fg2)}
+.check.on:hover .box{background:#e8e8e8;border-color:#e8e8e8}
+.check:hover{color:var(--fg1)}
+/* radios */
+.radio{display:flex;align-items:center;gap:8px;height:24px;color:var(--fg2);cursor:pointer;font-size:13px;width:100%}
+.radio .dot{width:16px;height:16px;border-radius:50%;border:1px solid var(--fg3);display:grid;place-items:center;flex:none}
+.radio.on{color:var(--fg1)}
+.radio.on .dot::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg1)}
+.radio:hover{color:var(--fg1)}
+.radio:hover .dot{border-color:var(--fg2)}
+.radio .aux{margin-left:auto;font:400 12px/1 var(--mono);color:var(--fg3)}
+.sidebar-fill{flex:1;border-top:1px solid var(--hairline)}
+.sidebar-foot{padding:12px 16px;border-top:1px solid var(--hairline);display:flex;flex-direction:column;gap:8px}
+.btn{height:28px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 10px;border-radius:2px;font-size:13px;line-height:1}
+.btn-primary{background:var(--accent-bg);color:var(--accent-fg);font-weight:600;width:100%}
+.btn-primary:hover{background:#e8e8e8}
+.btn-primary:active{background:#bdbdbd}
+.btn-primary:focus-visible{outline-offset:2px}
+.btn-primary svg.i{stroke-width:1.5}
+.btn-secondary{background:var(--bg-input);border:1px solid var(--hairline-strong);color:var(--fg1);height:26px;font-size:12px}
+.btn-secondary:hover{background:var(--hover);border-color:#444}
+.btn-secondary:active{background:var(--selected)}
+.foot-meta{display:flex;justify-content:space-between;font-size:12px;color:var(--fg3)}
+
+/* ---------- editor groups ---------- */
+.editors{display:grid;grid-template-columns:568px 1px 1fr;min-width:0;min-height:0}
+.gdiv{background:var(--divider)}
+.group{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg-0)}
+.tabs{height:35px;display:flex;background:var(--bg-chrome);border-bottom:1px solid var(--hairline);flex:none}
+.tab{position:relative;min-width:150px;height:35px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;
+  color:var(--fg3);border-right:1px solid var(--hairline);background:var(--bg-chrome);line-height:1}
+.tab:hover{color:var(--fg2)}
+.tab.on{background:var(--bg-0);color:var(--fg1);margin-bottom:-1px;height:36px;padding-bottom:1px}
+.tab.on::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--fg1)}
+.group.blur .tab.on{color:var(--fg2)}
+.group.blur .tab.on::before{background:var(--fg3)}
+.tab .t-label{flex:1}
+.tab .t-count{font:400 12px/1 var(--mono);color:var(--fg3)}
+.tab .t-close{width:18px;height:18px;display:grid;place-items:center;border-radius:3px;color:var(--fg3);visibility:hidden}
+.tab.on .t-close,.tab:hover .t-close{visibility:visible}
+.tab .t-close:hover{background:var(--hover);color:var(--fg1)}
+.tab .t-close svg{width:12px;height:12px}
+.tabs-actions{margin-left:auto;display:flex;align-items:center;gap:2px;padding:0 8px}
+
+.toolbar{height:36px;display:flex;align-items:center;gap:4px;padding:0 12px;border-bottom:1px solid var(--hairline);flex:none}
+.toolbar .vsep{width:1px;height:16px;background:var(--hairline-strong);margin:0 6px}
+.toolbar .tbtn{width:28px;height:28px;display:grid;place-items:center;border-radius:3px;color:var(--fg2)}
+.toolbar .tbtn:hover{background:var(--hover);color:var(--fg1)}
+.toolbar .tbtn:active{background:var(--selected)}
+.toolbar .spacer{flex:1}
+.toolbar .quiet{font-size:12px;color:var(--fg3)}
+
+/* queue table */
+.cols{display:grid;grid-template-columns:24px 1fr 76px 196px 30px;align-items:center;column-gap:0;
+  height:24px;padding:0 12px 0 14px;border-bottom:1px solid var(--hairline);flex:none;
+  font:600 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--fg3)}
+.cols .sort{display:flex;align-items:center;gap:4px;color:var(--fg2)}
+.cols .sort svg{width:12px;height:12px}
+.cols .r{text-align:right}
+.rows{list-style:none;margin:0;padding:4px 0 0}
+.row{position:relative;display:grid;grid-template-columns:24px 1fr 76px 196px 30px;align-items:center;height:36px;
+  padding:0 12px 0 14px;cursor:default}
+.row:hover{background:var(--hover)}
+.row:active{background:var(--selected)}
+.row.sel{background:var(--selected-strong);box-shadow:inset 0 0 0 1px var(--fg3)}
+.row.fail::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.thumb{width:20px;height:20px;border-radius:2px;border:1px solid var(--hairline-strong);overflow:hidden}
+.name{font:400 13px/1 var(--mono);color:var(--fg1);padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.size{font:400 12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg3);text-align:right}
+.row:hover .size,.row.sel .size{color:var(--fg2)}
+.res{display:flex;align-items:center;justify-content:flex-end;gap:8px;font:400 12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg3)}
+.res .arrow{width:12px;height:12px;color:var(--fg3)}
+.res .after{color:var(--fg1);font-weight:600}
+.row:hover .res,.row.sel .res,.row:hover .res .arrow,.row.sel .res .arrow{color:var(--fg2)}
+.row.sel .res .after,.row:hover .res .after{color:var(--fg1)}
+.res .bar{width:112px;height:2px;background:var(--track);position:relative}
+.res .bar i{position:absolute;left:0;top:0;bottom:0;width:62%;background:var(--bar)}
+.res .pct{color:var(--fg1);width:30px;text-align:right}
+.res .err{color:var(--fg1);font-family:var(--sans);font-weight:600;font-size:12px}
+.st{display:grid;place-items:center;justify-self:end;width:22px;height:22px;color:var(--fg3)}
+.st.done{color:var(--fg2)}
+.st.run{color:var(--fg1)}
+.st.fail{color:var(--fg1)}
+.st.retry{border-radius:3px;color:var(--fg1)}
+.st.retry:hover{background:var(--selected-strong)}
+.st.retry:active{background:var(--hairline-strong)}
+.dropline{margin:8px 12px 0 14px;height:56px;border:1px dashed var(--hairline-strong);border-radius:2px;display:flex;align-items:center;
+  justify-content:center;gap:8px;color:var(--fg3);font-size:12px}
+.dropline button{color:var(--fg2);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--hairline-strong)}
+.dropline button:hover{color:var(--fg1);text-decoration-color:var(--fg2)}
+.group-fill{flex:1}
+.group-foot{height:28px;flex:none;border-top:1px solid var(--hairline);display:flex;align-items:center;gap:16px;padding:0 14px;
+  font-size:12px;color:var(--fg3)}
+.group-foot b{font:500 12px/1 var(--mono);color:var(--fg2);font-variant-numeric:tabular-nums}
+
+/* compare group */
+.crumbs{height:24px;display:flex;align-items:center;gap:2px;padding:0 10px;font-size:12px;color:var(--fg3);flex:none;line-height:1}
+.crumbs a{padding:3px 4px;border-radius:3px;color:inherit;text-decoration:none;display:flex;align-items:center;gap:6px}
+.crumbs a:hover{background:var(--hover);color:var(--fg1)}
+.crumbs a.last{color:var(--fg2)}
+.crumbs .chev{width:12px;height:12px;color:var(--fg3)}
+.crumbs svg.i.sm{width:14px;height:14px}
+.cmp-tools .seg{width:auto}
+.cmp-tools .seg button{white-space:nowrap;padding:0 10px;gap:6px;display:flex;align-items:center}
+.cmp-tools .seg svg.i{width:14px;height:14px}
+.dd{height:24px;display:flex;align-items:center;gap:6px;padding:0 6px 0 8px;background:var(--bg-input);border:1px solid var(--hairline-strong);
+  border-radius:2px;font:400 12px/1 var(--mono);color:var(--fg1)}
+.dd:hover{border-color:#444}
+.dd svg.i{width:14px;height:14px;color:var(--fg2)}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 16px 0}
+.pane-h{display:flex;align-items:baseline;justify-content:space-between;height:22px}
+.pane-h .k{font-weight:600;font-size:12px;color:var(--fg1)}
+.pane-h .v{font:400 12px/1 var(--mono);color:var(--fg3)}
+.pane-h .v b{color:var(--fg1);font-weight:600}
+.shot{height:340px;border:1px solid var(--hairline-strong);border-radius:2px;overflow:hidden;background:#161616}
+.shot svg{display:block;width:100%;height:100%}
+.sepline{display:flex;align-items:center;gap:10px;margin:20px 16px 4px}
+.sepline span{font-weight:600;font-size:12px;color:var(--fg1);white-space:nowrap}
+.sepline i{flex:1;height:1px;background:var(--hairline)}
+.grid{margin:0 16px;border-collapse:collapse;width:calc(100% - 32px);font-size:12px}
+.grid th{height:24px;text-align:left;font:600 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);padding:0 8px;border-bottom:1px solid var(--hairline)}
+.grid td{height:28px;padding:0 8px;border-bottom:1px solid var(--hairline);vertical-align:middle}
+.grid td.k{color:var(--fg2);width:108px}
+.grid td.b{font-family:var(--mono);color:var(--fg3);width:132px;font-variant-numeric:tabular-nums}
+.grid td.a{font-family:var(--mono);color:var(--fg1);font-variant-numeric:tabular-nums}
+.grid td.a.strong{font-weight:600}
+.grid tr:hover td{background:var(--hover)}
+.grid tr:hover td.b{color:var(--fg2)}
+.grid td.arr{width:24px;color:var(--fg3);padding:0}
+.grid td.arr svg{width:12px;height:12px}
+.saved{display:flex;align-items:center;gap:10px}
+.saved .meter{width:120px;height:2px;background:var(--track);position:relative}
+.saved .meter i{position:absolute;left:0;top:0;bottom:0;width:77%;background:var(--bar)}
+.saved .meter-l{font-size:12px;color:var(--fg3);font-family:var(--sans)}
+
+/* ---------- status bar ---------- */
+.status{display:flex;align-items:center;background:var(--bg-chrome);border-top:1px solid var(--hairline);height:22px;font-size:12px;color:var(--fg2);padding:0 4px}
+.si{height:22px;display:flex;align-items:center;gap:6px;padding:0 8px;line-height:1}
+.si:hover{background:var(--hover);color:var(--fg1)}
+.si svg.i{width:14px;height:14px}
+.si .hair{width:80px;height:1px;background:var(--track);position:relative}
+.si .hair i{position:absolute;left:0;top:0;bottom:0;width:43%;background:var(--bar)}
+.si.warn{color:var(--fg1);font-weight:600}
+.status .grow{flex:1}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ic-convert" viewBox="0 0 16 16"><path d="M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13"/></symbol>
+    <symbol id="ic-compress" viewBox="0 0 16 16"><path d="M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11"/></symbol>
+    <symbol id="ic-resize" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10"/></symbol>
+    <symbol id="ic-upscale" viewBox="0 0 16 16"><rect x="2.5" y="8.5" width="5" height="5" rx=".5"/><path d="M9 2.5h4.5V7M13.5 2.5L8.5 7.5"/></symbol>
+    <symbol id="ic-removebg" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5"/></symbol>
+    <symbol id="ic-generate" viewBox="0 0 16 16"><path d="M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4"/></symbol>
+    <symbol id="ic-tools" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx=".5"/><rect x="9" y="2.5" width="4.5" height="4.5" rx=".5"/><rect x="2.5" y="9" width="4.5" height="4.5" rx=".5"/><rect x="9" y="9" width="4.5" height="4.5" rx=".5"/></symbol>
+    <symbol id="ic-completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8.25l1.75 1.75L10.75 6.5"/></symbol>
+    <symbol id="ic-settings" viewBox="0 0 16 16"><path d="M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6"/><circle cx="9" cy="5" r="1.5"/><circle cx="6" cy="11" r="1.5"/></symbol>
+    <symbol id="ic-file-image" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3"/><circle cx="6.5" cy="7.5" r="1"/><path d="M3.5 12.5l3-3 2 2 1.5-1.5 2.5 2.5"/></symbol>
+    <symbol id="ic-add-file" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3M8 7v5M5.5 9.5h5"/></symbol>
+    <symbol id="ic-folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+    <symbol id="ic-play" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z"/></symbol>
+    <symbol id="ic-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1"/></symbol>
+    <symbol id="ic-retry" viewBox="0 0 16 16"><path d="M3 3v3h3M3.3 6A5 5 0 1 1 3 9.5"/></symbol>
+    <symbol id="ic-close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="ic-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="ic-warning" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+    <symbol id="ic-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></symbol>
+    <symbol id="ic-sync" viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/></symbol>
+    <symbol id="ic-chev-r" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+    <symbol id="ic-chev-d" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="ic-more" viewBox="0 0 16 16"><circle cx="4" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12" cy="8" r=".6"/></symbol>
+    <symbol id="ic-trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6 4.5V2.5h4v2M4.5 4.5l.5 9h6l.5-9"/></symbol>
+    <symbol id="ic-arrow" viewBox="0 0 16 16"><path d="M3 8h10M10 5l3 3-3 3"/></symbol>
+    <symbol id="ic-split" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx=".5"/><path d="M8 2.5v11"/></symbol>
+    <symbol id="ic-sidebar" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx=".5"/><path d="M6 2.5v11"/></symbol>
+    <symbol id="ic-swipe" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx=".5"/><path d="M9.5 1v14"/><path d="M11.5 7l1 1-1 1"/></symbol>
+    <symbol id="ic-collapse" viewBox="0 0 16 16"><path d="M4.5 3.5L8 6.5l3.5-3M4.5 12.5L8 9.5l3.5 3"/></symbol>
+    <symbol id="ic-reveal" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/><path d="M8 7.5v3.5M6.5 9L8 7.5 9.5 9"/></symbol>
+    <symbol id="ic-anvil" viewBox="0 0 16 16"><path d="M1.5 4.5h10c0 2-1.5 3.5-3.5 3.5h-1v2.5h-2V8C3 8 1.5 6.5 1.5 4.5zM11.5 4.5h3M3.5 13.5h8M5 10.5v3M10 10.5v3"/></symbol>
+    <!-- greyscale product photo (perfume bottle), shared by both compare panes -->
+    <symbol id="photo" viewBox="0 0 260 300" preserveAspectRatio="xMidYMid slice">
+      <rect width="260" height="300" fill="url(#bgGrad)"/>
+      <rect y="214" width="260" height="86" fill="url(#floorGrad)"/>
+      <ellipse cx="132" cy="236" rx="62" ry="9" fill="#060606" opacity=".7"/>
+      <rect x="86" y="96" width="92" height="140" rx="10" fill="url(#glass)"/>
+      <rect x="94" y="104" width="10" height="122" rx="5" fill="#d0d0d0" opacity=".35"/>
+      <rect x="104" y="150" width="56" height="40" rx="2" fill="#2a2a2a"/>
+      <rect x="114" y="162" width="36" height="3" fill="#9a9a9a"/>
+      <rect x="120" y="171" width="24" height="2" fill="#6a6a6a"/>
+      <rect x="116" y="80" width="32" height="18" fill="#3c3c3c"/>
+      <rect x="110" y="52" width="44" height="30" rx="3" fill="url(#cap)"/>
+    </symbol>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a3a"/><stop offset="1" stop-color="#1c1c1c"/></linearGradient>
+    <linearGradient id="floorGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#262626"/><stop offset="1" stop-color="#121212"/></linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8c8c8c"/><stop offset=".45" stop-color="#5a5a5a"/><stop offset="1" stop-color="#3a3a3a"/></linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#bdbdbd"/><stop offset="1" stop-color="#6a6a6a"/></linearGradient>
+  </defs>
+</svg>
+
+<div class="app">
+  <!-- title bar -->
+  <header class="titlebar">
+    <div class="tb-brand"><svg class="i"><use href="#ic-anvil"/></svg>Filesmith</div>
+    <div class="tb-sep"></div>
+    <button class="tb-widget">Batch 1<svg class="i"><use href="#ic-chev-d"/></svg></button>
+    <div class="tb-spacer"></div>
+    <button class="tb-icon on" title="Toggle sidebar"><svg class="i"><use href="#ic-sidebar"/></svg></button>
+    <button class="tb-icon on" title="Split editor"><svg class="i"><use href="#ic-split"/></svg></button>
+    <div class="winctl">
+      <button title="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+      <button title="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button class="close" title="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <!-- activity bar -->
+    <aside class="activity">
+      <nav aria-label="Operations">
+        <button class="act on" title="Convert"><svg class="i"><use href="#ic-convert"/></svg><span class="badge">6</span></button>
+        <button class="act" title="Compress"><svg class="i"><use href="#ic-compress"/></svg></button>
+        <button class="act" title="Resize"><svg class="i"><use href="#ic-resize"/></svg></button>
+        <button class="act" title="Upscale"><svg class="i"><use href="#ic-upscale"/></svg></button>
+        <button class="act" title="Remove BG"><svg class="i"><use href="#ic-removebg"/></svg></button>
+        <button class="act" title="Generate"><svg class="i"><use href="#ic-generate"/></svg></button>
+        <button class="act" title="Tools"><svg class="i"><use href="#ic-tools"/></svg></button>
+      </nav>
+      <nav aria-label="App">
+        <button class="act" title="Completed (142)"><svg class="i"><use href="#ic-completed"/></svg></button>
+        <button class="act" title="Settings"><svg class="i"><use href="#ic-settings"/></svg></button>
+      </nav>
+    </aside>
+
+    <!-- sidebar -->
+    <aside class="sidebar">
+      <div class="view-title">
+        <h2>Convert</h2>
+        <button class="icon-btn" title="Collapse all"><svg class="i"><use href="#ic-collapse"/></svg></button>
+        <button class="icon-btn" title="More"><svg class="i"><use href="#ic-more"/></svg></button>
+      </div>
+
+      <section class="sec">
+        <button class="sec-head"><svg class="i"><use href="#ic-chev-d"/></svg><span class="lbl">Options</span><span class="meta">.webp</span></button>
+        <div class="sec-body">
+          <div class="field">
+            <div class="f-title">Format</div>
+            <div class="f-desc">Smaller files, opens everywhere</div>
+            <div class="seg mono">
+              <button class="on">WebP</button><button>JPG</button><button>PNG</button><button>AVIF</button><button>JXL</button><button>TIFF</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="f-title">Quality</div>
+            <div class="f-desc">Sharp at a fraction of the size</div>
+            <div class="seg">
+              <button>Smaller</button><button class="on">Balanced</button><button>Best</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="f-title">Metadata</div>
+            <label class="check on"><span class="box"><svg class="i"><use href="#ic-check"/></svg></span>Keep camera data and colour profile</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <button class="sec-head"><svg class="i"><use href="#ic-chev-d"/></svg><span class="lbl">Output</span></button>
+        <div class="sec-body">
+          <button class="radio on"><span class="dot"></span>Next to source</button>
+          <button class="radio"><span class="dot"></span>Choose folder…<svg class="i" style="margin-left:auto;color:var(--fg3)"><use href="#ic-folder"/></svg></button>
+        </div>
+      </section>
+
+      <section class="sec">
+        <button class="sec-head"><svg class="i"><use href="#ic-chev-r"/></svg><span class="lbl">Naming</span><span class="meta">name.webp</span></button>
+      </section>
+
+      <div class="sidebar-fill"></div>
+      <div class="sidebar-foot">
+        <button class="btn btn-primary"><svg class="i"><use href="#ic-convert"/></svg>Convert 6 files</button>
+      </div>
+    </aside>
+
+    <!-- editor groups -->
+    <main class="editors">
+      <!-- group 1: queue -->
+      <section class="group">
+        <div class="tabs">
+          <div class="tab on"><svg class="i"><use href="#ic-convert"/></svg><span class="t-label">Queue</span><span class="t-count">6</span></div>
+          <div class="tab"><svg class="i"><use href="#ic-completed"/></svg><span class="t-label">Completed</span><span class="t-count">142</span></div>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-secondary"><svg class="i"><use href="#ic-add-file"/></svg>Add files</button>
+          <div class="vsep"></div>
+          <button class="tbtn" title="Retry failed"><svg class="i"><use href="#ic-retry"/></svg></button>
+          <button class="tbtn" title="Stop all"><svg class="i"><use href="#ic-stop"/></svg></button>
+          <button class="tbtn" title="Clear finished"><svg class="i"><use href="#ic-trash"/></svg></button>
+          <div class="spacer"></div>
+          <span class="quiet">6 files, 35.2 MB</span>
+        </div>
+        <div class="cols">
+          <span></span>
+          <span class="sort" style="padding-left:8px">Name<svg class="i"><use href="#ic-chev-d"/></svg></span>
+          <span class="r">Size</span>
+          <span class="r">Result</span>
+          <span></span>
+        </div>
+        <ul class="rows">
+          <li class="row" tabindex="0">
+            <div class="thumb" style="background:radial-gradient(circle at 70% 30%,#cfcfcf 0 2px,transparent 3px),linear-gradient(180deg,#6e6e6e 0 45%,#2c2c2c 45% 60%,#474747 60%)"></div>
+            <span class="name">IMG_4821.HEIC</span>
+            <span class="size">3.2 MB</span>
+            <span class="res"><svg class="i arrow"><use href="#ic-arrow"/></svg><span class="after">640 KB</span></span>
+            <span class="st done" title="Done"><svg class="i"><use href="#ic-check"/></svg></span>
+          </li>
+          <li class="row sel" tabindex="0">
+            <div class="thumb" style="background:radial-gradient(ellipse 30% 42% at 50% 56%,#8c8c8c 0 98%,transparent),linear-gradient(180deg,#3a3a3a,#1c1c1c)"></div>
+            <span class="name">product-shot.jpg</span>
+            <span class="size">2.1 MB</span>
+            <span class="res"><svg class="i arrow"><use href="#ic-arrow"/></svg><span class="after">486 KB</span></span>
+            <span class="st done" title="Done"><svg class="i"><use href="#ic-check"/></svg></span>
+          </li>
+          <li class="row" tabindex="0">
+            <div class="thumb" style="background:linear-gradient(180deg,#5a5a5a 0 18%,#1e1e1e 18%),linear-gradient(90deg,#2e2e2e 0 30%,transparent 30%);background-blend-mode:normal"></div>
+            <span class="name">screenshot-2026-10-03.png</span>
+            <span class="size">1.8 MB</span>
+            <span class="res"><span class="bar"><i></i></span><span class="pct">62%</span></span>
+            <span class="st run" title="Converting"><svg class="i"><use href="#ic-sync"/></svg></span>
+          </li>
+          <li class="row" tabindex="0">
+            <div class="thumb" style="background:linear-gradient(135deg,#7a7a7a,#262626 70%)"></div>
+            <span class="name">hero-banner@2x.png</span>
+            <span class="size">4.6 MB</span>
+            <span class="res">queued</span>
+            <span class="st" title="Queued"><svg class="i"><use href="#ic-clock"/></svg></span>
+          </li>
+          <li class="row fail" tabindex="0">
+            <div class="thumb" style="background:repeating-linear-gradient(0deg,#9a9a9a 0 1px,#d0d0d0 1px 3px)"></div>
+            <span class="name">scan_0091.tiff</span>
+            <span class="size">22.4 MB</span>
+            <span class="res"><svg class="i" style="color:var(--fg1)"><use href="#ic-warning"/></svg><span class="err">Unsupported compression</span></span>
+            <button class="st retry" title="Retry"><svg class="i"><use href="#ic-retry"/></svg></button>
+          </li>
+          <li class="row" tabindex="0">
+            <div class="thumb" style="background:radial-gradient(circle at 50% 50%,#e8e8e8 0 4px,#2a2a2a 4.5px 6px,#e8e8e8 6.5px)"></div>
+            <span class="name">logo-final.bmp</span>
+            <span class="size">1.1 MB</span>
+            <span class="res">queued</span>
+            <span class="st" title="Queued"><svg class="i"><use href="#ic-clock"/></svg></span>
+          </li>
+        </ul>
+        <div class="dropline"><svg class="i"><use href="#ic-add-file"/></svg>Drop files here or <button>browse</button></div>
+        <div class="group-fill"></div>
+        <div class="group-foot"><span>Saved so far <b>4.17 MB</b></span><span>Average <b>78%</b> smaller</span></div>
+      </section>
+
+      <div class="gdiv"></div>
+
+      <!-- group 2: compare -->
+      <section class="group blur">
+        <div class="tabs">
+          <div class="tab on"><svg class="i"><use href="#ic-file-image"/></svg><span class="t-label">product-shot.jpg</span><span class="t-close"><svg class="i"><use href="#ic-close"/></svg></span></div>
+          <div class="tabs-actions">
+            <button class="icon-btn" title="Show in folder"><svg class="i"><use href="#ic-reveal"/></svg></button>
+            <button class="icon-btn" title="More"><svg class="i"><use href="#ic-more"/></svg></button>
+          </div>
+        </div>
+        <div class="crumbs">
+          <a href="#">Queue</a><svg class="i chev"><use href="#ic-chev-r"/></svg>
+          <a href="#">product-shot.jpg</a><svg class="i chev"><use href="#ic-chev-r"/></svg>
+          <a href="#" class="last">Compare</a>
+        </div>
+        <div class="toolbar cmp-tools" style="border-top:1px solid var(--hairline)">
+          <div class="seg">
+            <button class="on"><svg class="i"><use href="#ic-split"/></svg>Side by side</button>
+            <button><svg class="i"><use href="#ic-swipe"/></svg>Swipe</button>
+          </div>
+          <div class="spacer"></div>
+          <button class="dd">Fit<svg class="i"><use href="#ic-chev-d"/></svg></button>
+        </div>
+        <div class="compare">
+          <div>
+            <div class="pane-h"><span class="k">Before</span><span class="v">JPG  2.1 MB</span></div>
+            <div class="shot"><svg><use href="#photo"/></svg></div>
+          </div>
+          <div>
+            <div class="pane-h"><span class="k">After</span><span class="v">WebP  <b>486 KB</b></span></div>
+            <div class="shot"><svg><use href="#photo"/></svg></div>
+          </div>
+        </div>
+        <div class="sepline"><span>Properties</span><i></i></div>
+        <table class="grid">
+          <thead><tr><th>Property</th><th>Before</th><th></th><th>After</th></tr></thead>
+          <tbody>
+            <tr><td class="k">Dimensions</td><td class="b">2400 × 1600</td><td class="arr"><svg class="i"><use href="#ic-arrow"/></svg></td><td class="a">2400 × 1600</td></tr>
+            <tr><td class="k">Format</td><td class="b">JPG</td><td class="arr"><svg class="i"><use href="#ic-arrow"/></svg></td><td class="a">WebP</td></tr>
+            <tr><td class="k">Size</td><td class="b">2.1 MB</td><td class="arr"><svg class="i"><use href="#ic-arrow"/></svg></td><td class="a strong">486 KB</td></tr>
+            <tr><td class="k">Quality</td><td class="b">q 92</td><td class="arr"><svg class="i"><use href="#ic-arrow"/></svg></td><td class="a">Balanced, q 80</td></tr>
+            <tr><td class="k">Metadata</td><td class="b">EXIF, ICC</td><td class="arr"><svg class="i"><use href="#ic-arrow"/></svg></td><td class="a">Kept</td></tr>
+            <tr><td class="k">Saved</td><td class="b"></td><td class="arr"></td><td class="a strong"><span class="saved">77%<span class="meter"><i></i></span></span></td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <!-- status bar -->
+  <footer class="status">
+    <span class="si"><svg class="i"><use href="#ic-sync"/></svg>Converting 3 of 6<span class="hair"><i></i></span></span>
+    <span class="si warn"><svg class="i"><use href="#ic-warning"/></svg>1 failed</span>
+    <span class="grow"></span>
+    <span class="si num">2 of 6 done</span>
+  </footer>
+</div>
+</body>
+</html>

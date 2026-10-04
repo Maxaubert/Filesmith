@@ -1,0 +1,316 @@
+<!--
+  Filesmith, round 3, mockup 12: Thumbnail Grid
+  Pitch: files as visual cards, not lines. A 3x2 grid of thumbnails where each card
+  shows its own status, which feels more like a media tool. A failed card is drawn with
+  a dashed border and a bright weight-600 label: error by line style, not colour.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith, Thumbnail Grid</title>
+<style>
+:root{
+  --bg:#000; --card:#0b0b0b; --card-b:#1e1e1e; --tile:#0e0e0e; --tile-b:#212121;
+  --hair:#161616; --hover:#121212; --sel:#262626; --line:#2a2a2a; --ctl-b:#3a3a3a;
+  --fg:#f2f2f2; --fg2:#d0d0d0; --fg3:#8f8f8f; --glyph:#b0b0b0; --track:#303030;
+  --ui:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;overflow:hidden}
+body{font:13px/1.4 var(--ui);color:var(--fg);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+svg.i18{width:18px;height:18px}
+svg.i24{width:24px;height:24px}
+svg.i28{width:28px;height:28px}
+:focus-visible{outline:2px solid #f2f2f2;outline-offset:2px}
+button:active{transform:scale(.97)}
+
+.app{width:1440px;height:900px;display:grid;grid-template-rows:38px 1fr 28px;background:var(--bg)}
+
+/* titlebar */
+.tb{display:flex;align-items:center;border-bottom:1px solid var(--hair);padding-left:14px}
+.logo{width:20px;height:20px;border-radius:5px;background:#f2f2f2;color:#000;display:grid;place-items:center}
+.logo svg{width:14px;height:14px;fill:#000;stroke:#000;stroke-width:1.2}
+.tb .name{font-weight:600;font-size:13px;margin-left:10px}
+.tb .ctx{flex:1;text-align:center;font:12px var(--mono);color:var(--fg3)}
+.wc{width:46px;height:38px;display:grid;place-items:center;color:var(--glyph);transition:background .12s var(--ease),color .12s var(--ease)}
+.wc svg{width:15px;height:15px;stroke-linecap:square;stroke-linejoin:miter}
+.wc:hover{background:#1a1a1a;color:var(--fg)}
+.wc.x:hover{background:#e6e6e6;color:#000}
+.wc:active{transform:none}
+
+.body{display:grid;grid-template-columns:240px 1fr;min-height:0}
+
+/* sidebar */
+.side{border-right:1px solid var(--hair);padding:12px 10px 14px;display:flex;flex-direction:column;gap:2px}
+.search{height:32px;border:1px solid #222;border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 6px 0 10px;color:var(--fg3);font:12px var(--mono);margin-bottom:14px;background:#050505}
+.search>span:not(.kbd){flex:1}
+.kbd{height:20px;padding:0 6px;border-radius:5px;background:#1a1a1a;border:1px solid var(--ctl-b);font:12px var(--mono);color:var(--fg2);display:grid;place-items:center;line-height:1}
+.nav{height:36px;border-radius:8px;display:flex;align-items:center;gap:10px;padding:0 10px;color:var(--fg3);font:500 12.5px var(--mono);transition:background .12s var(--ease),color .12s var(--ease);width:100%;text-align:left}
+.nav .ic{width:20px;display:grid;place-items:center;color:var(--glyph);transition:color .12s var(--ease)}
+.nav span.l{flex:1}
+.nav .n{font:12px var(--mono);color:var(--fg3)}
+.nav:hover{background:var(--hover);color:var(--fg)}
+.nav:hover .ic{color:var(--fg)}
+.nav.on{background:var(--sel);color:var(--fg)}
+.nav.on .ic{color:var(--fg)}
+.nav.on .n{color:var(--fg2)}
+.rule{height:1px;background:var(--hair);margin:10px 4px}
+.side .grow{flex:1}
+.ver{font:12px var(--mono);color:var(--fg3)}
+
+/* main */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.head{height:96px;flex:none;background:#080808;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:16px;padding:0 40px}
+.htile{width:48px;height:48px;border:1px solid #2a2a2a;border-radius:10px;display:grid;place-items:center;color:var(--fg);background:#0e0e0e}
+.htext{flex:1}
+.htext h1{font:600 26px/1.15 var(--ui);letter-spacing:-.3px}
+.htext p{font-size:13px;color:var(--fg3);margin-top:3px}
+.count{font:12px var(--mono);color:var(--fg3);margin-right:8px}
+.btn2{height:32px;padding:0 12px 0 10px;border:1px solid var(--ctl-b);border-radius:8px;display:flex;align-items:center;gap:8px;font-weight:500;color:var(--fg);transition:background .12s var(--ease)}
+.btn2 svg{color:var(--glyph)}
+.btn2:hover{background:#1a1a1a}
+
+.content{flex:1;min-height:0;display:grid;grid-template-columns:1fr 340px;gap:32px;padding:32px 40px 24px}
+.cap{display:flex;align-items:baseline;justify-content:space-between;font:500 13px var(--ui);color:var(--fg3);margin-bottom:10px;height:18px}
+.cap .r{font:12px var(--mono);color:var(--fg3)}
+.cap .r b{color:var(--fg2);font-weight:500}
+
+/* grid of file cards */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.fc{position:relative;background:var(--card);border:1px solid var(--card-b);border-radius:12px;overflow:hidden;transition:background .12s var(--ease),border-color .12s var(--ease)}
+.fc:hover,.fc.is-hover{background:var(--hover);border-color:#2e2e2e}
+.fc.run{border-color:#4a4a4a}
+.fc.fail{border:1px dashed #8a8a8a}
+.thumb{height:150px;position:relative;display:grid;place-items:center;color:#8f8f8f;border-bottom:1px solid #1a1a1a;background:#080808}
+.fc.run .thumb{color:var(--fg2)}
+.fc.fail .thumb{border-bottom:1px dashed #3a3a3a}
+.kind{width:56px;height:56px;border-radius:12px;background:var(--tile);border:1px solid var(--tile-b);display:grid;place-items:center}
+.ext{position:absolute;left:10px;top:10px;font:12px var(--mono);color:var(--fg3);background:rgba(0,0,0,.7);border:1px solid #222;border-radius:6px;padding:1px 6px}
+/* greyscale photo thumbs */
+.ph1{background:
+  radial-gradient(circle at 74% 30%,#bdbdbd 0 7%,transparent 7.5%),
+  linear-gradient(180deg,transparent 0 54%,#000 54% 100%),
+  linear-gradient(160deg,#5a5a5a,#1c1c1c 70%);}
+.ph1::after{content:"";position:absolute;inset:auto 0 0 0;height:56%;background:
+  linear-gradient(155deg,transparent 40%,#2e2e2e 40.5% 60%,transparent 60.5%),
+  linear-gradient(200deg,transparent 30%,#3c3c3c 30.5% 52%,#151515 52.5%)}
+.ph2{background:
+  radial-gradient(ellipse 22% 32% at 50% 48%,#d6d6d6,#8a8a8a 60%,transparent 62%),
+  radial-gradient(ellipse 30% 6% at 50% 82%,#000 0,transparent 70%),
+  linear-gradient(180deg,#2c2c2c,#121212 78%,#1a1a1a 78% 100%);}
+.hov{position:absolute;right:8px;top:8px;display:flex;gap:6px;opacity:0;transition:opacity .12s var(--ease)}
+.fc:hover .hov,.fc.is-hover .hov{opacity:1}
+.ib{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:rgba(0,0,0,.7);border:1px solid #2e2e2e;color:var(--fg2);transition:background .12s var(--ease),color .12s var(--ease)}
+.ib:hover{background:#1f1f1f;color:var(--fg)}
+.meta{padding:12px 14px 0}
+.fname{font:13px var(--mono);color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fsize{font:12px var(--mono);color:var(--fg3);margin-top:2px}
+.strip{height:40px;margin-top:10px;border-top:1px solid #181818;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:12px;color:var(--fg3)}
+.fc.fail .strip{border-top:1px dashed #2e2e2e}
+.strip .v{margin-left:auto;font:12px var(--mono);font-variant-numeric:tabular-nums}
+.st-done{color:var(--fg2)}
+.st-done .v{color:var(--fg2)}
+.bar{flex:1;height:2px;background:var(--track);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:62%;background:#f2f2f2}
+.st-run .v{margin-left:0;color:var(--fg);width:34px;text-align:right}
+.st-fail{color:var(--fg);font-weight:600}
+.st-fail .ib{margin-left:auto;width:28px;height:28px;background:transparent;border-color:#3a3a3a;font-weight:400}
+
+.drop{margin-top:16px;height:48px;border:1px dashed var(--line);border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--fg3);transition:background .12s var(--ease),color .12s var(--ease),border-color .12s var(--ease)}
+.drop:hover{background:#080808;color:var(--fg2);border-color:#3a3a3a}
+
+/* options */
+.opts{background:var(--card);border:1px solid var(--card-b);border-radius:12px}
+.orow{padding:16px 18px;border-top:1px solid #161616}
+.orow:first-child{border-top:0}
+.olab{display:flex;justify-content:space-between;align-items:baseline;font:500 13px var(--ui);color:var(--fg);margin-bottom:10px}
+.olab .r{font:12px var(--mono);color:var(--fg3);font-weight:400}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chip{height:32px;border-radius:8px;border:1px solid #2a2a2a;font:12px var(--mono);color:var(--fg2);transition:background .12s var(--ease),color .12s var(--ease),border-color .12s var(--ease)}
+.chip:hover{background:#1a1a1a;border-color:#3a3a3a;color:var(--fg)}
+.chip.on{background:#f2f2f2;border-color:#f2f2f2;color:#000;font-weight:600}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);height:32px;border:1px solid #2a2a2a;border-radius:8px;padding:2px;gap:2px}
+.seg button{border-radius:6px;font-size:12px;color:var(--fg3);transition:background .12s var(--ease),color .12s var(--ease)}
+.seg button:hover{background:#161616;color:var(--fg)}
+.seg button.on{background:#2e2e2e;color:var(--fg);font-weight:600}
+.radio{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border-radius:8px;width:100%;text-align:left;color:var(--fg3);transition:background .12s var(--ease),color .12s var(--ease)}
+.radio:hover{background:var(--hover);color:var(--fg)}
+.radio .dot{width:14px;height:14px;border-radius:50%;border:1.5px solid #6a6a6a;display:grid;place-items:center}
+.radio.on{color:var(--fg)}
+.radio.on .dot{border-color:#f2f2f2}
+.radio.on .dot::after{content:"";width:6px;height:6px;border-radius:50%;background:#f2f2f2}
+.radio .fi{margin-left:auto;color:var(--glyph)}
+.tgl-row{display:flex;align-items:center;justify-content:space-between}
+.tgl-row .d{font-size:12px;color:var(--fg3);margin-top:2px}
+.tgl{width:36px;height:20px;border-radius:11px;background:#f2f2f2;position:relative;transition:background .12s var(--ease)}
+.tgl::after{content:"";position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#000}
+.tgl:hover{background:#ffffff}
+.primary{margin-top:16px;width:100%;height:40px;border-radius:10px;background:#f2f2f2;color:#000;font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .12s var(--ease)}
+.primary:hover{background:#ffffff}
+
+/* status line */
+.sl{grid-column:1/-1;border-top:1px solid var(--hair);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font:12px var(--mono);color:var(--fg3)}
+.sl .l{display:flex;align-items:center;gap:8px}
+.sl .pip{width:6px;height:6px;border-radius:50%;background:#b0b0b0}
+.sl .r{display:flex;align-items:center;gap:6px;color:var(--fg2)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="convert" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></symbol>
+    <symbol id="compress" viewBox="0 0 24 24"><path d="m15 15 6 6"/><path d="M15 19.5V15h4.5"/><path d="m9 9-6-6"/><path d="M9 4.5V9H4.5"/><path d="m15 9 6-6"/><path d="M15 4.5V9h4.5"/><path d="m9 15-6 6"/><path d="M9 19.5V15H4.5"/></symbol>
+    <symbol id="resize" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M14 3h7v7"/><path d="m21 3-9 9"/><path d="M9 15h3v-3"/></symbol>
+    <symbol id="upscale" viewBox="0 0 24 24"><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M14 3h7v7"/><path d="m21 3-8 8"/><path d="M3 9V4a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="removebg" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3a2.4 2.4 0 0 1 0-3.4l9.6-9.6a2.4 2.4 0 0 1 3.4 0l5.6 5.6a2.4 2.4 0 0 1 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></symbol>
+    <symbol id="generate" viewBox="0 0 24 24"><path d="M10 3.5 11.8 8.2 16.5 10l-4.7 1.8L10 16.5l-1.8-4.7L3.5 10l4.7-1.8z"/><path d="M19 3v4M17 5h4M18 16v4M16 18h4"/></symbol>
+    <symbol id="tools" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="completed" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="fileplus" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M12 11v6M9 14h6"/></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M3 19V5a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v3"/><path d="m3 19 2.6-7.2a1 1 0 0 1 .9-.8H21l-3 8z"/></symbol>
+    <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="retry" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></symbol>
+    <symbol id="min" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="max" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <header class="tb">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M4 6h13a3 3 0 0 1-3 3h-1v4l3 4H8l3-4V9H4z"/></svg></div>
+    <div class="name">Filesmith</div>
+    <div class="ctx">convert</div>
+    <button class="wc" aria-label="Minimize"><svg class="i"><use href="#min"/></svg></button>
+    <button class="wc" aria-label="Maximize"><svg class="i"><use href="#max"/></svg></button>
+    <button class="wc x" aria-label="Close"><svg class="i"><use href="#close"/></svg></button>
+  </header>
+
+  <div class="body">
+    <nav class="side" aria-label="Operations">
+      <div class="search"><svg class="i"><use href="#search"/></svg><span>Search</span><span class="kbd">Ctrl K</span></div>
+      <button class="nav on" aria-current="page"><span class="ic"><svg class="i i18"><use href="#convert"/></svg></span><span class="l">Convert</span><span class="n">6</span></button>
+      <button class="nav"><span class="ic"><svg class="i i18"><use href="#compress"/></svg></span><span class="l">Compress</span></button>
+      <button class="nav"><span class="ic"><svg class="i i18"><use href="#resize"/></svg></span><span class="l">Resize</span></button>
+      <button class="nav"><span class="ic"><svg class="i i18"><use href="#upscale"/></svg></span><span class="l">Upscale</span></button>
+      <button class="nav"><span class="ic"><svg class="i i18"><use href="#removebg"/></svg></span><span class="l">Remove BG</span></button>
+      <button class="nav"><span class="ic"><svg class="i i18"><use href="#generate"/></svg></span><span class="l">Generate</span></button>
+      <button class="nav"><span class="ic"><svg class="i i18"><use href="#tools"/></svg></span><span class="l">Tools</span></button>
+      <div class="rule"></div>
+      <button class="nav"><span class="ic"><svg class="i i18"><use href="#completed"/></svg></span><span class="l">Completed</span><span class="n">142</span></button>
+      <div class="grow"></div>
+      <button class="nav"><span class="ic"><svg class="i i18"><use href="#settings"/></svg></span><span class="l">Settings</span><span class="ver">0.3.0</span></button>
+    </nav>
+
+    <main class="main">
+      <div class="head">
+        <div class="htile"><svg class="i i24"><use href="#convert"/></svg></div>
+        <div class="htext"><h1>Convert</h1><p>Change images to another format.</p></div>
+        <span class="count">6 files</span>
+        <button class="btn2"><svg class="i"><use href="#fileplus"/></svg>Add files</button>
+      </div>
+
+      <div class="content">
+        <section>
+          <div class="cap"><span>Queue</span><span class="r"><b>2</b> of 6 done</span></div>
+          <div class="grid">
+            <article class="fc">
+              <div class="thumb ph1"><span class="ext">HEIC</span>
+                <div class="hov"><button class="ib" aria-label="Show in folder"><svg class="i"><use href="#folder"/></svg></button><button class="ib" aria-label="Remove"><svg class="i"><use href="#x"/></svg></button></div>
+              </div>
+              <div class="meta"><div class="fname">IMG_4821.HEIC</div><div class="fsize">3.2 MB</div></div>
+              <div class="strip st-done"><svg class="i"><use href="#check"/></svg>Done<span class="v">640 KB</span></div>
+            </article>
+
+            <article class="fc">
+              <div class="thumb ph2"><span class="ext">JPG</span>
+                <div class="hov"><button class="ib" aria-label="Show in folder"><svg class="i"><use href="#folder"/></svg></button><button class="ib" aria-label="Remove"><svg class="i"><use href="#x"/></svg></button></div>
+              </div>
+              <div class="meta"><div class="fname">product-shot.jpg</div><div class="fsize">2.1 MB</div></div>
+              <div class="strip st-done"><svg class="i"><use href="#check"/></svg>Done<span class="v">486 KB</span></div>
+            </article>
+
+            <article class="fc run">
+              <div class="thumb"><span class="ext">PNG</span><div class="kind"><svg class="i i28"><use href="#image"/></svg></div>
+                <div class="hov"><button class="ib" aria-label="Remove"><svg class="i"><use href="#x"/></svg></button></div>
+              </div>
+              <div class="meta"><div class="fname">screenshot-2026-10-03.png</div><div class="fsize">1.8 MB</div></div>
+              <div class="strip st-run"><div class="bar"><i></i></div><span class="v">62%</span></div>
+            </article>
+
+            <article class="fc is-hover">
+              <div class="thumb"><span class="ext">PNG</span><div class="kind"><svg class="i i28"><use href="#image"/></svg></div>
+                <div class="hov"><button class="ib" aria-label="Remove"><svg class="i"><use href="#x"/></svg></button></div>
+              </div>
+              <div class="meta"><div class="fname">hero-banner@2x.png</div><div class="fsize">4.6 MB</div></div>
+              <div class="strip"><svg class="i"><use href="#clock"/></svg>Queued</div>
+            </article>
+
+            <article class="fc fail">
+              <div class="thumb"><span class="ext">TIFF</span><div class="kind"><svg class="i i28"><use href="#image"/></svg></div>
+                <div class="hov"><button class="ib" aria-label="Remove"><svg class="i"><use href="#x"/></svg></button></div>
+              </div>
+              <div class="meta"><div class="fname">scan_0091.tiff</div><div class="fsize">22.4 MB</div></div>
+              <div class="strip st-fail"><svg class="i"><use href="#alert"/></svg>Unsupported compression<button class="ib" aria-label="Retry"><svg class="i"><use href="#retry"/></svg></button></div>
+            </article>
+
+            <article class="fc">
+              <div class="thumb"><span class="ext">BMP</span><div class="kind"><svg class="i i28"><use href="#image"/></svg></div>
+                <div class="hov"><button class="ib" aria-label="Remove"><svg class="i"><use href="#x"/></svg></button></div>
+              </div>
+              <div class="meta"><div class="fname">logo-final.bmp</div><div class="fsize">1.1 MB</div></div>
+              <div class="strip"><svg class="i"><use href="#clock"/></svg>Queued</div>
+            </article>
+          </div>
+          <button class="drop" style="width:100%"><svg class="i"><use href="#plus"/></svg>Drop more files here</button>
+        </section>
+
+        <aside>
+          <div class="cap"><span>Options</span></div>
+          <div class="opts">
+            <div class="orow">
+              <div class="olab">Format<span class="r">.webp</span></div>
+              <div class="chips">
+                <button class="chip on" aria-pressed="true">WebP</button><button class="chip">JPG</button><button class="chip">PNG</button>
+                <button class="chip">AVIF</button><button class="chip">JXL</button><button class="chip">TIFF</button>
+              </div>
+            </div>
+            <div class="orow">
+              <div class="olab">Quality</div>
+              <div class="seg" role="radiogroup"><button>Smaller</button><button class="on" aria-checked="true">Balanced</button><button>Best</button></div>
+            </div>
+            <div class="orow" style="padding-bottom:12px">
+              <div class="olab" style="margin-bottom:6px">Output</div>
+              <button class="radio on"><span class="dot"></span>Next to source</button>
+              <button class="radio"><span class="dot"></span>Choose folder…<svg class="i fi"><use href="#folder"/></svg></button>
+            </div>
+            <div class="orow tgl-row">
+              <div><div style="font-weight:500">Keep metadata</div><div class="d">EXIF, colour profile, dates</div></div>
+              <button class="tgl" role="switch" aria-checked="true" aria-label="Keep metadata"></button>
+            </div>
+          </div>
+          <button class="primary"><svg class="i"><use href="#convert"/></svg>Convert 6 files</button>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <footer class="sl">
+    <span class="l"><span class="pip"></span>Converting</span>
+    <span class="r"><svg class="i" style="width:14px;height:14px"><use href="#alert"/></svg>1 failed</span>
+  </footer>
+</div>
+</body>
+</html>

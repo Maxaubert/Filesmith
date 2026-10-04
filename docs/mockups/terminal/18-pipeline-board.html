@@ -1,0 +1,459 @@
+<!doctype html>
+<!--
+  Filesmith mockup #18 of 20: Pipeline Board
+  Pitch: status columns instead of a list. Queued, Running, Done and Failed lanes,
+  with convert groups as swimlanes, readable at a glance. Lanes outside the active
+  group collapse and dim; the Images lane is outlined as the selection.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filesmith Pipeline Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#050505; --rail:#050505; --panel:#080808;
+  --lane:#1b1b1b; --card:#0e0e0e; --cardb:#262626; --cardsel:#141414; --cardselb:#3a3a3a;
+  --hover:#151515;
+  --fg:#ececec; --fg2:#c8c8c8; --fg3:#8c8c8c;
+  --acc:#ff9f43; --dng:#f0867e; --ok:#c8c8c8;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,monospace;
+  --grot:"Space Grotesk","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --colw:207px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;color:var(--fg);height:100%}
+body{display:grid;place-items:center;min-height:100vh;font:500 13px/1.4 var(--grot);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.app{width:1440px;height:900px;background:var(--bg);display:grid;grid-template-rows:36px 1fr 28px;border:1px solid #1f1f1f;overflow:hidden}
+
+/* titlebar */
+.tb{display:flex;align-items:center;border-bottom:1px solid var(--lane);-webkit-app-region:drag}
+.brand{display:flex;align-items:center;gap:9px;padding:0 14px;width:200px;height:100%;border-right:1px solid var(--lane)}
+.mark{width:18px;height:18px;border-radius:4px;background:var(--fg);display:grid;place-items:center}
+.brand b{font:600 13px var(--grot);letter-spacing:-.1px}
+.tb-mid{flex:1;display:flex;align-items:center;gap:10px;padding:0 16px;font:400 12px var(--mono);color:var(--fg3)}
+.tb-mid .crumb{color:var(--fg2)}
+.wc{display:flex;height:100%;-webkit-app-region:no-drag}
+.wc button{width:46px;height:36px;display:grid;place-items:center;color:var(--fg2);transition:background .12s var(--ease),color .12s var(--ease)}
+.wc button:hover{background:#161616;color:var(--fg)}
+.wc button:active{background:#202020}
+.wc button.x:hover{background:#c42b1c;color:#fff}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:square;stroke-linejoin:miter;flex:none}
+
+.body{display:grid;grid-template-columns:200px 1fr 320px;min-height:0}
+
+/* rail */
+.rail{border-right:1px solid var(--lane);display:flex;flex-direction:column;padding:10px 8px;min-height:0}
+.nav{display:flex;flex-direction:column;gap:2px}
+.ni{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:6px;color:var(--fg3);font:500 13px var(--grot);text-align:left;width:100%;transition:background .12s var(--ease),color .12s var(--ease)}
+.ni:hover{background:var(--hover);color:var(--fg)}
+.ni:active{transform:scale(.98)}
+.ni .lbl{flex:1}
+.ni .n{font:500 11px var(--mono);color:var(--fg3);font-variant-numeric:tabular-nums}
+.ni[aria-current=page]{background:#262626;color:var(--fg)}
+.ni[aria-current=page] .n{color:var(--fg)}
+.rail-sep{height:1px;background:var(--lane);margin:8px 6px}
+.rail-foot{margin-top:auto}
+.rail-meta{display:flex;justify-content:space-between;align-items:center;padding:8px 10px 2px;font:400 11px var(--mono);color:var(--fg3)}
+.rail-meta button{color:var(--fg3);padding:2px 4px;border-radius:4px}
+.rail-meta button:hover{color:var(--fg);background:var(--hover)}
+
+/* main board */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.wh{display:flex;align-items:flex-end;gap:16px;padding:14px 24px 12px;border-bottom:1px solid var(--lane)}
+.wh h1{font:600 24px/1 var(--grot);letter-spacing:-.4px}
+.wh p{color:var(--fg3);font-size:13px;margin-top:6px}
+.wh .sp{flex:1}
+.wh .cnt{font:500 12px var(--mono);color:var(--fg2)}
+.tgl{display:flex;border:1px solid var(--cardb);border-radius:6px;overflow:hidden}
+.tgl button{padding:5px 10px;font:500 11.5px var(--mono);color:var(--fg3)}
+.tgl button:hover{color:var(--fg);background:var(--hover)}
+.tgl button[aria-pressed=true]{background:#262626;color:var(--fg)}
+
+.cols{display:grid;grid-template-columns:repeat(4,var(--colw));gap:8px;padding:12px 33px 0}
+.ch{display:flex;align-items:center;gap:8px;padding:0 2px 8px;border-bottom:2px solid #2a2a2a;font:600 13px var(--grot)}
+.ch .n{font:500 11.5px var(--mono);color:var(--fg3);margin-left:auto;font-variant-numeric:tabular-nums}
+.ch.rn{border-color:var(--acc);color:var(--acc)}
+.ch.rn .n{color:var(--acc)}
+.ch.fail{border-color:var(--dng);color:var(--dng)}
+.ch.fail .n{color:var(--dng)}
+.ch .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.ch.q .dot{background:none;border:1.5px solid var(--fg3)}
+.ch.done .dot{background:var(--fg2)}
+
+.add{margin:8px 33px 0;display:grid;grid-template-columns:repeat(4,var(--colw));gap:8px}
+.addslot{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:1px dashed #3a3a3a;border-radius:6px;font:500 12px var(--mono);color:var(--fg2);transition:border-color .12s var(--ease),background .12s var(--ease)}
+.addslot:hover{border-color:#6a6a6a;background:#0c0c0c;color:var(--fg)}
+.addslot:active{transform:scale(.99)}
+.kbd{margin-left:auto;font:500 10px var(--mono);color:var(--fg3);border:1px solid #333;border-radius:3px;padding:1px 5px}
+.addhint{grid-column:2/5;display:flex;align-items:center;font:400 11.5px var(--mono);color:var(--fg3);padding-left:4px}
+
+.board{flex:none;overflow:auto;padding:10px 24px 10px;display:flex;flex-direction:column;gap:6px;min-height:0}
+
+/* swimlanes */
+.lane{border:1px solid var(--lane);border-radius:8px;position:relative}
+.lane.sel{border-color:#cfcfcf;background:#080808}
+.lh{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;font:600 13px var(--grot);width:100%;text-align:left;border-radius:8px 8px 0 0}
+.lh:hover{background:#0c0c0c}
+.lh .sub{font:400 11.5px var(--mono);color:var(--fg3)}
+.lh .tag{margin-left:auto;font:500 10.5px var(--mono);color:#000;background:var(--fg);padding:2px 7px;border-radius:4px}
+.lh .hint{margin-left:auto;font:400 11px var(--mono);color:var(--fg3)}
+.lane.dim .lh{color:var(--fg3)}
+.lane.dim .lh .chev{transform:rotate(-90deg)}
+.cells{display:grid;grid-template-columns:repeat(4,var(--colw));gap:8px;padding:0 8px 8px}
+.cell{display:flex;flex-direction:column;gap:4px;min-width:0}
+.cc{display:flex;justify-content:space-between;font:500 10.5px var(--mono);color:var(--fg3);padding:0 2px;font-variant-numeric:tabular-nums}
+.cc b{font-weight:600;color:var(--fg2)}
+.cc.rn b{color:var(--acc)}
+.cc.fl b{color:var(--dng)}
+.lane.dim .cc b{color:#a0a0a0}
+.lane.dim .cc.rn b{color:#d9925a}
+
+/* cards */
+.card{background:var(--card);border:1px solid var(--cardb);border-radius:6px;padding:9px 10px 10px;font:400 12px/1.45 var(--mono);color:var(--fg2);position:relative;transition:border-color .12s var(--ease),background .12s var(--ease);cursor:default}
+.card:hover{border-color:#4a4a4a}
+.card:focus-visible{outline-offset:1px}
+.card:active{transform:scale(.995)}
+.lane.sel .card{background:var(--cardsel);border-color:var(--cardselb)}
+.lane.sel .card:hover{border-color:#6a6a6a}
+.c1{display:flex;align-items:center;gap:8px;min-width:0}
+.thumb{width:30px;height:30px;border-radius:4px;flex:none;border:1px solid #2e2e2e;display:grid;place-items:end start;padding:2px 3px;font:600 7.5px var(--mono);color:#e8e8e8;letter-spacing:.02em}
+.th1{background:linear-gradient(160deg,#5c5c5c,#1e1e1e 70%)}
+.th2{background:linear-gradient(180deg,#2a2a2a 0 22%,#3e3e3e 22% 100%)}
+.th3{background:radial-gradient(circle at 70% 30%,#7a7a7a,#202020 65%)}
+.th4{background:repeating-linear-gradient(0deg,#3a3a3a 0 2px,#262626 2px 5px)}
+.glyph{width:30px;height:30px;border-radius:4px;flex:none;border:1px solid #2e2e2e;display:grid;place-items:center;font:600 8.5px var(--mono);color:var(--fg2);background:#151515}
+.fn{color:var(--fg);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.card .name{display:block;margin-top:8px;color:var(--fg);font-weight:500;font-size:12px;line-height:1.4;overflow-wrap:anywhere;min-height:34px}
+.c1 .info{flex:1;min-width:0;display:flex;flex-direction:column;font-size:11.5px;line-height:1.3}
+.c1 .info .rt{color:var(--fg2)}
+.c1 .info .sz{color:var(--fg3)}
+.meta{display:flex;justify-content:space-between;gap:8px;margin-top:6px;color:var(--fg3);font-size:11.5px}
+.meta .rt{color:var(--fg2)}
+.ib{width:22px;height:22px;display:grid;place-items:center;border-radius:4px;color:var(--fg3);flex:none;transition:background .12s var(--ease),color .12s var(--ease)}
+.ib:hover{background:#242424;color:var(--fg)}
+.ib:active{transform:scale(.92)}
+.ib svg{width:14px;height:14px}
+.bar{height:3px;background:#2a2a2a;border-radius:2px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--acc)}
+.prog{display:flex;justify-content:space-between;margin-top:6px;font-size:11.5px;font-variant-numeric:tabular-nums}
+.prog b{color:var(--acc);font-weight:600}
+.prog span{color:var(--fg3)}
+.delta{display:flex;justify-content:space-between;margin-top:6px;font-size:11.5px;font-variant-numeric:tabular-nums}
+.delta b{color:var(--fg);font-weight:600}
+.card.failed{border-color:#5a3532}
+.lane.sel .card.failed{border-color:#6e3d39}
+.reason{margin-top:6px;color:var(--dng);font-size:11px;letter-spacing:-.3px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.retry{margin-top:8px;display:flex;gap:6px}
+.chip{height:24px;padding:0 8px;border:1px solid #333;border-radius:5px;font:500 11px var(--mono);color:var(--fg2);background:#121212;transition:border-color .12s var(--ease),color .12s var(--ease)}
+.chip:hover{border-color:#5a5a5a;color:var(--fg)}
+.chip:active{transform:scale(.97)}
+.empty{flex:1;min-height:30px;border:1px dashed #262626;border-radius:6px}
+
+/* collapsed lanes: same card anatomy, one row tall */
+.lane.dim{background:#030303}
+.lane.dim .lh{cursor:pointer}
+.lane.dim .lh:hover{color:var(--fg)}
+.mini{flex:1;display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:start;padding:7px 8px;background:#0a0a0a;border:1px solid #1f1f1f;border-radius:6px;font:400 11.5px/1.35 var(--mono);color:#9a9a9a;min-width:0;cursor:not-allowed;position:relative;overflow:hidden;transition:border-color .12s var(--ease)}
+.mini:hover{border-color:#333}
+.mini:focus-visible{outline-offset:1px}
+.kb{height:26px;border:1px solid #2a2a2a;border-radius:4px;display:grid;place-items:center;font:600 7.5px var(--mono);color:#a8a8a8;background:#121212}
+.mini .nm{color:#b4b4b4;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mini .mt{display:flex;justify-content:space-between;gap:6px;color:#8c8c8c;font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mini .mt .a{color:#d9925a}
+.mini .mb{position:absolute;left:0;right:0;bottom:0;height:2px;background:#1e1e1e}
+.mini .mb i{display:block;height:100%;background:#b8783a}
+
+/* log */
+.log{border-top:1px solid var(--lane);padding:8px 24px 8px;font:400 11.5px/1.65 var(--mono);color:var(--fg3);flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.log .lt{display:flex;align-items:center;gap:10px;font:600 12px var(--grot);color:var(--fg2);margin-bottom:4px}
+.log .lt .sp{flex:1}
+.log .lt button{font:500 11px var(--mono);color:var(--fg3);padding:2px 6px;border-radius:4px}
+.log .lt button:hover{color:var(--fg);background:var(--hover)}
+.log .ln{display:grid;grid-template-columns:62px 58px 1fr;white-space:nowrap;overflow:hidden}
+.log .ln span:last-child{overflow:hidden;text-overflow:ellipsis}
+.log .ln .t{color:#8a8a8a}
+.log .e{color:var(--dng)}
+.log .r{color:var(--acc)}
+.log .w{color:var(--fg2)}
+
+/* options panel */
+.opt{border-left:1px solid var(--lane);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.oh{padding:16px 18px 14px;border-bottom:1px solid var(--lane)}
+.oh .k{font:400 11.5px var(--mono);color:var(--fg3)}
+.oh h2{font:600 17px var(--grot);letter-spacing:-.2px;margin-top:4px}
+.oh .sel{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap}
+.oh .sel span{font:400 11px var(--mono);color:var(--fg2);border:1px solid #2a2a2a;border-radius:4px;padding:1px 6px}
+.ob{flex:1;overflow:auto;padding:4px 18px 16px}
+.sec{padding:14px 0;border-bottom:1px solid #141414}
+.sec:last-child{border-bottom:0}
+.st{font:600 13px var(--grot);color:var(--fg);display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.st span{font:400 11px var(--mono);color:var(--fg3)}
+.fmt{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.fo{height:32px;border:1px solid #2a2a2a;border-radius:6px;font:500 12px var(--mono);color:var(--fg2);background:#0e0e0e;position:relative;transition:border-color .12s var(--ease),background .12s var(--ease),color .12s var(--ease)}
+.fo:hover{border-color:#5a5a5a;color:var(--fg)}
+.fo:active{transform:scale(.97)}
+.fo[aria-pressed=true]{background:var(--fg);color:#000;border-color:var(--fg);font-weight:600}
+.fo:disabled{color:#8a8a8a;background:transparent;border-style:dashed;border-color:#262626;cursor:not-allowed;text-decoration:line-through;text-decoration-color:#555}
+.fo:disabled:active{transform:none}
+.why{font:400 11px/1.4 var(--mono);color:var(--fg3);margin-top:8px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #2a2a2a;border-radius:6px;padding:2px;gap:2px}
+.seg button{height:28px;border-radius:4px;font:500 12px var(--grot);color:var(--fg3);transition:background .12s var(--ease),color .12s var(--ease)}
+.seg button:hover{color:var(--fg);background:var(--hover)}
+.seg button:active{transform:scale(.97)}
+.seg button[aria-pressed=true]{background:#2c2c2c;color:var(--fg)}
+.qdesc{font:400 11.5px var(--mono);color:var(--fg3);margin-top:8px}
+.radio{display:flex;align-items:center;gap:10px;height:32px;padding:0 8px;border-radius:6px;width:100%;text-align:left;color:var(--fg2);font:500 13px var(--grot)}
+.radio:hover{background:var(--hover);color:var(--fg)}
+.radio .rd{width:12px;height:12px;border-radius:50%;border:1.5px solid #6a6a6a;flex:none}
+.radio[aria-checked=true] .rd{border:4px solid var(--fg)}
+.radio[aria-checked=true]{color:var(--fg)}
+.path{margin:0 0 6px 30px;font:400 11.5px var(--mono);color:var(--fg3)}
+.note{font:400 11.5px/1.5 var(--grot);color:var(--fg3);margin-top:10px}
+.note code{white-space:nowrap;font:400 11px var(--mono);color:var(--fg2)}
+.of{padding:14px 18px 16px;border-top:1px solid var(--lane)}
+.run{width:100%;height:42px;border-radius:7px;background:var(--fg);color:#000;font:600 14px var(--grot);display:flex;align-items:center;justify-content:center;gap:10px;transition:background .12s var(--ease)}
+.run:hover{background:#fff}
+.run:active{transform:scale(.98)}
+.run .kbd{margin-left:0;color:#333;border-color:#999}
+.run:disabled{background:#1a1a1a;color:#8a8a8a;cursor:not-allowed}
+.of .sub{display:flex;justify-content:space-between;margin-top:8px;font:400 11px var(--mono);color:var(--fg3)}
+.of .sub button{color:var(--fg3)}
+.of .sub button:hover{color:var(--fg)}
+
+/* status bar */
+.sb{display:flex;align-items:center;gap:14px;border-top:1px solid var(--lane);padding:0 12px 0 14px;font:400 11.5px var(--mono);color:var(--fg3);white-space:nowrap}
+.sb .tot{color:var(--fg2)}
+.sb .tot .f{color:var(--dng)}
+.sb .tot .r{color:var(--acc)}
+.pbar{width:120px;height:3px;background:#262626;border-radius:2px;display:flex;overflow:hidden}
+.pbar .d{background:var(--fg2)}
+.pbar .r{background:var(--acc)}
+.pbar .f{background:var(--dng)}
+.sb .pc{color:var(--fg);font-variant-numeric:tabular-nums}
+.sb .sp{flex:1}
+.sb .eng{display:flex;gap:12px}
+.sb .eng .miss{color:#a8a8a8;text-decoration:underline dotted #555;text-underline-offset:3px}
+.sb .vr{width:1px;height:12px;background:#262626}
+
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:rgba(236,236,236,.16);border-radius:3px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-button{display:none;background:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}*:active{transform:none!important}}
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Filesmith">
+
+  <!-- titlebar -->
+  <header class="tb">
+    <div class="brand">
+      <span class="mark"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2" stroke-linecap="square"><path d="M3 3h10M3 3v10M3 8h7"/></svg></span>
+      <b>Filesmith</b>
+    </div>
+    <div class="tb-mid"><span class="crumb">convert</span><span>/</span><span>board</span></div>
+    <div class="wc">
+      <button aria-label="Minimize"><svg class="i" viewBox="0 0 16 16"><path d="M3 8.5h10"/></svg></button>
+      <button aria-label="Maximize"><svg class="i" viewBox="0 0 16 16"><path d="M3.5 3.5h9v9h-9z"/></svg></button>
+      <button class="x" aria-label="Close"><svg class="i" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <!-- rail -->
+    <nav class="rail" aria-label="Operations">
+      <div class="nav">
+        <button class="ni" aria-current="page" title="Change format"><svg class="i" viewBox="0 0 16 16"><path d="M2 5h10l-3-3M14 11H4l3 3"/></svg><span class="lbl">Convert</span><span class="n">8</span></button>
+        <button class="ni" title="Shrink file size"><svg class="i" viewBox="0 0 16 16"><path d="M8 1v5M5 4l3 3 3-3M8 15v-5M5 12l3-3 3 3M2 8h12"/></svg><span class="lbl">Compress</span></button>
+        <button class="ni" title="Scale by percent or exact size"><svg class="i" viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 14h5V9M14 14L9 9"/></svg><span class="lbl">Resize</span></button>
+        <button class="ni" title="Enlarge 2x to 4x with AI"><svg class="i" viewBox="0 0 16 16"><path d="M2 14L14 2M8 2h6v6M2 9v5h5"/></svg><span class="lbl">Upscale</span></button>
+        <button class="ni" title="Cut the subject out with AI"><svg class="i" viewBox="0 0 16 16"><path d="M2 2h3M11 2h3v3M14 11v3h-3M5 14H2v-3M2 5v1M14 9v1M8 5a3 3 0 100 6 3 3 0 000-6z"/></svg><span class="lbl">Remove BG</span></button>
+        <button class="ni" title="Create an image from a text prompt"><svg class="i" viewBox="0 0 16 16"><path d="M2 14h12M4 11l2-6 2 6M4.7 9h2.6M11 4v7M9.5 4h3"/></svg><span class="lbl">Generate</span></button>
+        <button class="ni" title="One-off jobs: PDF extract text, pages to PNG, merge, split, burst, extract images"><svg class="i" viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 11.5h5M11.5 9v5"/></svg><span class="lbl">Tools</span></button>
+      </div>
+      <div class="rail-foot">
+        <div class="rail-sep"></div>
+        <button class="ni" title="Everything Filesmith has produced"><svg class="i" viewBox="0 0 16 16"><path d="M2 9l4 4 8-9"/></svg><span class="lbl">Completed</span><span class="n">142</span></button>
+        <div class="rail-meta"><span>v0.3.0</span><button aria-label="Edit rail: reorder and hide verbs">edit rail</button></div>
+      </div>
+    </nav>
+
+    <!-- board -->
+    <main class="main">
+      <div class="wh">
+        <div>
+          <h1>Convert</h1>
+          <p>Change format</p>
+        </div>
+        <div class="sp"></div>
+        <span class="cnt">8 files · 4 groups</span>
+        <div class="tgl" role="group" aria-label="View">
+          <button aria-pressed="true">board</button>
+          <button aria-pressed="false">list</button>
+        </div>
+      </div>
+
+      <div class="cols" role="row">
+        <div class="ch q"><span class="dot"></span>Queued<span class="n">3</span></div>
+        <div class="ch rn"><span class="dot"></span>Running<span class="n">2</span></div>
+        <div class="ch done"><span class="dot"></span>Done<span class="n">2</span></div>
+        <div class="ch fail"><span class="dot"></span>Failed<span class="n">1</span></div>
+      </div>
+      <div class="add">
+        <button class="addslot"><svg class="i" viewBox="0 0 16 16" style="width:14px;height:14px"><path d="M8 3v10M3 8h10"/></svg>add files<span class="kbd">Ctrl O</span></button>
+        <div class="addhint">or drop anywhere on the board · files sort into lanes by kind</div>
+      </div>
+
+      <div class="board">
+        <!-- Images: the active group -->
+        <section class="lane sel" aria-label="Images, 4 images, selected">
+          <button class="lh"><svg class="i chev" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M3 6l5 5 5-5"/></svg>Images <span class="sub">4 images</span><span class="tag">selected · 4</span></button>
+          <div class="cells">
+            <div class="cell">
+              <div class="cc"><span>queued</span><b>1</b></div>
+              <div class="card" tabindex="0">
+                <div class="c1"><span class="thumb th2">PNG</span><span class="info"><span class="rt">PNG → WebP</span><span class="sz">4.6 MB</span></span><button class="ib" aria-label="Stop"><svg class="i" viewBox="0 0 16 16"><path d="M4.5 4.5h7v7h-7z"/></svg></button>
+                  <button class="ib" aria-label="Row menu: Open, Show in folder, Remove"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h1M8 8h1M13 8h1"/></svg></button></div>
+                <span class="name">hero-banner@2x.png</span>
+                <div class="prog"><span>queued</span><span>next up</span></div>
+              </div>
+            </div>
+            <div class="cell">
+              <div class="cc rn"><span>running</span><b>1</b></div>
+              <div class="card" tabindex="0">
+                <div class="c1"><span class="thumb th1">PNG</span><span class="info"><span class="rt">PNG → WebP</span><span class="sz">1.8 MB</span></span><button class="ib" aria-label="Stop"><svg class="i" viewBox="0 0 16 16"><path d="M4.5 4.5h7v7h-7z"/></svg></button>
+                  <button class="ib" aria-label="Row menu: Open, Show in folder, Remove"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h1M8 8h1M13 8h1"/></svg></button></div>
+                <span class="name">screenshot-2026-10-03 141522.png</span>
+                <div class="bar"><i style="width:62%"></i></div>
+                <div class="prog"><b>62%</b><span>ETA 4 s</span></div>
+              </div>
+            </div>
+            <div class="cell">
+              <div class="cc"><span>done</span><b>1</b></div>
+              <div class="card" tabindex="0">
+                <div class="c1"><span class="thumb th3">HEIC</span><span class="info"><span class="rt">HEIC → WebP</span><span class="sz">3.2 MB</span></span><button class="ib" aria-label="Row menu: Open, Show in folder, Remove"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h1M8 8h1M13 8h1"/></svg></button></div>
+                <span class="name">IMG_4821.HEIC</span>
+                <div class="delta"><span>3.2 MB → <b>640 KB</b></span><b>-80%</b></div>
+              </div>
+            </div>
+            <div class="cell">
+              <div class="cc fl"><span>failed</span><b>1</b></div>
+              <div class="card failed" tabindex="0">
+                <div class="c1"><span class="thumb th4">TIFF</span><span class="info"><span class="rt">TIFF → WebP</span><span class="sz">22.4 MB</span></span><button class="ib" aria-label="Row menu: Open, Show in folder, Remove"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h1M8 8h1M13 8h1"/></svg></button></div>
+                <span class="name">scan_receipt_0091.tiff</span>
+                <div class="reason">Unsupported TIFF compression (JPEG-in-TIFF, old-style)</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Video: collapsed, not selectable while Images is active -->
+        <section class="lane dim" aria-label="Video, 1 video, not in selection">
+          <button class="lh"><svg class="i chev" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M3 6l5 5 5-5"/></svg>Video <span class="sub">1 video</span><span class="hint">click lane to switch group</span></button>
+          <div class="cells">
+            <div class="cell"><div class="cc"><span>queued</span><b>0</b></div><div class="empty" aria-hidden="true"></div></div>
+            <div class="cell"><div class="cc rn"><span>running</span><b>1</b></div><div class="mini" tabindex="0" aria-disabled="true"><span class="kb">MOV</span><span><span class="nm">screen-recording-standup.mov</span><span class="mt"><span>812 MB</span><span class="a">18.4% · 3:12</span></span></span><span class="mb"><i style="width:18.4%"></i></span></div></div>
+            <div class="cell"><div class="cc"><span>done</span><b>0</b></div><div class="empty" aria-hidden="true"></div></div>
+            <div class="cell"><div class="cc fl"><span>failed</span><b>0</b></div><div class="empty" aria-hidden="true"></div></div>
+          </div>
+        </section>
+
+        <section class="lane dim" aria-label="Documents, 2 documents, not in selection">
+          <button class="lh"><svg class="i chev" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M3 6l5 5 5-5"/></svg>Documents <span class="sub">2 documents</span></button>
+          <div class="cells">
+            <div class="cell"><div class="cc"><span>queued</span><b>1</b></div><div class="mini" tabindex="0" aria-disabled="true"><span class="kb">PDF</span><span><span class="nm">Q3-board-deck.pdf</span><span class="mt"><span>14.1 MB</span><span class="">PDF → DOCX</span></span></span></div></div>
+            <div class="cell"><div class="cc rn"><span>running</span><b>0</b></div><div class="empty" aria-hidden="true"></div></div>
+            <div class="cell"><div class="cc"><span>done</span><b>1</b></div><div class="mini" tabindex="0" aria-disabled="true"><span class="kb">TXT</span><span><span class="nm">release-notes-0.3.txt</span><span class="mt"><span>6 KB → 48 KB</span><span class="">TXT → PDF</span></span></span></div></div>
+            <div class="cell"><div class="cc fl"><span>failed</span><b>0</b></div><div class="empty" aria-hidden="true"></div></div>
+          </div>
+        </section>
+
+        <section class="lane dim" aria-label="Archives, 1 archive, not in selection">
+          <button class="lh"><svg class="i chev" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M3 6l5 5 5-5"/></svg>Archives <span class="sub">1 archive</span></button>
+          <div class="cells">
+            <div class="cell"><div class="cc"><span>queued</span><b>1</b></div><div class="mini" tabindex="0" aria-disabled="true"><span class="kb">CBZ</span><span><span class="nm">One-Piece-v104.cbz</span><span class="mt"><span>186 MB</span><span class="">CBZ → CB7</span></span></span></div></div>
+            <div class="cell"><div class="cc rn"><span>running</span><b>0</b></div><div class="empty" aria-hidden="true"></div></div>
+            <div class="cell"><div class="cc"><span>done</span><b>0</b></div><div class="empty" aria-hidden="true"></div></div>
+            <div class="cell"><div class="cc fl"><span>failed</span><b>0</b></div><div class="empty" aria-hidden="true"></div></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="log" aria-label="Engine log">
+        <div class="lt">Engine log<span class="sp"></span><button>copy</button><button>clear finished</button></div>
+        <div class="ln"><span class="t">14:21:58</span><span>magick</span><span>IMG_4821.HEIC  start  heic → webp  -quality 82</span></div>
+        <div class="ln"><span class="t">14:22:07</span><span>magick</span><span class="w">IMG_4821.HEIC → IMG_4821.webp  640 KB  0.9 s</span></div>
+        <div class="ln"><span class="t">14:22:08</span><span>mutool</span><span class="w">release-notes-0.3.txt → release-notes-0.3.pdf  48 KB  0.2 s</span></div>
+        <div class="ln"><span class="t">14:22:09</span><span>magick</span><span class="e">scan_receipt_0091.tiff: Unsupported TIFF compression (JPEG-in-TIFF, old-style)</span></div>
+        <div class="ln"><span class="t">14:22:11</span><span>ffmpeg</span><span class="r">screen-recording-standup.mov  frame=3312 fps=118 time=00:00:55.20 speed=3.9x</span></div>
+      </div>
+    </main>
+
+    <!-- options -->
+    <aside class="opt" aria-label="Options for Images">
+      <div class="oh">
+        <div class="k">options for lane</div>
+        <h2>Images · 4 selected</h2>
+        <div class="sel"><span>HEIC</span><span>PNG ×2</span><span>TIFF</span></div>
+      </div>
+      <div class="ob">
+        <div class="sec">
+          <div class="st">Target format <span>9 formats</span></div>
+          <div class="fmt" role="group" aria-label="Target format">
+            <button class="fo" disabled title="2 selected files are already PNG">PNG</button>
+            <button class="fo">JPG</button>
+            <button class="fo" aria-pressed="true">WebP</button>
+            <button class="fo">AVIF</button>
+            <button class="fo">JXL</button>
+            <button class="fo" disabled title="scan_receipt_0091.tiff is already TIFF">TIFF</button>
+            <button class="fo">BMP</button>
+            <button class="fo">GIF</button>
+            <button class="fo">ICO</button>
+          </div>
+          <div class="why">PNG and TIFF are off: a selected file is already that format.</div>
+        </div>
+        <div class="sec">
+          <div class="st">Quality</div>
+          <div class="seg" role="group" aria-label="Quality">
+            <button aria-pressed="false">Smaller</button>
+            <button aria-pressed="true">Balanced</button>
+            <button aria-pressed="false">Best</button>
+          </div>
+          <div class="qdesc">webp -quality 82 -method 5</div>
+        </div>
+        <div class="sec">
+          <div class="st">Output</div>
+          <button class="radio" role="radio" aria-checked="true"><span class="rd"></span>Next to source</button>
+          <div class="path">same folder as each file</div>
+          <button class="radio" role="radio" aria-checked="false"><span class="rd"></span>Change folder…</button>
+          <div class="path">last used D:\Photos\2026-10\</div>
+          <p class="note">Never overwrites. Collisions save as <code>name (converted).webp</code>, then <code>(2)</code>.</p>
+        </div>
+      </div>
+      <div class="of">
+        <button class="run">Convert 4 images <span class="kbd">Ctrl Enter</span></button>
+        <div class="sub"><span>3 remaining · 1 failed retries</span><button>deselect</button></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- status -->
+  <footer class="sb">
+    <span class="tot">2 of 8 done · <span class="r">2 running</span> · <span class="f">1 failed</span></span>
+    <span class="pbar" aria-hidden="true"><span class="d" style="width:25%"></span><span class="r" style="width:16%"></span><span class="f" style="width:12.5%"></span></span>
+    <span class="pc">41%</span>
+    <span class="sp"></span>
+    <span class="eng"><span>ffmpeg 7.1</span><span>ImageMagick 7.1.1</span><span>mutool 1.24</span><span>7-Zip 24.08</span><span class="miss" title="CBR writing is disabled until WinRAR's Rar.exe is found">Rar.exe not found</span></span>
+    <span class="vr"></span>
+    <span>RTX 5090 · Real-ESRGAN ready</span>
+  </footer>
+</div>
+</body>
+</html>

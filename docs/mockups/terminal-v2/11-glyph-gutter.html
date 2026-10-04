@@ -1,0 +1,123 @@
+<!--
+  Filesmith round 2, mockup 11: Glyph column
+  Pitch: status is a single glyph in a left gutter (check, ring, dot, cross),
+  so the right side of every row stays empty. Strict monochrome.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith Glyph Column</title>
+<style>
+  :root {
+    --bg:#000; --fg:#f2f2f2; --fg2:#d0d0d0; --fg3:#8f8f8f; --glyph:#b0b0b0;
+    --line:#151515; --hover:#121212; --sel:#1d1d1d; --track:#303030;
+    --s:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+    --m:"Cascadia Mono",Consolas,monospace;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { background:var(--bg); }
+  body { width:1440px; height:900px; overflow:hidden; color:var(--fg); font:13px/1.4 var(--s); -webkit-font-smoothing:antialiased; }
+  button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+  :focus-visible { outline:2px solid var(--fg); outline-offset:2px; }
+
+  .app { display:grid; grid-template-rows:38px 1fr; height:900px; }
+
+  /* title bar */
+  .bar { display:flex; align-items:center; padding-left:16px; -webkit-app-region:drag; }
+  .brand { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--fg3); }
+  .brand svg { display:block; }
+  .win { margin-left:auto; display:flex; height:38px; }
+  .win button { width:46px; height:38px; display:grid; place-items:center; color:var(--glyph); transition:background-color 140ms var(--ease), color 140ms var(--ease); }
+  .win button:hover { background:var(--hover); color:var(--fg); }
+
+  .main { display:grid; grid-template-columns:240px 1fr; min-height:0; }
+
+  /* rail */
+  .rail { border-right:1px solid var(--line); padding:12px 10px; display:flex; flex-direction:column; gap:2px; }
+  .nav { height:36px; padding:0 14px; border-radius:8px; text-align:left; font:500 12.5px/36px var(--m); color:var(--fg3); transition:background-color 140ms var(--ease), color 140ms var(--ease); }
+  .nav:hover { background:var(--hover); color:var(--fg2); }
+  .nav:active { transform:scale(.97); }
+  .nav[aria-current="page"] { background:var(--sel); color:var(--fg); }
+
+  /* content */
+  .content { padding:32px 40px 0; }
+  h1 { font:400 34px/1.15 var(--s); letter-spacing:-.01em; color:var(--fg); margin-bottom:40px; }
+
+  .queue { list-style:none; width:420px; }
+  .row { display:grid; grid-template-columns:24px 1fr; align-items:center; height:40px; font:13px/1 var(--m); }
+  .g { display:grid; place-items:center start; height:40px; }
+  .done .g { color:var(--fg3); }
+  .done .n { color:var(--fg2); }
+  .run .n { color:var(--fg); }
+  .wait .g, .wait .n { color:var(--fg3); }
+  .fail .g { color:var(--fg); font-weight:700; }
+  .fail .n { color:var(--fg2); }
+  .drop { color:var(--fg3); cursor:pointer; border-radius:6px; transition:color 140ms var(--ease); }
+  .drop:hover { color:var(--fg); }
+
+  .format { display:flex; gap:4px; margin:44px 0 0 12px; }
+  .seg { height:30px; padding:0 12px; border-radius:6px; font:13px/30px var(--m); color:var(--fg3); transition:background-color 140ms var(--ease), color 140ms var(--ease); }
+  .seg:hover { background:var(--hover); color:var(--fg2); }
+  .seg:active { transform:scale(.97); }
+  .seg[aria-checked="true"] { background:var(--sel); color:var(--fg); }
+
+  .go { margin:40px 0 0 0; height:40px; padding:0 22px; border-radius:999px; background:var(--fg); color:#000; font:600 13px/40px var(--s); transition:background-color 140ms var(--ease); }
+  .go:hover { background:#fff; }
+  .go:active { transform:scale(.97); }
+
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#b0b0b0" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="1.75" y="1.75" width="10.5" height="10.5"/><path d="M5 5h4M5 7.5h2.5"/></svg>
+      Filesmith
+    </div>
+    <div class="win">
+      <button aria-label="Minimise"><svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximise"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button aria-label="Close"><svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="main">
+    <nav class="rail" aria-label="Operations">
+      <button class="nav" aria-current="page">Convert</button>
+      <button class="nav">Compress</button>
+      <button class="nav">Resize</button>
+      <button class="nav">Upscale</button>
+      <button class="nav">Remove BG</button>
+      <button class="nav">Generate</button>
+      <button class="nav">Tools</button>
+    </nav>
+
+    <main class="content">
+      <h1>Convert</h1>
+
+      <ul class="queue">
+        <li class="row done"><span class="g" aria-label="done"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1.5 6.5l3 3 6-7"/></svg></span><span class="n">IMG_4821.HEIC</span></li>
+        <li class="row run"><span class="g" aria-label="62 percent">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke-width="1.5"><circle cx="6" cy="6" r="5" stroke="#303030"/><circle cx="6" cy="6" r="5" stroke="#f2f2f2" stroke-dasharray="19.48 31.42" transform="rotate(-90 6 6)"/></svg>
+        </span><span class="n">screenshot.png</span></li>
+        <li class="row wait"><span class="g" aria-label="queued"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></span><span class="n">hero-banner.png</span></li>
+        <li class="row fail"><span class="g" aria-label="failed"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M2 2l8 8M10 2L2 10"/></svg></span><span class="n">scan_0091.tiff</span></li>
+        <li><button class="row drop" style="width:100%;text-align:left"><span class="g"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M6 1.5v9M1.5 6h9"/></svg></span><span class="n">drop files</span></button></li>
+      </ul>
+
+      <div class="format" role="radiogroup" aria-label="Format">
+        <button class="seg" role="radio" aria-checked="true">WebP</button>
+        <button class="seg" role="radio" aria-checked="false">JPG</button>
+        <button class="seg" role="radio" aria-checked="false">PNG</button>
+        <button class="seg" role="radio" aria-checked="false">AVIF</button>
+      </div>
+
+      <button class="go">Convert 4 files</button>
+    </main>
+  </div>
+</div>
+</body>
+</html>

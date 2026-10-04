@@ -1,0 +1,506 @@
+<!doctype html>
+<!--
+  Filesmith mockup 15 of 20: Spreadsheet Grid
+  The queue is a spreadsheet: column letters, row numbers, cell selection and a formula bar
+  that shows the job as a function. Selecting rows 1 to 4 reads as the command that will run.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filesmith Spreadsheet Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070707; --hd:#0f0f0f; --hd2:#0b0b0b; --cell:#1a1a1a; --line:#1f1f1f; --line2:#2a2a2a;
+  --fg:#e8e8e8; --fg2:#c8c8c8; --fg3:#8b8b8b;
+  --acc:#f5d061; --accfill:rgba(245,208,97,.08); --acc2:rgba(245,208,97,.16);
+  --err:#f0867e;
+  --ui:"Inter","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --rh:26px;
+  --cols:40px 44px 290px 84px 128px 112px 170px 206px 66px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;height:100%}
+body{display:grid;place-items:center;min-height:100vh;font:400 12.5px/1.4 var(--ui);color:var(--fg);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus{outline:none}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.mono{font-family:var(--mono)}
+.app{width:1440px;height:900px;background:var(--bg);display:grid;grid-template-rows:36px 34px 1fr 32px 26px;overflow:hidden;border:1px solid #1c1c1c;position:relative}
+
+/* titlebar */
+.tb{display:flex;align-items:center;border-bottom:1px solid var(--line);background:#000;-webkit-app-region:drag}
+.brand{display:flex;align-items:center;gap:9px;padding:0 14px;height:100%;border-right:1px solid var(--line)}
+.mark{width:18px;height:18px;border-radius:4px;background:#f2f2f2;display:grid;place-items:center}
+.brand b{font-weight:600;font-size:13px}
+.ws{display:flex;align-items:baseline;gap:10px;padding:0 16px}
+.ws h1{font:600 13px var(--ui);letter-spacing:-.1px}
+.ws .d{color:var(--fg3)}
+.ws .n{font:500 12px var(--mono);color:var(--fg2)}
+.tb .sp{flex:1}
+.wc{display:flex;height:100%;-webkit-app-region:no-drag}
+.wc button{width:46px;height:36px;display:grid;place-items:center;color:var(--fg2);transition:background .12s var(--ease),color .12s var(--ease)}
+.wc button:hover{background:#151515;color:var(--fg)}
+.wc button:active{background:#1d1d1d}
+.wc button.x:hover{background:#c42b1c;color:#fff}
+.wc button:focus-visible{outline-offset:-3px}
+
+/* formula bar */
+.fx{display:grid;grid-template-columns:96px 34px 1fr auto;border-bottom:1px solid var(--line);background:var(--hd2);align-items:stretch}
+.namebox{display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 10px;border-right:1px solid var(--line);font:500 12.5px var(--mono);color:var(--fg)}
+.namebox:hover{background:#121212}
+.fxg{display:grid;place-items:center;border-right:1px solid var(--line);font:italic 600 12.5px var(--ui);color:var(--fg3)}
+.formula{display:flex;align-items:center;padding:0 12px;font:400 12.5px var(--mono);color:var(--fg2);white-space:nowrap;overflow:hidden}
+.formula .fn{color:var(--fg);font-weight:600}
+.formula .rg{color:var(--acc);font-weight:500}
+.formula .str{color:#d9d9d9}
+.formula .p{color:var(--fg3)}
+.caret{display:inline-block;width:1px;height:15px;background:var(--fg);margin-left:2px;vertical-align:-3px}
+.eval{display:flex;align-items:center;gap:12px;padding:0 14px;border-left:1px solid var(--line);font:400 12px var(--mono);color:var(--fg3)}
+.eval b{color:var(--fg2);font-weight:500}
+kbd{font:500 10.5px var(--mono);color:var(--fg2);border:1px solid #333;border-radius:3px;padding:1px 5px;background:#0c0c0c}
+
+/* main */
+.main{display:grid;grid-template-columns:1140px 300px;min-height:0}
+.grid{position:relative;overflow:hidden;border-right:1px solid var(--line)}
+.r{display:grid;grid-template-columns:var(--cols);height:var(--rh);align-items:stretch}
+.r > *{border-right:1px solid var(--cell);border-bottom:1px solid var(--cell);display:flex;align-items:center;padding:0 8px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r > .g{justify-content:flex-end;padding:0 8px;background:var(--hd);color:var(--fg3);font:500 11.5px var(--mono);border-right-color:var(--line2)}
+.hdr{position:sticky;top:0;z-index:3}
+.hdr > *{background:var(--hd);font:500 12px var(--ui);color:var(--fg3);gap:7px;border-bottom-color:var(--line2)}
+.hdr > * i{font-style:normal;font:600 11.5px var(--mono);color:var(--fg2)}
+.hdr > .corner{background:var(--hd)}
+.hdr .num{justify-content:flex-end}
+
+.c{font:400 12.5px var(--mono);color:var(--fg)}
+.c.num{justify-content:flex-end;font-variant-numeric:tabular-nums;color:var(--fg2)}
+.c.muted{color:var(--fg3)}
+
+.row{cursor:default;transition:background .12s var(--ease)}
+.row:hover > *:not(.g){background:#0e0e0e}
+.row:focus-visible{outline:2px solid var(--fg);outline-offset:-2px}
+.row:active > *:not(.g){background:#121212}
+
+/* group header (merged) */
+.grp > .g{background:var(--hd);}
+.grp > .m{grid-column:2 / -1;gap:10px;background:#0b0b0b;font:500 12.5px var(--ui);color:var(--fg)}
+.grp > .m .k{font:400 12px var(--mono);color:var(--fg3)}
+.grp > .m .hint{margin-left:auto;font:400 11.5px var(--ui);color:var(--fg3)}
+.grp > .m svg{color:var(--fg3)}
+.grp.on > .m{color:var(--fg)}
+.grp.on > .m .tag{font:500 11px var(--mono);color:var(--acc);border:1px solid rgba(245,208,97,.4);border-radius:3px;padding:0 5px;line-height:16px}
+
+/* selection range */
+.sel{position:relative}
+.sel::after{content:"";position:absolute;inset:-1px 0 0 40px;border:2px solid var(--acc);background:var(--accfill);pointer-events:none;z-index:2}
+.sel .handle{position:absolute;right:-4px;bottom:-4px;width:7px;height:7px;background:var(--acc);border:1px solid var(--bg);z-index:4}
+.sel .row > .g{background:var(--acc2);color:var(--acc)}
+.sel .row:hover > *:not(.g){background:rgba(245,208,97,.05)}
+
+.thumb{justify-content:center}
+.th{width:26px;height:18px;border-radius:2px;border:1px solid var(--line2);background:#111;display:grid;place-items:center;font:600 8.5px var(--mono);color:var(--fg2);letter-spacing:.02em}
+.th.img{background:linear-gradient(#1c1c1c,#141414);}
+.route{gap:6px;color:var(--fg2)}
+.route .a{color:var(--fg3)}
+
+.stc{gap:7px}
+.dot{width:6px;height:6px;border-radius:50%;flex:none}
+.stc.s-run .dot{background:var(--acc)}
+.stc.s-done .dot{background:var(--fg2)}
+.stc.s-q .dot{border:1px solid var(--fg3)}
+.stc.s-q{color:var(--fg3)}
+.err{color:var(--err);font-weight:600;position:relative}
+.cm{position:relative}
+.cm::before{content:"";position:absolute;top:0;right:0;border-style:solid;border-width:0 7px 7px 0;border-color:transparent var(--err) transparent transparent}
+
+.bar{gap:8px}
+.bar .t{flex:1;height:8px;background:#161616;border:1px solid #262626;position:relative}
+.bar .t span{position:absolute;inset:0 auto 0 0;background:var(--acc)}
+.bar .t.done span{background:#5a5a5a}
+.bar em{font-style:normal;font-variant-numeric:tabular-nums;width:46px;text-align:right;color:var(--fg2)}
+.res{gap:6px;color:var(--fg2)}
+.res .pct{color:var(--fg);font-weight:500}
+
+.act{gap:2px;justify-content:center;padding:0 4px !important}
+.ib{width:24px;height:20px;border-radius:4px;display:grid;place-items:center;color:var(--fg3);transition:background .12s var(--ease),color .12s var(--ease)}
+.ib:hover{background:#1a1a1a;color:var(--fg)}
+.ib:active{transform:scale(.94)}
+.ib[disabled]{opacity:.35;cursor:not-allowed}
+.retry{font:500 11.5px var(--mono);color:var(--fg2);border:1px solid var(--line2);border-radius:4px;padding:0 7px;line-height:18px}
+.retry:hover{border-color:#444;color:var(--fg)}
+
+/* dimmed group (other convert group) */
+.dim > *:not(.g){color:var(--fg3) !important;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(255,255,255,.012) 6px 7px)}
+.dim .bar .t span{background:#7a6a33}
+.dim .th{color:var(--fg3)}
+
+/* add row */
+.add > .m{grid-column:2 / -1;gap:12px;color:var(--fg3);font:400 12.5px var(--mono);border:1px dashed #333;border-left:0;cursor:pointer;transition:color .12s var(--ease),background .12s var(--ease)}
+.add > .m:hover{color:var(--fg);background:#0e0e0e;border-color:#555}
+.add > .m:active{background:#141414}
+.add > .m b{color:var(--fg2);font-weight:500}
+.add > .m kbd{margin-left:auto}
+.empty > .g{color:#5c5c5c}
+
+/* note (cell comment) */
+.note{position:absolute;z-index:6;left:694px;top:470px;width:300px;background:#141210;border:1px solid #5a4a2a;padding:8px 10px 9px;font:400 12px/1.45 var(--ui);color:var(--fg)}
+.note::before{content:"";position:absolute;left:-1px;top:-336px;height:336px;width:0;border-left:1px dashed #6a5630}
+.note h4{font:600 11.5px var(--mono);color:var(--err);margin-bottom:3px}
+.note p{color:var(--fg2)}
+.note p code{font:500 11.5px var(--mono);color:var(--fg)}
+
+/* side sheet */
+.side{display:grid;grid-template-rows:auto 1fr auto;background:#0a0a0a;min-height:0}
+.sh{padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.sh .l{font:500 11.5px var(--mono);color:var(--fg3)}
+.sh h2{font:600 17px var(--ui);letter-spacing:-.2px;margin-top:3px}
+.sh h2 span{color:var(--fg3);font-weight:500}
+.sb{padding:4px 16px 0;overflow:hidden}
+.sec{padding:14px 0;border-bottom:1px solid #161616}
+.sec:last-child{border-bottom:0}
+.cap{display:flex;justify-content:space-between;align-items:baseline;font:500 12.5px var(--ui);color:var(--fg3);margin-bottom:9px}
+.cap .mono{font-size:11.5px}
+.fmt{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line2);border-radius:4px;overflow:hidden}
+.fmt button{height:32px;font:500 12.5px var(--mono);color:var(--fg2);border-right:1px solid var(--cell);border-bottom:1px solid var(--cell);transition:background .12s var(--ease),color .12s var(--ease);position:relative}
+.fmt button:nth-child(3n){border-right:0}
+.fmt button:nth-last-child(-n+3){border-bottom:0}
+.fmt button:hover:not([aria-disabled=true]){background:#151515;color:var(--fg)}
+.fmt button:active:not([aria-disabled=true]){background:#1b1b1b}
+.fmt button:focus-visible{outline-offset:-3px}
+.fmt button[aria-pressed=true]{background:var(--accfill);color:var(--acc);box-shadow:inset 0 0 0 2px var(--acc)}
+.fmt button[aria-disabled=true]{color:#5a5a5a;cursor:not-allowed;text-decoration:line-through;text-decoration-color:#444}
+.why{margin-top:8px;font:400 11.5px/1.4 var(--ui);color:var(--fg3)}
+.why code{font:500 11px var(--mono);color:var(--fg2)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line2);border-radius:4px;overflow:hidden}
+.seg button{height:30px;font:500 12.5px var(--ui);color:var(--fg2);border-right:1px solid var(--cell);transition:background .12s var(--ease)}
+.seg button:last-child{border-right:0}
+.seg button:hover{background:#151515;color:var(--fg)}
+.seg button:active{background:#1b1b1b}
+.seg button:focus-visible{outline-offset:-3px}
+.seg button[aria-pressed=true]{background:#262626;color:var(--fg)}
+.opt{display:grid;grid-template-columns:16px 1fr;gap:9px;align-items:center;padding:6px 6px;border-radius:4px;cursor:pointer;transition:background .12s var(--ease)}
+.opt:hover{background:#131313}
+.opt:active{background:#181818}
+.rad{width:12px;height:12px;border-radius:50%;border:1px solid #555}
+.opt.on .rad{border:4px solid var(--fg)}
+.opt .lb{font:500 12.5px var(--ui);color:var(--fg)}
+.opt:not(.on) .lb{color:var(--fg2)}
+.path{margin:6px 0 0 31px;font:400 12px var(--mono);color:var(--fg3);border:1px solid var(--line2);border-radius:4px;padding:5px 8px}
+.naming{font:400 11.5px/1.5 var(--ui);color:var(--fg3)}
+.naming code{font:500 11px var(--mono);color:var(--fg2)}
+.mini{width:100%;border-collapse:collapse;font:400 12px var(--mono)}
+.mini td{border:1px solid var(--cell);padding:4px 8px;color:var(--fg2);font-variant-numeric:tabular-nums}
+.mini td:last-child,.mini td:nth-child(2){text-align:right}
+.mini tr:first-child td{color:var(--fg3);background:var(--hd);font:500 11.5px var(--ui)}
+.mini tr.t td{color:var(--fg);font-weight:500}
+.sf{padding:12px 16px 14px;border-top:1px solid var(--line)}
+.run{width:100%;height:40px;border-radius:5px;background:#f2f2f2;color:#000;font:600 13.5px var(--ui);display:flex;align-items:center;justify-content:center;gap:10px;transition:background .12s var(--ease),transform .12s var(--ease)}
+.run:hover{background:#fff}
+.run:active{transform:scale(.97)}
+.run:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.run kbd{background:#e0e0e0;color:#333;border-color:#bbb}
+.run[disabled]{background:#1c1c1c;color:#6a6a6a;cursor:not-allowed}
+.sf .alt{display:flex;justify-content:space-between;margin-top:8px;font:400 11.5px var(--ui);color:var(--fg3)}
+
+/* sheet tabs */
+.tabs{display:flex;align-items:stretch;background:#000;border-top:1px solid var(--line2)}
+.nav{display:flex;align-items:center;padding:0 6px;gap:0;border-right:1px solid var(--line)}
+.tab{display:flex;align-items:center;gap:8px;padding:0 14px;font:500 12.5px var(--ui);color:var(--fg3);border-right:1px solid var(--line);position:relative;transition:background .12s var(--ease),color .12s var(--ease)}
+.tab svg{flex:none}
+.tab:hover{background:#101010;color:var(--fg)}
+.tab:active{background:#161616}
+.tab:focus-visible{outline-offset:-3px}
+.tab .ct{font:500 11.5px var(--mono);color:var(--fg3)}
+.tab[aria-selected=true]{background:var(--bg);color:var(--fg);margin-top:-1px}
+.tab[aria-selected=true]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--acc)}
+.tab[aria-selected=true] .ct{color:var(--acc)}
+.tabs .sp{flex:1}
+.tab.pin{border-left:1px solid var(--line)}
+.edit{padding:0 12px;display:flex;align-items:center;gap:7px;font:400 12px var(--ui);color:var(--fg3)}
+.edit:hover{color:var(--fg);background:#101010}
+
+/* status */
+.status{display:flex;align-items:center;gap:0;background:var(--hd2);border-top:1px solid var(--line);font:400 11.5px var(--mono);color:var(--fg3);white-space:nowrap}
+.status > div{display:flex;align-items:center;gap:8px;padding:0 12px;height:100%;border-right:1px solid var(--line)}
+.status .mode{color:var(--acc);font-weight:500}
+.status .tot b{color:var(--fg);font-weight:500}
+.status .tot .er{color:var(--err)}
+.pbar{width:120px;height:6px;background:#1a1a1a;position:relative}
+.pbar span{position:absolute;inset:0 auto 0 0;width:41%;background:var(--acc)}
+.status .sum b{color:var(--fg2);font-weight:500}
+.status .eng{border-right:0;margin-left:auto;gap:6px}
+.status .eng .ok{color:var(--fg2)}
+.status .eng .no{color:var(--fg3);text-decoration:line-through;text-decoration-color:#555}
+.status .ver{border-left:1px solid var(--line);border-right:0}
+
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Filesmith">
+
+  <!-- titlebar -->
+  <header class="tb">
+    <div class="brand">
+      <span class="mark"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="square"><path d="M3 3h10v3H3zM6 6v7h4V6"/></svg></span>
+      <b>Filesmith</b>
+    </div>
+    <div class="ws"><h1>Convert</h1><span class="d">Change format</span><span class="n">8 files</span></div>
+    <div class="sp"></div>
+    <div class="wc">
+      <button aria-label="Minimize"><svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximize"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button class="x" aria-label="Close"><svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <!-- formula bar -->
+  <div class="fx">
+    <button class="namebox" aria-label="Selected range">A1:A4 <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square"><path d="M2 4l3 3 3-3"/></svg></button>
+    <div class="fxg">fx</div>
+    <div class="formula" role="textbox" aria-label="Job formula" tabindex="0">
+      <span class="fn">=CONVERT</span><span class="p">(</span><span class="rg">A1:A4</span><span class="p">,&nbsp;</span><span class="str">"webp"</span><span class="p">,&nbsp;</span><span class="str">"balanced"</span><span class="p">,&nbsp;</span><span class="str">"next-to-source"</span><span class="p">)</span><span class="caret"></span>
+    </div>
+    <div class="eval">evaluates to <b>4 jobs</b> · <b>32.0 MB</b> in · est. <b>6.4 MB</b> out</div>
+  </div>
+
+  <div class="main">
+    <!-- grid -->
+    <div class="grid" role="grid" aria-label="Convert queue">
+      <div class="r hdr" role="row">
+        <div class="corner g"></div>
+        <div><i>A</i></div>
+        <div><i>B</i> name</div>
+        <div class="num"><i>C</i> size</div>
+        <div><i>D</i> route</div>
+        <div><i>E</i> status</div>
+        <div><i>F</i> progress</div>
+        <div><i>G</i> result</div>
+        <div><i>H</i></div>
+      </div>
+
+      <!-- Images group -->
+      <div class="r grp on" role="row">
+        <div class="g"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#8b8b8b" stroke-width="1.4" stroke-linecap="square"><path d="M2 4l3 3 3-3"/></svg></div>
+        <div class="m"><span>Images</span><span class="k">4 images</span><span class="tag">active group</span><span class="hint">HEIC, PNG, TIFF</span></div>
+      </div>
+
+      <div class="sel">
+        <div class="r row" role="row" tabindex="0" aria-selected="true">
+          <div class="g">1</div>
+          <div class="thumb"><span class="th img">HEIC</span></div>
+          <div class="c">IMG_4821.HEIC</div>
+          <div class="c num">3.2 MB</div>
+          <div class="c route">HEIC <span class="a">→</span> WebP</div>
+          <div class="c stc s-done"><span class="dot"></span>done</div>
+          <div class="c bar"><span class="t done"><span style="width:100%"></span></span><em>100%</em></div>
+          <div class="c res">3.2 MB → 640 KB <span class="pct">−80%</span></div>
+          <div class="act"><button class="ib" disabled aria-label="Stop (finished)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="8" height="8"/></svg></button><button class="ib" aria-label="Row menu: Open, Show in folder, Remove"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/></svg></button></div>
+        </div>
+        <div class="r row" role="row" tabindex="0" aria-selected="true">
+          <div class="g">2</div>
+          <div class="thumb"><span class="th img">PNG</span></div>
+          <div class="c">screenshot-2026-10-03 141522.png</div>
+          <div class="c num">1.8 MB</div>
+          <div class="c route">PNG <span class="a">→</span> WebP</div>
+          <div class="c stc s-run"><span class="dot"></span>running</div>
+          <div class="c bar"><span class="t"><span style="width:62%"></span></span><em>62%</em></div>
+          <div class="c res muted">ETA 4 s</div>
+          <div class="act"><button class="ib" aria-label="Stop"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="8" height="8"/></svg></button><button class="ib" aria-label="Row menu"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/></svg></button></div>
+        </div>
+        <div class="r row" role="row" tabindex="0" aria-selected="true">
+          <div class="g">3</div>
+          <div class="thumb"><span class="th img">PNG</span></div>
+          <div class="c">hero-banner@2x.png</div>
+          <div class="c num">4.6 MB</div>
+          <div class="c route">PNG <span class="a">→</span> WebP</div>
+          <div class="c stc s-q"><span class="dot"></span>queued</div>
+          <div class="c bar muted"><span class="t"><span style="width:0"></span></span><em>0%</em></div>
+          <div class="c res muted">waiting</div>
+          <div class="act"><button class="ib" aria-label="Stop"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="8" height="8"/></svg></button><button class="ib" aria-label="Row menu"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/></svg></button></div>
+        </div>
+        <div class="r row" role="row" tabindex="0" aria-selected="true">
+          <div class="g">4</div>
+          <div class="thumb"><span class="th img">TIFF</span></div>
+          <div class="c">scan_receipt_0091.tiff</div>
+          <div class="c num">22.4 MB</div>
+          <div class="c route">TIFF <span class="a">→</span> WebP</div>
+          <div class="c stc cm" title="Unsupported TIFF compression (JPEG-in-TIFF, old-style)"><span class="err">#ERR</span></div>
+          <div class="c bar muted"><span class="t"><span style="width:0"></span></span><em>–</em></div>
+          <div class="c res"><button class="retry">retry</button></div>
+          <div class="act"><button class="ib" disabled aria-label="Stop (failed)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="8" height="8"/></svg></button><button class="ib" aria-label="Row menu"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/></svg></button></div>
+        </div>
+        <span class="handle"></span>
+      </div>
+
+      <!-- Video group -->
+      <div class="r grp" role="row">
+        <div class="g"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#8b8b8b" stroke-width="1.4" stroke-linecap="square"><path d="M2 4l3 3 3-3"/></svg></div>
+        <div class="m"><span>Video</span><span class="k">1 video</span><span class="hint">Other convert group, click its header to switch</span></div>
+      </div>
+      <div class="r row dim" role="row" aria-disabled="true">
+        <div class="g">5</div>
+        <div class="thumb"><span class="th">MOV</span></div>
+        <div class="c">screen-recording-standup.mov</div>
+        <div class="c num">812 MB</div>
+        <div class="c route">MOV <span class="a">→</span> MP4</div>
+        <div class="c stc s-run"><span class="dot" style="background:#7a6a33"></span>running</div>
+        <div class="c bar"><span class="t"><span style="width:18.4%"></span></span><em>18.4%</em></div>
+        <div class="c res">ETA 3 min 12 s</div>
+        <div class="act"><button class="ib" aria-label="Stop"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="8" height="8"/></svg></button><button class="ib" aria-label="Row menu"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/></svg></button></div>
+      </div>
+
+      <!-- Documents group -->
+      <div class="r grp" role="row">
+        <div class="g"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#8b8b8b" stroke-width="1.4" stroke-linecap="square"><path d="M2 4l3 3 3-3"/></svg></div>
+        <div class="m"><span>Documents</span><span class="k">2 documents</span></div>
+      </div>
+      <div class="r row dim" role="row" aria-disabled="true">
+        <div class="g">6</div>
+        <div class="thumb"><span class="th">PDF</span></div>
+        <div class="c">Q3-board-deck.pdf</div>
+        <div class="c num">14.1 MB</div>
+        <div class="c route">PDF <span class="a">→</span> DOCX</div>
+        <div class="c stc s-q"><span class="dot"></span>queued</div>
+        <div class="c bar"><span class="t"><span style="width:0"></span></span><em>0%</em></div>
+        <div class="c res">waiting</div>
+        <div class="act"><button class="ib" aria-label="Stop"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="8" height="8"/></svg></button><button class="ib" aria-label="Row menu"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/></svg></button></div>
+      </div>
+      <div class="r row dim" role="row" aria-disabled="true">
+        <div class="g">7</div>
+        <div class="thumb"><span class="th">TXT</span></div>
+        <div class="c">release-notes-0.3.txt</div>
+        <div class="c num">6 KB</div>
+        <div class="c route">TXT <span class="a">→</span> PDF</div>
+        <div class="c stc s-done"><span class="dot" style="background:#8b8b8b"></span>done</div>
+        <div class="c bar"><span class="t done"><span style="width:100%"></span></span><em>100%</em></div>
+        <div class="c res">6 KB → 48 KB</div>
+        <div class="act"><button class="ib" disabled aria-label="Stop (finished)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="8" height="8"/></svg></button><button class="ib" aria-label="Row menu"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/></svg></button></div>
+      </div>
+
+      <!-- Archives group -->
+      <div class="r grp" role="row">
+        <div class="g"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#8b8b8b" stroke-width="1.4" stroke-linecap="square"><path d="M2 4l3 3 3-3"/></svg></div>
+        <div class="m"><span>Archives</span><span class="k">1 archive</span><span class="hint">CBR output needs Rar.exe</span></div>
+      </div>
+      <div class="r row dim" role="row" aria-disabled="true">
+        <div class="g">8</div>
+        <div class="thumb"><span class="th">CBZ</span></div>
+        <div class="c">One-Piece-v104.cbz</div>
+        <div class="c num">186 MB</div>
+        <div class="c route">CBZ <span class="a">→</span> CB7</div>
+        <div class="c stc s-q"><span class="dot"></span>queued</div>
+        <div class="c bar"><span class="t"><span style="width:0"></span></span><em>0%</em></div>
+        <div class="c res">waiting</div>
+        <div class="act"><button class="ib" aria-label="Stop"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="8" height="8"/></svg></button><button class="ib" aria-label="Row menu"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/></svg></button></div>
+      </div>
+
+      <!-- add row -->
+      <div class="r add" role="row">
+        <div class="g">9</div>
+        <button class="m"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M8 2v12M2 8h12"/></svg><b>add files</b> drop here or browse, new rows join their convert group <kbd>Ctrl O</kbd></button>
+      </div>
+
+      <div id="empties"></div>
+
+      <!-- cell comment for E4 -->
+      <div class="note" role="note">
+        <h4>E4 · #ERR</h4>
+        <p>Unsupported TIFF compression (JPEG-in-TIFF, old-style). Re-save the scan as a standard TIFF or PNG, then retry.</p>
+      </div>
+    </div>
+
+    <!-- side sheet -->
+    <aside class="side" aria-label="Format options">
+      <div class="sh">
+        <div class="l">format A1:A4</div>
+        <h2>Images <span>· 4 selected</span></h2>
+      </div>
+      <div class="sb">
+        <div class="sec">
+          <div class="cap"><span>Target format</span><span class="mono">"webp"</span></div>
+          <div class="fmt" role="group" aria-label="Target format">
+            <button aria-disabled="true" title="2 selected files are already PNG">PNG</button>
+            <button>JPG</button>
+            <button aria-pressed="true">WebP</button>
+            <button>AVIF</button>
+            <button>JXL</button>
+            <button aria-disabled="true" title="1 selected file is already TIFF">TIFF</button>
+            <button>BMP</button>
+            <button>GIF</button>
+            <button>ICO</button>
+          </div>
+          <p class="why">PNG and TIFF are off: rows <code>2:3</code> and <code>4</code> already use them.</p>
+        </div>
+        <div class="sec">
+          <div class="cap"><span>Quality</span><span class="mono">"balanced"</span></div>
+          <div class="seg" role="group" aria-label="Quality">
+            <button>Smaller</button><button aria-pressed="true">Balanced</button><button>Best</button>
+          </div>
+        </div>
+        <div class="sec">
+          <div class="cap"><span>Output</span><span class="mono">"next-to-source"</span></div>
+          <div class="opt on" role="radio" aria-checked="true" tabindex="0"><span class="rad"></span><span class="lb">Next to source</span></div>
+          <div class="opt" role="radio" aria-checked="false" tabindex="0"><span class="rad"></span><span class="lb">Change folder…</span></div>
+          <div class="path">D:\Photos\2026-10\</div>
+        </div>
+        <div class="sec">
+          <table class="mini" aria-label="Selection summary">
+            <tr><td>source</td><td>rows</td><td>size</td></tr>
+            <tr><td>HEIC</td><td>1</td><td>3.2 MB</td></tr>
+            <tr><td>PNG</td><td>2</td><td>6.4 MB</td></tr>
+            <tr><td>TIFF</td><td>1</td><td>22.4 MB</td></tr>
+            <tr class="t"><td>=SUM</td><td>4</td><td>32.0 MB</td></tr>
+          </table>
+          <p class="naming" style="margin-top:10px">Never overwrites. Collisions save as <code>name (converted).webp</code>, then <code>&nbsp;(2)</code>.</p>
+        </div>
+      </div>
+      <div class="sf">
+        <button class="run">Convert 4 images <kbd>Ctrl ↵</kbd></button>
+        <div class="alt"><span>Runs the formula bar</span><span><kbd>Esc</kbd> clears range</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- sheet tabs (verb navigation) -->
+  <nav class="tabs" role="tablist" aria-label="Verbs">
+    <div class="nav">
+      <button class="ib" aria-label="Previous verb"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square"><path d="M6 2L3 5l3 3"/></svg></button>
+      <button class="ib" aria-label="Next verb"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square"><path d="M4 2l3 3-3 3"/></svg></button>
+    </div>
+    <button class="tab" role="tab" aria-selected="true" title="Change format"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 5h10l-2-2M14 11H4l2 2"/></svg>Convert <span class="ct">8</span></button>
+    <button class="tab" role="tab" title="Shrink file size"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M8 1v5M5 3l3 3 3-3M8 15v-5M5 13l3-3 3 3M2 8h12"/></svg>Compress</button>
+    <button class="tab" role="tab" title="Scale by percent or exact size"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 2h7v7H2zM11 5h3v9H5v-3"/></svg>Resize</button>
+    <button class="tab" role="tab" title="Enlarge 2x to 4x with AI"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 14L14 2M8 2h6v6M2 9v5h5"/></svg>Upscale</button>
+    <button class="tab" role="tab" title="Cut the subject out with AI"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 2h3M7 2h2M11 2h3v3M14 7v2M14 11v3h-3M9 14H7M5 14H2v-3M2 9V7M2 5V2"/><circle cx="8" cy="8" r="2.5"/></svg>Remove BG</button>
+    <button class="tab" role="tab" title="Create an image from a text prompt"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 4l3 3-3 3M7 12h7"/></svg>Generate</button>
+    <button class="tab" role="tab" title="One-off jobs: PDF Extract text, Pages to PNG, Merge, Split, Burst, Extract images"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg>Tools</button>
+    <div class="sp"></div>
+    <button class="tab pin" role="tab" title="Everything Filesmith has produced"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 8l4 4 8-8"/></svg>Completed <span class="ct">142</span></button>
+    <button class="edit" aria-label="Reorder and hide verbs"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M2 4h12M2 8h12M2 12h12"/></svg>Edit tabs</button>
+  </nav>
+
+  <!-- status bar -->
+  <footer class="status">
+    <div class="mode">Running</div>
+    <div class="tot"><span><b>2</b> of 8 done · <b>2</b> running · <span class="er">1 failed</span></span><span class="pbar"><span></span></span><b>41%</b></div>
+    <div class="sum">Selection <span>count <b>4</b></span><span>sum <b>32.0 MB</b></span></div>
+    <div class="eng"><span class="ok">ffmpeg 7.1</span>·<span class="ok">ImageMagick 7.1.1</span>·<span class="ok">mutool 1.24</span>·<span class="ok">7-Zip 24.08</span>·<span class="no" title="CBR writing is disabled">Rar.exe not found</span></div>
+    <div class="ver">0.3.0</div>
+  </footer>
+</div>
+<script>
+  // fill the sheet with empty numbered rows, like a real workbook
+  (function(){
+    var host=document.getElementById('empties'),h='';
+    for(var i=10;i<=40;i++){h+='<div class="r empty" aria-hidden="true"><div class="g">'+i+'</div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>';}
+    host.innerHTML=h;
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Filesmith Explorer Variants</title>
+<style>
+:root{--bg:#000;--fg:#e6e6e6;--mid:#9a9a9a;--dim:#6a6a6a;--line:#262626;--hover:#555}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 ui-monospace,"Cascadia Mono",Consolas,monospace;padding:32px 24px 48px}
+header,main{max-width:1600px;margin:0 auto}
+header{margin-bottom:24px;border-bottom:1px solid var(--line);padding-bottom:16px}
+h1{font-size:15px;font-weight:600}
+header p{color:var(--mid);margin-top:4px;max-width:100ch}
+.row{border:1px solid var(--line);padding:14px;margin-bottom:20px}
+.meta{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.num{color:var(--dim)}
+.name{font-weight:600;color:var(--fg);text-decoration:none}
+.open{color:var(--dim);font-size:11.5px;margin-left:auto;text-decoration:none}
+.name:hover,.open:hover{text-decoration:underline}
+.pitch{color:var(--mid);margin-top:6px;max-width:110ch}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+.pair a{display:block;color:inherit;text-decoration:none}
+figure{border:1px solid var(--line);transition:border-color .12s}
+.pair a:hover figure,.pair a:focus-visible figure{border-color:var(--hover)}
+.pair a:focus-visible{outline:none}
+img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;object-position:top left;background:#0a0a0a}
+figcaption{color:var(--dim);font-size:11.5px;padding:6px 8px;border-top:1px solid var(--line)}
+@media (max-width:760px){body{padding:20px 16px}.pair{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>Filesmith / terminal-v5 / explorer-details variants</h1>
+<p>5 takes on terminal-v4 10-explorer-details. Every one has a collapsible left sidebar that shows labels and icons, and none has the files-added line at the top. They differ in the right-side panel and the main view. Each row shows the sidebar expanded and collapsed. Click to open the mockup.</p></header>
+<main>
+  <section class="row">
+    <div class="meta"><span class="num">01</span><a class="name" href="01-a-refined.html">Refined</a><a class="open" href="01-a-refined.html">open 01-a-refined.html</a></div>
+    <p class="pitch">Closest to the original: the explorer-details layout with a collapsible labelled sidebar and no files-added line at the top.</p>
+    <div class="pair">
+      <a href="01-a-refined.html"><figure><img src="shots/01-a-refined.png" alt="Refined, sidebar expanded" loading="lazy"><figcaption>sidebar expanded</figcaption></figure></a>
+      <a href="01-a-refined.html"><figure><img src="shots/01-a-refined-collapsed.png" alt="Refined, sidebar collapsed" loading="lazy"><figcaption>sidebar collapsed</figcaption></figure></a>
+    </div>
+  </section>
+  <section class="row">
+    <div class="meta"><span class="num">02</span><a class="name" href="02-b-sectioned-inspector.html">Sectioned Inspector</a><a class="open" href="02-b-sectioned-inspector.html">open 02-b-sectioned-inspector.html</a></div>
+    <p class="pitch">Right panel without top tabs: one scrolling inspector with JetBrains-style titled separators (FORMAT, QUALITY, OUTPUT, NAMING), label-left/control-right rows and a small summary of the selected file.</p>
+    <div class="pair">
+      <a href="02-b-sectioned-inspector.html"><figure><img src="shots/02-b-sectioned-inspector.png" alt="Sectioned Inspector, sidebar expanded" loading="lazy"><figcaption>sidebar expanded</figcaption></figure></a>
+      <a href="02-b-sectioned-inspector.html"><figure><img src="shots/02-b-sectioned-inspector-collapsed.png" alt="Sectioned Inspector, sidebar collapsed" loading="lazy"><figcaption>sidebar collapsed</figcaption></figure></a>
+    </div>
+  </section>
+  <section class="row">
+    <div class="meta"><span class="num">03</span><a class="name" href="03-c-stacked-settings.html">Stacked Settings</a><a class="open" href="03-c-stacked-settings.html">open 03-c-stacked-settings.html</a></div>
+    <p class="pitch">Right panel like the VS Code settings editor: each setting stacked (bold title, grey description, full-width control), generous rhythm, collapsible groups.</p>
+    <div class="pair">
+      <a href="03-c-stacked-settings.html"><figure><img src="shots/03-c-stacked-settings.png" alt="Stacked Settings, sidebar expanded" loading="lazy"><figcaption>sidebar expanded</figcaption></figure></a>
+      <a href="03-c-stacked-settings.html"><figure><img src="shots/03-c-stacked-settings-collapsed.png" alt="Stacked Settings, sidebar collapsed" loading="lazy"><figcaption>sidebar collapsed</figcaption></figure></a>
+    </div>
+  </section>
+  <section class="row">
+    <div class="meta"><span class="num">04</span><a class="name" href="04-d-preview-first.html">Preview First</a><a class="open" href="04-d-preview-first.html">open 04-d-preview-first.html</a></div>
+    <p class="pitch">Right panel opens with a compact before/after preview of the selected file, with the options below it.</p>
+    <div class="pair">
+      <a href="04-d-preview-first.html"><figure><img src="shots/04-d-preview-first.png" alt="Preview First, sidebar expanded" loading="lazy"><figcaption>sidebar expanded</figcaption></figure></a>
+      <a href="04-d-preview-first.html"><figure><img src="shots/04-d-preview-first-collapsed.png" alt="Preview First, sidebar collapsed" loading="lazy"><figcaption>sidebar collapsed</figcaption></figure></a>
+    </div>
+  </section>
+  <section class="row">
+    <div class="meta"><span class="num">05</span><a class="name" href="05-e-flush-panels.html">Flush Panels</a><a class="open" href="05-e-flush-panels.html">open 05-e-flush-panels.html</a></div>
+    <p class="pitch">Flatter and more brutalist: no rounded corners, panels split by 1px lines only, segmented controls without fills (selected = underline or inverted text).</p>
+    <div class="pair">
+      <a href="05-e-flush-panels.html"><figure><img src="shots/05-e-flush-panels.png" alt="Flush Panels, sidebar expanded" loading="lazy"><figcaption>sidebar expanded</figcaption></figure></a>
+      <a href="05-e-flush-panels.html"><figure><img src="shots/05-e-flush-panels-collapsed.png" alt="Flush Panels, sidebar collapsed" loading="lazy"><figcaption>sidebar collapsed</figcaption></figure></a>
+    </div>
+  </section>
+</main>
+</body></html>

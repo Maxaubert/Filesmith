@@ -1,0 +1,437 @@
+<!--
+  Filesmith round 4, mockup 01: "Explorer"
+  Pitch: the VS Code Explorer turned into a file tool. A narrow activity bar holds the verbs,
+  a sidebar stacks collapsible QUEUE, OPTIONS and OUTPUT sections, and the editor area quietly
+  previews the selected file. Calm and familiar, nothing floats.
+  IDE sources: VS Code activity bar (2px edge bar, badge), Explorer section headers with chevrons,
+  editor tab + breadcrumbs, a small key/value block under the preview, status bar.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith Explorer</title>
+<style>
+:root{
+  --bg-0:#0b0b0b; --bg-1:#111111; --bg-chrome:#141414; --bg-input:#1a1a1a; --raised:#1e1e1e;
+  --hover:#1f1f1f; --selected:#262626; --selected-strong:#2e2e2e;
+  --hairline:#222222; --hairline-strong:#333333;
+  --fg1:#e8e8e8; --fg2:#b0b0b0; --fg3:#8a8a8a; --fg-disabled:#5a5a5a;
+  --accent-bg:#d6d6d6; --accent-fg:#0b0b0b; --focus:#cfcfcf; --bar:#e8e8e8; --track:#2a2a2a;
+  --ui:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:1440px;height:900px;overflow:hidden;background:var(--bg-0);color:var(--fg1);
+  font:13px/1.4 var(--ui);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:default}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:1px solid var(--focus);outline-offset:1px}
+
+/* ---------- frame ---------- */
+.app{display:grid;grid-template-rows:32px 1fr 22px;height:900px}
+.main{display:grid;grid-template-columns:48px 360px 1fr;min-height:0}
+
+/* ---------- title bar ---------- */
+.titlebar{display:flex;align-items:center;background:var(--bg-chrome);border-bottom:1px solid var(--hairline)}
+.brand{display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;height:100%;color:var(--fg1)}
+.brand span{font-size:12px;color:var(--fg2);line-height:1}
+.brand svg{width:16px;height:16px}
+.tb-spacer{flex:1}
+.winc{width:46px;height:32px;display:grid;place-items:center;color:var(--fg2)}
+.winc:hover{background:var(--hover);color:var(--fg1)}
+.winc.close:hover{background:#3a3a3a}
+.winc svg{width:10px;height:10px;stroke:currentColor;stroke-width:1;fill:none}
+
+/* ---------- activity bar ---------- */
+.activity{background:var(--bg-chrome);border-right:1px solid var(--hairline);display:flex;flex-direction:column;justify-content:space-between;padding:4px 0}
+.act{position:relative;width:48px;height:44px;display:grid;place-items:center;color:var(--fg3)}
+.act svg.i{width:22px;height:22px}
+.act svg.i *{vector-effect:non-scaling-stroke}
+.act:hover{color:var(--fg2)}
+.act:active{color:var(--fg1)}
+.act.on{color:var(--fg1)}
+.act.on::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.act:focus-visible{outline-offset:-3px}
+.badge{position:absolute;right:7px;bottom:7px;min-width:14px;height:14px;padding:0 3px;border-radius:3px;
+  background:#bdbdbd;color:var(--bg-0);font:600 10px/14px var(--mono);text-align:center}
+.act[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:52px;top:11px;white-space:nowrap;
+  background:var(--raised);border:1px solid var(--hairline-strong);border-radius:3px;padding:3px 8px;font-size:12px;
+  color:var(--fg1);box-shadow:0 4px 12px rgba(0,0,0,.6);z-index:5;line-height:1.3;transition:opacity 0s .5s}
+
+/* ---------- sidebar ---------- */
+.sidebar{background:var(--bg-1);border-right:1px solid var(--hairline);display:flex;flex-direction:column;min-height:0}
+.viewtitle{height:35px;display:flex;align-items:center;padding:0 8px 0 20px;flex:none}
+.viewtitle h1{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--fg2);text-transform:uppercase;flex:1;line-height:1}
+.ib{width:24px;height:24px;display:grid;place-items:center;border-radius:3px;color:var(--fg2)}
+.ib:hover{background:var(--hover);color:var(--fg1)}
+.ib:active{background:var(--selected)}
+
+.section{border-top:1px solid var(--hairline)}
+.sh{width:100%;height:24px;display:flex;align-items:center;gap:2px;padding:0 12px 0 4px;text-align:left}
+.sh:hover{background:var(--hover)}
+.sh svg.i{color:var(--fg2)}
+.sh b{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--fg2);text-transform:uppercase;line-height:1;flex:1}
+.sh .count{font:11.5px/1 var(--mono);color:var(--fg3);font-variant-numeric:tabular-nums}
+.sh:hover .count{color:var(--fg2)}
+
+/* queue rows */
+.q{list-style:none;margin:0;padding:2px 0 4px}
+.row{position:relative;height:30px;display:flex;align-items:center;gap:8px;padding:0 10px 0 20px}
+.row:hover{background:var(--hover)}
+.row:hover .meta,.row.sel .meta{color:var(--fg2)}
+.row.sel{background:var(--selected);box-shadow:inset 0 0 0 1px #6a6a6a}
+.thumb{width:20px;height:20px;border-radius:2px;border:1px solid var(--hairline-strong);flex:none}
+.t1{background:radial-gradient(circle at 70% 30%,#cfcfcf 0 18%,transparent 19%),linear-gradient(160deg,#6e6e6e,#2a2a2a)}
+.t2{background:radial-gradient(circle at 50% 60%,#e0e0e0 0 26%,#3c3c3c 27%),#3c3c3c}
+.t3{background:linear-gradient(#5a5a5a 0 22%,#1c1c1c 22% 100%);}
+.t3{background:linear-gradient(#1c1c1c,#1c1c1c) 3px 7px/6px 9px no-repeat,linear-gradient(#4a4a4a,#4a4a4a) 10px 7px/6px 4px no-repeat,linear-gradient(#5e5e5e 0 5px,#2a2a2a 5px)}
+.t4{background:linear-gradient(115deg,#1e1e1e 0 40%,#8c8c8c 40% 44%,#444 44%)}
+.t5{background:repeating-linear-gradient(0deg,#9a9a9a 0 1px,#d4d4d4 1px 3px)}
+.t6{background:radial-gradient(circle,#1a1a1a 0 30%,#d8d8d8 31% 46%,#2e2e2e 47%)}
+.name{font:12.5px/1 var(--mono);color:var(--fg1);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font:12px/1 var(--mono);color:var(--fg3);font-variant-numeric:tabular-nums;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.meta .after{color:var(--fg1);font-weight:600}
+.meta svg.i{width:12px;height:12px}
+.st{width:16px;display:grid;place-items:center;color:var(--fg3)}
+.st.done{color:var(--fg2)}
+.prog{width:56px;height:2px;background:var(--track);position:relative}
+.prog i{position:absolute;inset:0 auto 0 0;width:62%;background:var(--bar)}
+.pct{color:var(--fg1)}
+.row.fail::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.err{font:600 12px/1 var(--ui);color:var(--fg1);white-space:nowrap}
+.retry{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--fg1)}
+.retry:hover{background:var(--selected-strong)}
+.rx{width:22px;height:22px;display:none;place-items:center;border-radius:3px;color:var(--fg2);margin-right:-4px}
+.row:hover .rx{display:grid}
+.row:hover .rx + .meta{display:none}
+.rx:hover{background:var(--selected-strong);color:var(--fg1)}
+.drop{height:28px;display:flex;align-items:center;gap:8px;padding:0 10px 0 22px;color:var(--fg3);font-size:12px}
+.drop:hover{color:var(--fg2);background:var(--hover)}
+.drop u{text-decoration:none;color:var(--fg2)}
+.drop:hover u{text-decoration:underline}
+
+/* options: VS Code setting rows, stacked and left aligned */
+.opts{padding:4px 0 12px}
+.set{position:relative;padding:10px 20px 6px 20px}
+.set.mod::before{content:"";position:absolute;left:12px;top:12px;bottom:8px;width:2px;background:var(--fg3)}
+.set h3{margin:0 0 2px;font-size:13px;font-weight:600;color:var(--fg1);line-height:1.3}
+.set h3 em{font-style:normal;font-weight:400;color:var(--fg3)}
+.set p{margin:0 0 8px;font-size:12px;color:var(--fg2)}
+.seg{display:inline-flex;height:24px;border:1px solid var(--hairline-strong);border-radius:3px;overflow:hidden}
+.seg button{padding:0 11px;font-size:12px;color:var(--fg2);border-left:1px solid var(--hairline-strong);line-height:1}
+.seg button:first-child{border-left:0}
+.seg button:hover{background:var(--hover);color:var(--fg1)}
+.seg button:active{background:var(--selected)}
+.seg button[aria-pressed=true]{background:var(--selected-strong);color:var(--fg1);font-weight:600}
+.seg.fmt button{font-family:var(--mono);padding:0;width:52px}
+.seg button:focus-visible{outline-offset:-2px}
+.chk{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2)}
+.box{width:16px;height:16px;border-radius:2px;border:1px solid var(--fg3);display:grid;place-items:center;flex:none}
+.box.on{background:var(--accent-bg);border-color:var(--accent-bg);color:var(--accent-fg)}
+.box svg{width:12px;height:12px;stroke-width:1.75}
+.chk:hover .box{border-color:var(--fg2)}
+.chk:hover .box.on{background:#e8e8e8}
+
+/* output radio list */
+.radio{display:flex;align-items:center;gap:8px;height:26px;padding:0 20px;font-size:13px;color:var(--fg2);width:100%;text-align:left}
+.radio:hover{background:var(--hover);color:var(--fg1)}
+.dot{width:16px;height:16px;border-radius:50%;border:1px solid var(--fg3);display:grid;place-items:center;flex:none}
+.dot.on{border-color:var(--fg1)}
+.dot.on::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg1)}
+.radio.on{color:var(--fg1)}
+.radio .num{margin-left:auto;font-size:12px;color:var(--fg3)}
+.radio:hover .num{color:var(--fg2)}
+
+.spacer{flex:1}
+.foot{padding:12px 20px 16px;border-top:1px solid var(--hairline);display:flex;gap:8px}
+.btn{height:28px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:2px;font-size:13px;padding:0 12px;line-height:1}
+.btn.primary{flex:1;background:var(--accent-bg);color:var(--accent-fg);font-weight:600}
+.btn.primary:hover{background:#e8e8e8}
+.btn.primary:active{background:#bdbdbd}
+.btn.primary svg.i{stroke-width:1.5}
+.btn.primary:focus-visible{outline-offset:2px}
+.btn.sec{background:var(--bg-input);border:1px solid var(--hairline-strong);color:var(--fg1);width:28px;padding:0}
+.btn.sec:hover{background:var(--hover)}
+
+/* ---------- editor ---------- */
+.editor{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg-0)}
+.tabs{height:35px;display:flex;background:var(--bg-chrome);border-bottom:1px solid var(--hairline);flex:none}
+.tab{position:relative;height:35px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;min-width:120px;
+  color:var(--fg3);border-right:1px solid var(--hairline);font-size:13px}
+.tab:hover{color:var(--fg2)}
+.tab.on{background:var(--bg-0);color:var(--fg1);height:36px;margin-bottom:-1px}
+.tab.on::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--fg1)}
+.tab .label{font-style:italic}
+.tab .x{width:20px;height:20px;display:grid;place-items:center;border-radius:3px;color:var(--fg2);margin-left:8px}
+.tab .x:hover{background:var(--hover);color:var(--fg1)}
+.tab .x svg{width:14px;height:14px}
+.tabs .tools{margin-left:auto;display:flex;align-items:center;gap:2px;padding:0 8px}
+.vsep{width:1px;height:16px;background:var(--hairline-strong);margin:0 4px}
+.ib.on{background:var(--selected);color:var(--fg1)}
+.crumbs{height:24px;display:flex;align-items:center;gap:2px;padding:0 12px;font-size:12px;color:var(--fg3);flex:none;line-height:1}
+.crumbs a{padding:3px 4px;border-radius:3px;color:var(--fg3)}
+.crumbs a:hover{background:var(--hover);color:var(--fg2)}
+.crumbs a:last-child{color:var(--fg2)}
+.crumbs svg.i{width:12px;height:12px;color:var(--fg3)}
+
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px 48px 40px}
+.canvas{width:720px;height:450px;border:1px solid var(--hairline);position:relative;overflow:hidden;background:#161616}
+.canvas svg.photo{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* the right half previews the WebP output, slightly flatter */
+.after-half{position:absolute;top:0;bottom:0;left:50%;right:0;overflow:hidden}
+.after-half svg.photo{left:-360px;width:720px;filter:contrast(.94)}
+.reveal{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--bar)}
+.reveal::after{content:"";position:absolute;left:-5px;top:50%;width:11px;height:24px;margin-top:-12px;border-radius:2px;background:var(--fg1);box-shadow:0 2px 8px rgba(0,0,0,.6)}
+.tag{position:absolute;bottom:12px;font:11.5px/1 var(--mono);color:var(--fg1);background:rgba(11,11,11,.85);border:1px solid var(--hairline-strong);border-radius:2px;padding:4px 6px}
+.tag.l{right:calc(50% + 12px)}.tag.r{left:calc(50% + 12px)}
+
+/* file details: a small key/value grid under the preview */
+.details{width:720px;display:grid;grid-template-columns:96px 1fr 96px 1fr;column-gap:0;border-top:1px solid var(--hairline)}
+.details dt,.details dd{margin:0;height:28px;display:flex;align-items:center;border-bottom:1px solid var(--hairline);font-size:12px;line-height:1}
+.details dt{color:var(--fg3)}
+.details dd{padding-right:16px}
+.details dd{font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg1);gap:6px}
+.details dd .was{color:var(--fg3)}
+.details dd svg.i{width:12px;height:12px;color:var(--fg3)}
+.details dd b{font-weight:600}
+
+/* ---------- status bar ---------- */
+.status{display:flex;align-items:stretch;background:var(--bg-chrome);border-top:1px solid var(--hairline);font-size:12px;color:var(--fg2);line-height:1}
+.si{display:flex;align-items:center;gap:6px;padding:0 10px}
+.si:hover{background:var(--hover);color:var(--fg1)}
+.si svg.i{width:14px;height:14px}
+.si .hair{width:80px;height:1px;background:var(--track);position:relative;margin-left:4px}
+.si .hair i{position:absolute;inset:0 auto 0 0;width:44%;background:var(--bar)}
+.si.warn{color:var(--fg1);font-weight:600}
+.status .push{margin-left:auto}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="convert" viewBox="0 0 16 16"><path d="M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13"/></symbol>
+    <symbol id="compress" viewBox="0 0 16 16"><path d="M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11"/></symbol>
+    <symbol id="resize" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10"/></symbol>
+    <symbol id="upscale" viewBox="0 0 16 16"><rect x="2.5" y="8.5" width="5" height="5" rx=".5"/><path d="M9 2.5h4.5V7M13.5 2.5L8.5 7.5"/></symbol>
+    <symbol id="removebg" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5"/></symbol>
+    <symbol id="generate" viewBox="0 0 16 16"><path d="M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4"/></symbol>
+    <symbol id="tools" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx=".5"/><rect x="9" y="2.5" width="4.5" height="4.5" rx=".5"/><rect x="2.5" y="9" width="4.5" height="4.5" rx=".5"/><rect x="9" y="9" width="4.5" height="4.5" rx=".5"/></symbol>
+    <symbol id="completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8.25l1.75 1.75L10.75 6.5"/></symbol>
+    <symbol id="settings" viewBox="0 0 16 16"><path d="M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6"/><circle cx="9" cy="5" r="1.5"/><circle cx="6" cy="11" r="1.5"/></symbol>
+    <symbol id="addfile" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3M8 7v5M5.5 9.5h5"/></symbol>
+    <symbol id="trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6 4.5V2.5h4v2M4.5 4.5l.5 9h6l.5-9"/></symbol>
+    <symbol id="more" viewBox="0 0 16 16"><circle cx="4" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12" cy="8" r=".6"/></symbol>
+    <symbol id="chev-d" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="chev-r" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+    <symbol id="check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></symbol>
+    <symbol id="sync" viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/></symbol>
+    <symbol id="warn" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+    <symbol id="retry" viewBox="0 0 16 16"><path d="M3 3v3h3M3.3 6A5 5 0 1 1 3 9.5"/></symbol>
+    <symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="arrow" viewBox="0 0 16 16"><path d="M3 8h10M10 5l3 3-3 3"/></symbol>
+    <symbol id="play" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z"/></symbol>
+    <symbol id="image" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3"/><circle cx="6.5" cy="7.5" r="1"/><path d="M3.5 12.5l3-3 2 2 1.5-1.5 2.5 2.5"/></symbol>
+    <symbol id="split" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx=".5"/><path d="M8 2.5v11"/></symbol>
+    <symbol id="fit" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></symbol>
+    <symbol id="stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1"/></symbol>
+    <symbol id="folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <!-- title bar -->
+  <header class="titlebar">
+    <div class="brand">
+      <!-- app glyph: an anvil, drawn in the same stroke family -->
+      <svg class="i" viewBox="0 0 16 16" style="stroke:var(--fg1)"><path d="M1.5 4.5h10c0 2-1.5 3-3.5 3v2h-3v-2c-2 0-3.5-1-3.5-3zM11.5 4.5h3M4 12.5h7M5 9.5l-1 3M10 9.5l1 3"/></svg>
+      <span>Filesmith</span>
+    </div>
+    <div class="tb-spacer"></div>
+    <button class="winc" aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+    <button class="winc" aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+    <button class="winc close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </header>
+
+  <div class="main">
+    <!-- activity bar -->
+    <nav class="activity" aria-label="Operations">
+      <div>
+        <button class="act on" data-tip="Convert" aria-current="page"><svg class="i"><use href="#convert"/></svg><span class="badge">6</span></button>
+        <button class="act" data-tip="Compress"><svg class="i"><use href="#compress"/></svg></button>
+        <button class="act" data-tip="Resize"><svg class="i"><use href="#resize"/></svg></button>
+        <button class="act" data-tip="Upscale"><svg class="i"><use href="#upscale"/></svg></button>
+        <button class="act" data-tip="Remove BG"><svg class="i"><use href="#removebg"/></svg></button>
+        <button class="act" data-tip="Generate"><svg class="i"><use href="#generate"/></svg></button>
+        <button class="act" data-tip="Tools"><svg class="i"><use href="#tools"/></svg></button>
+      </div>
+      <div>
+        <button class="act" data-tip="Completed  142"><svg class="i"><use href="#completed"/></svg></button>
+        <button class="act" data-tip="Settings"><svg class="i"><use href="#settings"/></svg></button>
+      </div>
+    </nav>
+
+    <!-- sidebar view -->
+    <aside class="sidebar">
+      <div class="viewtitle">
+        <h1>Convert</h1>
+        <button class="ib" aria-label="Add files" title="Add files"><svg class="i"><use href="#addfile"/></svg></button>
+        <button class="ib" aria-label="Clear queue" title="Clear queue"><svg class="i"><use href="#trash"/></svg></button>
+        <button class="ib" aria-label="More actions" title="More actions"><svg class="i" style="stroke-width:2"><use href="#more"/></svg></button>
+      </div>
+
+      <section class="section" style="border-top:0">
+        <button class="sh" aria-expanded="true"><svg class="i"><use href="#chev-d"/></svg><b>Queue</b><span class="count">6</span></button>
+        <ul class="q">
+          <li class="row" tabindex="0">
+            <span class="thumb t1"></span><span class="name">IMG_4821.HEIC</span>
+            <span class="meta">3.2 MB<svg class="i"><use href="#arrow"/></svg><span class="after">640 KB</span></span>
+            <span class="st done"><svg class="i"><use href="#check"/></svg></span>
+          </li>
+          <li class="row" tabindex="0">
+            <span class="thumb t2"></span><span class="name">product-shot.jpg</span>
+            <span class="meta">2.1 MB<svg class="i"><use href="#arrow"/></svg><span class="after">486 KB</span></span>
+            <span class="st done"><svg class="i"><use href="#check"/></svg></span>
+          </li>
+          <li class="row sel" tabindex="0">
+            <span class="thumb t3"></span><span class="name">screenshot-2026-10-03.png</span>
+            <span class="meta"><span class="prog"><i></i></span><span class="pct">62%</span></span>
+            <span class="st" style="color:var(--fg1)"><svg class="i"><use href="#sync"/></svg></span>
+          </li>
+          <li class="row" tabindex="0">
+            <span class="thumb t4"></span><span class="name">hero-banner@2x.png</span>
+            <button class="rx" aria-label="Remove"><svg class="i"><use href="#close"/></svg></button>
+            <span class="meta">4.6 MB</span>
+            <span class="st"><svg class="i"><use href="#clock"/></svg></span>
+          </li>
+          <li class="row fail" tabindex="0">
+            <span class="thumb t5"></span><span class="name">scan_0091.tiff</span>
+            <span class="err">Unsupported compression</span>
+            <button class="retry" aria-label="Retry" title="Retry"><svg class="i"><use href="#retry"/></svg></button>
+          </li>
+          <li class="row" tabindex="0">
+            <span class="thumb t6"></span><span class="name">logo-final.bmp</span>
+            <button class="rx" aria-label="Remove"><svg class="i"><use href="#close"/></svg></button>
+            <span class="meta">1.1 MB</span>
+            <span class="st"><svg class="i"><use href="#clock"/></svg></span>
+          </li>
+        </ul>
+        <div class="drop"><svg class="i"><use href="#addfile"/></svg><span>Drop files here or <u>add files</u></span></div>
+      </section>
+
+      <section class="section">
+        <button class="sh" aria-expanded="true"><svg class="i"><use href="#chev-d"/></svg><b>Options</b></button>
+        <div class="opts">
+          <div class="set mod">
+            <h3><em>Convert to: </em>Format</h3>
+            <p>Smaller than JPG and opens everywhere.</p>
+            <div class="seg fmt" role="group" aria-label="Format">
+              <button aria-pressed="true">WebP</button><button aria-pressed="false">JPG</button><button aria-pressed="false">PNG</button><button aria-pressed="false">AVIF</button><button aria-pressed="false">JXL</button><button aria-pressed="false">TIFF</button>
+            </div>
+          </div>
+          <div class="set">
+            <h3>Quality</h3>
+            <p>Balanced keeps detail at about a fifth of the size.</p>
+            <div class="seg" role="group" aria-label="Quality">
+              <button aria-pressed="false">Smaller</button><button aria-pressed="true">Balanced</button><button aria-pressed="false">Best</button>
+            </div>
+          </div>
+          <div class="set">
+            <h3>Metadata</h3>
+            <label class="chk"><span class="box on" role="checkbox" aria-checked="true" tabindex="0"><svg class="i"><use href="#check"/></svg></span>Keep camera data, dates and colour profile</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <button class="sh" aria-expanded="true"><svg class="i"><use href="#chev-d"/></svg><b>Output</b></button>
+        <div style="padding:4px 0 8px">
+          <button class="radio on" role="radio" aria-checked="true"><span class="dot on"></span>Next to source</button>
+          <button class="radio" role="radio" aria-checked="false"><span class="dot"></span>Choose folder…</button>
+        </div>
+      </section>
+
+      <div class="spacer"></div>
+      <div class="foot">
+        <button class="btn primary"><svg class="i"><use href="#play"/></svg>Convert 6 files</button>
+        <button class="btn sec" aria-label="Stop all" title="Stop all"><svg class="i"><use href="#stop"/></svg></button>
+      </div>
+    </aside>
+
+    <!-- editor: quiet preview of the selected file -->
+    <main class="editor">
+      <div class="tabs">
+        <div class="tab on" tabindex="0">
+          <svg class="i"><use href="#image"/></svg><span class="label">screenshot-2026-10-03.png</span>
+          <button class="x" aria-label="Close preview"><svg class="i"><use href="#close"/></svg></button>
+        </div>
+        <div class="tools">
+          <button class="ib on" aria-label="Before and after" title="Before and after"><svg class="i"><use href="#split"/></svg></button>
+          <button class="ib" aria-label="Fit to window" title="Fit to window"><svg class="i"><use href="#fit"/></svg></button>
+          <span class="vsep"></span>
+          <button class="ib" aria-label="Show in folder" title="Show in folder"><svg class="i"><use href="#folder"/></svg></button>
+        </div>
+      </div>
+      <div class="crumbs">
+        <a>Convert</a><svg class="i"><use href="#chev-r"/></svg><a>Queue</a><svg class="i"><use href="#chev-r"/></svg><a>screenshot-2026-10-03.png</a>
+      </div>
+
+      <div class="stage">
+        <div class="canvas">
+          <svg class="photo" viewBox="0 0 720 450" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs>
+              <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3c3c3c"/><stop offset=".55" stop-color="#8e8e8e"/><stop offset="1" stop-color="#b4b4b4"/></linearGradient>
+              <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a7a7a"/><stop offset="1" stop-color="#1c1c1c"/></linearGradient>
+              <radialGradient id="sun" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ececec"/><stop offset=".45" stop-color="#d0d0d0"/><stop offset="1" stop-color="#d0d0d0" stop-opacity="0"/></radialGradient>
+            </defs>
+            <rect width="720" height="450" fill="url(#sky)"/>
+            <circle cx="470" cy="190" r="70" fill="url(#sun)"/>
+            <path d="M0 250L70 200 120 225 210 140 270 190 330 150 420 225 500 170 560 205 640 130 720 190V310H0z" fill="#5e5e5e"/>
+            <path d="M210 140l-22 30 14-4 8 12 10-18 14 10zM640 130l-20 26 12-2 10 10 8-16 14 8z" fill="#c4c4c4"/>
+            <path d="M0 280L90 240 170 270 260 215 350 262 450 228 540 268 620 238 720 262V320H0z" fill="#3a3a3a"/>
+            <path d="M0 300L120 285 260 298 400 282 560 296 720 284V320H0z" fill="#262626"/>
+            <rect y="318" width="720" height="132" fill="url(#lake)"/>
+            <path d="M0 318h720v6H0z" fill="#9a9a9a" opacity=".35"/>
+            <path d="M440 340h60M420 356h100M450 372h40M430 390h70" stroke="#c8c8c8" stroke-width="1.5" opacity=".45"/>
+            <path d="M0 450V392c60-14 120-10 190 6 50 12 90 52 90 52z" fill="#141414"/>
+          </svg>
+          <div class="after-half"><svg class="photo" viewBox="0 0 720 450" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs>
+              <linearGradient id="sky2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3c3c3c"/><stop offset=".55" stop-color="#8e8e8e"/><stop offset="1" stop-color="#b4b4b4"/></linearGradient>
+              <linearGradient id="lake2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a7a7a"/><stop offset="1" stop-color="#1c1c1c"/></linearGradient>
+              <radialGradient id="sun2" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ececec"/><stop offset=".45" stop-color="#d0d0d0"/><stop offset="1" stop-color="#d0d0d0" stop-opacity="0"/></radialGradient>
+            </defs>
+            <rect width="720" height="450" fill="url(#sky2)"/>
+            <circle cx="470" cy="190" r="70" fill="url(#sun2)"/>
+            <path d="M0 250L70 200 120 225 210 140 270 190 330 150 420 225 500 170 560 205 640 130 720 190V310H0z" fill="#5e5e5e"/>
+            <path d="M210 140l-22 30 14-4 8 12 10-18 14 10zM640 130l-20 26 12-2 10 10 8-16 14 8z" fill="#c4c4c4"/>
+            <path d="M0 280L90 240 170 270 260 215 350 262 450 228 540 268 620 238 720 262V320H0z" fill="#3a3a3a"/>
+            <path d="M0 300L120 285 260 298 400 282 560 296 720 284V320H0z" fill="#262626"/>
+            <rect y="318" width="720" height="132" fill="url(#lake2)"/>
+            <path d="M0 318h720v6H0z" fill="#9a9a9a" opacity=".35"/>
+            <path d="M440 340h60M420 356h100M450 372h40M430 390h70" stroke="#c8c8c8" stroke-width="1.5" opacity=".45"/>
+            <path d="M0 450V392c60-14 120-10 190 6 50 12 90 52 90 52z" fill="#141414"/>
+          </svg></div>
+          <div class="reveal"></div><span class="tag l">PNG</span><span class="tag r">WebP</span>
+        </div>
+        <dl class="details">
+          <dt>Dimensions</dt><dd>2880 × 1800</dd>
+          <dt>Format</dt><dd><span class="was">PNG</span><svg class="i"><use href="#arrow"/></svg>WebP</dd>
+          <dt>Size</dt><dd><span class="was">1.8 MB</span><svg class="i"><use href="#arrow"/></svg><b>~410 KB</b></dd>
+          <dt>Progress</dt><dd>62%</dd>
+        </dl>
+      </div>
+    </main>
+  </div>
+
+  <!-- status bar: three quiet items -->
+  <footer class="status">
+    <button class="si"><svg class="i"><use href="#sync"/></svg>Converting 3 of 6<span class="hair"><i></i></span></button>
+    <button class="si warn"><svg class="i"><use href="#warn"/></svg>1 failed</button>
+    <button class="si push"><svg class="i"><use href="#completed"/></svg>2 of 6 done</button>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!--
+  Filesmith round 2, mockup 18: Right rail
+  Pitch: Content first. The work starts at the left edge and the verbs sit in a thin
+  right-hand list, right aligned, with a 2px white edge tick marking the active verb.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440, initial-scale=1">
+<title>Filesmith Right Rail</title>
+<style>
+  :root{
+    --bg:#000; --fg:#f2f2f2; --fg2:#d0d0d0; --fg3:#8f8f8f; --glyph:#b0b0b0;
+    --hover:#121212; --track:#262626; --tick:#f2f2f2;
+    --s:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+    --m:"Cascadia Mono",Consolas,monospace;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg)}
+  body{color:var(--fg);font:13px/1.4 var(--s);-webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  :focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+
+  .app{width:1440px;height:900px;background:var(--bg);display:grid;grid-template-rows:38px 1fr;overflow:hidden}
+
+  /* title bar */
+  .bar{display:flex;align-items:center;padding-left:16px;-webkit-app-region:drag}
+  .mark{width:14px;height:14px;margin-right:10px;color:var(--glyph)}
+  .name{font-size:12px;color:var(--fg3)}
+  .win{margin-left:auto;display:flex;height:100%}
+  .win button{width:46px;height:100%;display:grid;place-items:center;color:var(--glyph);transition:background-color .15s var(--ease)}
+  .win button:hover{background:var(--hover)}
+  .win svg{width:10px;height:10px}
+
+  .main{display:grid;grid-template-columns:1fr 180px}
+
+  /* content */
+  .work{padding:56px 48px 0}
+  h1{font:600 34px/1.1 var(--s);letter-spacing:-.01em;color:var(--fg);margin-bottom:48px}
+
+  .queue{width:520px;list-style:none;font-family:var(--m)}
+  .row{position:relative;display:flex;justify-content:space-between;align-items:center;height:40px;font-size:13px;color:var(--fg2)}
+  .st{font-variant-numeric:tabular-nums;color:var(--fg3)}
+  .row.done .st{color:var(--fg2)}
+  .row.run{color:var(--fg)}
+  .row.run .st{color:var(--fg)}
+  .row.run::after{content:"";position:absolute;left:0;bottom:6px;height:1px;width:62%;background:var(--fg)}
+  .row.run::before{content:"";position:absolute;left:0;right:0;bottom:6px;height:1px;background:var(--track)}
+  .row.wait{color:var(--fg3)}
+  .row.fail{color:var(--fg)}
+  .row.fail .st{color:var(--fg);font-weight:700}
+
+  .drop{display:block;margin-top:14px;height:40px;font:13px var(--m);color:var(--fg3);text-align:left;transition:color .15s var(--ease)}
+  .drop:hover{color:var(--fg)}
+
+  .fmt{display:flex;gap:28px;margin-top:64px;font:13px var(--m)}
+  .fmt button{position:relative;padding:6px 0;color:var(--fg3);transition:color .15s var(--ease)}
+  .fmt button:hover{color:var(--fg)}
+  .fmt button[aria-pressed="true"]{color:var(--fg)}
+  .fmt button[aria-pressed="true"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--tick)}
+
+  .go{margin-top:40px;height:40px;padding:0 24px;border-radius:999px;background:#fff;color:#000;font:600 13px var(--s);transition:transform .12s var(--ease),opacity .15s var(--ease)}
+  .go:hover{opacity:.9}
+  .go:active,.fmt button:active,.verbs button:active,.drop:active{transform:scale(.97)}
+
+  /* right rail */
+  .verbs{list-style:none;padding:56px 24px 0 0;font:500 12.5px var(--m)}
+  .verbs button{position:relative;display:block;width:100%;height:36px;padding-right:16px;text-align:right;color:var(--fg3);transition:color .15s var(--ease)}
+  .verbs button:hover{color:var(--fg)}
+  .verbs button[aria-current="page"]{color:var(--fg)}
+  .verbs button[aria-current="page"]::after{content:"";position:absolute;right:0;top:10px;bottom:10px;width:2px;background:var(--tick)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <svg class="mark" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M2 2h10M2 2v10M2 7h7"/></svg>
+    <span class="name">Filesmith</span>
+    <div class="win">
+      <button aria-label="Minimise"><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="1"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximise"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button aria-label="Close"><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="1"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="main">
+    <main class="work">
+      <h1>Convert</h1>
+
+      <ul class="queue">
+        <li class="row done"><span>IMG_4821.HEIC</span><span class="st">done</span></li>
+        <li class="row run"><span>screenshot.png</span><span class="st">62%</span></li>
+        <li class="row wait"><span>hero-banner.png</span><span class="st">queued</span></li>
+        <li class="row fail"><span>scan_0091.tiff</span><span class="st">failed</span></li>
+      </ul>
+      <button class="drop">+ drop files</button>
+
+      <div class="fmt" role="group" aria-label="Target format">
+        <button aria-pressed="true">WebP</button>
+        <button aria-pressed="false">JPG</button>
+        <button aria-pressed="false">PNG</button>
+        <button aria-pressed="false">AVIF</button>
+      </div>
+
+      <button class="go">Convert 4 files</button>
+    </main>
+
+    <nav aria-label="Operations">
+      <ul class="verbs">
+        <li><button aria-current="page">Convert</button></li>
+        <li><button>Compress</button></li>
+        <li><button>Resize</button></li>
+        <li><button>Upscale</button></li>
+        <li><button>Remove BG</button></li>
+        <li><button>Generate</button></li>
+        <li><button>Tools</button></li>
+      </ul>
+    </nav>
+  </div>
+</div>
+</body>
+</html>

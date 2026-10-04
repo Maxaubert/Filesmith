@@ -1,0 +1,40 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Terminal v2 mockups</title>
+<style>
+*{box-sizing:border-box;margin:0}
+body{background:#000;color:#e6e6e6;font:13px/1.55 ui-monospace,"Cascadia Mono",Consolas,monospace;padding:48px 40px 80px}
+header{max-width:1400px;margin:0 auto 40px}
+h1{font-size:15px;font-weight:400;color:#fff}
+header p{color:#777;margin-top:6px}
+.g{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:40px 28px}
+.c{color:inherit;text-decoration:none;display:block}
+.c img{width:100%;display:block;border:1px solid #222;background:#0a0a0a}
+.c:hover img,.c:focus-visible img{border-color:#888}
+.c:focus-visible{outline:1px solid #fff;outline-offset:4px}
+.m{margin-top:12px;display:flex;gap:12px}
+.n{color:#666}.t{color:#fff}
+.c p{color:#888;margin-top:4px}
+@media(max-width:600px){body{padding:32px 16px}}
+</style></head><body>
+<header><h1>Filesmith, terminal v2</h1><p>20 monochrome directions, fewer things on screen. Click one to open it.</p></header>
+<main class="g">
+<a class="c" href="01-wind-plain.html"><img src="shots/01-wind-plain.png" alt="Wind, plain" loading="lazy"><div class="m"><span class="n">01</span><span class="t">Wind, plain</span></div><p>Wind's Settings shell with nothing extra added. A left rail, a title, four lines and one white pill. It looks like Wind's sibling app.</p></a>
+<a class="c" href="02-wind-settings-card.html"><img src="shots/02-wind-settings-card.png" alt="Wind, settings card" loading="lazy"><div class="m"><span class="n">02</span><span class="t">Wind, settings card</span></div><p>The queue and the options sit in Wind-style cards, so the convert page reads like a settings page.</p></a>
+<a class="c" href="03-wind-no-rail.html"><img src="shots/03-wind-no-rail.png" alt="Wind, no rail" loading="lazy"><div class="m"><span class="n">03</span><span class="t">Wind, no rail</span></div><p>Wind's tokens, but the rail is removed. The verbs become a quiet word row under the title bar, which frees the whole width for black space.</p></a>
+<a class="c" href="04-wind-icon-rail.html"><img src="shots/04-wind-icon-rail.png" alt="Wind, icon rail" loading="lazy"><div class="m"><span class="n">04</span><span class="t">Wind, icon rail</span></div><p>The closest to a shipping desktop app: a Wind rail with small 1.5px icons beside each verb, and the content kept very sparse.</p></a>
+<a class="c" href="05-prompt-caret.html"><img src="shots/05-prompt-caret.png" alt="Prompt" loading="lazy"><div class="m"><span class="n">05</span><span class="t">Prompt</span></div><p>The title is a prompt: '› convert_' with a slow blinking underscore. That one device carries the terminal feel.</p></a>
+<a class="c" href="06-one-sentence.html"><img src="shots/06-one-sentence.png" alt="One sentence" loading="lazy"><div class="m"><span class="n">06</span><span class="t">One sentence</span></div><p>The options read as one line: 'convert 4 files to webp at 80'. The underlined words are the controls.</p></a>
+<a class="c" href="07-verb-in-title.html"><img src="shots/07-verb-in-title.png" alt="Verb in the title" loading="lazy"><div class="m"><span class="n">07</span><span class="t">Verb in the title</span></div><p>No rail at all. The title 'Convert ⌄' is the navigation, and clicking it drops the 7 verbs.</p></a>
+<a class="c" href="08-verbs-at-bottom.html"><img src="shots/08-verbs-at-bottom.png" alt="Verbs at the bottom" loading="lazy"><div class="m"><span class="n">08</span><span class="t">Verbs at the bottom</span></div><p>The work sits at the top of the window and the 7 verbs rest along the bottom edge like a quiet dock line.</p></a>
+<a class="c" href="09-one-batch-bar.html"><img src="shots/09-one-batch-bar.png" alt="One bar" loading="lazy"><div class="m"><span class="n">09</span><span class="t">One bar</span></div><p>The rows show only a word each. Progress for the whole batch is one 1px white line under the queue.</p></a>
+<a class="c" href="10-bracket-bar.html"><img src="shots/10-bracket-bar.png" alt="Bracket bar" loading="lazy"><div class="m"><span class="n">10</span><span class="t">Bracket bar</span></div><p>Only the running file shows a text bar, '[######····]'. That bracketed bar is the only typographic device.</p></a>
+<a class="c" href="11-glyph-gutter.html"><img src="shots/11-glyph-gutter.png" alt="Glyph column" loading="lazy"><div class="m"><span class="n">11</span><span class="t">Glyph column</span></div><p>Status is a single glyph in a left gutter, '✓ ○ · ✕', so the right side of every row stays empty.</p></a>
+<a class="c" href="12-heavy-rule.html"><img src="shots/12-heavy-rule.png" alt="One heavy rule" loading="lazy"><div class="m"><span class="n">12</span><span class="t">One heavy rule</span></div><p>A single 2px white rule under the title is the only line on screen. Everything else floats.</p></a>
+<a class="c" href="13-big-verb.html"><img src="shots/13-big-verb.png" alt="Big verb" loading="lazy"><div class="m"><span class="n">13</span><span class="t">Big verb</span></div><p>The verb is the hero: 'Convert' set at 88px light in the top-left. The rest is small and quiet.</p></a>
+<a class="c" href="14-two-halves.html"><img src="shots/14-two-halves.png" alt="Two halves" loading="lazy"><div class="m"><span class="n">14</span><span class="t">Two halves</span></div><p>Files on the left half and the decision on the right. Each half has one job, separated by black space only.</p></a>
+<a class="c" href="15-key-value-grid.html"><img src="shots/15-key-value-grid.png" alt="Key and value" loading="lazy"><div class="m"><span class="n">15</span><span class="t">Key and value</span></div><p>Everything is a two-column mono list: names with statuses, and settings with values, all on one alignment line.</p></a>
+<a class="c" href="16-drop-frame.html"><img src="shots/16-drop-frame.png" alt="Drop frame" loading="lazy"><div class="m"><span class="n">16</span><span class="t">Drop frame</span></div><p>The queue lives inside a large dashed region. The drop target and the list are the same object.</p></a>
+<a class="c" href="17-inversion-only.html"><img src="shots/17-inversion-only.png" alt="Inversion" loading="lazy"><div class="m"><span class="n">17</span><span class="t">Inversion</span></div><p>Inversion is the only emphasis anywhere: the active verb, the chosen format and the failed word are small black-on-light blocks. No pills, no lines, no bold.</p></a>
+<a class="c" href="18-right-rail.html"><img src="shots/18-right-rail.png" alt="Right rail" loading="lazy"><div class="m"><span class="n">18</span><span class="t">Right rail</span></div><p>Content first: the work starts at the left edge and the verbs sit in a thin right-hand list.</p></a>
+<a class="c" href="19-one-number.html"><img src="shots/19-one-number.png" alt="One number" loading="lazy"><div class="m"><span class="n">19</span><span class="t">One number</span></div><p>Rows carry only names, dimmed when done. A single large '62%' beside the running row is the one live number on screen.</p></a>
+<a class="c" href="20-empty-until-dropped.html"><img src="shots/20-empty-until-dropped.png" alt="Nothing until dropped" loading="lazy"><div class="m"><span class="n">20</span><span class="t">Nothing until dropped</span></div><p>The resting screen is almost blank: the verb list and one centred line 'drop files'. The queue, format and button appear only once files arrive.</p></a>
+</main></body></html>
