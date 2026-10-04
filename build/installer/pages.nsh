@@ -25,7 +25,9 @@
 
 ; When the section ends, autoclose walks on to the finish page by itself: the
 ; Next button it would otherwise wait for has been hidden since .onGUIInit.
+; Before that, put the command line on the per-user PATH (path.nsh).
 !macro customInstall
+  !insertmacro filesmithPathAdd
   SetAutoClose true
 !macroend
 

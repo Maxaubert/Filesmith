@@ -16,6 +16,19 @@
   ManifestDPIAware true
 !macroend
 
+; PATH entry for the command line (spec 7.2). Outside the guard: the uninstaller
+; compiles from this file and removes the entry.
+!include "installer\path.nsh"
+
+; Uninstall drops the PATH entry, except during an update: electron-builder
+; runs the old uninstaller with --updated, and the new version re-adds the same
+; folder at once, so the entry should not blink out in between.
+!macro customUnInstall
+  ${ifNot} ${isUpdated}
+    !insertmacro filesmithPathRemove
+  ${endIf}
+!macroend
+
 ; The uninstaller is compiled from this same script with BUILD_UNINSTALLER set,
 ; and it has none of these pages. Without the guard its pass would resize a
 ; window it never draws, and warn about every function it does not call.
