@@ -7,7 +7,15 @@ import { routeConvert } from './convert'
 // same verb (Convert) had to exist five times over, once per file type.
 
 export type TabId =
-  'convert' | 'compress' | 'resize' | 'upscale' | 'removebg' | 'generate' | 'tools' | 'completed'
+  | 'convert'
+  | 'compress'
+  | 'resize'
+  | 'upscale'
+  | 'removebg'
+  | 'generate'
+  | 'tools'
+  | 'completed'
+  | 'settings'
 
 export interface Tab {
   id: TabId
@@ -103,6 +111,17 @@ export const COMPLETED_TAB: Tab = {
   desc: 'Everything Filesmith has produced',
   color: '#22b364',
   icon: 'check',
+  kinds: [],
+  tool: 'convert'
+}
+
+/** Sidebar layout and tool status. Pinned to the bottom group, not a verb. */
+export const SETTINGS_TAB: Tab = {
+  id: 'settings',
+  label: 'Settings',
+  desc: 'Sidebar and tools',
+  color: '#6e6e6e',
+  icon: 'settings',
   kinds: [],
   tool: 'convert'
 }
@@ -222,6 +241,7 @@ export function engineFor(
 
 export function tabById(id: TabId): Tab {
   if (id === 'completed') return COMPLETED_TAB
+  if (id === 'settings') return SETTINGS_TAB
   return TABS.find((t) => t.id === id) ?? TABS[0]
 }
 

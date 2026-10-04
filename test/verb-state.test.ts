@@ -137,3 +137,38 @@ describe('tab switching', () => {
     expect(s.activeTool).toBeNull()
   })
 })
+
+const img = (name: string): FileInfo => ({
+  path: `C:/x/${name}`,
+  name,
+  ext: '.png',
+  kind: 'image',
+  size: 10
+})
+
+describe('selection in visible order', () => {
+  it('ranges over the order the table shows, not insertion order', () => {
+    let s = reducer(initialState, {
+      type: 'addItems',
+      files: [img('a.png'), img('b.png'), img('c.png')],
+      key: 'convert'
+    })
+    const [a, b, c] = s.queues.convert!.items.map((i) => i.id)
+    s = reducer(s, { type: 'select', id: c, mode: 'single' })
+    // Table sorted c, a, b: shift-click a selects c and a only.
+    s = reducer(s, { type: 'select', id: a, mode: 'range', order: [c, a, b] })
+    expect(s.queues.convert!.selected.sort()).toEqual([a, c].sort())
+  })
+
+  it('selectIds replaces the selection and drops ids outside the queue', () => {
+    let s = reducer(initialState, {
+      type: 'addItems',
+      files: [img('a.png'), img('b.png')],
+      key: 'convert'
+    })
+    const [a, b] = s.queues.convert!.items.map((i) => i.id)
+    s = reducer(s, { type: 'selectIds', ids: [b, a, 'nope'] })
+    expect(s.queues.convert!.selected).toEqual([b, a])
+    expect(s.queues.convert!.anchor).toBe(b)
+  })
+})
