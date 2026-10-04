@@ -1,0 +1,102 @@
+/* Views and states the mockup does not draw (spec 2.6, 3.3, 4.9, 4.12). */
+
+/* cross-group rows: fg3 text, thumbnail at 40% (monochrome replacement for opacity-40) */
+.tr.dim .name,
+.tr.dim .meta,
+.tr.dim .size {
+  color: var(--fg3);
+}
+.tr.dim .thumb {
+  opacity: 0.4;
+}
+
+/* mixed-queue group row: SettingGroup style, selects the whole group */
+.grp-row {
+  height: 28px;
+  border-bottom: 1px solid var(--line);
+}
+.grp {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 16px;
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.09em;
+  color: var(--fg3);
+}
+.grp::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.grp .n {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.grp:hover {
+  color: var(--fg1);
+  background: var(--hover);
+}
+
+/* narrow window (spec 3.7, O5): below 1180px the kind column folds into the
+   name cell as a trailing fg3 tag. Hidden cells take no grid slot, so the
+   head, rows and totals all drop their third cell and use five columns. */
+.ktag {
+  display: none;
+}
+@media (max-width: 1179px) {
+  .cols {
+    --cols: 40px 1fr 88px 184px 232px;
+  }
+  .cols > :nth-child(3) {
+    display: none;
+  }
+  .ktag {
+    display: inline;
+    margin-left: auto;
+  }
+}
+
+/* totals arrow is inline, not the split arrow */
+.totals .tarr,
+.totals .pct {
+  color: var(--fg3);
+}
+
+/* drop target: a 1px fg1 inset outline around the centre panel */
+.center.dropping::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  outline: 1px solid var(--fg1);
+  outline-offset: -1px;
+  pointer-events: none;
+}
+
+/* empty states */
+.empty {
+  height: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--fg2);
+}
+.empty .et {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--fg1);
+}
+.empty .el {
+  font-size: 12px;
+  color: var(--fg3);
+  margin-bottom: 6px;
+}
+.empty .sbtn {
+  align-self: center;
+}
