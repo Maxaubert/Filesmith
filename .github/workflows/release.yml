@@ -1,0 +1,161 @@
+# Every push to main ships: build the NSIS installer and publish it as a GitHub
+# Release named after package.json's version, with generated notes from the
+# merged PRs. Existing versions are immutable: a release requires a NEW version
+# in package.json (bump it inside the PR), and CI refuses to overwrite one.
+#
+# The bundled tools (ImageMagick, CaesiumCLT, 7-Zip, ffmpeg, mutool,
+# LibreOffice, Ghostscript, Real-ESRGAN) are not in git, and a runner has none
+# of the local installs fetch-binaries copies from. `--pinned` stages the same
+# versions from official downloads, each checked against a pinned SHA-256
+# (scripts/pinned-tools.mjs), and verify-bundle fails the build if any tool is
+# missing or does not run, both before and after electron-builder packs it.
+#
+# Pull requests that touch the release machinery, and manual dispatches, run a
+# DRY RUN: everything up to and including the verified installer, uploaded as a
+# workflow artifact, but never published.
+#
+# Gates: typecheck, lint, prettier, unit tests. The e2e suite stays the local
+# pre-PR gate (it launches the built app with real tools, CLAUDE.md).
+#
+# Unsigned: no certificate is configured.
+name: release
+
+on:
+  push:
+    branches: [main]
+    # Docs and licence text cannot change the installer. Without this a docs
+    # push would fail on "Require a new version", or, bumped, publish an
+    # identical installer under a new name for nothing.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'scripts/fetch-binaries.mjs'
+      - 'scripts/pinned-tools.mjs'
+      - 'scripts/verify-bundle.mjs'
+      - 'electron-builder.yml'
+      - 'package.json'
+  workflow_dispatch:
+
+concurrency:
+  # Releases from main queue rather than race; a PR's newer push replaces its
+  # older dry run.
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npx prettier --check .
+      - run: npm test
+
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if (-not $v) { throw 'could not read version from package.json' }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      # Runs on dry runs too, so a PR that forgot the bump fails here, not
+      # after it is merged.
+      - name: Require a new version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Actions runs pwsh with $ErrorActionPreference='Stop', and PowerShell
+          # 7.4 can turn a non-zero NATIVE exit into a throw. `gh release view`
+          # exits 1 when the tag does not exist, which is the expected path, so
+          # the exit code is checked by hand.
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $v = '${{ steps.ver.outputs.version }}'
+          gh release view "v$v" *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Release v$v already exists. Bump package.json in the PR." }
+          Write-Host "v$v is new"
+          $global:LASTEXITCODE = 0
+
+      - name: Fetch pinned tools
+        run: node scripts/fetch-binaries.mjs --pinned
+
+      - name: Verify bundled tools (resources/)
+        run: node scripts/verify-bundle.mjs resources --manifest dist/resources-manifest.txt
+
+      # --publish never: on CI electron-builder tries to publish ITSELF and
+      # fails wanting a token; the Publish step below owns publishing.
+      - run: npm run build
+      - run: npx electron-builder --win --publish never
+
+      # electron-builder only WARNS when an extraResources source is missing, so
+      # check what actually got packed.
+      - name: Verify bundled tools (packed app)
+        run: node scripts/verify-bundle.mjs dist/win-unpacked/resources --manifest dist/packed-manifest.txt
+
+      - name: Check installer
+        id: exe
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $exe = "dist/Filesmith-Setup-x64-$v.exe"
+          if (-not (Test-Path $exe)) { throw "installer not found: $exe" }
+          $item = Get-Item $exe
+          $sha = (Get-FileHash $exe -Algorithm SHA256).Hash
+          $mb = [math]::Round($item.Length / 1MB, 1)
+          "path=$exe" >> $env:GITHUB_OUTPUT
+          "## Filesmith $v installer"                  >> $env:GITHUB_STEP_SUMMARY
+          ""                                            >> $env:GITHUB_STEP_SUMMARY
+          "- ``$($item.Name)``: $mb MB ($($item.Length) bytes)" >> $env:GITHUB_STEP_SUMMARY
+          "- sha256 ``$sha``"                           >> $env:GITHUB_STEP_SUMMARY
+          "- unsigned (no certificate configured)"      >> $env:GITHUB_STEP_SUMMARY
+          "- event ``${{ github.event_name }}``"        >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload dry-run installer
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Filesmith-Setup-x64-${{ steps.ver.outputs.version }}-dryrun
+          path: |
+            ${{ steps.exe.outputs.path }}
+            dist/resources-manifest.txt
+            dist/packed-manifest.txt
+          retention-days: 7
+          # The installer is already LZMA-compressed.
+          compression-level: 0
+
+      - name: Publish
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $v = '${{ steps.ver.outputs.version }}'
+          $exe = '${{ steps.exe.outputs.path }}'
+          # A stable-named copy of the same installer, so
+          # https://github.com/<repo>/releases/latest/download/Filesmith-Setup-x64.exe
+          # always serves the newest release. The versioned name stays primary.
+          $stable = 'dist/Filesmith-Setup-x64.exe'
+          Copy-Item $exe $stable -Force
+          gh release create "v$v" $exe $stable --title "Filesmith $v" --generate-notes --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
+          "- published ``v$v``" >> $env:GITHUB_STEP_SUMMARY

@@ -26,6 +26,10 @@
  * Install the copy-sourced tools first if missing:
  *   winget install ImageMagick.ImageMagick SaeraSoft.CaesiumCLT ArtifexSoftware.mutool
  *   (LibreOffice: install from libreoffice.org)
+ *
+ * `--pinned` (the CI release build, .github/workflows/release.yml) replaces every
+ * local source above with a pinned, SHA-256-checked download of the same
+ * version, staged by scripts/pinned-tools.mjs. Without the flag nothing changes.
  */
 import {
   existsSync,
@@ -41,6 +45,7 @@ import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
+import { stagePinnedTools } from './pinned-tools.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
@@ -50,6 +55,12 @@ const MB = 1024 * 1024
 mkdirSync(BIN, { recursive: true })
 const log = (...a) => console.log(...a)
 const mb = (p) => (statSync(p).size / MB).toFixed(1)
+
+/** `--pinned`: the staged tool sources (see pinned-tools.mjs); null = local sources. */
+const PINNED_MODE = process.argv.includes('--pinned')
+const PINNED_STAGE = join(tmpdir(), 'filesmith-pinned')
+/** @type {import('./pinned-tools.mjs').StagedTools | null} */
+let PIN = null
 
 /** Locate an executable on PATH via `where`; null if absent. */
 function which(name) {
@@ -66,7 +77,7 @@ function which(name) {
  * produces an installer where every image operation fails with "no decode
  * delegate" on any machine that has no system ImageMagick to fall back to. */
 function bundleImageMagick() {
-  const magick = which('magick')
+  const magick = PIN ? join(PIN.magickDir, 'magick.exe') : which('magick')
   if (!magick) {
     log('  ! ImageMagick not found — skip (winget install ImageMagick.ImageMagick)')
     return
@@ -97,7 +108,7 @@ function bundleImageMagick() {
 
 /** CaesiumCLT: a single self-contained exe. */
 function bundleCaesium() {
-  const c = which('caesiumclt')
+  const c = PIN ? PIN.caesiumExe : which('caesiumclt')
   if (!c) {
     log('  ! CaesiumCLT not found — skip (winget install SaeraSoft.CaesiumCLT)')
     return
@@ -117,7 +128,7 @@ function bundleSevenZip() {
     join('C:', 'Program Files', '7-Zip'),
     join('C:', 'Program Files (x86)', '7-Zip')
   ].filter(Boolean)
-  const dir = dirs.find((d) => existsSync(join(d, '7z.exe')))
+  const dir = PIN ? PIN.sevenZipDir : dirs.find((d) => existsSync(join(d, '7z.exe')))
   if (!dir) {
     log('  ! 7-Zip not found — skip (winget install 7zip.7zip)')
     return
@@ -133,6 +144,12 @@ function bundleSevenZip() {
 
 /** ffmpeg: download the smaller "essentials" static build and extract ffmpeg.exe. */
 async function bundleFfmpeg() {
+  if (PIN) {
+    for (const f of ['ffmpeg.exe', 'ffprobe.exe'])
+      copyFileSync(join(PIN.ffmpegBinDir, f), join(BIN, f))
+    log(`  ✓ ffmpeg: ffmpeg.exe + ffprobe.exe (${mb(join(BIN, 'ffmpeg.exe'))} MB, pinned)`)
+    return
+  }
   const url = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
   const tmp = join(tmpdir(), 'filesmith-ffmpeg')
   rmSync(tmp, { recursive: true, force: true })
@@ -184,7 +201,7 @@ async function bundleFfmpeg() {
 
 /** mutool (MuPDF): a single static exe for the PDF tools. */
 function bundleMutool() {
-  const m = which('mutool')
+  const m = PIN ? PIN.mutoolExe : which('mutool')
   if (!m) {
     log('  ! mutool not found — skip (winget install ArtifexSoftware.mutool)')
     return
@@ -213,7 +230,9 @@ function bundleLibreOffice() {
     'C:\\Program Files (x86)\\LibreOffice',
     process.env.LIBREOFFICE_DIR || ''
   ].filter(Boolean)
-  const src = candidates.find((r) => existsSync(join(r, 'program', 'soffice.exe')))
+  const src = PIN
+    ? PIN.libreOfficeDir
+    : candidates.find((r) => existsSync(join(r, 'program', 'soffice.exe')))
   if (!src) {
     log('  ! LibreOffice not found — skip. To bundle it, install LibreOffice')
     log('    (winget install TheDocumentFoundation.LibreOffice) or set LIBREOFFICE_DIR')
@@ -245,6 +264,11 @@ async function bundleGhostscript() {
     mkdirSync(dest, { recursive: true })
     for (const d of SUBSET)
       if (existsSync(join(root, d))) cpSync(join(root, d), join(dest, d), { recursive: true })
+  }
+  if (PIN) {
+    copySubset(PIN.ghostscriptDir)
+    log('  ✓ Ghostscript: copied from the pinned download')
+    return
   }
   // (a) local install: C:\Program Files\gs\gs<ver>\ or $GHOSTSCRIPT_DIR
   for (const base of ['C:\\Program Files\\gs', process.env.GHOSTSCRIPT_DIR || ''].filter(Boolean)) {
@@ -329,12 +353,14 @@ async function bundleRealesrgan() {
           cpSync(join(src, m + ext), join(dest, 'models', m + ext))
   }
   // (a) a local copy (RCMM installs the same binary on demand) or $REALESRGAN_DIR
-  const local = [
-    join(process.env.LOCALAPPDATA || '', 'RCMM', 'tools', 'realesrgan'),
-    process.env.REALESRGAN_DIR || ''
-  ]
-    .filter(Boolean)
-    .find((d) => existsSync(join(d, EXE)))
+  const local = PIN
+    ? PIN.realesrganDir
+    : [
+        join(process.env.LOCALAPPDATA || '', 'RCMM', 'tools', 'realesrgan'),
+        process.env.REALESRGAN_DIR || ''
+      ]
+        .filter(Boolean)
+        .find((d) => existsSync(join(d, EXE)))
   if (local) {
     copySubset(local)
     log(`  ✓ Real-ESRGAN: copied from ${local}`)
@@ -506,15 +532,25 @@ if (process.argv.includes('--lo-only')) {
 } else if (process.argv.includes('--esrgan-only')) {
   await bundleRealesrgan()
 } else {
+  if (PINNED_MODE)
+    PIN = await stagePinnedTools(PINNED_STAGE, {
+      allowInstall: process.env.CI === 'true' || process.argv.includes('--pinned-allow-install')
+    })
   log('Populating resources/bin …')
-  bundleImageMagick()
-  bundleCaesium()
-  bundleSevenZip()
-  await bundleFfmpeg()
-  bundleMutool()
-  if (!SKIPPED.has('ghostscript')) await bundleGhostscript()
-  if (!SKIPPED.has('realesrgan')) await bundleRealesrgan()
-  if (!SKIPPED.has('libreoffice')) bundleLibreOffice()
+  try {
+    bundleImageMagick()
+    bundleCaesium()
+    bundleSevenZip()
+    await bundleFfmpeg()
+    bundleMutool()
+    if (!SKIPPED.has('ghostscript')) await bundleGhostscript()
+    if (!SKIPPED.has('realesrgan')) await bundleRealesrgan()
+    if (!SKIPPED.has('libreoffice')) bundleLibreOffice()
+  } finally {
+    // The staged ImageMagick install leaves registry paths behind; deleting the
+    // stage makes sure they cannot mask a bundle missing its coder modules.
+    if (PIN) rmSync(PINNED_STAGE, { recursive: true, force: true })
+  }
 
   const bundled = readdirSync(BIN).filter((f) => f !== '.gitkeep')
   const total = bundled.reduce((s, f) => s + statSync(join(BIN, f)).size, 0)
