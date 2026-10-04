@@ -115,7 +115,9 @@ async function runToOutput(
   // If the tool reports no real progress (no onStderr parser) but the caller
   // gave an expected duration, drive an estimated bar so the % always moves.
   const est =
-    !onStderr && estimateSec ? estimateProgress(estimateSec, (p) => ctx.onProgress(p)) : null
+    !onStderr && estimateSec
+      ? estimateProgress(estimateSec, (p, eta) => ctx.onProgress(p, undefined, eta))
+      : null
   try {
     const { code, stderr } = await run(tool, argsFor(toolOut), { signal: ctx.signal, onStderr })
     // magick prints "no encode delegate for this image format" as a WARNING and
@@ -201,7 +203,7 @@ const convertTool: ToolModule = {
 
     // PDF -> plain text extracts reliably via mutool, no LibreOffice required.
     if (file.kind === 'pdf' && isSameFormat(targetExt, '.txt')) {
-      const output = reserveOutPath(file.path, '.txt', 'converted')
+      const output = reserveOutPath(file.path, '.txt', 'converted', ctx.outDir)
       return runToOutput(
         resolveTool('mutool'),
         (out) => buildPdfTextArgs(file.path, out),
@@ -249,7 +251,7 @@ const convertTool: ToolModule = {
             last || `LibreOffice couldn't convert to ${targetExt.replace('.', '').toUpperCase()}`
           )
         }
-        const output = reserveOutPath(file.path, targetExt, 'converted')
+        const output = reserveOutPath(file.path, targetExt, 'converted', ctx.outDir)
         try {
           if (isSameFormat(targetExt, '.txt')) {
             // Drop the UTF-8 BOM the encoded-Text filter prepends.
@@ -276,7 +278,7 @@ const convertTool: ToolModule = {
       }
     }
 
-    const output = reserveOutPath(file.path, targetExt, 'converted')
+    const output = reserveOutPath(file.path, targetExt, 'converted', ctx.outDir)
     if (kindTool === 'ffmpeg') {
       // Real progress for media transcodes (they can run for a long time).
       const duration = await probeDuration(file.path)
@@ -322,7 +324,7 @@ const pdfTool: ToolModule = {
     if (op === 'merge') {
       const inputs = Array.isArray(options.mergeInputs) ? options.mergeInputs : [file.path]
       if (inputs.length < 2) throw new Error('Select at least two PDFs to merge')
-      const output = reserveOutPath(file.path, '.pdf', 'merged')
+      const output = reserveOutPath(file.path, '.pdf', 'merged', ctx.outDir)
       ctx.onProgress(undefined, `Merging ${inputs.length} PDFs…`)
       return runToOutput(
         mutool,
@@ -340,7 +342,7 @@ const pdfTool: ToolModule = {
     if (op === 'split-range') {
       const pages = normalizePageRange(String(options.range ?? ''))
       if (!pages) throw new Error('Enter pages to keep, e.g. 1-3,5')
-      const output = reserveOutPath(file.path, '.pdf', 'pages')
+      const output = reserveOutPath(file.path, '.pdf', 'pages', ctx.outDir)
       ctx.onProgress(undefined, `Extracting pages ${pages}…`)
       return runToOutput(
         mutool,
@@ -361,7 +363,7 @@ const pdfTool: ToolModule = {
       if (count < 1)
         throw new Error(info.stderr.trim().split('\n').pop()?.trim() || 'Could not read the PDF')
       const base = basename(file.path, extname(file.path))
-      const dir = uniqueOutDir(dirname(file.path), base + ' (split)')
+      const dir = uniqueOutDir(ctx.outDir ?? dirname(file.path), base + ' (split)')
       mkdirSync(dir, { recursive: true })
       const width = String(count).length
       try {
@@ -391,7 +393,7 @@ const pdfTool: ToolModule = {
     // emits font-* files, which we drop so the folder is images-only.
     if (op === 'extract-images') {
       const base = basename(file.path, extname(file.path))
-      const dir = uniqueOutDir(dirname(file.path), base + ' (images)')
+      const dir = uniqueOutDir(ctx.outDir ?? dirname(file.path), base + ' (images)')
       mkdirSync(dir, { recursive: true })
       ctx.onProgress(undefined, 'Extracting images…')
       const { code, stderr } = await run(mutool, buildPdfExtractArgs(file.path), {
@@ -430,7 +432,7 @@ const pdfTool: ToolModule = {
     if (op === 'pages-to-images') {
       const dpi = Math.max(36, Math.min(600, Number(options.dpi ?? 150)))
       const dir = uniqueOutDir(
-        dirname(file.path),
+        ctx.outDir ?? dirname(file.path),
         basename(file.path, extname(file.path)) + ' (pages)'
       )
       mkdirSync(dir, { recursive: true })
@@ -439,7 +441,9 @@ const pdfTool: ToolModule = {
       // expanded too. Render into a neutral temp dir then, and move the pages.
       const renderDir = dir.includes('%') ? mkdtempSync(join(tmpdir(), 'filesmith-pages-')) : dir
       ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)
-      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p) => ctx.onProgress(p))
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p, eta) =>
+        ctx.onProgress(p, undefined, eta)
+      )
       try {
         const { code, stderr } = await run(mutool, buildPdfImagesArgs(file.path, renderDir, dpi), {
           signal: ctx.signal
@@ -465,7 +469,7 @@ const pdfTool: ToolModule = {
     }
 
     // extract-text
-    const output = reserveOutPath(file.path, '.txt', 'text')
+    const output = reserveOutPath(file.path, '.txt', 'text', ctx.outDir)
     ctx.onProgress(undefined, 'Extracting text…')
     return runToOutput(
       mutool,
@@ -485,7 +489,7 @@ const resizeTool: ToolModule = {
     const spec = buildResizeSpec(options)
     if (!isValidResizeSpec(spec))
       throw new Error('Enter a width, height, or percentage to resize by')
-    const output = reserveOutPath(file.path, file.ext, 'resized')
+    const output = reserveOutPath(file.path, file.ext, 'resized', ctx.outDir)
     ctx.onProgress(undefined, `Resizing ${spec}…`)
     const animated = normalizeExt(file.ext) === '.gif'
     return runToOutput(
@@ -511,7 +515,7 @@ const compressTool: ToolModule = {
     if (file.kind === 'pdf') {
       const level = String(options.pdfLevel ?? 'balanced') as PdfLevel
       const gray = Boolean(options.pdfGray)
-      const output = reserveOutPath(file.path, '.pdf', 'compressed')
+      const output = reserveOutPath(file.path, '.pdf', 'compressed', ctx.outDir)
       if (level === 'lossless') {
         ctx.onProgress(undefined, 'Compressing PDF (lossless)…')
         return runToOutput(
@@ -543,7 +547,7 @@ const compressTool: ToolModule = {
     if (file.kind === 'video') {
       const codec = String(options.videoCodec ?? 'h264') as VideoCodec
       const scale = Number(options.scale ?? 100)
-      const output = reserveOutPath(file.path, '.mp4', 'compressed')
+      const output = reserveOutPath(file.path, '.mp4', 'compressed', ctx.outDir)
       // Real progress: ffmpeg's `time=` against the source duration. Long
       // re-encodes (a full movie) otherwise look stuck on an indeterminate bar.
       const duration = await probeDuration(file.path)
@@ -566,7 +570,12 @@ const compressTool: ToolModule = {
     if (file.kind === 'audio') {
       const codec = String(options.audioCodec ?? 'keep') as AudioCodec
       const bitrate = Number(options.audioBitrate ?? 192)
-      const output = reserveOutPath(file.path, audioOutputExt(codec, file.ext), 'compressed')
+      const output = reserveOutPath(
+        file.path,
+        audioOutputExt(codec, file.ext),
+        'compressed',
+        ctx.outDir
+      )
       const duration = await probeDuration(file.path)
       ctx.onProgress(duration ? 0 : undefined, `Compressing audio (${bitrate}k)…`)
       return runToOutput(
@@ -592,9 +601,11 @@ const compressTool: ToolModule = {
       // Declared outside try so the catch can clean the placeholder; reserved
       // INSIDE try so a throw there still hits the finally that removes tmp.
       let output: string | undefined
-      const est = estimateProgress(estimateSecForBytes(file.size, 0.08), (p) => ctx.onProgress(p))
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.08), (p, eta) =>
+        ctx.onProgress(p, undefined, eta)
+      )
       try {
-        output = reserveOutPath(file.path, file.ext, 'compressed')
+        output = reserveOutPath(file.path, file.ext, 'compressed', ctx.outDir)
         const { code, stderr } = await run(
           resolveTool('caesiumclt'),
           buildCompressArgs(file.path, tmp, quality),
@@ -622,7 +633,7 @@ const compressTool: ToolModule = {
     // Convert to webp/avif, or re-encode a non-Caesium source format in place —
     // both via ImageMagick, output extension chosen by the target format.
     const outExt = imageFormat === 'keep' ? file.ext : `.${imageFormat}`
-    const output = reserveOutPath(file.path, outExt, 'compressed')
+    const output = reserveOutPath(file.path, outExt, 'compressed', ctx.outDir)
     return runToOutput(
       resolveTool('magick'),
       (out) => buildMagickCompressArgs(file.path, out, quality),
@@ -723,9 +734,9 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
     est?.stop()
     est = estimateProgress(
       expectedSec,
-      (p) => {
+      (p, eta) => {
         lastPct = p
-        ctx.onProgress(p)
+        ctx.onProgress(p, undefined, eta)
       },
       { startPct: lastPct }
     )
@@ -740,7 +751,7 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
       })
       if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
     }
-    output = reserveOutPath(file.path, '.png', 'upscaled')
+    output = reserveOutPath(file.path, '.png', 'upscaled', ctx.outDir)
     ctx.onProgress(undefined, 'Starting PiD…')
     // The sidecar writes to a temp target, copied onto the reserved name only
     // on success: a cancelled python run keeps going and writes its target
@@ -819,7 +830,7 @@ async function upscaleWithComfy(
       })
       if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
     }
-    output = reserveOutPath(file.path, '.png', 'upscaled')
+    output = reserveOutPath(file.path, '.png', 'upscaled', ctx.outDir)
     const label = background
       ? `Upscaling with ${model.name} (background)…`
       : `Upscaling with ${model.name}…`
@@ -906,7 +917,7 @@ const upscaleTool: ToolModule = {
         throw new Error(
           'No AI upscale models are installed. Reinstall Filesmith, or add a Real-ESRGAN .param/.bin pair to your models folder.'
         )
-      output = reserveOutPath(file.path, '.png', 'upscaled')
+      output = reserveOutPath(file.path, '.png', 'upscaled', ctx.outDir)
       const label = background
         ? `Upscaling ${factor}× (${ncnn.label}, background)…`
         : `Upscaling ${factor}× (${ncnn.label})…`
@@ -983,11 +994,11 @@ const removebgTool: ToolModule = {
           throw new Error(describeToolError(stderr, 'magick', code))
       }
 
-      output = reserveOutPath(file.path, '.png', 'no-bg')
+      output = reserveOutPath(file.path, '.png', 'no-bg', ctx.outDir)
       // The first run of a model pays a download; every run pays a load. Say so,
       // because a silent multi-second wait reads as a hang.
       ctx.onProgress(undefined, 'Loading model…')
-      est = estimateProgress(6, (p) => ctx.onProgress(p))
+      est = estimateProgress(6, (p, eta) => ctx.onProgress(p, undefined, eta))
       const { code, stderr } = await run(
         rembg.cmd,
         [...rembg.prefix, ...buildRembgArgs(src, output, options)],
@@ -1162,7 +1173,7 @@ const archiveTool: ToolModule = {
     // Unpack into a new folder next to the source.
     if (op === 'extract') {
       const dir = uniqueOutDir(
-        dirname(file.path),
+        ctx.outDir ?? dirname(file.path),
         basename(file.path, extname(file.path)) + ' (extracted)'
       )
       mkdirSync(dir, { recursive: true })
@@ -1198,7 +1209,7 @@ const archiveTool: ToolModule = {
       assertRarTarget(targetExt)
       const store = options.store !== false
       const temp = await extractToTemp(file.path, ctx)
-      const output = reserveOutPath(file.path, targetExt, 'converted')
+      const output = reserveOutPath(file.path, targetExt, 'converted', ctx.outDir)
       try {
         await packDir(temp, output, targetExt, store, ctx)
         if (!existsSync(output) || statSync(output).size === 0)
@@ -1237,7 +1248,7 @@ const archiveTool: ToolModule = {
           return p
         })
 
-        const output = reserveOutPath(file.path, '.pdf', 'converted')
+        const output = reserveOutPath(file.path, '.pdf', 'converted', ctx.outDir)
         const magick = resolveTool('magick')
         // Windows caps a command line at 32767 characters and a long comic
         // blows past it, so build part PDFs and let mutool merge join them.
@@ -1303,9 +1314,9 @@ const archiveTool: ToolModule = {
       // Always a neutral temp dir, so mutool draw's printf `-o` pattern can
       // never expand a `%` inherited from the source file's name.
       const temp = mkdtempSync(join(tmpdir(), 'filesmith-arc-'))
-      const output = reserveOutPath(file.path, targetExt, 'converted')
-      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p) =>
-        ctx.onProgress(Math.min(p, 90))
+      const output = reserveOutPath(file.path, targetExt, 'converted', ctx.outDir)
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p, eta) =>
+        ctx.onProgress(Math.min(p, 90), undefined, eta)
       )
       try {
         ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)

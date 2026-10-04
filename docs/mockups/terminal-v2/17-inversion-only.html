@@ -1,0 +1,119 @@
+<!--
+  Filesmith round 2, mockup 17: Inversion
+  Pitch: inversion is the only emphasis anywhere. The active verb, the chosen format
+  and the failed word are small black-on-light blocks, like a selection in a terminal.
+  No pills, no lines, no bold. The primary action is a fourth block, sized to its words.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith – Inversion</title>
+<style>
+  :root{
+    --bg:#000; --fg:#f2f2f2; --fg2:#d0d0d0; --fg3:#8f8f8f; --glyph:#b0b0b0;
+    --hover:#121212; --inv:#d0d0d0; --primary:#f2f2f2; --on:#000;
+    --m:Consolas, "Cascadia Mono", ui-monospace, monospace;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-weight:400;font-synthesis:none}
+  html,body{background:#000}
+  body{display:grid;place-items:center;min-height:100vh;font:400 13px/1.4 var(--m);color:var(--fg2);-webkit-font-smoothing:antialiased}
+  .win{width:1440px;height:900px;background:var(--bg);display:grid;grid-template-rows:38px 1fr;overflow:hidden}
+
+  /* title bar */
+  .bar{display:flex;align-items:center;padding-left:16px;-webkit-app-region:drag}
+  .mark{width:12px;height:12px;background:var(--fg2);margin-right:10px}
+  .app{color:var(--fg3)}
+  .ctl{margin-left:auto;display:flex;height:100%}
+  .ctl button{width:46px;height:100%;background:none;border:0;display:grid;place-items:center;color:var(--glyph);transition:background-color .15s var(--ease)}
+  .ctl button:hover{background:var(--hover)}
+  .ctl svg{width:10px;height:10px;stroke:currentColor;stroke-width:1;fill:none}
+
+  .main{display:grid;grid-template-columns:200px 1fr}
+
+  /* verb rail: plain words, active is a reversed block */
+  nav{padding:40px 0 0 24px}
+  nav ul{list-style:none}
+  nav a{display:inline-block;padding:3px 8px;margin:0 0 10px -8px;color:var(--fg3);text-decoration:none;
+        transition:color .15s var(--ease),background-color .15s var(--ease)}
+  nav a:hover{color:var(--fg)}
+  nav a[aria-current]{background:var(--inv);color:var(--on)}
+
+  /* content column */
+  .content{padding:72px 0 0 96px}
+  .col{width:480px}
+  h1{font:400 28px/1 var(--m);color:var(--fg);letter-spacing:-.01em;margin-bottom:48px}
+
+  .queue{list-style:none}
+  .queue li{display:flex;justify-content:space-between;align-items:center;height:36px;color:var(--fg2)}
+  .st{font-variant-numeric:tabular-nums}
+  .st.done{color:var(--fg3)}
+  .st.run{color:var(--fg2)}
+  .st.wait{color:var(--fg3)}
+  .st.fail{background:var(--inv);color:var(--on);padding:1px 8px;margin-right:-8px}
+
+  .fmt{display:flex;gap:14px;margin:56px 0 40px -8px}
+  .fmt button{background:none;border:0;font:inherit;color:var(--fg3);padding:3px 8px;cursor:pointer;
+              transition:color .15s var(--ease),background-color .15s var(--ease)}
+  .fmt button:hover{color:var(--fg)}
+  .fmt button[aria-pressed="true"]{background:var(--inv);color:var(--on)}
+
+  .go{display:inline-block;margin-left:-8px;background:var(--primary);color:var(--on);border:0;font:inherit;padding:8px 16px;cursor:pointer;
+      transition:background-color .15s var(--ease),transform .12s var(--ease)}
+  .go:hover{background:#fff}
+
+  button:active,nav a:active{transform:scale(.97)}
+  :focus{outline:none}
+  :focus-visible{outline:2px solid #f2f2f2;outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="win">
+  <header class="bar">
+    <span class="mark" aria-hidden="true"></span><span class="app">filesmith</span>
+    <div class="ctl">
+      <button aria-label="Minimise"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximise"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="main">
+    <nav aria-label="Operations">
+      <ul>
+        <li><a href="#" aria-current="page">convert</a></li>
+        <li><a href="#">compress</a></li>
+        <li><a href="#">resize</a></li>
+        <li><a href="#">upscale</a></li>
+        <li><a href="#">remove bg</a></li>
+        <li><a href="#">generate</a></li>
+        <li><a href="#">tools</a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <div class="col">
+        <h1>convert</h1>
+
+        <ul class="queue">
+          <li><span>IMG_4821.HEIC</span><span class="st done">done</span></li>
+          <li><span>screenshot.png</span><span class="st run">62%</span></li>
+          <li><span>hero-banner.png</span><span class="st wait">queued</span></li>
+          <li><span>scan_0091.tiff</span><span class="st fail">failed</span></li>
+        </ul>
+
+        <div class="fmt" role="group" aria-label="Target format">
+          <button aria-pressed="true">webp</button>
+          <button aria-pressed="false">jpg</button>
+          <button aria-pressed="false">png</button>
+          <button aria-pressed="false">avif</button>
+        </div>
+
+        <button class="go">convert 4 files</button>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

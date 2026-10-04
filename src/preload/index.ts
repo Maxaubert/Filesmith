@@ -21,6 +21,8 @@ const api = {
   pickFiles: (): Promise<FileInfo[]> => ipcRenderer.invoke('files:pick'),
   /** Pick one image to use as a Remove Background backdrop. */
   pickImage: (): Promise<string | null> => ipcRenderer.invoke('image:pick'),
+  /** Folder picker for the output location; resolves to the path or null. */
+  pickFolder: (): Promise<string | null> => ipcRenderer.invoke('files:pick-folder'),
   classify: (paths: string[]): Promise<FileInfo[]> => ipcRenderer.invoke('files:classify', paths),
   /** Resolve the absolute path of a dropped File (Electron removed File.path). */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),

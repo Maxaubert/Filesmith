@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GROUP_COLOR, groupNoun } from '../src/renderer/src/components/queueGroups'
+import { groupNoun } from '../src/renderer/src/components/queueGroups'
 
 // The options panel and the Run button both describe a CONVERT GROUP, not a
 // file kind. Naming by kind said "2 PDFs" for a pdf-plus-txt selection that
@@ -27,13 +27,5 @@ describe('groupNoun', () => {
   it('falls back to a plain file count for an unknown group', () => {
     expect(groupNoun('mystery', 1)).toBe('1 file')
     expect(groupNoun('mystery', 3)).toBe('3 files')
-  })
-})
-
-describe('GROUP_COLOR', () => {
-  it('colours every group the queue can produce', () => {
-    for (const g of ['image', 'video', 'audio', 'doc', 'sheet', 'slide', 'archive']) {
-      expect(GROUP_COLOR[g], g).toMatch(/^#[0-9a-f]{6}$/i)
-    }
   })
 })

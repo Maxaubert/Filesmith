@@ -8,7 +8,7 @@ import {
   type JSX,
   type MouseEvent
 } from 'react'
-import type { FileInfo, FileKind } from '@shared/types'
+import type { FileInfo, FileKind, JobOptions, ToolId } from '@shared/types'
 import {
   canCompress,
   convertGroup,
@@ -34,7 +34,6 @@ import {
   defaultOptionsFor,
   emptyQueue,
   inInput,
-  inOutput,
   groupOf,
   newId,
   parseSession,
@@ -45,49 +44,49 @@ import {
   type SelectMode
 } from './state'
 import { engineFor, tabAccepts, tabById, toolCardById, type TabId } from '@shared/tabs'
-import { TopBar } from './components/TopBar'
-import { TabRail } from './components/TabRail'
-import { OperationTitle } from './components/OperationTitle'
-import { ToolsGrid } from './components/ToolsGrid'
-import { CompletedView } from './components/CompletedView'
+import { TitleBar } from './components/shell/TitleBar'
+import { Sidebar } from './components/shell/Sidebar'
+import { StatusBar } from './components/shell/StatusBar'
+import { crumbsFor } from './components/shell/crumbs'
+import { useSidebar } from './components/shell/useSidebar'
+import { useRailPrefs } from './components/shell/useRailPrefs'
+import { sidebarVerbs } from './components/shell/railPrefs'
+import { statusSummary } from './components/shell/statusModel'
+import { shortcutFor } from './components/shell/shortcuts'
+import {
+  activeGroupFor,
+  headerCheck,
+  oneGroupIds,
+  toggleAllIds
+} from './components/queue/selectAll'
+import { QueueTable } from './components/queue/QueueTable'
+import { QueueToolbar } from './components/queue/QueueToolbar'
+import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
+import {
+  deleteConfirm,
+  menuTargets,
+  removeConfirm,
+  revealPath,
+  rowMenuModel,
+  type RowMenuAction
+} from './components/queue/rowMenu'
+import { groupedRows, nextSort, visibleOrder, type SortState } from './components/queue/tableSort'
+import { estimateBatch, estimateOutputBytes } from '@shared/sizeEstimate'
+import { EmptyState } from './components/queue/EmptyState'
+import { Inspector, type InspTab } from './components/inspector/Inspector'
+import { InfoGrid, InfoPane } from './components/inspector/InfoPane'
+import { genInfoRows } from './components/inspector/infoModel'
+import { PreviewPane } from './components/inspector/PreviewPane'
+import { OptionsPane } from './components/options/OptionsPane'
+import { useOptionSetter } from './components/options/useOptionSetter'
+import type { SizeRow } from './components/ui/OutputSizeList'
+import { groupNoun } from './components/queueGroups'
 import { collectCompleted } from './components/completed'
-import { DropZone } from './components/DropZone'
-import { PromptBox } from './components/PromptBox'
+import { CompletedView } from './components/views/CompletedView'
+import { GenerateView } from './components/views/GenerateView'
+import { SettingsView } from './components/views/SettingsView'
+import { ToolsView } from './components/views/ToolsView'
 import type { GenerateOptions } from '@shared/generate'
-
-/** One generated-image thumbnail: click to preview, right-click for the menu. */
-function GenTile({
-  path,
-  aspect,
-  onPreview,
-  onMenu
-}: {
-  path: string
-  aspect: string
-  onPreview: (path: string) => void
-  onMenu: (path: string, x: number, y: number) => void
-}): JSX.Element {
-  return (
-    <button
-      onClick={() => onPreview(path)}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onMenu(path, e.clientX, e.clientY)
-      }}
-      title={path}
-      style={{ aspectRatio: aspect }}
-      className="overflow-hidden rounded-xl border border-black/[.08] bg-white transition hover:border-accent"
-    >
-      <img
-        src={`fsmedia://local/${encodeURIComponent(path)}`}
-        alt=""
-        className="h-full w-full object-cover"
-      />
-    </button>
-  )
-}
-import { Queues } from './components/Queue'
-import { OptionsPanel, type VideoOutputRow } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
 import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
 
@@ -123,6 +122,13 @@ export default function App(): JSX.Element {
   }>({ running: false, slots: [] })
   const genIdRef = useRef(0)
   const genActiveId = useRef<string | null>(null)
+  // Model, size and seed of each image generated this session, for Info.
+  // State, not a ref: Info reads it during render.
+  const [genMeta, setGenMeta] = useState<
+    Record<string, { model: string; width: number; height: number; seed: number }>
+  >({})
+  // The generated image the inspector's Preview and Info show.
+  const [genFocus, setGenFocus] = useState<string | null>(null)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
@@ -143,6 +149,14 @@ export default function App(): JSX.Element {
   // Session persistence: restore the last session (queues + produced files) on
   // launch, pruning anything whose file was deleted since; then save on change.
   const hydrated = useRef(false)
+  const sidebar = useSidebar()
+  const rail = useRailPrefs()
+  // Ids of the last run per workspace, for "Converting 3 of 6" (spec 6.4).
+  const [batches, setBatches] = useState<Record<string, string[]>>({})
+  // Per-workspace column sort; null is insertion order (spec 4.2).
+  const [sorts, setSorts] = useState<Record<string, SortState | null>>({})
+  // Inspector tab: per-session view state, not persisted (spec 3.4).
+  const [inspTab, setInspTab] = useState<InspTab>('options')
 
   useEffect(() => {
     let alive = true
@@ -211,6 +225,8 @@ export default function App(): JSX.Element {
   const onToolsGrid = state.tab === 'tools' && !card
   // Completed is a view of results, not a place you do work.
   const onCompleted = state.tab === 'completed'
+  // Every item in every queue, for the output actions the Completed view drives.
+  const allItems = Object.values(state.queues).flatMap((q) => q?.items ?? [])
 
   // Stream job progress/terminal events into state.
   useEffect(() => window.filesmith.onJobEvent((e) => dispatch({ type: 'jobEvent', event: e })), [])
@@ -263,19 +279,30 @@ export default function App(): JSX.Element {
   // Operations key off each item's EFFECTIVE file (a result's output file), so
   // selecting an output and running uses the output's type.
   const selectedItems = cur.items.filter((i) => cur.selected.includes(i.id))
-  const selEff = selectedItems.map(effectiveFile)
+  // With nothing selected, options and Run speak for the first group in the
+  // queue (spec 4.1), not an empty panel.
+  const firstGroup = activeGroupFor(cur.items, [])
+  const scopeItems = selectedItems.length
+    ? selectedItems
+    : cur.items.filter((i) => inInput(i) && firstGroup != null && groupOf(i.file) === firstGroup)
+  const selEff = scopeItems.map(effectiveFile)
   const activeKind: FileKind | null = selEff.length ? selEff[0].kind : null
-  const activeGroup: string | null = selEff.length ? groupOf(selEff[0]) : null
-  // Nothing selected yet: fall back to the first kind this verb accepts, so the
+  // Dimming and the breadcrumb follow the SELECTION only.
+  const activeGroup: string | null = selectedItems.length
+    ? groupOf(effectiveFile(selectedItems[0]))
+    : null
+  const scopeGroup: string | null = selEff.length ? groupOf(selEff[0]) : null
+  // An empty queue: fall back to the first kind this verb accepts, so the
   // options panel can still show what it would do.
   const fallbackKind: FileKind = tab.kinds[0] ?? card?.kinds[0] ?? 'image'
-  const optGroup = activeGroup ?? convertGroup(fallbackKind, '')
+  const optGroup = scopeGroup ?? convertGroup(fallbackKind, '')
   const srcNorms = new Set(selEff.map((f) => normalizeExt(f.ext)))
   const srcExts = [...srcNorms] // every selected source format (for greying targets)
   const sourceExt: string | null = srcNorms.size === 1 ? [...srcNorms][0] : null
   const optKey = optionsKey(state.tab, state.activeTool, optGroup)
   const curOptions =
     state.options[optKey] ?? defaultOptionsFor(state.tab, state.activeTool, optGroup)
+  const onSet = useOptionSetter(dispatch, optGroup)
   // On Convert the engine depends on the TARGET as well as the source: a .cbz
   // to .cb7 is archive/repack, a .pdf to .cbz is archive/from-pdf, and a .png
   // to .webp is the plain convert tool.
@@ -295,7 +322,7 @@ export default function App(): JSX.Element {
 
   // The files a run would actually process: selected, runnable, tool-compatible,
   // and (for convert) not already the target format.
-  const runList: QueueItem[] = selectedItems.filter((i) => {
+  const runList: QueueItem[] = scopeItems.filter((i) => {
     if (!canRun(i)) return false
     const f = effectiveFile(i)
     // The queue can hold several kinds, so check this file against the verb AND
@@ -336,14 +363,18 @@ export default function App(): JSX.Element {
     dispatch({ type: 'setOption', group: optGroup, key: 'op', value: engine.op })
   }, [engine.op, curOptions.op, optGroup, state.tab])
 
+  // Row clicks follow the VISIBLE order, so a shift-range on a sorted table
+  // covers the rows the user sees between the two clicks.
+  const sort = sorts[qKey] ?? null
+  const groups = groupedRows(cur.items, sort)
+  const order = visibleOrder(groups)
+
   function onItemClick(id: string, e: MouseEvent): void {
-    const item = cur.items.find((i) => i.id === id)
-    if (!item) return
     // The one-group rule lives in the reducer, which MOVES the selection to a
     // file from another group rather than extending into it. Swallowing the
     // click here instead made ctrl+click on a dimmed row do nothing at all.
     const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
-    dispatch({ type: 'select', id, mode })
+    dispatch({ type: 'select', id, mode, order })
   }
 
   // Hand the file to whatever the OS already uses for it. Filesmith used to
@@ -380,7 +411,9 @@ export default function App(): JSX.Element {
   async function trashOutputs(ids: string[]): Promise<void> {
     const failed: string[] = []
     for (const id of ids) {
-      const it = cur.items.find((x) => x.id === id)
+      // Across every queue: on the Completed tab `cur` is the empty completed
+      // queue, so a lookup there found nothing and Delete silently did nothing.
+      const it = allItems.find((x) => x.id === id)
       const out = it?.outputPath
       if (!out) continue
       const ok = await window.filesmith.trashFile(out)
@@ -397,13 +430,13 @@ export default function App(): JSX.Element {
         return rest
       })
       evictProbe(out)
-      dispatch({ type: 'dismiss', id, column: 'output' })
+      dispatch({ type: 'dismissAny', ids: [id], column: 'output' })
     }
     if (failed.length)
       setConfirm({
         title:
           failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
-        body: `${failed.join(', ')} could not be moved to the Recycle Bin — the file may be open in another app.`,
+        body: `${failed.join(', ')} could not be moved to the Recycle Bin, the file may be open in another app.`,
         confirmLabel: 'OK',
         hideCancel: true,
         onConfirm: () => {}
@@ -426,65 +459,145 @@ export default function App(): JSX.Element {
     void window.filesmith.cancelJob(id)
   }
 
-  // Build the right-click / ⋯ menu for a queue item. Destructive actions apply
-  // to the whole selection when the clicked item is part of a multi-selection;
-  // otherwise just to that one item.
-  function openMenu(side: 'input' | 'output', item: QueueItem, x: number, y: number): void {
-    const inSel = cur.selected.includes(item.id) && cur.selected.length > 1
-    const visible = side === 'input' ? inInput : inOutput
-    const targets = inSel
-      ? cur.selected.filter((id) => {
-          const it = cur.items.find((x) => x.id === id)
-          return it != null && visible(it)
-        })
-      : [item.id]
-    const n = targets.length
+  function toolFor(it: QueueItem, opts: JobOptions): ToolId {
+    return engineFor(
+      state.tab,
+      groupOf(it.file),
+      card,
+      { kind: it.file.kind, ext: it.file.ext },
+      typeof opts.format === 'string' ? opts.format : undefined
+    ).tool
+  }
 
-    if (side === 'input') {
-      // Cancel applies to whichever of the targeted rows are actually in flight.
-      const cancellable = targets.filter((id) => {
-        const it = cur.items.find((x) => x.id === id)
-        return it != null && (it.status === 'queued' || it.status === 'running')
+  /** Same path as run() for one in-place item, with the options it last ran
+   * with (spec 4.3). A merge row retries with the same input list, because
+   * run() stores `mergeInputs` in its `runOptions`. */
+  function retry(ids: string[]): void {
+    const started: string[] = []
+    for (const id of ids) {
+      const it = cur.items.find((i) => i.id === id)
+      if (!it || (it.status !== 'failed' && it.status !== 'canceled')) continue
+      const opts = it.runOptions ?? curOptions
+      dispatch({ type: 'markQueued', ids: [id], options: opts })
+      void window.filesmith.runJob({
+        id,
+        tool: toolFor(it, opts),
+        input: it.file.path,
+        options: opts
       })
-      setMenu({
-        x,
-        y,
-        items: [
-          { label: 'Open', icon: 'expand', onClick: () => openExternally('input', item) },
-          {
-            label: 'Reveal in Explorer',
-            icon: 'folder',
-            onClick: () => window.filesmith.reveal(item.file.path)
-          },
-          ...(cancellable.length
-            ? [
-                {
-                  label: cancellable.length > 1 ? `Cancel ${cancellable.length} jobs` : 'Cancel',
-                  icon: 'close' as const,
-                  onClick: () => cancellable.forEach(cancelJob)
-                }
-              ]
-            : []),
-          { sep: true },
-          {
-            label: n > 1 ? `Remove ${n} from list` : 'Remove from list',
-            icon: 'trash',
-            danger: true,
-            onClick: () => dismiss(targets, 'input')
-          }
-        ]
-      })
-      return
+      started.push(id)
     }
+    if (started.length) setBatches((b) => ({ ...b, [qKey]: started }))
+  }
+
+  function onRowAction(id: string, kind: RowActionKind): void {
+    const it = cur.items.find((i) => i.id === id)
+    if (!it) return
+    if (kind === 'reveal') {
+      if (it.outputPath) window.filesmith.reveal(it.outputPath)
+    } else if (kind === 'cancel') cancelJob(id)
+    else if (kind === 'remove') dismiss([id], 'input')
+    else retry([id])
+  }
+
+  /** "Are you sure" before rows leave the list; files on disk stay put. */
+  function confirmRemove(ids: string[]): void {
+    if (!ids.length) return
+    setConfirm({
+      ...removeConfirm(ids.length),
+      confirmLabel: 'Remove',
+      danger: true,
+      onConfirm: () => dismiss(ids, 'input')
+    })
+  }
+
+  /** Move the rows' SOURCE files to the Recycle Bin (reversible, never a hard
+   * delete), then drop those rows. A file that could not be recycled keeps its
+   * row and is named in an alert. */
+  async function trashSources(ids: string[]): Promise<void> {
+    const rows = cur.items.filter((i) => ids.includes(i.id) && inInput(i))
+    const failed: string[] = []
+    // One source can sit in several rows (a re-run clone): recycle it once.
+    for (const path of [...new Set(rows.map((r) => r.file.path))]) {
+      const ok = await window.filesmith.trashFile(path)
+      if (!ok) {
+        failed.push(baseName(path))
+        continue
+      }
+      evictProbe(path)
+      for (const r of rows)
+        if (r.file.path === path) dispatch({ type: 'dismiss', id: r.id, column: 'input' })
+    }
+    if (failed.length)
+      setConfirm({
+        title:
+          failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
+        body: `${failed.join(', ')} could not be moved to the Recycle Bin, the file may be open in another app.`,
+        confirmLabel: 'OK',
+        hideCancel: true,
+        onConfirm: () => {}
+      })
+  }
+
+  /** The files table's right-click menu. A selected row acts on the whole
+   * selection; any other row becomes the selection first (the reducer keeps it
+   * inside one convert group). */
+  function openRowMenu(id: string, x: number, y: number): void {
+    const ids = menuTargets(id, cur.selected)
+    if (!cur.selected.includes(id)) dispatch({ type: 'select', id, mode: 'single', order })
+    const rows = cur.items.filter((i) => ids.includes(i.id))
+    const act = (a: RowMenuAction): void => {
+      const one = rows.length === 1 ? rows[0] : null
+      if (a === 'open') {
+        if (one) openExternally('input', one)
+      } else if (a === 'reveal') {
+        if (one) window.filesmith.reveal(revealPath(one))
+      } else if (a === 'retry') retry(rows.map((r) => r.id))
+      else if (a === 'stop')
+        rows
+          .filter((r) => r.status === 'queued' || r.status === 'running')
+          .forEach((r) => cancelJob(r.id))
+      else if (a === 'clear') dispatch({ type: 'hideFinished' })
+      else if (a === 'remove') confirmRemove(rows.map((r) => r.id))
+      else
+        setConfirm({
+          ...deleteConfirm(rows.length),
+          confirmLabel: rows.length > 1 ? `Delete ${rows.length} files` : 'Delete',
+          danger: true,
+          onConfirm: () => void trashSources(rows.map((r) => r.id))
+        })
+    }
+    setMenu({
+      x,
+      y,
+      items: rowMenuModel(rows, cur.items).map((e) =>
+        e.sep
+          ? e
+          : {
+              label: e.label,
+              icon: e.icon,
+              danger: e.danger,
+              disabled: e.disabled,
+              onClick: () => act(e.action)
+            }
+      )
+    })
+  }
+
+  // The Completed view's right-click menu: acts on that view's own selection,
+  // which spans every queue's results.
+  function openOutputMenu(item: QueueItem, x: number, y: number, targetIds?: string[]): void {
+    const targets = targetIds ?? [item.id]
+    const n = targets.length
     const out = item.outputPath
     if (!out) return
     setMenu({
       x,
       y,
       items: [
-        { label: 'Open', icon: 'expand', onClick: () => openExternally('output', item) },
+        { label: 'Open', icon: 'eye', onClick: () => openExternally('output', item) },
         {
-          label: 'Reveal in Explorer',
+          label: 'Show in File Explorer',
           icon: 'folder',
           onClick: () => window.filesmith.reveal(out)
         },
@@ -570,9 +683,10 @@ export default function App(): JSX.Element {
       : `The largest result will be roughly ${formatBytes(worst)} (about ${formatBytes(total)} in total), and may take a long time.`
   }
 
-  /** Open a generated image in whatever views images on this machine. */
+  /** Show a generated image in the inspector's Preview. */
   function previewGen(path: string): void {
-    window.filesmith.openFile(path)
+    setGenFocus(path)
+    setInspTab('preview')
   }
 
   function openGenMenu(path: string, x: number, y: number): void {
@@ -580,14 +694,14 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Open', icon: 'expand', onClick: () => previewGen(path) },
+        { label: 'Open', icon: 'eye', onClick: () => previewGen(path) },
         {
           label: 'Open in default app',
-          icon: 'upload',
+          icon: 'arrow',
           onClick: () => window.filesmith.openFile(path)
         },
         {
-          label: 'Reveal in Explorer',
+          label: 'Show in File Explorer',
           icon: 'folder',
           onClick: () => window.filesmith.reveal(path)
         },
@@ -599,6 +713,7 @@ export default function App(): JSX.Element {
           onClick: () => {
             void window.filesmith.trashFile(path)
             setGenResults((prev) => prev.filter((p) => p !== path))
+            setGenFocus((f) => (f === path ? null : f))
           }
         }
       ]
@@ -631,6 +746,15 @@ export default function App(): JSX.Element {
     })
     const unsubI = window.filesmith.onGenerateImage((p) => {
       if (p.id !== id) return
+      setGenMeta((m) => ({
+        ...m,
+        [p.path]: {
+          model: String(opts.model ?? ''),
+          width: Number(opts.width ?? 1024),
+          height: Number(opts.height ?? 1024),
+          seed: Number(opts.seed ?? -1)
+        }
+      }))
       finished[p.index] = p.path
       setGenRun((r) => ({
         ...r,
@@ -694,7 +818,8 @@ export default function App(): JSX.Element {
         dispatch({ type: 'addSources', items: [src], key: qKey })
         anchorId = src.id
       }
-      dispatch({ type: 'markQueued', ids: [anchorId], options: opts })
+      dispatch({ type: 'markQueued', ids: [anchorId], options: { ...opts, mergeInputs: paths } })
+      setBatches((b) => ({ ...b, [qKey]: [anchorId] }))
       void window.filesmith.runJob({
         id: anchorId,
         tool: 'pdf',
@@ -724,6 +849,7 @@ export default function App(): JSX.Element {
     if (newSources.length) dispatch({ type: 'addSources', items: newSources, key: qKey })
     if (!targets.length) return
     dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), options: opts })
+    setBatches((b) => ({ ...b, [qKey]: targets.map((t) => t.id) }))
     for (const t of targets) {
       void window.filesmith.runJob({ id: t.id, tool, input: t.path, options: opts })
     }
@@ -741,6 +867,28 @@ export default function App(): JSX.Element {
       : isMerge && runList.length < 2
         ? 0
         : runList.length
+
+  // Global shortcuts (spec 4.1). `run` and `browse` are re-created each render,
+  // so the window listener reads the latest ones through a ref, refreshed after
+  // every render like `latest` above (assigning it during render breaks the
+  // react-hooks/refs rule).
+  const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle })
+  useEffect(() => {
+    actions.current = { run, browse, runCount, toggle: sidebar.toggle }
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const s = shortcutFor(e)
+      if (!s) return
+      e.preventDefault()
+      const a = actions.current
+      if (s === 'toggleSidebar') a.toggle()
+      else if (s === 'addFiles') void a.browse()
+      else if (s === 'run' && a.runCount > 0) void a.run()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   // The kind the options panel should key off is what will actually RUN, not the
   // anchor item: a PDF co-selected with a non-compressible doc (same group)
   // leaves the anchor 'document' while only the PDF runs. All-same-kind -> that
@@ -768,15 +916,33 @@ export default function App(): JSX.Element {
             .map((f) => f.path)
         : []
   const compressVideoPaths = tool === 'compress' ? probePaths : []
+  // The focused file, shown by the Preview and Info panes (spec 4.6). Both
+  // describe ONE file, so a multi-selection shows neither rather than quietly
+  // picking one of the files.
+  const multiSelected = cur.selected.length > 1
+  const focused = multiSelected ? undefined : cur.items.find((i) => i.id === cur.selected[0])
+  // Preview and Info show the focused file's pixels, so probe it too.
+  const focusedProbe =
+    inspTab !== 'options' &&
+    focused &&
+    (focused.file.kind === 'image' || focused.file.kind === 'video')
+      ? focused.file
+      : null
+  const probeKinds: Record<string, 'image' | 'video'> = {}
+  for (const p of probePaths)
+    probeKinds[p] = tool === 'upscale' || tool === 'resize' ? 'image' : 'video'
+  if (focusedProbe && !(focusedProbe.path in probeKinds))
+    probeKinds[focusedProbe.path] = focusedProbe.kind === 'image' ? 'image' : 'video'
+  const probeKey = Object.keys(probeKinds)
+    .map((p) => `${probeKinds[p]}:${p}`)
+    .join('|')
   useEffect(() => {
-    for (const p of probePaths) {
+    for (const [p, kind] of Object.entries(probeKinds)) {
       if (p in vDims || vDimsRequested.current.has(p)) continue
       vDimsRequested.current.add(p)
       // Images resolve via ImageMagick, video via ffprobe (rotation-aware).
       const probe =
-        tool === 'upscale' || tool === 'resize'
-          ? window.filesmith.imageDimensions(p)
-          : window.filesmith.videoDimensions(p)
+        kind === 'image' ? window.filesmith.imageDimensions(p) : window.filesmith.videoDimensions(p)
       void probe.then((d) => {
         // A failed probe returns null; don't cache it — drop the request marker
         // so it can be re-probed (transient errors, a file still being written).
@@ -785,9 +951,9 @@ export default function App(): JSX.Element {
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [probePaths.join('|')])
+  }, [probeKey])
   const compressScale = Number(curOptions.scale ?? 100)
-  const videoOutputs: VideoOutputRow[] = compressVideoPaths.map((p) => {
+  const videoOutputs: SizeRow[] = compressVideoPaths.map((p) => {
     const d = vDims[p]
     const name = baseName(p)
     if (!d) return { path: p, name, from: '…', to: '…' }
@@ -801,7 +967,7 @@ export default function App(): JSX.Element {
   const resizeOpts = curOptions
   const numOrNull = (v: unknown): number | null =>
     v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v)
-  const resizeOutputs: VideoOutputRow[] =
+  const resizeOutputs: SizeRow[] =
     tool === 'resize' && String(resizeOpts.mode ?? 'percent') === 'dimensions'
       ? probePaths.map((p) => {
           const d = vDims[p]
@@ -820,7 +986,7 @@ export default function App(): JSX.Element {
       : []
 
   const upscaleFactor = Number(curOptions.upscaleFactor ?? 4)
-  const upscaleOutputs: VideoOutputRow[] =
+  const upscaleOutputs: SizeRow[] =
     tool === 'upscale'
       ? probePaths.map((p) => {
           const d = vDims[p]
@@ -833,9 +999,57 @@ export default function App(): JSX.Element {
         })
       : []
 
+  // Per-row size estimates for running rows (spec 4.3), from the options each
+  // row actually runs with and the done rows of the same group and options.
+  function estimateFor(
+    it: QueueItem,
+    opts: JobOptions = it.runOptions ?? curOptions
+  ): number | null {
+    const t = toolFor(it, opts)
+    const d = vDims[it.file.path]
+    let pixelRatio: number | null = null
+    let outPixels: number | null = null
+    if (t === 'resize') {
+      if (String(opts.mode ?? 'percent') === 'percent')
+        pixelRatio = (Number(opts.percent ?? 50) / 100) ** 2
+      else if (d) {
+        const o = resizedSize(
+          d.width,
+          d.height,
+          numOrNull(opts.width),
+          numOrNull(opts.height),
+          opts.fit === 'stretch' ? 'stretch' : 'contain'
+        )
+        if (o) pixelRatio = (o.w * o.h) / (d.width * d.height)
+      }
+    } else if (t === 'upscale' && d) {
+      const f = Number(opts.upscaleFactor ?? 4)
+      outPixels = d.width * f * d.height * f
+    }
+    return estimateOutputBytes(it.file, t, opts, {
+      samples: doneSamples(cur.items, groupOf(it.file), opts),
+      pixelRatio,
+      outPixels
+    })
+  }
+  const estimates: Record<string, number | null> = {}
+  for (const i of cur.items)
+    if (inInput(i) && i.status === 'running') estimates[i.id] = estimateFor(i)
+  // The batch card under the options speaks for the CURRENT options (spec 4.5).
+  const batchEstimate =
+    tool === 'generate' || runList.length === 0
+      ? null
+      : estimateBatch(
+          runList.map((i) => ({ size: i.file.size, estimate: estimateFor(i, curOptions) }))
+        )
+
+  // Toolbar and Stop flags.
+  const inputs = cur.items.filter(inInput)
+  const inFlight = inputs.filter((i) => i.status === 'queued' || i.status === 'running')
+
   // Everything produced, across every workspace, for the Completed tab.
   const completed = collectCompleted(state.queues, (key) => {
-    if (key.startsWith('tools:')) return toolCardById(key.slice(6))?.label ?? 'Tools'
+    if (key.startsWith('tools:')) return toolCardById(key.slice(6))?.label ?? 'PDF Tools'
     return tabById(key as TabId).label
   })
 
@@ -849,173 +1063,283 @@ export default function App(): JSX.Element {
     counts[bucket] = (counts[bucket] ?? 0) + n
   }
 
+  const crumbs = crumbsFor(state.tab, card ?? null, activeGroup)
+  const verbLabel = card ? card.label : tab.label
+  const summary = statusSummary(
+    onToolsGrid || onCompleted || state.tab === 'settings' ? [] : cur.items,
+    batches[qKey] ?? null,
+    verbLabel,
+    genRun.running && genRun.message && !genRun.message.startsWith('Generating')
+      ? genRun.message
+      : null
+  )
+  const showInspector = !onToolsGrid && !onCompleted && state.tab !== 'settings'
+
+  // Inspector head and Run label (spec 3.4, 4.1).
+  const scopeCount = scopeItems.length
+  const inspSub =
+    tool === 'generate'
+      ? ''
+      : inspTab !== 'options'
+        ? focused
+          ? 'selected'
+          : multiSelected
+            ? `${cur.selected.length} selected`
+            : ''
+        : cur.selected.length
+          ? `${cur.selected.length} selected`
+          : scopeCount
+            ? `all ${scopeCount} file${scopeCount === 1 ? '' : 's'}`
+            : 'no files'
+  const inspTitle =
+    tool === 'generate'
+      ? inspTab !== 'options' && genFocus
+        ? baseName(genFocus)
+        : verbLabel
+      : inspTab === 'options' || !focused
+        ? verbLabel
+        : focused.file.name
+  const genCount = Number(curOptions.count ?? 1)
+  // Name the GROUP, not "files": in a mixed queue "Convert 2 files" hides which two.
+  const runLabel =
+    tool === 'generate'
+      ? genCount > 1
+        ? `Generate ${genCount} images`
+        : 'Generate'
+      : runCount > 0
+        ? `${verbLabel} ${groupNoun(optGroup, runCount)}`
+        : verbLabel
+
   return (
-    <div className="flex h-screen flex-col">
-      <TopBar />
-      <div className="flex min-h-0 flex-1">
-        <TabRail
+    // The whole window accepts drops (spec 4.9).
+    <div
+      className="app"
+      data-sidebar={sidebar.collapsed ? 'collapsed' : 'expanded'}
+      onDragOver={(e) => {
+        e.preventDefault()
+        if (tool !== 'generate' && !onToolsGrid && !onCompleted && state.tab !== 'settings')
+          setDragging(true)
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragging(false)
+      }}
+      onDrop={onDrop}
+    >
+      <TitleBar
+        crumbs={crumbs}
+        onCrumb={(a) =>
+          a === 'tools'
+            ? dispatch({ type: 'setActiveTool', tool: null })
+            : dispatch({ type: 'clearSelection' })
+        }
+      />
+      <div className={`wb${showInspector ? '' : ' no-insp'}`}>
+        <Sidebar
           tab={state.tab}
+          verbs={sidebarVerbs(rail.order, rail.hidden)}
+          showTools={!rail.hidden.includes('tools')}
           counts={counts}
           completedCount={completed.length}
-          onSelect={(t) => dispatch({ type: 'setTab', tab: t })}
+          collapsed={sidebar.collapsed}
+          onToggle={sidebar.toggle}
+          onSelect={(t) => {
+            setInspTab('options')
+            dispatch({ type: 'setTab', tab: t })
+          }}
         />
 
         <>
-          <section
-            className="flex min-w-0 flex-1 flex-col gap-3 px-4 pb-4 pt-1 lg:gap-4 lg:px-7 lg:pb-5"
-            onDragOver={(e) => {
-              e.preventDefault()
-              if (tool !== 'generate' && !onToolsGrid && !onCompleted) setDragging(true)
-            }}
-            onDragLeave={(e) => {
-              if (e.currentTarget === e.target) setDragging(false)
-            }}
-            onDrop={onDrop}
-          >
-            {/* The rail names the verb, so this heading just repeats it back and
-                  carries the file count (or the open tool's name inside Tools). */}
-            <OperationTitle
-              title={card ? card.label : tab.label}
-              desc={card ? card.desc : tab.desc}
-              color={card ? card.color : tab.color}
-              fileCount={
-                onCompleted ? completed.length : onToolsGrid ? 0 : cur.items.filter(inInput).length
-              }
-              onBack={card ? () => dispatch({ type: 'setActiveTool', tool: null }) : undefined}
-            />
+          <main className={`center${dragging ? ' dropping' : ''}`} aria-label="Workspace">
             {onCompleted ? (
               <CompletedView
                 entries={completed}
                 thumbs={outThumbs}
                 onOpen={(item) => openExternally('output', item)}
-                onMenu={(item, x, y) => openMenu('output', item, x, y)}
+                onReveal={(p) => window.filesmith.reveal(p)}
+                onMenu={openOutputMenu}
+                onDelete={(ids) =>
+                  setConfirm({
+                    title: ids.length === 1 ? 'Delete this file?' : `Delete ${ids.length} files?`,
+                    body: 'They will be moved to the Recycle Bin.',
+                    confirmLabel: 'Delete',
+                    danger: true,
+                    onConfirm: () => void trashOutputs(ids)
+                  })
+                }
+                onClear={(ids) => dispatch({ type: 'dismissAny', ids, column: 'output' })}
               />
+            ) : state.tab === 'settings' ? (
+              <SettingsView rail={rail} />
             ) : onToolsGrid ? (
-              <ToolsGrid onPick={(id) => dispatch({ type: 'setActiveTool', tool: id })} />
+              <ToolsView onPick={(id) => dispatch({ type: 'setActiveTool', tool: id })} />
             ) : tool === 'generate' ? (
-              <>
-                <PromptBox
-                  value={String(curOptions.prompt ?? '')}
-                  onChange={(v) =>
-                    dispatch({ type: 'setOption', group: optGroup, key: 'prompt', value: v })
-                  }
-                />
-                {genRun.running && (
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => {
-                        if (genActiveId.current)
-                          window.filesmith.generateCancel(genActiveId.current)
-                      }}
-                      className="rounded-lg border border-black/[.12] bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-ink transition hover:border-[#e0483d] hover:text-[#e0483d]"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-                {/* Startup indicator only ("Starting ComfyUI…" / "Connecting…").
-                      Once images are sampling, the per-tile bars carry it, so the
-                      redundant "Generating X of Y" line is dropped. */}
-                {genRun.running && genRun.message && !genRun.message.startsWith('Generating') && (
-                  <div className="rounded-xl border border-black/[.06] bg-white/70 px-4 py-3">
-                    <div className="mb-2 text-[13px] font-medium text-ink">{genRun.message}</div>
-                    <div className="h-1 overflow-hidden rounded-full bg-[#ececf2]">
-                      <div className="fs-indet h-full w-1/4 rounded-full bg-accent" />
-                    </div>
-                  </div>
-                )}
-                {(genRun.running || genResults.length > 0) && (
-                  <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
-                    {/* This run's tiles first (each fills as it finishes)… */}
-                    {genRun.running &&
-                      genRun.slots.map((slot, i) =>
-                        slot.path ? (
-                          <GenTile
-                            key={`slot-${i}`}
-                            path={slot.path}
-                            aspect={genAspect}
-                            onPreview={previewGen}
-                            onMenu={openGenMenu}
-                          />
-                        ) : (
-                          <div
-                            key={`slot-${i}`}
-                            style={{ aspectRatio: genAspect }}
-                            className="relative overflow-hidden rounded-xl border border-black/[.08] bg-[#eeeef4]"
-                          >
-                            <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-[#eeeef4] to-[#e0e0ec]" />
-                            <div className="absolute inset-x-3 bottom-3">
-                              <div className="mb-1 text-center text-[11px] font-semibold text-dim">
-                                {slot.pct > 0 ? `${slot.pct}%` : 'Generating…'}
-                              </div>
-                              <div className="h-1.5 overflow-hidden rounded-full bg-white/70">
-                                <div
-                                  className="h-full rounded-full bg-accent transition-[width] duration-300"
-                                  style={{ width: `${slot.pct}%` }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      )}
-                    {/* …then everything generated earlier stays visible. */}
-                    {genResults.map((path) => (
-                      <GenTile
-                        key={path}
-                        path={path}
-                        aspect={genAspect}
-                        onPreview={previewGen}
-                        onMenu={openGenMenu}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
+              <GenerateView
+                prompt={String(curOptions.prompt ?? '')}
+                onPrompt={(v) => onSet('prompt', v)}
+                running={genRun.running}
+                slots={genRun.slots}
+                results={genResults}
+                aspect={genAspect}
+                canRun={runCount > 0}
+                focused={genFocus}
+                onRun={() => void run()}
+                onCancel={() => {
+                  if (genActiveId.current) window.filesmith.generateCancel(genActiveId.current)
+                }}
+                onFocus={previewGen}
+                onOpen={(p) => window.filesmith.openFile(p)}
+                onMenu={openGenMenu}
+              />
             ) : (
               <>
-                <DropZone
-                  dragging={dragging}
-                  label={`Drop files to ${(card ? card.label : tab.label).toLowerCase()}`}
-                  onBrowse={() => void browse()}
+                <QueueToolbar
+                  files={inputs.length}
+                  selected={cur.selected.length}
+                  dropping={dragging}
+                  onAdd={() => void browse()}
                 />
-                <Queues
-                  items={cur.items}
-                  tool={tool}
-                  options={curOptions}
+                <QueueTable
+                  groups={groups}
+                  totals={queueTotals(cur.items)}
                   selected={cur.selected}
                   activeGroup={activeGroup}
-                  onItemClick={onItemClick}
-                  onOpen={openExternally}
-                  onMenu={openMenu}
-                  onCancel={cancelJob}
+                  sort={sort}
+                  check={headerCheck(cur.items, cur.selected)}
+                  estimates={estimates}
+                  onSort={(k) => setSorts((s) => ({ ...s, [qKey]: nextSort(sort, k) }))}
+                  onToggleAll={() =>
+                    dispatch({ type: 'selectIds', ids: toggleAllIds(cur.items, cur.selected) })
+                  }
+                  onSelectAll={() => {
+                    const ids = toggleAllIds(cur.items, cur.selected)
+                    if (ids.length) dispatch({ type: 'selectIds', ids })
+                  }}
+                  onRowClick={onItemClick}
+                  onToggleRow={(id) => dispatch({ type: 'select', id, mode: 'toggle', order })}
+                  onExtend={(id) => dispatch({ type: 'select', id, mode: 'range', order })}
+                  onOpen={(id) => {
+                    const it = cur.items.find((i) => i.id === id)
+                    if (it) openExternally('input', it)
+                  }}
+                  onMenu={openRowMenu}
+                  onAction={onRowAction}
+                  onRemove={(id) => confirmRemove(menuTargets(id, cur.selected))}
+                  onSelectGroup={(g) =>
+                    dispatch({
+                      type: 'selectIds',
+                      ids: inputs.filter((i) => groupOf(i.file) === g).map((i) => i.id)
+                    })
+                  }
+                  onAdd={() => void browse()}
                 />
               </>
             )}
-          </section>
+          </main>
 
-          {!onToolsGrid && !onCompleted && (
-            <OptionsPanel
-              tab={state.tab}
-              tool={tool}
-              label={card ? card.label : tab.label}
-              options={curOptions}
-              activeKind={activeKind}
-              activeGroup={activeGroup}
-              optGroup={optGroup}
-              runKind={runKind}
-              fallbackKind={fallbackKind}
-              videoOutputs={videoOutputs}
-              upscaleOutputs={upscaleOutputs}
-              resizeOutputs={resizeOutputs}
-              sourceExt={sourceExt}
-              srcExts={srcExts}
-              runCount={runCount}
-              onSet={(k, v) => dispatch({ type: 'setOption', group: optGroup, key: k, value: v })}
+          {showInspector && (
+            <Inspector
+              tab={inspTab}
+              onTab={setInspTab}
+              title={inspTitle}
+              sub={inspSub}
+              runLabel={runLabel}
+              runDisabled={runCount === 0}
               onRun={() => void run()}
-            />
+              stopping={tool === 'generate' ? genRun.running : inFlight.length > 0}
+              onStop={() => {
+                if (tool === 'generate') {
+                  if (genActiveId.current) window.filesmith.generateCancel(genActiveId.current)
+                } else inFlight.forEach((i) => cancelJob(i.id))
+              }}
+            >
+              {inspTab === 'options' ? (
+                <OptionsPane
+                  tab={state.tab}
+                  tool={tool}
+                  options={curOptions}
+                  kind={
+                    tool === 'compress' ? (runKind ?? fallbackKind) : (activeKind ?? fallbackKind)
+                  }
+                  srcExts={srcExts}
+                  sourceExt={sourceExt}
+                  runCount={runCount}
+                  videoOutputs={videoOutputs}
+                  resizeOutputs={resizeOutputs}
+                  upscaleOutputs={upscaleOutputs}
+                  estimate={batchEstimate}
+                  set={onSet}
+                />
+              ) : tool === 'generate' ? (
+                genFocus ? (
+                  inspTab === 'preview' ? (
+                    <div className="wipe">
+                      <img
+                        className="wimg"
+                        src={`fsmedia://local/${encodeURIComponent(genFocus)}`}
+                        alt=""
+                      />
+                      <span className="tag l">
+                        {extOfPath(genFocus).replace(/^\./, '').toLowerCase() || 'png'}
+                      </span>
+                    </div>
+                  ) : (
+                    <InfoGrid rows={genInfoRows(genFocus, genMeta[genFocus] ?? null)} />
+                  )
+                ) : (
+                  <EmptyState
+                    icon={inspTab === 'preview' ? 'eye' : 'info'}
+                    title="Nothing selected"
+                    line="Select an image to see it here"
+                  />
+                )
+              ) : focused ? (
+                inspTab === 'preview' ? (
+                  <PreviewPane
+                    key={focused.id}
+                    item={focused}
+                    outKind={focused.outputPath ? fileKind(extOfPath(focused.outputPath)) : null}
+                    dims={vDims[focused.file.path] ?? null}
+                  />
+                ) : (
+                  <InfoPane
+                    item={focused}
+                    dims={vDims[focused.file.path] ?? null}
+                    target={typeof curOptions.format === 'string' ? curOptions.format : null}
+                  />
+                )
+              ) : multiSelected ? (
+                <EmptyState
+                  icon={inspTab === 'preview' ? 'eye' : 'info'}
+                  title={`${cur.selected.length} files selected`}
+                  line={
+                    inspTab === 'preview'
+                      ? 'Select one file to preview'
+                      : 'Select one file to see its info'
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icon={inspTab === 'preview' ? 'eye' : 'info'}
+                  title="Nothing selected"
+                  line="Select a file in the table to see it here"
+                />
+              )}
+            </Inspector>
           )}
         </>
       </div>
+      <StatusBar
+        summary={summary}
+        onFailedClick={() =>
+          dispatch({
+            type: 'selectIds',
+            ids: oneGroupIds(
+              cur.items,
+              cur.items.filter((i) => i.status === 'failed').map((i) => i.id)
+            )
+          })
+        }
+      />
       <ContextMenu menu={menu} onClose={closeMenu} />
       <ConfirmDialog state={confirm} onClose={closeConfirm} />
     </div>

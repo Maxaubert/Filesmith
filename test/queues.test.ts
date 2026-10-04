@@ -150,3 +150,84 @@ describe('navigation', () => {
     )
   })
 })
+
+describe('source to result link', () => {
+  it('writes the output path and size onto the source when its job finishes', () => {
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], key: CONVERT })
+    const id = s.queues[CONVERT]!.items[0].id
+    s = reducer(s, {
+      type: 'jobEvent',
+      event: { id, status: 'done', outputPath: 'C:/x/a.webp', outputSize: 4 }
+    })
+    const src = s.queues[CONVERT]!.items.find((i) => i.id === id)!
+    expect(src.outputPath).toBe('C:/x/a.webp')
+    expect(src.outputSize).toBe(4)
+    // The separate result item, which Completed relies on, is still appended.
+    expect(s.queues[CONVERT]!.items.filter((i) => i.isResult)).toHaveLength(1)
+  })
+
+  it('clears the previous result when the row is queued again in place', () => {
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], key: CONVERT })
+    const id = s.queues[CONVERT]!.items[0].id
+    s = reducer(s, {
+      type: 'jobEvent',
+      event: { id, status: 'done', outputPath: 'C:/x/a.webp', outputSize: 4 }
+    })
+    s = reducer(s, { type: 'markQueued', ids: [id] })
+    const src = s.queues[CONVERT]!.items.find((i) => i.id === id)!
+    expect(src.outputPath).toBeUndefined()
+    expect(src.outputSize).toBeUndefined()
+  })
+})
+
+describe('compact ETA', () => {
+  it('drops a stale ETA on a percent-only update and on re-queue', () => {
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], key: CONVERT })
+    const id = s.queues[CONVERT]!.items[0].id
+    const eta = (): number | undefined => s.queues[CONVERT]!.items.find((i) => i.id === id)!.etaSec
+    s = reducer(s, { type: 'jobEvent', event: { id, status: 'running', percent: 40, etaSec: 4 } })
+    expect(eta()).toBe(4)
+    s = reducer(s, { type: 'jobEvent', event: { id, status: 'running', message: 'Still going' } })
+    expect(eta()).toBe(4) // a message-only update keeps it
+    s = reducer(s, { type: 'jobEvent', event: { id, status: 'running', percent: 60 } })
+    expect(eta()).toBeUndefined()
+    s = reducer(s, { type: 'jobEvent', event: { id, status: 'running', percent: 70, etaSec: 2 } })
+    s = reducer(s, { type: 'markQueued', ids: [id] })
+    expect(eta()).toBeUndefined()
+  })
+})
+
+describe('clear finished', () => {
+  it('hides done and canceled inputs but keeps their results for Completed', () => {
+    let s = reducer(start, {
+      type: 'addItems',
+      files: [img('a.png'), img('b.png'), img('c.png')],
+      key: CONVERT
+    })
+    const [a, b] = s.queues[CONVERT]!.items.map((i) => i.id)
+    s = reducer(s, {
+      type: 'jobEvent',
+      event: { id: a, status: 'done', outputPath: 'C:/x/a.webp' }
+    })
+    s = reducer(s, { type: 'jobEvent', event: { id: b, status: 'canceled' } })
+    s = reducer(s, { type: 'hideFinished' })
+    const q = s.queues[CONVERT]!
+    expect(q.items.filter((i) => !i.isResult && !i.hiddenInput).map((i) => i.file.name)).toEqual([
+      'c.png'
+    ])
+    expect(q.items.some((i) => i.isResult && i.outputPath === 'C:/x/a.webp')).toBe(true)
+  })
+})
+
+describe('dismissAny', () => {
+  it('hides a result in its own queue while another tab is open', () => {
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], key: CONVERT })
+    const id = s.queues[CONVERT]!.items[0].id
+    s = reducer(s, { type: 'jobEvent', event: { id, status: 'done', outputPath: 'C:/x/a.webp' } })
+    const result = s.queues[CONVERT]!.items.find((i) => i.isResult)!
+    s = reducer(s, { type: 'setTab', tab: 'completed' })
+    s = reducer(s, { type: 'dismissAny', ids: [result.id], column: 'output' })
+    expect(s.queues[CONVERT]!.items.some((i) => i.id === result.id)).toBe(false)
+    expect(s.queues[CONVERT]!.items.some((i) => i.id === id)).toBe(true) // the source stays
+  })
+})

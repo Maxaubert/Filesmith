@@ -1,0 +1,154 @@
+<!doctype html>
+<!--
+  Filesmith round 2, mockup 07: Verb in the title
+  Pitch: No rail at all. The title "Convert" with a chevron is the navigation;
+  clicking it drops the 7 verbs. Everything else is one centred 560px column
+  inside an otherwise empty black frame.
+  Open state: click the title, or load the file with ?open
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Filesmith</title>
+<style>
+  :root{
+    --bg:#000; --fg:#f2f2f2; --fg2:#d0d0d0; --fg3:#8f8f8f; --glyph:#b0b0b0;
+    --hover:#121212; --menu:#080808; --menuline:#212121; 
+    --sel:#1d1d1d;
+    --s:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+    --m:"Cascadia Mono",Consolas,monospace;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg)}
+  body{width:1440px;height:900px;overflow:hidden;color:var(--fg);font:13px/1.4 var(--s);
+    -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+  button,summary{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  :focus{outline:none}
+  :focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+
+  /* title bar */
+  .bar{height:38px;flex:none;display:flex;align-items:center;padding-left:14px;-webkit-app-region:drag}
+  .brand{display:flex;align-items:center;gap:9px;color:var(--fg3);font-size:12px}
+  .brand svg{width:14px;height:14px}
+  .win{margin-left:auto;display:flex;height:100%}
+  .win button{width:46px;height:100%;display:grid;place-items:center;color:var(--fg3);
+    transition:background-color .14s var(--ease),color .14s var(--ease)}
+  .win button:hover{background:var(--hover);color:var(--fg)}
+  .win svg{width:10px;height:10px}
+
+  /* stage */
+  main{flex:1;display:flex;justify-content:center;padding-top:196px}
+  .col{width:560px}
+
+  /* the title is the navigation */
+  .nav{position:relative;display:inline-block;margin-left:-10px}
+  .nav summary{list-style:none;display:inline-flex;align-items:center;gap:12px;
+    padding:2px 12px 4px 10px;border-radius:8px;
+    font:600 34px/1.2 var(--s);letter-spacing:-.01em;color:var(--fg);
+    transition:background-color .14s var(--ease)}
+  .nav summary::-webkit-details-marker{display:none}
+  .nav summary:hover,.nav[open] summary{background:var(--hover)}
+  .nav summary:active{transform:scale(.97)}
+  .nav summary svg{width:18px;height:18px;color:var(--fg3);margin-top:4px;
+    transition:transform .16s var(--ease),color .14s var(--ease)}
+  .nav summary:hover svg{color:var(--fg2)}
+  .nav[open] summary svg{transform:rotate(180deg)}
+  .menu{position:absolute;top:calc(100% + 8px);left:0;width:220px;z-index:5;
+    background:var(--menu);border:1px solid var(--menuline);border-radius:10px;padding:6px;
+    font:500 12.5px/1 var(--m)}
+  .menu a{display:flex;align-items:center;height:34px;padding:0 12px;border-radius:6px;
+    color:var(--fg3);text-decoration:none;transition:background-color .12s var(--ease),color .12s var(--ease)}
+  .menu a:hover{background:var(--hover);color:var(--fg)}
+  .menu a[aria-current]{background:var(--sel);color:var(--fg)}
+
+  /* queue */
+  .queue{list-style:none;margin-top:44px;font:13px/1 var(--m)}
+  .queue li{position:relative;display:flex;align-items:center;justify-content:space-between;
+    height:44px;color:var(--fg2)}
+  .st{font-variant-numeric:tabular-nums;color:var(--fg2)}
+  .done .st{color:var(--fg3)}
+  .q{color:var(--fg3)}
+  .q .st{color:var(--fg3)}
+  .fail .st{color:var(--fg);font-weight:700}
+  .run .name{color:var(--fg)}
+  .run .st{color:var(--fg)}
+
+  .drop{display:flex;align-items:center;height:44px;width:100%;margin-top:6px;
+    color:var(--fg3);font:13px/1 var(--m);text-align:left;
+    transition:color .14s var(--ease)}
+  .drop:hover{color:var(--fg)}
+
+  /* controls */
+  .act{display:flex;align-items:center;justify-content:space-between;margin-top:56px}
+  .fmt{display:flex;gap:2px;font:500 12.5px/1 var(--m)}
+  .fmt button{height:32px;padding:0 12px;border-radius:8px;color:var(--fg3);
+    transition:background-color .14s var(--ease),color .14s var(--ease)}
+  .fmt button:hover{background:var(--hover);color:var(--fg2)}
+  .fmt button[aria-pressed="true"]{background:var(--sel);color:var(--fg)}
+  .fmt button:active,.go:active{transform:scale(.97)}
+  .go{height:40px;padding:0 22px;border-radius:999px;background:#fff;color:#000;
+    font:600 13px/1 var(--s);transition:background-color .14s var(--ease)}
+  .go:hover{background:#d9d9d9}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <svg viewBox="0 0 14 14" fill="none" stroke="#b0b0b0" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M2 2h10v3H5v2h5v3H5v2H2z"/></svg>
+      Filesmith
+    </div>
+    <div class="win">
+      <button aria-label="Minimise"><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="1"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximise"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M.5 .5h9v9h-9z"/></svg></button>
+      <button aria-label="Close"><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="1"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <main>
+    <div class="col">
+      <details class="nav" id="nav">
+        <summary aria-label="Switch tool">Convert
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
+        </summary>
+        <nav class="menu">
+          <a href="#" aria-current="page">Convert</a>
+          <a href="#">Compress</a>
+          <a href="#">Resize</a>
+          <a href="#">Upscale</a>
+          <a href="#">Remove BG</a>
+          <a href="#">Generate</a>
+          <a href="#">Tools</a>
+        </nav>
+      </details>
+
+      <ul class="queue">
+        <li class="done"><span class="name">IMG_4821.HEIC</span><span class="st">done</span></li>
+        <li class="run"><span class="name">screenshot.png</span><span class="st">62%</span></li>
+        <li class="q"><span class="name">hero-banner.png</span><span class="st">queued</span></li>
+        <li class="fail"><span class="name">scan_0091.tiff</span><span class="st">✕ failed</span></li>
+      </ul>
+      <button class="drop">+ drop files</button>
+
+      <div class="act">
+        <div class="fmt" role="group" aria-label="Format">
+          <button aria-pressed="true">WebP</button>
+          <button aria-pressed="false">JPG</button>
+          <button aria-pressed="false">PNG</button>
+          <button aria-pressed="false">AVIF</button>
+        </div>
+        <button class="go">Convert 4 files</button>
+      </div>
+    </div>
+  </main>
+<script>
+  if (location.search.includes('open')) document.getElementById('nav').open = true;
+  document.querySelectorAll('.fmt button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.fmt button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  });
+</script>
+</body>
+</html>

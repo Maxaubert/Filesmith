@@ -1,0 +1,342 @@
+<!--
+  Filesmith round 3, mockup 10: Segmented Switcher
+  Pitch: The verbs live in one segmented control, like a mode switch on a pro camera:
+  a single object that says this app does seven things.
+  Signature: one inverted white segment in a long dark switcher, the strongest
+  "you are here" signal possible without colour. Strict greys only.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith, Segmented Switcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#000; --card:#0a0a0a; --card-b:#1e1e1e; --div:#161616;
+  --track:#0c0c0c; --track-b:#222; --hover:#161616; --row-hover:#121212;
+  --fg:#f2f2f2; --fg2:#d0d0d0; --fg3:#8f8f8f; --glyph:#b0b0b0; --dis:#5c5c5c;
+  --line:#303030; --btn-b:#3a3a3a;
+  --ui:"Inter","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;width:1440px;height:900px;overflow:hidden}
+body{font:13px/1.4 var(--ui);color:var(--fg);-webkit-font-smoothing:antialiased}
+svg{display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible,input:focus-visible+.tg{outline:2px solid #f2f2f2;outline-offset:2px}
+button:active{transform:scale(.97)}
+.i16{width:16px;height:16px}.i18{width:18px;height:18px}.i24{width:24px;height:24px}
+
+.app{width:1440px;height:900px;display:flex;flex-direction:column;background:var(--bg)}
+
+/* titlebar */
+.tb{height:38px;flex:none;display:flex;align-items:center;border-bottom:1px solid #151515;padding-left:12px}
+.logo{width:20px;height:20px;border-radius:5px;background:#f2f2f2;color:#000;display:grid;place-items:center}
+.logo svg{width:14px;height:14px;fill:#000;stroke:#000;stroke-width:1}
+.tb .name{font-weight:600;font-size:13px;margin-left:10px}
+.tb .sp{flex:1}
+.wc{width:46px;height:38px;display:grid;place-items:center;color:var(--glyph);transition:background 120ms var(--ease),color 120ms var(--ease)}
+.wc svg{width:15px;height:15px;stroke-linecap:square;stroke-linejoin:miter;stroke-width:1.2}
+.wc:hover{background:#1a1a1a;color:var(--fg)}
+.wc.x:hover{background:#3a3a3a}
+.wc:active{transform:none}
+
+/* toolbar with switcher */
+.bar{height:72px;flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 40px;border-bottom:1px solid #121212}
+.seg{display:flex;gap:2px;padding:3px;background:var(--track);border:1px solid var(--track-b);border-radius:10px}
+.seg button{height:36px;padding:0 14px;display:flex;align-items:center;gap:8px;border-radius:7px;color:var(--fg3);font-weight:500;font-size:13px;transition:background 120ms var(--ease),color 120ms var(--ease)}
+.seg button svg{color:var(--glyph);transition:color 120ms var(--ease)}
+.seg button:hover{background:var(--hover);color:var(--fg)}
+.seg button:hover svg{color:var(--fg)}
+.seg button[aria-current]{background:#f2f2f2;color:#000;font-weight:600}
+.seg button[aria-current] svg{color:#000}
+.seg .cnt{font:500 12px var(--mono);color:#3a3a3a;margin-left:2px}
+.bar-r{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+.ghost{height:36px;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:8px;color:var(--fg3);font-weight:500;transition:background 120ms var(--ease),color 120ms var(--ease)}
+.ghost svg{color:var(--glyph)}
+.ghost:hover{background:var(--row-hover);color:var(--fg)}
+.ghost:hover svg{color:var(--fg)}
+.ghost .n{font:500 12px var(--mono);color:var(--fg2);background:#161616;border:1px solid #262626;border-radius:6px;padding:1px 6px}
+.iconbtn{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;color:var(--glyph);transition:background 120ms var(--ease),color 120ms var(--ease)}
+.iconbtn:hover{background:var(--row-hover);color:var(--fg)}
+.vsep{width:1px;height:20px;background:#222}
+.search{width:220px;height:32px;display:flex;align-items:center;gap:8px;padding:0 6px 0 10px;border:1px solid #222;border-radius:8px;background:#0a0a0a;color:var(--fg3);transition:border-color 120ms var(--ease)}
+.search:hover{border-color:#3a3a3a}
+.search .lbl{flex:1;text-align:left}
+.kc{height:20px;padding:0 6px;border-radius:5px;background:#1a1a1a;border:1px solid #3a3a3a;font:500 11px var(--mono);color:var(--fg2);display:grid;place-items:center}
+.ver{font:400 12px var(--mono);color:var(--fg3);margin-left:-2px}
+
+/* main */
+.main{flex:1;display:flex;flex-direction:column;align-items:center;min-height:0}
+.wrap{width:1200px}
+.headband{width:100%;display:flex;justify-content:center;background:#080808;border-bottom:1px solid #151515;margin-bottom:28px}
+.head{display:flex;align-items:center;gap:16px;padding:28px 0}
+.tile{width:48px;height:48px;border:1px solid #262626;border-radius:10px;background:#0c0c0c;display:grid;place-items:center;color:var(--fg)}
+.head h1{font-weight:600;font-size:26px;letter-spacing:-.3px;line-height:1.15}
+.head p{color:var(--fg3);font-size:13px;margin-top:3px}
+.head .sp{flex:1}
+.fc{font:500 12px var(--mono);color:var(--fg3);margin-right:8px}
+.btn2{height:32px;padding:0 12px 0 10px;display:flex;align-items:center;gap:8px;border:1px solid var(--btn-b);border-radius:8px;font-weight:500;color:var(--fg);transition:background 120ms var(--ease),border-color 120ms var(--ease)}
+.btn2 svg{color:var(--fg2)}
+.btn2:hover{background:#161616;border-color:#4a4a4a}
+
+.cols{display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:stretch}
+.cols>section,.cols>aside{display:flex;flex-direction:column}
+.cols .card{flex:1}
+.q{display:flex;flex-direction:column}
+.cap{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;font-weight:500;font-size:13px;color:var(--fg3)}
+.cap .m{font:400 12px var(--mono);color:var(--fg3)}
+.card{background:var(--card);border:1px solid var(--card-b);border-radius:12px}
+
+/* queue */
+.q{overflow:hidden}
+.row{display:grid;grid-template-columns:32px 1fr 220px;gap:16px;align-items:center;height:58px;padding:0 12px 0 16px;border-top:1px solid var(--div);transition:background 120ms var(--ease);position:relative}
+.row:first-child{border-top:0}
+.row:hover,.row.hov{background:var(--row-hover)}
+.row.run{background:#0e0e0e}
+.row.run::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:2px;border-radius:2px;background:#f2f2f2}
+.kind{width:32px;height:32px;border-radius:6px;background:#0e0e0e;border:1px solid #212121;display:grid;place-items:center;color:var(--glyph)}
+.thumb{width:32px;height:32px;border-radius:6px;border:1px solid #2a2a2a;position:relative;overflow:hidden}
+.t1{background:radial-gradient(circle at 70% 30%,#9a9a9a 0 3px,transparent 4px),linear-gradient(160deg,#4a4a4a 0%,#222 55%,#0c0c0c 56%,#1c1c1c 100%)}
+.t2{background:radial-gradient(ellipse 9px 11px at 50% 58%,#bdbdbd,#5a5a5a 70%,transparent 72%),linear-gradient(135deg,#3a3a3a,#111)}
+.nm{min-width:0}
+.fn{font:400 13px var(--mono);color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sz{font:400 12px var(--mono);color:var(--fg3);margin-top:2px}
+.st{position:relative;height:32px;display:flex;align-items:center;justify-content:flex-end;gap:8px;font:400 12px var(--mono);color:var(--fg3);padding-right:4px}
+.st .s{display:flex;align-items:center;gap:8px;transition:opacity 120ms var(--ease)}
+.done{color:var(--fg2)}
+.done .ar{color:var(--fg3)}
+.bar2{width:140px;height:2px;background:var(--line);border-radius:2px;overflow:hidden}
+.bar2 i{display:block;height:100%;width:62%;background:#f2f2f2}
+.pct{color:var(--fg);font-variant-numeric:tabular-nums;width:32px;text-align:right}
+.err{color:var(--fg);font:600 12px var(--ui)}
+.err svg{color:var(--fg)}
+.mini{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;color:var(--glyph);transition:background 120ms var(--ease),color 120ms var(--ease)}
+.mini:hover{background:#262626;color:var(--fg)}
+.acts{position:absolute;right:0;top:2px;display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity 120ms var(--ease)}
+.row:hover .acts,.row.hov .acts{opacity:1;pointer-events:auto}
+.row:hover .st .s.hide,.row.hov .st .s.hide{opacity:0}
+.drop{margin:8px;min-height:44px;flex:1;max-height:96px;border:1px dashed #2a2a2a;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--fg3);font-size:12.5px;transition:background 120ms var(--ease),color 120ms var(--ease)}
+.drop:hover{background:#0e0e0e;color:var(--fg2)}
+
+/* options */
+.opt{padding:4px 0 16px}
+.og{padding:14px 16px;border-top:1px solid var(--div)}
+.og:first-child{border-top:0}
+.ol{display:flex;justify-content:space-between;align-items:baseline;font-weight:500;font-size:13px;color:var(--fg);margin-bottom:10px}
+.ol .m{font:400 12px var(--mono);color:var(--fg3)}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chip{height:32px;border-radius:8px;border:1px solid #262626;background:#0e0e0e;font:500 12px var(--mono);color:var(--fg2);transition:background 120ms var(--ease),border-color 120ms var(--ease),color 120ms var(--ease)}
+.chip:hover{background:#181818;border-color:#3a3a3a;color:var(--fg)}
+.chip[aria-pressed=true]{background:#2e2e2e;border-color:#5a5a5a;color:#fff}
+.sc{display:flex;padding:3px;background:var(--track);border:1px solid var(--track-b);border-radius:8px;gap:2px}
+.sc button{flex:1;height:26px;border-radius:6px;font-weight:500;font-size:12px;color:var(--fg3);display:flex;align-items:center;justify-content:center;gap:6px;transition:background 120ms var(--ease),color 120ms var(--ease)}
+.sc button:hover{background:var(--hover);color:var(--fg)}
+.sc button[aria-pressed=true]{background:#2e2e2e;color:#fff}
+.radio{display:flex;flex-direction:column;gap:2px}
+.rd{height:32px;display:flex;align-items:center;gap:10px;padding:0 8px;border-radius:8px;color:var(--fg2);font-size:13px;transition:background 120ms var(--ease),color 120ms var(--ease);text-align:left}
+.rd:hover{background:var(--row-hover);color:var(--fg)}
+.rd .dot{width:14px;height:14px;border-radius:50%;border:1.5px solid #5a5a5a;display:grid;place-items:center}
+.rd[aria-checked=true]{color:var(--fg)}
+.rd[aria-checked=true] .dot{border-color:#f2f2f2}
+.rd[aria-checked=true] .dot::after{content:"";width:6px;height:6px;border-radius:50%;background:#f2f2f2}
+.rd .sp{flex:1}
+.rd svg{color:var(--glyph)}
+.trow{display:flex;align-items:center;justify-content:space-between}
+.trow .l{font-weight:500;font-size:13px}
+.trow .d{font-size:12px;color:var(--fg3);margin-top:1px}
+.sw{position:relative;display:inline-block}
+.sw input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.tg{display:block;width:36px;height:20px;border-radius:11px;background:#303030;position:relative;transition:background 180ms var(--ease)}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#e6e6e6;transition:transform 180ms var(--ease),background 180ms var(--ease)}
+.sw input:checked+.tg{background:#f2f2f2}
+.sw input:checked+.tg::after{transform:translateX(16px);background:#000}
+.go{margin:8px 16px 0;width:calc(100% - 32px);height:40px;border-radius:9px;background:#f2f2f2;color:#000;font-weight:600;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:10px;transition:background 120ms var(--ease)}
+.go:hover{background:#fff}
+.go svg{color:#000;stroke-width:1.75}
+
+/* status line */
+.status{height:28px;flex:none;border-top:1px solid #121212;display:flex;align-items:center;justify-content:space-between;padding:0 40px;font:400 12px var(--mono);color:var(--fg3)}
+.status .l{display:flex;align-items:center;gap:8px}
+.status .l i{width:6px;height:6px;border-radius:50%;background:#d0d0d0}
+
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(242,242,242,.16);border-radius:3px}::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="convert" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></symbol>
+    <symbol id="compress" viewBox="0 0 24 24"><path d="m15 15 6 6"/><path d="M15 19.5V15h4.5"/><path d="m9 9-6-6"/><path d="M9 4.5V9H4.5"/><path d="m15 9 6-6"/><path d="M15 4.5V9h4.5"/><path d="m9 15-6 6"/><path d="M9 19.5V15H4.5"/></symbol>
+    <symbol id="resize" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M14 3h7v7"/><path d="m21 3-9 9"/><path d="M9 15h3v-3"/></symbol>
+    <symbol id="upscale" viewBox="0 0 24 24"><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M14 3h7v7"/><path d="m21 3-8 8"/><path d="M3 9V4a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="removebg" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3a2.4 2.4 0 0 1 0-3.4l9.6-9.6a2.4 2.4 0 0 1 3.4 0l5.6 5.6a2.4 2.4 0 0 1 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></symbol>
+    <symbol id="generate" viewBox="0 0 24 24"><path d="M10 3.5 11.8 8.2 16.5 10l-4.7 1.8L10 16.5l-1.8-4.7L3.5 10l4.7-1.8z"/><path d="M19 3v4M17 5h4M18 16v4M16 18h4"/></symbol>
+    <symbol id="tools" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="completed" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="fileplus" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M12 11v6M9 14h6"/></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M3 19V5a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v3"/><path d="m3 19 2.6-7.2a1 1 0 0 1 .9-.8H21l-3 8z"/></symbol>
+    <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="retry" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <header class="tb">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M4 6h13a3 3 0 0 1-3 3h-1v4l3 4H8l3-4V9H4z"/></svg></div>
+    <span class="name">Filesmith</span>
+    <span class="sp"></span>
+    <button class="wc" aria-label="Minimize"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button class="wc" aria-label="Maximize"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg></button>
+    <button class="wc x" aria-label="Close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+  </header>
+
+  <nav class="bar" aria-label="Operations">
+    <div><button class="search"><svg class="i16"><use href="#search"/></svg><span class="lbl">Search</span><span class="kc">Ctrl K</span></button></div>
+    <div class="seg" role="tablist">
+      <button aria-current="page"><svg class="i16"><use href="#convert"/></svg>Convert<span class="cnt">6</span></button>
+      <button><svg class="i16"><use href="#compress"/></svg>Compress</button>
+      <button><svg class="i16"><use href="#resize"/></svg>Resize</button>
+      <button><svg class="i16"><use href="#upscale"/></svg>Upscale</button>
+      <button><svg class="i16"><use href="#removebg"/></svg>Remove BG</button>
+      <button><svg class="i16"><use href="#generate"/></svg>Generate</button>
+      <button><svg class="i16"><use href="#tools"/></svg>Tools</button>
+    </div>
+    <div class="bar-r">
+      <button class="ghost"><svg class="i18"><use href="#completed"/></svg>Completed<span class="n">142</span></button>
+      <span class="vsep"></span>
+      <button class="iconbtn" aria-label="Settings"><svg class="i18"><use href="#settings"/></svg></button><span class="ver">0.3.0</span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="headband"><div class="wrap">
+      <section class="head">
+        <div class="tile"><svg class="i24"><use href="#convert"/></svg></div>
+        <div>
+          <h1>Convert</h1>
+          <p>Change images to another format.</p>
+        </div>
+        <span class="sp"></span>
+        <span class="fc">6 files</span>
+        <button class="btn2"><svg class="i16"><use href="#fileplus"/></svg>Add files</button>
+      </section>
+    </div></div>
+    <div class="wrap">
+
+      <div class="cols">
+        <section>
+          <div class="cap"><span>Queue</span><span class="m">2 of 6 done</span></div>
+          <div class="card q">
+            <div class="row" tabindex="0">
+              <div class="thumb t1"></div>
+              <div class="nm"><div class="fn">IMG_4821.HEIC</div><div class="sz">3.2 MB</div></div>
+              <div class="st">
+                <span class="s done hide"><svg class="i16"><use href="#check"/></svg><span class="ar">3.2 MB &rarr;</span>640 KB</span>
+                <div class="acts"><button class="mini" aria-label="Show in folder"><svg class="i16"><use href="#folder"/></svg></button><button class="mini" aria-label="Remove"><svg class="i16"><use href="#x"/></svg></button></div>
+              </div>
+            </div>
+            <div class="row" tabindex="0">
+              <div class="thumb t2"></div>
+              <div class="nm"><div class="fn">product-shot.jpg</div><div class="sz">2.1 MB</div></div>
+              <div class="st">
+                <span class="s done hide"><svg class="i16"><use href="#check"/></svg><span class="ar">2.1 MB &rarr;</span>486 KB</span>
+                <div class="acts"><button class="mini" aria-label="Show in folder"><svg class="i16"><use href="#folder"/></svg></button><button class="mini" aria-label="Remove"><svg class="i16"><use href="#x"/></svg></button></div>
+              </div>
+            </div>
+            <div class="row run" tabindex="0">
+              <div class="kind"><svg class="i16"><use href="#image"/></svg></div>
+              <div class="nm"><div class="fn">screenshot-2026-10-03.png</div><div class="sz">1.8 MB</div></div>
+              <div class="st">
+                <span class="s"><span class="bar2"><i></i></span><span class="pct">62%</span></span>
+              </div>
+            </div>
+            <div class="row hov" tabindex="0">
+              <div class="kind"><svg class="i16"><use href="#image"/></svg></div>
+              <div class="nm"><div class="fn">hero-banner@2x.png</div><div class="sz">4.6 MB</div></div>
+              <div class="st">
+                <span class="s hide">queued</span>
+                <div class="acts"><button class="mini" aria-label="Remove"><svg class="i16"><use href="#x"/></svg></button></div>
+              </div>
+            </div>
+            <div class="row" tabindex="0">
+              <div class="kind"><svg class="i16"><use href="#image"/></svg></div>
+              <div class="nm"><div class="fn">scan_0091.tiff</div><div class="sz">22.4 MB</div></div>
+              <div class="st">
+                <span class="s err"><svg class="i16"><use href="#alert"/></svg>Unsupported compression</span>
+                <button class="mini" aria-label="Retry"><svg class="i16"><use href="#retry"/></svg></button>
+              </div>
+            </div>
+            <div class="row" tabindex="0">
+              <div class="kind"><svg class="i16"><use href="#image"/></svg></div>
+              <div class="nm"><div class="fn">logo-final.bmp</div><div class="sz">1.1 MB</div></div>
+              <div class="st">
+                <span class="s hide">queued</span>
+                <div class="acts"><button class="mini" aria-label="Remove"><svg class="i16"><use href="#x"/></svg></button></div>
+              </div>
+            </div>
+            <div class="drop"><svg class="i16"><use href="#plus"/></svg>Drop more files here</div>
+          </div>
+        </section>
+
+        <aside>
+          <div class="cap"><span>Options</span></div>
+          <div class="card opt">
+            <div class="og">
+              <div class="ol"><span>Format</span><span class="m">.webp</span></div>
+              <div class="chips">
+                <button class="chip" aria-pressed="true">WebP</button>
+                <button class="chip" aria-pressed="false">JPG</button>
+                <button class="chip" aria-pressed="false">PNG</button>
+                <button class="chip" aria-pressed="false">AVIF</button>
+                <button class="chip" aria-pressed="false">JXL</button>
+                <button class="chip" aria-pressed="false">TIFF</button>
+              </div>
+            </div>
+            <div class="og">
+              <div class="ol"><span>Quality</span></div>
+              <div class="sc">
+                <button aria-pressed="false">Smaller</button>
+                <button aria-pressed="true">Balanced</button>
+                <button aria-pressed="false">Best</button>
+              </div>
+            </div>
+            <div class="og">
+              <div class="ol" style="margin-bottom:6px"><span>Output</span></div>
+              <div class="radio" role="radiogroup">
+                <button class="rd" role="radio" aria-checked="true"><span class="dot"></span>Next to source</button>
+                <button class="rd" role="radio" aria-checked="false"><span class="dot"></span>Choose folder&hellip;<span class="sp"></span><svg class="i16"><use href="#folder"/></svg></button>
+              </div>
+            </div>
+            <div class="og">
+              <div class="trow">
+                <div><div class="l">Keep metadata</div></div>
+                <label class="sw"><input type="checkbox" checked aria-label="Keep metadata"><span class="tg"></span></label>
+              </div>
+            </div>
+            <button class="go"><svg class="i18"><use href="#convert"/></svg>Convert 6 files</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <footer class="status">
+    <span class="l"><i></i>Converting 1 file</span>
+    <span>1 failed</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -38,11 +38,26 @@ export function reserveFileInDir(dir: string, name: string, ext: string, tag: st
   }
 }
 
-/** Atomically-reserved output next to the source with a new extension. */
-export function reserveOutPath(sourcePath: string, ext: string, tag: string): string {
-  const dir = dirname(sourcePath)
+/** Atomically-reserved output with a new extension: next to the source, or in
+ * `outDir` when the user chose an output folder. Collision rules are identical. */
+export function reserveOutPath(
+  sourcePath: string,
+  ext: string,
+  tag: string,
+  outDir?: string
+): string {
+  const dir = outDir ?? dirname(sourcePath)
   const name = basename(sourcePath, extname(sourcePath))
   return reserveFileInDir(dir, name, ext, tag)
+}
+
+/** The job's output folder from `options.outDir`, or undefined for "next to
+ * source". A folder that has gone missing is an error: silently writing next to
+ * the source would put files where the user did not ask for them. */
+export function resolveOutDir(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.trim() === '') return undefined
+  if (!existsSync(value)) throw new Error(`Output folder not found: ${value}`)
+  return value
 }
 
 /** Collision-free directory: `base` -> `base (2)` -> `base (3)` ... */

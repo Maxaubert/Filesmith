@@ -1,0 +1,128 @@
+<!--
+  Filesmith round 2, mockup 09: One bar
+  Pitch: the rows show only a word each. Progress for the whole batch is one 1px white line under the queue.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Filesmith</title>
+<style>
+  :root{
+    --bg:#000; --line:#151515; --track:#303030;
+    --fg:#f2f2f2; --fg2:#d0d0d0; --fg3:#8f8f8f; --glyph:#b0b0b0;
+    --hover:#121212;
+    --s:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+    --m:"Cascadia Mono",Consolas,monospace;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg)}
+  body{width:1440px;height:900px;overflow:hidden;color:var(--fg);font:13px/1.4 var(--s);-webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  :focus{outline:none}
+  :focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+
+  .win{display:grid;grid-template-rows:38px 1fr;height:900px}
+
+  /* title bar */
+  .bar{display:flex;align-items:center;justify-content:space-between;padding-left:16px}
+  .brand{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--fg3)}
+  .brand svg{width:14px;height:14px}
+  .ctl{display:flex;height:38px}
+  .ctl button{width:46px;height:38px;display:grid;place-items:center;color:var(--glyph);transition:background-color .12s var(--ease)}
+  .ctl button:hover{background:var(--hover)}
+  .ctl svg{width:10px;height:10px}
+
+  .body{display:grid;grid-template-columns:240px 1fr;min-height:0}
+
+  /* rail */
+  .rail{border-right:1px solid var(--line);padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+  .rail button{height:36px;padding:0 14px;border-radius:8px;text-align:left;font:500 12.5px var(--m);color:var(--fg3);transition:color .12s var(--ease)}
+  .rail button:hover{color:var(--fg2)}
+  .rail button:active{transform:scale(.97)}
+  .rail button[aria-current="page"]{color:var(--fg);font-weight:700}
+
+  /* content */
+  .main{padding:72px 40px 0 96px}
+  .col{width:520px}
+  h1{font:400 34px/1.1 var(--s);letter-spacing:-.01em;color:var(--fg);margin-bottom:48px}
+
+  .queue{list-style:none}
+  .queue li{display:flex;justify-content:space-between;align-items:center;height:40px;font:13px var(--m);color:var(--fg2)}
+  .st{font-variant-numeric:tabular-nums;color:var(--fg3)}
+  .st.run{color:var(--fg2)}
+  .st.fail{color:var(--fg);font-weight:700}
+  .queue li.failed .name{color:var(--fg)}
+
+  .add{display:flex;align-items:center;height:24px;margin-bottom:20px;font:13px var(--m);color:var(--fg3);transition:color .12s var(--ease)}
+  .add:hover{color:var(--fg)}
+
+  .progress{height:1px;width:100%;background:var(--track);margin-top:12px}
+  .progress i{display:block;height:1px;width:40%;background:var(--fg)}
+
+  .opts{margin-top:64px;display:flex;align-items:center;gap:28px}
+  .opts button{height:28px;padding:0;font:13px var(--m);color:var(--fg3);border-bottom:1px solid transparent;transition:color .12s var(--ease),border-color .12s var(--ease)}
+  .opts button:hover{color:var(--fg2)}
+  .opts button:active{transform:scale(.97)}
+  .opts button[aria-checked="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+
+  .go{margin-top:32px;height:40px;padding:0 24px;border-radius:999px;background:var(--fg);color:#000;font:600 13px var(--s);transition:background-color .12s var(--ease)}
+  .go:hover{background:#fff}
+  .go:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+<div class="win">
+  <header class="bar">
+    <div class="brand">
+      <svg viewBox="0 0 14 14" fill="none" stroke="#b0b0b0" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2.5 2.5h9v9h-9z M5.5 5.5h3v3h-3z"/></svg>
+      Filesmith
+    </div>
+    <div class="ctl">
+      <button aria-label="Minimise"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximise"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor"><path d="M.5.5h9v9h-9z"/></svg></button>
+      <button aria-label="Close"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <nav class="rail" aria-label="Operations">
+      <button aria-current="page">Convert</button>
+      <button>Compress</button>
+      <button>Resize</button>
+      <button>Upscale</button>
+      <button>Remove BG</button>
+      <button>Generate</button>
+      <button>Tools</button>
+    </nav>
+
+    <main class="main">
+      <div class="col">
+        <h1>Convert</h1>
+
+        <button class="add">+ drop files</button>
+
+        <ul class="queue">
+          <li><span class="name">IMG_4821.HEIC</span><span class="st">done</span></li>
+          <li><span class="name">screenshot.png</span><span class="st run">running</span></li>
+          <li><span class="name">hero-banner.png</span><span class="st">queued</span></li>
+          <li class="failed"><span class="name">scan_0091.tiff</span><span class="st fail">failed</span></li>
+        </ul>
+        <div class="progress" role="progressbar" aria-label="Batch progress" aria-valuenow="40" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+
+        <div class="opts" role="radiogroup" aria-label="Format">
+          <button role="radio" aria-checked="true">WebP</button>
+          <button role="radio" aria-checked="false">JPG</button>
+          <button role="radio" aria-checked="false">PNG</button>
+          <button role="radio" aria-checked="false">AVIF</button>
+        </div>
+
+        <button class="go">Convert 4 files</button>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

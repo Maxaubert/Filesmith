@@ -6,7 +6,7 @@ import { groupOf, type QueueItem } from '../state'
 
 /** Display order for the group headers: the everyday kinds first, then the
  * document family, then the long tail. */
-const GROUP_ORDER = ['image', 'video', 'audio', 'doc', 'sheet', 'slide', 'archive']
+export const GROUP_ORDER = ['image', 'video', 'audio', 'doc', 'sheet', 'slide', 'archive']
 const GROUP_NOUN: Record<string, (n: number) => string> = {
   image: (n) => `${n} image${n === 1 ? '' : 's'}`,
   video: (n) => `${n} video${n === 1 ? '' : 's'}`,
@@ -26,15 +26,15 @@ const GROUP_LABEL: Record<string, string> = {
   archive: 'Archives'
 }
 
-/** The dot colour beside a group's name in the options panel. */
-export const GROUP_COLOR: Record<string, string> = {
-  image: '#5b5bd6',
-  video: '#e0483d',
-  audio: '#f5920b',
-  doc: '#12b3a6',
-  sheet: '#12b3a6',
-  slide: '#12b3a6',
-  archive: '#a16207'
+/** "Images" / "Video" / "Documents"; "Other" for an unknown group. */
+export function groupLabel(group: string): string {
+  return GROUP_LABEL[group] ?? 'Other'
+}
+
+/** Index of a group in display order; unknown groups sort last. */
+export function groupRank(group: string): number {
+  const i = GROUP_ORDER.indexOf(group)
+  return i < 0 ? GROUP_ORDER.length : i
 }
 
 /** "2 images" / "1 document" / "3 archives". Named by CONVERT GROUP, not file

@@ -1,0 +1,440 @@
+<!--
+  Mockup 01 · Wind Native
+  The safe bet: Filesmith rebuilt on Wind's exact settings DNA, so the two apps feel like siblings.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filesmith · Wind Native</title>
+<style>
+:root{
+  --bg:#000;--card:#0b0b0b;--band:#0a0a0a;
+  --line:#1c1c1c;--line2:#2a2a2a;--rowline:#161616;
+  --fg:#f2f2f2;--fg2:#d0d0d0;--fg3:#8f8f8f;--glyph:#b0b0b0;
+  --hover:#121212;--slab:#313131;
+  --accent:#2fbfa5;--danger:#f0867e;
+  --ui:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,monospace;
+  --rad:8px;--srad:6px;--rc:10px;--rp:999px;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;color:var(--fg);font:500 13px/1.4 var(--ui);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;display:grid;place-items:center}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button,.nav,.row,.fmt,.seg button,.wc{transition:background-color 140ms var(--ease),color 140ms var(--ease),border-color 140ms var(--ease),transform 120ms var(--ease)}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:square;stroke-linejoin:miter;flex:none}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:rgba(242,242,242,.16);border-radius:6px}::-webkit-scrollbar-track{background:transparent}
+.mono{font-family:var(--mono)}
+.num{font-variant-numeric:tabular-nums}
+
+.app{width:1440px;height:900px;display:grid;grid-template-rows:38px 1fr 28px;background:var(--bg);overflow:hidden;border:1px solid #1a1a1a}
+
+/* titlebar */
+.tb{display:flex;align-items:center;border-bottom:1px solid var(--line);-webkit-app-region:drag}
+.brand{display:flex;align-items:center;gap:10px;padding-left:14px;width:240px}
+.mark{width:20px;height:20px;border-radius:5px;background:#f2f2f2;color:#000;display:grid;place-items:center}
+.mark svg{width:12px;height:12px;stroke-width:2}
+.brand b{font-size:13px;font-weight:600}
+.tb .crumb{font-family:var(--mono);font-size:12px;color:var(--fg3)}
+.tb .sp{flex:1}
+.wc{width:46px;height:38px;display:grid;place-items:center;color:var(--fg2);-webkit-app-region:no-drag}
+.wc:hover{background:var(--hover);color:var(--fg)}
+.wc:active{background:#1c1c1c}
+.wc.x:hover{background:#c42b1c;color:#fff}
+.wc svg{width:10px;height:10px;stroke-width:1}
+
+.main{display:grid;grid-template-columns:240px 1fr;min-height:0}
+
+/* rail */
+.rail{border-right:1px solid var(--line);padding:12px 10px 10px;display:flex;flex-direction:column;min-height:0}
+.search{height:32px;display:flex;align-items:center;gap:8px;padding:0 8px 0 10px;border:1px solid var(--line2);border-radius:var(--srad);color:var(--fg3);margin-bottom:12px}
+.search span{flex:1;font-family:var(--mono);font-size:12px}
+kbd{font:500 10px/1 var(--mono);color:var(--fg3);border:1px solid var(--line2);border-radius:3px;padding:3px 5px}
+.nav{height:36px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:var(--rad);color:var(--fg3);font:500 12.5px var(--mono);width:100%;text-align:left}
+.nav + .nav{margin-top:2px}
+.nav:hover{background:var(--hover);color:var(--fg)}
+.nav:active{transform:scale(.97)}
+.nav[aria-current="page"]{background:var(--slab);color:var(--fg)}
+.nav .c{margin-left:auto;font-size:11.5px;color:var(--fg3)}
+.nav[aria-current="page"] .c{color:var(--fg2)}
+.rail .grow{flex:1}
+.rail .foot{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.cap{display:flex;align-items:center;justify-content:space-between;padding:0 10px 6px;font:600 11px var(--mono);letter-spacing:.1em;color:var(--fg3)}
+.cap button{color:var(--fg3);letter-spacing:0;font:500 11.5px var(--mono);padding:2px 6px;border-radius:4px}
+.cap button:hover{color:var(--fg);background:var(--hover)}
+.ver{display:flex;justify-content:space-between;padding:8px 10px 0;font:500 11.5px var(--mono);color:var(--fg3)}
+
+/* workspace */
+.ws{display:grid;grid-template-rows:auto 1fr;min-height:0;min-width:0}
+.head{position:relative;overflow:hidden;background:var(--band);border-bottom:1px solid var(--line);padding:22px 40px;display:flex;align-items:center;gap:18px}
+.head::after{content:"";position:absolute;inset:0 0 0 auto;width:640px;pointer-events:none;opacity:.17;
+  background:radial-gradient(60% 120% at 100% 0%,#3a6f66 0%,transparent 60%),radial-gradient(50% 110% at 80% 120%,#3b3f5c 0%,transparent 65%)}
+.ibox{width:48px;height:48px;border:1px solid var(--line2);border-radius:10px;display:grid;place-items:center;color:var(--fg2);flex:none}
+.ibox svg{width:22px;height:22px;stroke-width:1.3}
+.head h1{font-size:28px;font-weight:600;letter-spacing:-.3px;line-height:1.1}
+.head p{font-size:13.5px;color:var(--fg3);margin-top:3px}
+.head .meta{margin-left:auto;position:relative;z-index:1;text-align:right}
+.head .meta b{display:block;font:500 13px var(--mono);color:var(--fg)}
+.head .meta span{font:500 11.5px var(--mono);color:var(--fg3)}
+
+.body{display:grid;grid-template-columns:1fr 360px;gap:24px;padding:20px 40px 20px;min-height:0}
+.queue{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:auto;padding-right:4px}
+
+/* drop strip */
+.drop{display:flex;align-items:center;gap:10px;height:40px;padding:0 8px 0 14px;border:1px dashed var(--line2);border-radius:var(--rc);color:var(--fg3);flex:none}
+.drop:hover{border-color:#4a4a4a;color:var(--fg2)}
+.drop .t{flex:1;font-size:12.5px}
+.drop .t u{text-decoration:none;color:var(--fg);border-bottom:1px solid #4a4a4a}
+.btn-g{height:28px;padding:0 10px;border-radius:var(--rad);font:500 12px var(--mono);color:var(--fg2);display:inline-flex;align-items:center;gap:8px}
+.btn-g:hover{background:var(--hover);color:var(--fg)}
+.btn-g:active{transform:scale(.97)}
+
+/* group cards */
+.grp{border:1px solid var(--line);border-radius:var(--rc);background:var(--card);flex:none}
+.grp.sel{border-color:#3a3a3a}
+.gh{height:36px;display:flex;align-items:center;gap:10px;padding:0 10px 0 18px;border-bottom:1px solid var(--rowline);font-size:13px;color:var(--fg3)}
+.gh b{color:var(--fg);font-weight:600}
+.gh .tag{font:500 11px var(--mono);color:var(--fg2);background:#1b1b1b;border:1px solid #2c2c2c;border-radius:5px;padding:2px 6px}
+.gh .sp{flex:1}
+.row{display:grid;grid-template-columns:28px 1fr auto auto;align-items:center;gap:14px;min-height:52px;padding:6px 10px 6px 18px;position:relative;border-top:1px solid var(--rowline);cursor:default}
+.gh + .row{border-top:0}
+.row:hover{background:#101010}
+.row:active{background:#141414}
+.grp.sel .row{background:#111}
+.grp.sel .row:hover{background:#161616}
+.grp:last-child .row:last-child, .row:last-child{border-radius:0 0 9px 9px}
+.th{width:28px;height:28px;border-radius:5px;border:1px solid #2c2c2c;display:grid;place-items:center;font:600 8.5px var(--mono);color:var(--fg2);letter-spacing:.02em;overflow:hidden}
+.th.img1{background:linear-gradient(140deg,#5d6a73,#2d3236 60%,#5a4a3c)}
+.th.img2{background:linear-gradient(180deg,#26282c 0 30%,#3a3f46 30% 34%,#1d1f22 34%)}
+.th.img3{background:linear-gradient(120deg,#37424b,#1d2830 55%,#5c6670)}
+.th.img4{background:repeating-linear-gradient(0deg,#cfcfc9 0 3px,#bdbdb6 3px 4px)}
+.fn{min-width:0}
+.fn .n{font:500 13px var(--mono);color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fn .d{font-size:12.5px;color:var(--fg3);margin-top:1px}
+.fn .d .mono{font-size:12px}
+.st{font-size:12.5px;color:var(--fg3);text-align:right;white-space:nowrap}
+.st .v{color:var(--fg);font-family:var(--mono);font-size:12.5px}
+.st .ok{font-family:var(--mono);font-size:12.5px;color:var(--fg2)}
+.st .pct{font-family:var(--mono);color:var(--fg)}
+.st.err{color:var(--danger);font-size:12px}
+.acts{display:flex;gap:2px}
+.ib{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;color:var(--fg3)}
+.ib:hover{background:#1e1e1e;color:var(--fg)}
+.ib:active{transform:scale(.94)}
+.ib.ghost{visibility:hidden}
+.track{position:absolute;left:60px;right:10px;bottom:0;height:3px;background:#262626;border-radius:2px}
+.track i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.track i::after{content:"";position:absolute;top:-3px;width:3px;height:9px;background:#e9fffb;border-radius:1px;margin-left:-1px}
+.track i{position:relative}
+.track i::after{right:-1px}
+.row.fail .th{border-color:#5a3431}
+.grp.dim{opacity:.45}
+.grp.dim .row{cursor:not-allowed}
+.grp.dim:hover{opacity:.6}
+.hint{display:none;font:500 11.5px var(--mono);color:var(--fg2)}
+.grp.dim:hover .hint{display:inline}
+
+/* row menu (open on Q3 deck? no: on IMG done row) */
+.menu{position:absolute;right:10px;top:44px;z-index:5;width:180px;background:#141414;border:1px solid #333;border-radius:8px;padding:4px}
+.menu button{display:flex;width:100%;height:30px;align-items:center;gap:10px;padding:0 10px;border-radius:5px;font-size:12.5px;color:var(--fg2)}
+.menu button:hover{background:#222;color:var(--fg)}
+.menu .k{margin-left:auto;font:500 10.5px var(--mono);color:var(--fg3)}
+.menu hr{border:0;border-top:1px solid #262626;margin:4px 0}
+.menu .dz{color:var(--danger)}
+
+/* options card */
+.opts{border:1px solid var(--line);border-radius:var(--rc);background:var(--card);display:flex;flex-direction:column;min-height:0;position:relative;overflow:hidden}
+.oh{padding:16px 18px 14px;border-bottom:1px solid var(--rowline)}
+.oh h2{font-size:15px;font-weight:600}
+.oh h2 span{color:var(--fg3);font-weight:500}
+.oh p{font-size:12.5px;color:var(--fg3);margin-top:2px}
+.sec{padding:14px 18px;border-bottom:1px solid var(--rowline)}
+.sec .lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--fg3);margin-bottom:10px}
+.sec .lbl b{color:var(--fg);font-weight:500;font-size:13.5px}
+.fmts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.fmt{height:32px;border-radius:var(--rad);background:#0e0e0e;border:1px solid #242424;font:500 12px var(--mono);color:var(--fg2);position:relative}
+.fmt:hover{background:#181818;border-color:#3a3a3a;color:var(--fg)}
+.fmt:active{transform:scale(.97)}
+.fmt[aria-pressed="true"]{background:var(--slab);border-color:#4a4a4a;color:var(--fg)}
+.fmt:disabled{color:#5e5e5e;border-style:dashed;border-color:#232323;background:transparent;cursor:not-allowed}
+.fmt:disabled:hover::after{content:attr(data-why);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:5px 8px;font:500 11.5px var(--ui);color:var(--fg2);z-index:3}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);height:32px;border:1px solid #242424;border-radius:var(--rad);padding:2px;background:#0e0e0e}
+.seg button{border-radius:6px;font-size:12.5px;color:var(--fg3)}
+.seg button:hover{color:var(--fg);background:#161616}
+.seg button:active{transform:scale(.97)}
+.seg button[aria-pressed="true"]{background:var(--slab);color:var(--fg)}
+.seg-note{font-size:12px;color:var(--fg3);margin-top:8px}
+.out{display:flex;align-items:center;gap:8px}
+.path{flex:1;height:32px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--line2);border-radius:var(--srad);font:500 12px var(--mono);color:var(--fg2);min-width:0}
+.path span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-o{height:32px;padding:0 12px;border-radius:var(--rad);border:1px solid #353535;background:#161616;font-size:12.5px;color:var(--fg2);white-space:nowrap}
+.btn-o:hover{background:#202020;color:var(--fg);border-color:#4a4a4a}
+.btn-o:active{transform:scale(.97)}
+.note{font-size:12px;color:var(--fg3);margin-top:10px;line-height:1.45}
+.note code{font:500 11.5px var(--mono);color:var(--fg2)}
+.opts .grow{flex:1}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font:500 12px var(--mono)}
+.kv dt{color:var(--fg3)}.kv dd{color:var(--fg2);text-align:right}
+
+/* floating pill */
+.pill{margin:0 14px 14px;height:48px;border-radius:var(--rp);background:rgba(24,24,24,.9);backdrop-filter:blur(12px);border:1px solid #3a3a3a;display:flex;align-items:center;gap:6px;padding:0 6px 0 8px}
+.pill .ghost{height:36px;padding:0 14px;border-radius:var(--rp);font-size:12.5px;color:var(--fg2)}
+.pill .ghost:hover{background:#262626;color:var(--fg)}
+.pill .ghost:active{transform:scale(.97)}
+.pill .sp{flex:1}
+.run{height:36px;padding:0 18px;border-radius:var(--rp);background:#fff;color:#000;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:10px}
+.run:hover{background:#dcdcdc}
+.run:active{transform:scale(.97)}
+.run kbd{color:#555;border-color:#bbb;font-size:9.5px}
+.run:disabled{background:#2a2a2a;color:#8a8a8a;cursor:not-allowed}
+
+/* status bar */
+.sb{border-top:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 14px;font:500 11.5px var(--mono);color:var(--fg3);white-space:nowrap}
+.sb .prog{display:flex;align-items:center;gap:10px;color:var(--fg2)}
+.bar{width:140px;height:3px;background:#262626;border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:41%;background:var(--accent)}
+.sb .sep{width:1px;height:12px;background:#2a2a2a}
+.sb .err{color:var(--danger)}
+.sb .eng span + span::before{content:"·";margin:0 7px;color:#555}
+.sb .no{color:var(--fg2)}.sb .no::after{content:" · CBR off";color:var(--fg3)}
+.sb .sp{flex:1}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- titlebar -->
+  <header class="tb">
+    <div class="brand">
+      <span class="mark"><svg class="i" viewBox="0 0 16 16"><path d="M3 13V3h8M3 8h6"/></svg></span>
+      <b>Filesmith</b>
+    </div>
+    <span class="crumb">convert</span>
+    <span class="sp"></span>
+    <button class="wc" aria-label="Minimize"><svg class="i" viewBox="0 0 10 10"><path d="M0 5h10"/></svg></button>
+    <button class="wc" aria-label="Maximize"><svg class="i" viewBox="0 0 10 10"><path d="M.5.5h9v9h-9z"/></svg></button>
+    <button class="wc x" aria-label="Close"><svg class="i" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </header>
+
+  <div class="main">
+    <!-- rail -->
+    <nav class="rail" aria-label="Operations">
+      <div class="search">
+        <svg class="i" viewBox="0 0 16 16"><path d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM10.5 10.5L14 14"/></svg>
+        <span>Search actions</span><kbd>Ctrl K</kbd>
+      </div>
+
+      <button class="nav" aria-current="page">
+        <svg class="i" viewBox="0 0 16 16"><path d="M2 5h10l-3-3M14 11H4l3 3"/></svg>Convert<span class="c num">8</span></button>
+      <button class="nav">
+        <svg class="i" viewBox="0 0 16 16"><path d="M8 1v5M5 3.5L8 6.5l3-3M8 15v-5M5 12.5L8 9.5l3 3M2 8h12"/></svg>Compress</button>
+      <button class="nav">
+        <svg class="i" viewBox="0 0 16 16"><path d="M2 2h7v7H2zM11 5h3v9H5v-3M9 9l5 5"/></svg>Resize</button>
+      <button class="nav">
+        <svg class="i" viewBox="0 0 16 16"><path d="M2 14V9h5v5zM9 2h5v5M14 2L8 8"/></svg>Upscale</button>
+      <button class="nav">
+        <svg class="i" viewBox="0 0 16 16"><path d="M2 2h12v12H2z" stroke-dasharray="2 2"/><path d="M8 4.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM4.5 13a3.5 3.5 0 0 1 7 0"/></svg>Remove BG</button>
+      <button class="nav">
+        <svg class="i" viewBox="0 0 16 16"><path d="M2 13l5-5M8 2v3M6.5 3.5h3M12 6v4M10 8h4M11 12v2M10 13h2"/></svg>Generate</button>
+      <button class="nav">
+        <svg class="i" viewBox="0 0 16 16"><path d="M2 3h12v10H2zM4.5 6.5L6.5 8l-2 1.5M8 10h3.5"/></svg>Tools</button>
+
+      <div class="grow"></div>
+
+      <div class="foot">
+        <div class="cap">LIBRARY<button aria-label="Edit rail: reorder and hide verbs">edit</button></div>
+        <button class="nav">
+          <svg class="i" viewBox="0 0 16 16"><path d="M2 2h12v12H2zM5 8l2 2 4-4"/></svg>Completed<span class="c num">142</span></button>
+        <div class="ver"><span>Filesmith</span><span class="num">0.3.0</span></div>
+      </div>
+    </nav>
+
+    <!-- workspace -->
+    <section class="ws">
+      <div class="head">
+        <div class="ibox"><svg class="i" viewBox="0 0 16 16"><path d="M2 5h10l-3-3M14 11H4l3 3"/></svg></div>
+        <div>
+          <h1>Convert</h1>
+          <p>Change format</p>
+        </div>
+        <div class="meta"><b class="num">8 files</b><span>4 groups</span></div>
+      </div>
+
+      <div class="body">
+        <!-- queue -->
+        <div class="queue">
+          <div class="drop">
+            <svg class="i" viewBox="0 0 16 16"><path d="M8 2v12M2 8h12"/></svg>
+            <span class="t">Drop files here or <u>browse</u></span>
+            <button class="btn-g">Add files <kbd>Ctrl O</kbd></button>
+          </div>
+
+          <!-- Images, selected -->
+          <div class="grp sel">
+            <div class="gh"><b>Images</b><span class="num">4 images</span><span class="tag">selected</span><span class="sp"></span>
+              <button class="btn-g" style="color:var(--fg3)">Deselect</button></div>
+
+            <div class="row">
+              <div class="th img1"></div>
+              <div class="fn"><div class="n">IMG_4821.HEIC</div><div class="d"><span class="mono">HEIC → WebP</span> · 3.2 MB</div></div>
+              <div class="st"><span class="ok num">3.2 MB → 640 KB</span>&nbsp;&nbsp;<span class="v num">-80%</span></div>
+              <div class="acts"><button class="ib ghost" aria-hidden="true" tabindex="-1"></button>
+                <button class="ib" aria-label="Row menu"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h.5M8 8h.5M13 8h.5" stroke-width="2"/></svg></button></div>
+            </div>
+
+            <div class="row">
+              <div class="th img2"></div>
+              <div class="fn"><div class="n">screenshot-2026-10-03 141522.png</div><div class="d"><span class="mono">PNG → WebP</span> · 1.8 MB</div></div>
+              <div class="st"><span class="pct num">62%</span>&nbsp;&nbsp;ETA 4 s</div>
+              <div class="acts"><button class="ib" aria-label="Stop"><svg class="i" viewBox="0 0 16 16"><path d="M4 4h8v8H4z"/></svg></button>
+                <button class="ib" aria-label="Row menu"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h.5M8 8h.5M13 8h.5" stroke-width="2"/></svg></button></div>
+              <div class="track"><i style="width:62%"></i></div>
+            </div>
+
+            <div class="row">
+              <div class="th img3"></div>
+              <div class="fn"><div class="n">hero-banner@2x.png</div><div class="d"><span class="mono">PNG → WebP</span> · 4.6 MB</div></div>
+              <div class="st">Queued</div>
+              <div class="acts"><button class="ib" aria-label="Stop"><svg class="i" viewBox="0 0 16 16"><path d="M4 4h8v8H4z"/></svg></button>
+                <button class="ib" aria-label="Row menu"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h.5M8 8h.5M13 8h.5" stroke-width="2"/></svg></button></div>
+            </div>
+
+            <div class="row fail">
+              <div class="th img4"></div>
+              <div class="fn"><div class="n">scan_receipt_0091.tiff</div><div class="d"><span class="mono">TIFF → WebP</span> · 22.4 MB</div></div>
+              <div class="st err">Unsupported TIFF compression (JPEG-in-TIFF, old-style)</div>
+              <div class="acts"><button class="ib" aria-label="Retry"><svg class="i" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.5M12 1.5V5H8.5"/></svg></button>
+                <button class="ib" aria-label="Row menu"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h.5M8 8h.5M13 8h.5" stroke-width="2"/></svg></button></div>
+            </div>
+          </div>
+
+          <!-- Video, other group: dimmed -->
+          <div class="grp dim" title="Different group. Select it to change its options.">
+            <div class="gh"><b>Video</b><span class="num">1 video</span><span class="sp"></span><span class="hint">Different group, click to switch</span></div>
+            <div class="row">
+              <div class="th">MOV</div>
+              <div class="fn"><div class="n">screen-recording-standup.mov</div><div class="d"><span class="mono">MOV → MP4</span> · 812 MB</div></div>
+              <div class="st"><span class="pct num">18.4%</span>&nbsp;&nbsp;ETA 3 min 12 s</div>
+              <div class="acts"><button class="ib" aria-label="Stop" tabindex="-1"><svg class="i" viewBox="0 0 16 16"><path d="M4 4h8v8H4z"/></svg></button>
+                <button class="ib" aria-label="Row menu" tabindex="-1"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h.5M8 8h.5M13 8h.5" stroke-width="2"/></svg></button></div>
+              <div class="track"><i style="width:18.4%"></i></div>
+            </div>
+          </div>
+
+          <!-- Documents -->
+          <div class="grp">
+            <div class="gh"><b>Documents</b><span class="num">2 documents</span></div>
+            <div class="row">
+              <div class="th">PDF</div>
+              <div class="fn"><div class="n">Q3-board-deck.pdf</div><div class="d"><span class="mono">PDF → DOCX</span> · 14.1 MB</div></div>
+              <div class="st">Queued</div>
+              <div class="acts"><button class="ib" aria-label="Stop"><svg class="i" viewBox="0 0 16 16"><path d="M4 4h8v8H4z"/></svg></button>
+                <button class="ib" aria-label="Row menu"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h.5M8 8h.5M13 8h.5" stroke-width="2"/></svg></button></div>
+            </div>
+            <div class="row">
+              <div class="th">TXT</div>
+              <div class="fn"><div class="n">release-notes-0.3.txt</div><div class="d"><span class="mono">TXT → PDF</span> · 6 KB</div></div>
+              <div class="st"><span class="ok num">6 KB → 48 KB</span></div>
+              <div class="acts"><button class="ib ghost" aria-hidden="true" tabindex="-1"></button>
+                <button class="ib" aria-label="Row menu" aria-expanded="true" style="background:#1e1e1e;color:var(--fg)"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h.5M8 8h.5M13 8h.5" stroke-width="2"/></svg></button></div>
+              <div class="menu" role="menu">
+                <button role="menuitem">Open<span class="k">Enter</span></button>
+                <button role="menuitem">Show in folder<span class="k">Ctrl E</span></button>
+                <hr>
+                <button role="menuitem" class="dz">Remove<span class="k">Del</span></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Archives -->
+          <div class="grp">
+            <div class="gh"><b>Archives</b><span class="num">1 archive</span></div>
+            <div class="row">
+              <div class="th">CBZ</div>
+              <div class="fn"><div class="n">One-Piece-v104.cbz</div><div class="d"><span class="mono">CBZ → CB7</span> · 186 MB</div></div>
+              <div class="st">Queued</div>
+              <div class="acts"><button class="ib" aria-label="Stop"><svg class="i" viewBox="0 0 16 16"><path d="M4 4h8v8H4z"/></svg></button>
+                <button class="ib" aria-label="Row menu"><svg class="i" viewBox="0 0 16 16"><path d="M3 8h.5M8 8h.5M13 8h.5" stroke-width="2"/></svg></button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- options -->
+        <aside class="opts" aria-label="Options for Images">
+          <div class="oh">
+            <h2>Images <span>· 4 selected</span></h2>
+            <p>Settings apply to the selected group only.</p>
+          </div>
+
+          <div class="sec">
+            <div class="lbl"><b>Target format</b><span class="mono" style="font-size:11.5px">.webp</span></div>
+            <div class="fmts">
+              <button class="fmt" disabled data-why="2 sources are already PNG">PNG</button>
+              <button class="fmt">JPG</button>
+              <button class="fmt" aria-pressed="true">WebP</button>
+              <button class="fmt">AVIF</button>
+              <button class="fmt">JXL</button>
+              <button class="fmt" disabled data-why="1 source is already TIFF">TIFF</button>
+              <button class="fmt">BMP</button>
+              <button class="fmt">GIF</button>
+              <button class="fmt">ICO</button>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="lbl"><b>Quality</b></div>
+            <div class="seg" role="group" aria-label="Quality">
+              <button>Smaller</button><button aria-pressed="true">Balanced</button><button>Best</button>
+            </div>
+            <div class="seg-note">WebP q82. Good for photos and screenshots.</div>
+          </div>
+
+          <div class="sec" style="border-bottom:0">
+            <div class="lbl"><b>Output</b><span>Next to source</span></div>
+            <div class="out">
+              <div class="path"><svg class="i" viewBox="0 0 16 16"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z"/></svg><span>D:\Photos\2026-10\</span></div>
+              <button class="btn-o">Change folder…</button>
+            </div>
+            <p class="note">Never overwrites. Collisions save as <code>name (converted).webp</code>, then <code>(2)</code>.</p>
+          </div>
+
+          <div class="grow"></div>
+
+          <div class="sec" style="border-top:1px solid var(--rowline);border-bottom:0">
+            <div class="lbl"><b>Selected sources</b><span class="mono num" style="font-size:11.5px">32.0 MB in</span></div>
+            <dl class="kv">
+              <dt>HEIC</dt><dd class="num">1 · 3.2 MB</dd>
+              <dt>PNG</dt><dd class="num">2 · 6.4 MB</dd>
+              <dt>TIFF</dt><dd class="num">1 · 22.4 MB</dd>
+              <dt>Engine</dt><dd>ImageMagick 7.1.1</dd>
+            </dl>
+          </div>
+
+          <div class="pill">
+            <button class="ghost">Clear finished</button>
+            <span class="sp"></span>
+            <button class="run">Convert 4 images <kbd>Ctrl ↵</kbd></button>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- status bar -->
+  <footer class="sb">
+    <span class="prog"><span class="bar"><i></i></span><span class="num">41%</span></span>
+    <span class="num">2 of 8 done · 2 running · <span class="err">1 failed</span></span>
+    <span class="sep"></span>
+    <span>RTX 5090 · Real-ESRGAN ready</span>
+    <span class="sp"></span>
+    <span class="eng"><span>ffmpeg 7.1</span><span>ImageMagick 7.1.1</span><span>mutool 1.24</span><span>7-Zip 24.08</span><span class="no" title="CBR writing is disabled">Rar.exe not found</span></span>
+  </footer>
+</div>
+</body>
+</html>

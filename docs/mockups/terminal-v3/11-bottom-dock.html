@@ -1,0 +1,291 @@
+<!doctype html>
+<!--
+  Filesmith Round 3, mockup 11: Bottom Dock
+  Pitch: The verbs sit in a quiet dock at the bottom, like a tool tray, so the top of
+  the window belongs entirely to the job at hand.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith - Bottom Dock</title>
+<style>
+:root{
+  --bg:#000; --band:#0a0a0a; --card:#0a0a0a; --card-b:#1e1e1e; --div:#161616;
+  --hover:#121212; --active-row:#0e0e0e; --sel:#222;
+  --fg:#f2f2f2; --fg2:#d0d0d0; --fg3:#8f8f8f; --glyph:#b0b0b0; --dis:#5c5c5c;
+  --line:#1a1a1a; --track:#303030; --chip:#141414; --chip-b:#2a2a2a;
+  --ui:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);overflow:hidden}
+body{font:13px/1.4 var(--ui);color:var(--fg);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.i16{width:16px;height:16px}.i18{width:18px;height:18px}.i20{width:20px;height:20px}.i24{width:24px;height:24px}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+button:active{transform:scale(.97)}
+button,.row,.chip,.seg button,.dock-item,.radio{transition:background-color 120ms var(--ease),color 120ms var(--ease),border-color 120ms var(--ease),transform 120ms var(--ease)}
+
+.app{width:1440px;height:900px;display:flex;flex-direction:column;position:relative;background:var(--bg)}
+
+/* titlebar */
+.titlebar{height:38px;flex:none;display:flex;align-items:center;border-bottom:1px solid var(--line);padding-left:12px}
+.logo{width:20px;height:20px;border-radius:5px;background:var(--fg);color:#000;display:grid;place-items:center}
+.logo svg{width:14px;height:14px;stroke-width:1.8;stroke-linecap:square;stroke-linejoin:miter}
+.appname{font-weight:600;font-size:13px;margin-left:10px}
+.tb-center{flex:1;text-align:center;font:12px var(--mono);color:var(--fg3)}
+.winctl{display:flex}
+.winctl button{width:46px;height:38px;display:grid;place-items:center;color:var(--glyph)}
+.winctl button:hover{background:#1a1a1a;color:var(--fg)}
+.winctl button.close:hover{background:#3a3a3a}
+.winctl svg{width:15px;height:15px;stroke-width:1.2;stroke-linecap:square;stroke-linejoin:miter}
+
+/* header band */
+.band{flex:none;background:var(--band);border-bottom:1px solid var(--line)}
+.wrap{width:1120px;margin:0 auto}
+.head{height:112px;display:flex;align-items:center;gap:18px}
+.tile{width:48px;height:48px;border:1px solid #2a2a2a;border-radius:10px;display:grid;place-items:center;color:var(--fg);background:#000}
+.head h1{font-size:26px;font-weight:600;letter-spacing:-.3px;line-height:1.15}
+.head p{font-size:13px;color:var(--fg3);margin-top:4px}
+.head .spacer{flex:1}
+.count{font:13px var(--mono);color:var(--fg3)}
+.btn2{height:32px;padding:0 14px 0 12px;display:flex;align-items:center;gap:8px;border:1px solid #3a3a3a;border-radius:8px;color:var(--fg2);font-size:13px;font-weight:500}
+.btn2:hover{background:var(--hover);color:var(--fg);border-color:#4a4a4a}
+
+/* body */
+.main{flex:1;min-height:0;padding-top:40px}
+.grid{display:grid;grid-template-columns:1fr 340px;gap:32px;align-items:stretch}
+.grid>section,.grid>aside{display:flex;flex-direction:column}
+.grid .card{flex:1;display:flex;flex-direction:column}
+.cap{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:500;color:var(--fg3);margin-bottom:10px;padding:0 2px}
+.cap .meta{font:12px var(--mono);color:var(--fg3);font-weight:400}
+.card{background:var(--card);border:1px solid var(--card-b);border-radius:12px;overflow:hidden}
+
+/* queue rows */
+.row{display:grid;grid-template-columns:32px 1fr 200px 72px;align-items:center;gap:16px;height:58px;padding:0 12px 0 16px;border-top:1px solid var(--div)}
+.row:first-child{border-top:0}
+.row:hover,.row.hov{background:var(--hover)}
+.row.running{background:var(--active-row)}
+.row.running:hover{background:var(--hover)}
+.kind{width:32px;height:32px;border-radius:6px;background:#0e0e0e;border:1px solid #212121;display:grid;place-items:center;color:var(--glyph)}
+.thumb{width:32px;height:32px;border-radius:6px;border:1px solid #2a2a2a}
+.t1{background:radial-gradient(circle at 70% 30%,#d6d6d6 0 3px,transparent 4px),linear-gradient(180deg,#5a5a5a 0%,#2c2c2c 55%,#151515 56%,#222 100%)}
+.t2{background:radial-gradient(ellipse at 50% 62%,#9a9a9a 0 7px,#4a4a4a 8px,transparent 9px),linear-gradient(135deg,#3a3a3a,#111)}
+.name{min-width:0}
+.fn{font:13px var(--mono);color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sz{font-size:12px;color:var(--fg3);margin-top:1px;font-variant-numeric:tabular-nums}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg3);justify-content:flex-start}
+.status.done{color:var(--fg2)}
+.status.done .new{font:13px var(--mono);font-variant-numeric:tabular-nums}
+.status.done .lbl{color:var(--fg3);font-size:12px}
+.bar{width:132px;height:2px;background:var(--track);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:62%;background:var(--fg)}
+.pct{font:13px var(--mono);color:var(--fg);font-variant-numeric:tabular-nums}
+.status.err{color:var(--fg);font-weight:600}
+.acts{display:flex;justify-content:flex-end;gap:4px}
+.ib{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--glyph)}
+.ib:hover{background:#262626;color:var(--fg)}
+.row .hv{opacity:0;transition:opacity 120ms var(--ease)}
+.row:hover .hv,.row.hov .hv,.row:focus-within .hv{opacity:1}
+.drop{margin:12px;flex:1;min-height:44px;border:1px dashed #2a2a2a;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--fg3);font-size:12px}
+.drop:hover{border-color:#4a4a4a;color:var(--fg2)}
+
+/* options */
+.opt{padding:16px 18px;border-top:1px solid var(--div)}
+.opt:first-child{border-top:0}
+.olab{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:500;margin-bottom:12px}
+.olab .meta{font:12px var(--mono);color:var(--fg3);font-weight:400}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chip{height:32px;border-radius:8px;background:var(--chip);border:1px solid var(--chip-b);font:13px var(--mono);color:var(--fg2)}
+.chip:hover{background:#1c1c1c;border-color:#3a3a3a;color:var(--fg)}
+.chip.on{background:var(--fg);border-color:var(--fg);color:#000;font-weight:600}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);height:32px;padding:3px;border-radius:8px;background:#000;border:1px solid var(--chip-b)}
+.seg button{border-radius:5px;font-size:12px;color:var(--fg3)}
+.seg button:hover{color:var(--fg);background:#161616}
+.seg button.on{background:#2e2e2e;color:var(--fg);font-weight:600}
+.radios{display:flex;flex-direction:column;gap:4px;margin:0 -8px}
+.radio{height:32px;display:flex;align-items:center;gap:10px;padding:0 8px;border-radius:8px;font-size:13px;color:var(--fg2);text-align:left}
+.radio:hover{background:var(--hover);color:var(--fg)}
+.dot{width:16px;height:16px;border-radius:50%;border:1.5px solid #5c5c5c;display:grid;place-items:center}
+.radio.on .dot{border-color:var(--fg)}
+.radio.on .dot::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--fg)}
+.radio.on{color:var(--fg)}
+.radio svg{margin-left:auto;color:var(--glyph)}
+.tog-row{display:flex;align-items:center;justify-content:space-between}
+.tog-row .t{font-size:13px;font-weight:500}
+.tog-row .d{font-size:12px;color:var(--fg3);margin-top:1px}
+.toggle{width:36px;height:22px;border-radius:11px;background:var(--track);position:relative}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#e6e6e6;transition:transform 180ms var(--ease),background-color 180ms var(--ease)}
+.toggle.on{background:var(--fg)}
+.toggle.on::after{transform:translateX(14px);background:#000}
+.go{margin-top:auto;padding:16px 18px 18px;border-top:1px solid var(--div)}
+.primary{width:100%;height:40px;border-radius:8px;background:var(--fg);color:#000;display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;font-weight:600}
+.primary:hover{background:#fff}
+.primary svg{stroke-width:1.7}
+
+/* dock */
+.dockzone{position:absolute;left:0;right:0;bottom:20px;display:flex;justify-content:center}
+.dock{display:flex;align-items:center;gap:4px;height:72px;padding:0 8px;background:#0b0b0b;border:1px solid #262626;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.6)}
+.dock-item{position:relative;width:84px;height:56px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--fg3)}
+.dock-item svg{color:var(--glyph);transition:color 120ms var(--ease)}
+.dock-item span{font:12px var(--mono);font-weight:500;white-space:nowrap}
+.dock-item:hover{background:var(--hover);color:var(--fg)}
+.dock-item:hover svg{color:var(--fg)}
+.dock-item.on{background:var(--sel);color:var(--fg)}
+.dock-item.on svg{color:var(--fg)}
+.ico-row{display:flex;align-items:center;gap:6px;height:20px}
+.dock-item .pill{font:500 11px/16px var(--mono);height:16px;padding:0 5px;border-radius:5px;background:#1c1c1c;border:1px solid #2e2e2e;color:var(--fg2);font-variant-numeric:tabular-nums}
+.dock-item:hover .pill{border-color:#3a3a3a;color:var(--fg)}
+.dock-item.wide{width:100px}
+.vr{width:1px;height:40px;background:#262626;margin:0 6px}
+.dock-item.gear{width:76px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="titlebar">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M4 6h13a3 3 0 0 1-3 3h-1v4l3 4H8l3-4V9H4z"/></svg></div>
+    <div class="appname">Filesmith</div>
+    <div class="tb-center">convert</div>
+    <div class="winctl">
+      <button aria-label="Minimize"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <button aria-label="Maximize"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg></button>
+      <button class="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+  </header>
+
+  <section class="band">
+    <div class="wrap head">
+      <div class="tile"><svg class="i24" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg></div>
+      <div>
+        <h1>Convert</h1>
+        <p>Change images to another format.</p>
+      </div>
+      <div class="spacer"></div>
+      <span class="count">6 files</span>
+      <button class="btn2"><svg class="i16" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M12 11v6M9 14h6"/></svg>Add files</button>
+    </div>
+  </section>
+
+  <main class="main">
+    <div class="wrap grid">
+
+      <!-- queue -->
+      <section>
+        <div class="cap"><span>Queue</span><span class="meta">2 of 6 done</span></div>
+        <div class="card">
+          <div class="rows">
+            <div class="row">
+              <div class="thumb t1"></div>
+              <div class="name"><div class="fn">IMG_4821.HEIC</div><div class="sz">3.2 MB</div></div>
+              <div class="status done"><svg class="i16" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span class="new">640 KB</span></div>
+              <div class="acts hv">
+                <button class="ib" aria-label="Show in folder"><svg class="i16" viewBox="0 0 24 24"><path d="M3 19V5a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v3"/><path d="m3 19 2.6-7.2a1 1 0 0 1 .9-.8H21l-3 8z"/></svg></button>
+                <button class="ib" aria-label="Remove"><svg class="i16" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="thumb t2"></div>
+              <div class="name"><div class="fn">product-shot.jpg</div><div class="sz">2.1 MB</div></div>
+              <div class="status done"><svg class="i16" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span class="new">486 KB</span></div>
+              <div class="acts hv">
+                <button class="ib" aria-label="Show in folder"><svg class="i16" viewBox="0 0 24 24"><path d="M3 19V5a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v3"/><path d="m3 19 2.6-7.2a1 1 0 0 1 .9-.8H21l-3 8z"/></svg></button>
+                <button class="ib" aria-label="Remove"><svg class="i16" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+            <div class="row running">
+              <div class="kind"><svg class="i16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="name"><div class="fn">screenshot-2026-10-03.png</div><div class="sz">1.8 MB</div></div>
+              <div class="status"><div class="bar"><i></i></div><span class="pct">62%</span></div>
+              <div class="acts hv">
+                <button class="ib" aria-label="Remove"><svg class="i16" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+            <div class="row hov">
+              <div class="kind"><svg class="i16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="name"><div class="fn">hero-banner@2x.png</div><div class="sz">4.6 MB</div></div>
+              <div class="status"><svg class="i16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>queued</div>
+              <div class="acts hv">
+                <button class="ib" aria-label="Remove"><svg class="i16" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="kind"><svg class="i16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="name"><div class="fn">scan_0091.tiff</div><div class="sz">22.4 MB</div></div>
+              <div class="status err"><svg class="i16" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Unsupported compression</div>
+              <div class="acts">
+                <button class="ib" aria-label="Retry" style="color:var(--fg)"><svg class="i16" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg></button>
+                <button class="ib hv" aria-label="Remove"><svg class="i16" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="kind"><svg class="i16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="name"><div class="fn">logo-final.bmp</div><div class="sz">1.1 MB</div></div>
+              <div class="status"><svg class="i16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>queued</div>
+              <div class="acts hv">
+                <button class="ib" aria-label="Remove"><svg class="i16" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+          </div>
+          <button class="drop" style="width:calc(100% - 24px)"><svg class="i16" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Drop more files here</button>
+        </div>
+      </section>
+
+      <!-- options -->
+      <aside>
+        <div class="cap"><span>Options</span></div>
+        <div class="card">
+          <div class="opt">
+            <div class="olab"><span>Format</span><span class="meta">.webp</span></div>
+            <div class="chips">
+              <button class="chip on">WebP</button><button class="chip">JPG</button><button class="chip">PNG</button>
+              <button class="chip">AVIF</button><button class="chip">JXL</button><button class="chip">TIFF</button>
+            </div>
+          </div>
+          <div class="opt">
+            <div class="olab"><span>Quality</span></div>
+            <div class="seg"><button>Smaller</button><button class="on">Balanced</button><button>Best</button></div>
+          </div>
+          <div class="opt">
+            <div class="olab" style="margin-bottom:8px"><span>Output</span></div>
+            <div class="radios">
+              <button class="radio on"><span class="dot"></span>Next to source</button>
+              <button class="radio"><span class="dot"></span>Choose folder…<svg class="i16" viewBox="0 0 24 24"><path d="M3 19V5a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v3"/><path d="m3 19 2.6-7.2a1 1 0 0 1 .9-.8H21l-3 8z"/></svg></button>
+            </div>
+          </div>
+          <div class="opt tog-row">
+            <div><div class="t">Keep metadata</div><div class="d">Date, camera and location</div></div>
+            <button class="toggle on" role="switch" aria-checked="true" aria-label="Keep metadata"></button>
+          </div>
+          <div class="go">
+            <button class="primary"><svg class="i16" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>Convert 6 files</button>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+  </main>
+
+  <!-- dock -->
+  <div class="dockzone">
+    <nav class="dock" aria-label="Tools">
+      <button class="dock-item on" aria-current="page"><svg class="i20" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg><span>Convert</span></button>
+      <button class="dock-item"><svg class="i20" viewBox="0 0 24 24"><path d="m15 15 6 6"/><path d="M15 19.5V15h4.5"/><path d="m9 9-6-6"/><path d="M9 4.5V9H4.5"/><path d="m15 9 6-6"/><path d="M15 4.5V9h4.5"/><path d="m9 15-6 6"/><path d="M9 19.5V15H4.5"/></svg><span>Compress</span></button>
+      <button class="dock-item"><svg class="i20" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M14 3h7v7"/><path d="m21 3-9 9"/><path d="M9 15h3v-3"/></svg><span>Resize</span></button>
+      <button class="dock-item"><svg class="i20" viewBox="0 0 24 24"><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M14 3h7v7"/><path d="m21 3-8 8"/><path d="M3 9V4a1 1 0 0 1 1-1h5"/></svg><span>Upscale</span></button>
+      <button class="dock-item"><svg class="i20" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3a2.4 2.4 0 0 1 0-3.4l9.6-9.6a2.4 2.4 0 0 1 3.4 0l5.6 5.6a2.4 2.4 0 0 1 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg><span>Remove BG</span></button>
+      <button class="dock-item"><svg class="i20" viewBox="0 0 24 24"><path d="M10 3.5 11.8 8.2 16.5 10l-4.7 1.8L10 16.5l-1.8-4.7L3.5 10l4.7-1.8z"/><path d="M19 3v4M17 5h4M18 16v4M16 18h4"/></svg><span>Generate</span></button>
+      <button class="dock-item"><svg class="i20" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tools</span></button>
+      <div class="vr"></div>
+      <button class="dock-item wide" aria-label="Completed, 142 files"><span class="ico-row"><svg class="i20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><span class="pill">142</span></span><span>Completed</span></button>
+      <div class="vr"></div>
+      <button class="dock-item gear" aria-label="Settings"><svg class="i20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Settings</span></button>
+    </nav>
+  </div>
+
+</div>
+</body>
+</html>

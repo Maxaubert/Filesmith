@@ -1,0 +1,324 @@
+<!--
+  Filesmith round 4, mockup 17: "Quiet"
+  Pitch: Sublime-quiet. Almost no chrome, verb tabs with icon and label live in the title bar,
+  and every option is squeezed into one inline bar above the queue, like Sublime's Find panel.
+  The window is almost all files; the before/after compare pane stays collapsed to a 28px strip.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith - Quiet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0b0b0b; --bar:#111111; --status:#0f0f0f;
+  --input:#181818; --hover:#1a1a1a; --selected:#202020; --selected-strong:#2a2a2a;
+  --hairline:#1e1e1e; --hairline-strong:#303030;
+  --fg1:#e8e8e8; --fg2:#b0b0b0; --fg3:#8a8a8a; --fg-dis:#5a5a5a;
+  --accent-bg:#d6d6d6; --accent-fg:#0b0b0b; --focus:#cfcfcf;
+  --fill:#e8e8e8; --track:#2a2a2a;
+  --ui:system-ui,"Segoe UI Variable Text","Segoe UI",sans-serif;
+  --mono:"Fira Code","Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:1440px;height:900px;overflow:hidden;background:var(--bg-0);color:var(--fg1);
+  font:13px/1.4 var(--ui);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:1px solid var(--focus);outline-offset:2px}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:"liga" 0,"calt" 0}
+
+.app{display:grid;grid-template-rows:32px 40px 1fr 28px 24px;height:900px}
+
+/* ---------- title bar with verb tabs ---------- */
+.title{display:flex;align-items:stretch;border-bottom:1px solid var(--hairline);background:var(--bg-0)}
+.brand{width:44px;display:grid;place-items:center;color:var(--fg2)}
+.tabs{display:flex;align-items:stretch}
+.tab{position:relative;display:flex;align-items:center;gap:7px;padding:0 13px;color:var(--fg3);font-size:12px;line-height:1;white-space:nowrap}
+.tab:hover{color:var(--fg2);background:var(--hover)}
+.tab:active{background:var(--selected)}
+.tab.on{color:var(--fg1)}
+.tab.on::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--fill)}
+.tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--bg-0)}
+.tab .n{font-size:11px;color:var(--fg2);margin-left:2px}
+.tab-sep{width:1px;background:var(--hairline);margin:9px 6px}
+.drag{flex:1}
+.tr{display:flex;align-items:stretch}
+.ib{display:flex;align-items:center;gap:6px;padding:0 11px;color:var(--fg3);font-size:12px}
+.ib:hover{color:var(--fg1);background:var(--hover)}
+.ib .mono{font-size:11px}
+.wc{width:46px;display:grid;place-items:center;color:var(--fg2)}
+.wc:hover{background:var(--hover);color:var(--fg1)}
+.wc svg{width:10px;height:10px;stroke:currentColor;stroke-width:1;fill:none}
+.wsep{width:1px;background:var(--hairline);margin:9px 4px}
+
+/* ---------- inline option bar (Sublime find panel) ---------- */
+.opts{display:flex;align-items:center;gap:20px;padding:0 12px 0 20px;background:var(--bar);border-bottom:1px solid var(--hairline)}
+.field{display:flex;align-items:center;gap:8px}
+.lbl{font-size:12px;color:var(--fg3);line-height:1}
+.seg{display:flex;height:24px;border:1px solid var(--hairline-strong);border-radius:3px;overflow:hidden}
+.seg button{padding:0 10px;font-size:12px;color:var(--fg2);border-left:1px solid var(--hairline-strong);line-height:22px}
+.seg button:first-child{border-left:0}
+.seg button:hover{background:var(--hover);color:var(--fg1)}
+.seg button:active{background:var(--selected)}
+.seg button[aria-pressed=true]{background:var(--selected-strong);color:var(--fg1);font-weight:600}
+.seg.fmt button{font-family:var(--mono);font-size:12px;min-width:46px;padding:0 8px;font-feature-settings:"liga" 0}
+.dd{display:flex;align-items:center;gap:8px;height:24px;padding:0 6px 0 8px;background:var(--input);border:1px solid var(--hairline-strong);border-radius:2px;font-size:12px;color:var(--fg1)}
+.dd:hover{border-color:#444}
+.dd .i{color:var(--fg2)}
+.chk{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2)}
+.chk:hover{color:var(--fg1)}
+.box{width:16px;height:16px;border-radius:2px;background:var(--accent-bg);display:grid;place-items:center;color:var(--accent-fg)}
+.box svg{width:12px;height:12px;stroke-width:1.75}
+.opts .spacer{flex:1}
+.btn{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:2px;font-size:12px;line-height:1}
+.btn.sec{background:var(--input);border:1px solid var(--hairline-strong);color:var(--fg1)}
+.btn.sec:hover{background:#202020}
+.btn.sec:active{background:var(--selected-strong)}
+.btn.pri{background:var(--accent-bg);color:var(--accent-fg);font-weight:600;font-size:13px;padding:0 12px}
+.btn.pri:hover{background:#e8e8e8}
+.btn.pri:active{background:#bdbdbd}
+.btn.pri svg{stroke-width:1.5}
+.vsep{width:1px;height:16px;background:var(--hairline-strong)}
+
+/* ---------- workspace: queue over preview ---------- */
+/* workspace */
+.queue{padding:0 0 4px}
+.cols,.row{display:grid;grid-template-columns:20px 24px minmax(0,1fr) 200px 260px 44px;column-gap:14px;align-items:center;padding:0 20px 0 28px}
+.cols{height:30px;font-size:11px;color:var(--fg3);border-bottom:1px solid var(--hairline)}
+.cols span{line-height:1}
+.cols .r{text-align:right}
+.cols .sort{display:flex;align-items:center;gap:4px}
+.cols .sort svg{width:12px;height:12px}
+.row{position:relative;height:36px;border-bottom:1px solid #151515}
+.row:hover{background:var(--hover)}
+.row:hover .meta,.row.sel .meta{color:var(--fg2)}
+.row.sel{background:var(--selected)}
+.row.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg2)}
+.row.fail::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.st{color:var(--fg3);display:grid;place-items:center}
+.st.done{color:var(--fg2)}
+.st.fail{color:var(--fg1)}
+.st.run{color:var(--fg1)}
+.thumb{width:24px;height:24px;border-radius:2px;border:1px solid var(--hairline-strong);overflow:hidden}
+.name{font-family:var(--mono);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-feature-settings:"liga" 0}
+.meta{font-size:12px;color:var(--fg3)}
+.size{font-family:var(--mono);font-size:12px;color:var(--fg2);font-variant-numeric:tabular-nums}
+.res{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;justify-content:flex-start}
+.res .b{color:var(--fg3)}
+.res .a{color:var(--fg1);font-weight:600}
+.res .arr{width:12px;height:12px;color:var(--fg3)}
+.prog{width:140px;height:2px;background:var(--track);position:relative}
+.prog i{position:absolute;inset:0 38% 0 0;background:var(--fill)}
+.err{font-family:var(--ui);font-weight:600;color:var(--fg1);font-size:12px}
+.q{color:var(--fg3);font-family:var(--ui)}
+.act{display:flex;justify-content:flex-end}
+.act button{width:24px;height:24px;border-radius:3px;display:grid;place-items:center;color:var(--fg2)}
+.act button:hover{background:var(--selected-strong);color:var(--fg1)}
+.act .x{opacity:0}
+.row:hover .act .x{opacity:1}
+.drop{display:flex;align-items:center;gap:10px;height:38px;padding:0 28px 0 62px;color:var(--fg3);font-size:12px}
+.drop:hover{color:var(--fg2)}
+.drop u{text-decoration:none;color:var(--fg2);border-bottom:1px solid var(--hairline-strong)}
+.drop:hover u{color:var(--fg1)}
+
+/* empty canvas watermark */
+.work{display:grid;grid-template-rows:auto 1fr;min-height:0}
+.canvas{display:grid;place-items:center;color:#1f1f1f}
+.canvas svg{width:72px;height:72px;stroke-width:1;fill:none;stroke:currentColor}
+
+/* collapsed compare strip */
+.pv{display:flex;align-items:stretch;padding:0 12px 0 20px;gap:2px;border-top:1px solid var(--hairline);background:var(--bg-0)}
+.pt{display:flex;align-items:center;padding:0 10px;font-size:12px;color:var(--fg3);position:relative;line-height:1}
+.pt:hover{color:var(--fg2);background:var(--hover)}
+.pt.on{color:var(--fg2)}
+.pv .file{display:flex;align-items:center;gap:8px;margin-left:12px;color:var(--fg3);font-size:12px}
+.pv .file .mono{color:var(--fg2)}
+.pv .size2{font-family:var(--mono);font-size:11.5px;color:var(--fg3);margin-left:8px}
+.pv .grow{flex:1}
+.pv .ib{padding:0 7px}
+.pv .tog{display:flex;align-items:center;padding:0 8px;color:var(--fg2)}
+.pv .tog:hover{background:var(--hover);color:var(--fg1)}
+
+/* status bar */
+.status{display:flex;align-items:stretch;background:var(--status);border-top:1px solid var(--hairline);font-size:12px;color:var(--fg2);padding:0 8px}
+.si{display:flex;align-items:center;gap:6px;padding:0 8px;line-height:1}
+.si:hover{background:var(--hover);color:var(--fg1)}
+.si svg{width:14px;height:14px}
+.si.bold{color:var(--fg1);font-weight:600}
+.si .mini{width:64px;height:1px;background:var(--track);position:relative;margin-left:4px}
+.si .mini i{position:absolute;inset:0 66% 0 0;background:var(--fill)}
+.status .grow{flex:1}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-convert" viewBox="0 0 16 16"><path d="M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13"/></symbol>
+    <symbol id="i-compress" viewBox="0 0 16 16"><path d="M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11"/></symbol>
+    <symbol id="i-resize" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10"/></symbol>
+    <symbol id="i-upscale" viewBox="0 0 16 16"><rect x="2.5" y="8.5" width="5" height="5" rx=".5"/><path d="M9 2.5h4.5V7M13.5 2.5L8.5 7.5"/></symbol>
+    <symbol id="i-removebg" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5"/></symbol>
+    <symbol id="i-generate" viewBox="0 0 16 16"><path d="M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx=".5"/><rect x="9" y="2.5" width="4.5" height="4.5" rx=".5"/><rect x="2.5" y="9" width="4.5" height="4.5" rx=".5"/><rect x="9" y="9" width="4.5" height="4.5" rx=".5"/></symbol>
+    <symbol id="i-completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8.25l1.75 1.75L10.75 6.5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 16 16"><path d="M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6"/><circle cx="9" cy="5" r="1.5"/><circle cx="6" cy="11" r="1.5"/></symbol>
+    <symbol id="i-add" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3M8 7v5M5.5 9.5h5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 16 16"><path d="M3 3v3h3M3.3 6A5 5 0 1 1 3 9.5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/></symbol>
+    <symbol id="i-chev-up" viewBox="0 0 16 16"><path d="M4 10l4-4 4 4"/></symbol>
+    <symbol id="i-chev-down" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M10 5l3 3-3 3"/></symbol>
+    <symbol id="i-split" viewBox="0 0 16 16"><path d="M8 2v12M5.5 6L3.5 8l2 2M10.5 6l2 2-2 2"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6 4.5V2.5h4v2M4.5 4.5l.5 9h6l.5-9"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx=".5"/><path d="M2 9.5h12"/></symbol>
+    <symbol id="i-anvil" viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" rx="1"/><path d="M6 11.5v-7h4.5M6 8h3.5"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <!-- title bar: brand, verb tabs, quiet right icons, window controls -->
+  <header class="title">
+    <div class="brand" title="Filesmith"><svg class="i"><use href="#i-anvil"/></svg></div>
+    <nav class="tabs" aria-label="Verbs">
+      <button class="tab on" aria-current="page"><svg class="i"><use href="#i-convert"/></svg>Convert<span class="n mono">6</span></button>
+      <button class="tab"><svg class="i"><use href="#i-compress"/></svg>Compress</button>
+      <button class="tab"><svg class="i"><use href="#i-resize"/></svg>Resize</button>
+      <button class="tab"><svg class="i"><use href="#i-upscale"/></svg>Upscale</button>
+      <button class="tab"><svg class="i"><use href="#i-removebg"/></svg>Remove BG</button>
+      <button class="tab"><svg class="i"><use href="#i-generate"/></svg>Generate</button>
+      <span class="tab-sep"></span>
+      <button class="tab"><svg class="i"><use href="#i-tools"/></svg>Tools</button>
+    </nav>
+    <div class="drag"></div>
+    <div class="tr">
+      <button class="ib" title="Completed"><svg class="i"><use href="#i-completed"/></svg><span class="mono">142</span></button>
+      <button class="ib" title="Settings"><svg class="i"><use href="#i-settings"/></svg></button>
+      <span class="wsep"></span>
+      <button class="wc" aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5h10"/></svg></button>
+      <button class="wc" aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button class="wc" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <!-- one-line option bar -->
+  <div class="opts" role="toolbar" aria-label="Convert options">
+    <div class="field"><span class="lbl">To</span>
+      <div class="seg fmt" role="group" aria-label="Format">
+        <button aria-pressed="true">WebP</button><button aria-pressed="false">JPG</button><button aria-pressed="false">PNG</button><button aria-pressed="false">AVIF</button><button aria-pressed="false">JXL</button><button aria-pressed="false">TIFF</button>
+      </div>
+    </div>
+    <div class="field"><span class="lbl">Quality</span>
+      <div class="seg" role="group" aria-label="Quality">
+        <button aria-pressed="false">Smaller</button><button aria-pressed="true">Balanced</button><button aria-pressed="false">Best</button>
+      </div>
+    </div>
+    <div class="field"><span class="lbl">Save to</span>
+      <button class="dd"><svg class="i"><use href="#i-folder"/></svg>Next to source<svg class="i"><use href="#i-chev-down"/></svg></button>
+    </div>
+    <button class="chk" role="checkbox" aria-checked="true"><span class="box"><svg class="i"><use href="#i-check"/></svg></span>Keep metadata</button>
+    <span class="spacer"></span>
+    <button class="btn sec"><svg class="i"><use href="#i-add"/></svg>Add files</button>
+    <span class="vsep"></span>
+    <button class="btn pri"><svg class="i"><use href="#i-play"/></svg>Convert 6 files</button>
+  </div>
+
+  <main class="work">
+    <section class="queue" aria-label="Queue">
+      <div class="cols">
+        <span></span><span></span>
+        <span class="sort">Name<svg class="i"><use href="#i-chev-down"/></svg></span>
+                <span>Size</span>
+        <span>Status</span>
+        <span></span>
+      </div>
+
+      <div class="row">
+        <span class="st done" title="Done"><svg class="i"><use href="#i-check"/></svg></span>
+        <span class="thumb" style="background:radial-gradient(circle at 60% 40%,#9a9a9a 0 18%,transparent 19%),linear-gradient(160deg,#5e5e5e,#2a2a2a)"></span>
+        <span class="name">IMG_4821.HEIC</span>
+        <span class="res"><span class="b">3.2 MB</span><svg class="i arr"><use href="#i-arrow"/></svg><span class="a">640 KB</span></span>
+        <span></span>
+        <span class="act"><button class="x" aria-label="Show in folder"><svg class="i"><use href="#i-folder"/></svg></button></span>
+      </div>
+
+      <div class="row sel">
+        <span class="st done" title="Done"><svg class="i"><use href="#i-check"/></svg></span>
+        <span class="thumb" style="background:linear-gradient(90deg,transparent 38%,#bdbdbd 38% 62%,transparent 62%) center/100% 70% no-repeat,linear-gradient(180deg,#3a3a3a,#1e1e1e)"></span>
+        <span class="name">product-shot.jpg</span>
+        <span class="res"><span class="b" style="color:var(--fg2)">2.1 MB</span><svg class="i arr" style="color:var(--fg2)"><use href="#i-arrow"/></svg><span class="a">486 KB</span></span>
+        <span></span>
+        <span class="act"><button aria-label="Show in folder"><svg class="i"><use href="#i-folder"/></svg></button></span>
+      </div>
+
+      <div class="row">
+        <span class="st run" title="Running"><svg class="i"><use href="#i-sync"/></svg></span>
+        <span class="thumb" style="background:linear-gradient(180deg,#4a4a4a 0 22%,#1c1c1c 22%),linear-gradient(90deg,#2c2c2c 0 30%,transparent 30%)"></span>
+        <span class="name">screenshot-2026-10-03.png</span>
+        <span class="size">1.8 MB</span>
+        <span class="res"><span class="prog"><i></i></span><span class="a">62%</span></span>
+        <span class="act"><button class="x" aria-label="Cancel"><svg class="i"><use href="#i-close"/></svg></button></span>
+      </div>
+
+      <div class="row">
+        <span class="st" title="Queued"><svg class="i"><use href="#i-clock"/></svg></span>
+        <span class="thumb" style="background:linear-gradient(115deg,#6a6a6a 0 35%,#3a3a3a 35% 60%,#222 60%)"></span>
+        <span class="name">hero-banner@2x.png</span>
+        <span class="size">4.6 MB</span>
+        <span></span>
+        <span class="act"><button class="x" aria-label="Remove"><svg class="i"><use href="#i-close"/></svg></button></span>
+      </div>
+
+      <div class="row fail">
+        <span class="st fail" title="Failed"><svg class="i"><use href="#i-warn"/></svg></span>
+        <span class="thumb" style="background:repeating-linear-gradient(0deg,#4c4c4c 0 2px,#383838 2px 4px)"></span>
+        <span class="name">scan_0091.tiff</span>
+        <span class="size">22.4 MB</span>
+        <span class="res"><span class="err">Unsupported compression</span></span>
+        <span class="act"><button aria-label="Retry" title="Retry"><svg class="i"><use href="#i-retry"/></svg></button></span>
+      </div>
+
+      <div class="row">
+        <span class="st" title="Queued"><svg class="i"><use href="#i-clock"/></svg></span>
+        <span class="thumb" style="background:radial-gradient(circle at 50% 50%,#d0d0d0 0 22%,#2a2a2a 23%)"></span>
+        <span class="name">logo-final.bmp</span>
+        <span class="size">1.1 MB</span>
+        <span></span>
+        <span class="act"><button class="x" aria-label="Remove"><svg class="i"><use href="#i-close"/></svg></button></span>
+      </div>
+
+      <button class="drop"><svg class="i"><use href="#i-add"/></svg>Drop files here or <u>browse</u></button>
+    </section>
+
+    <div class="canvas" aria-hidden="true"><svg viewBox="0 0 16 16"><use href="#i-anvil"/></svg></div>
+  </main>
+
+  <!-- compare pane, collapsed to its tab strip -->
+  <section class="pv" aria-label="Compare">
+    <button class="tog" aria-expanded="false" title="Expand compare"><svg class="i"><use href="#i-chev-up"/></svg></button>
+    <button class="pt on">Compare</button>
+    <button class="pt">Before</button>
+    <button class="pt">After</button>
+    <span class="file"><svg class="i"><use href="#i-eye"/></svg><span class="mono">product-shot.jpg</span><span class="size2">2.1 MB → 486 KB</span></span>
+    <span class="grow"></span>
+  </section>
+
+  <footer class="status">
+    <button class="si"><svg class="i"><use href="#i-sync"/></svg>Converting 3 of 6<span class="mini"><i></i></span></button>
+    <button class="si bold"><svg class="i"><use href="#i-warn"/></svg>1 failed</button>
+    <span class="grow"></span>
+    <span class="si mono" style="font-size:11.5px">2 of 6 done</span>
+  </footer>
+</div>
+</body>
+</html>

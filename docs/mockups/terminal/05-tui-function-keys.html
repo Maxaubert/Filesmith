@@ -1,0 +1,399 @@
+<!--
+  Filesmith mockup 05 of 20 · "TUI Function Keys"
+  An htop / Midnight Commander homage drawn with box characters, with an F-key bar along the bottom for every verb.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith · TUI Function Keys</title>
+<meta name="viewport" content="width=1440">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#000; --line:#3a3a3a; --line-hi:#5a5a5a;
+  --fg:#e6e6e6; --fg3:#8a8a8a; --cell:#141414; --cell-hi:#1f1f1f;
+  --acc:#56d4dd; --acc-ink:#001214; --err:#f0867e;
+  --mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;height:100%}
+body{display:flex;align-items:center;justify-content:center;font:400 13px/20px var(--mono);color:var(--fg);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus{outline:none}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+u{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.pre{white-space:pre}
+.dim{color:var(--fg3)}
+.acc{color:var(--acc)}
+.err{color:var(--err)}
+.num{font-variant-numeric:tabular-nums}
+
+.app{width:1440px;height:900px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;position:relative}
+
+/* titlebar */
+.tb{height:36px;display:flex;align-items:stretch;border-bottom:1px solid #1c1c1c;flex:none}
+.brand{display:flex;align-items:center;gap:10px;padding:0 14px;font-weight:600}
+.mark{width:18px;height:18px;background:var(--fg);color:#000;display:grid;place-items:center;font-size:12px;font-weight:600;line-height:1}
+.drag{flex:1;display:flex;align-items:center;gap:18px;color:var(--fg3)}
+.drag .path{color:var(--fg3)}
+.ver{display:flex;align-items:center;padding:0 14px;color:var(--fg3)}
+.wc{width:46px;display:grid;place-items:center;color:var(--fg);transition:background-color .14s var(--ease)}
+.wc:hover{background:#1a1a1a}
+.wc:active{background:#262626}
+.wc.x:hover{background:#c42b1c;color:#fff}
+.wc svg{width:10px;height:10px;stroke:currentColor;stroke-width:1;fill:none;shape-rendering:crispEdges}
+
+/* workspace */
+.ws{flex:1;display:flex;flex-direction:column;padding:10px 12px 0;min-height:0}
+.head{display:flex;align-items:baseline;gap:14px;padding:0 4px 12px}
+.head h1{font-size:13px;font-weight:600;letter-spacing:0}
+.head h1 .big{display:inline-block;background:var(--fg);color:#000;padding:0 8px;margin-right:2px}
+.head .sp{flex:1}
+.kbd{display:inline-block;border:1px solid var(--line-hi);padding:0 5px;line-height:16px;font-size:11px;color:var(--fg)}
+
+.cols{flex:1;display:flex;gap:10px;min-height:0}
+.box{position:relative;border:3px double var(--line);padding:16px 14px 12px;display:flex;flex-direction:column;min-height:0}
+.box > .ttl{position:absolute;top:-12px;left:12px;background:var(--bg);padding:0 4px;font-weight:600;white-space:pre}
+.box > .ttl .dim{font-weight:400}
+.box > .ttr{position:absolute;top:-12px;right:12px;background:var(--bg);padding:0 4px;white-space:pre;color:var(--fg3)}
+.box > .ttb{position:absolute;bottom:-12px;left:12px;background:var(--bg);padding:0 4px;white-space:pre;color:var(--fg3)}
+.q{flex:1;min-width:0}
+.opt{width:320px;flex:none}
+
+/* add strip */
+.add{display:flex;align-items:center;gap:12px;border:1px dashed #444;padding:5px 10px;margin-bottom:12px;color:var(--fg3);transition:border-color .14s var(--ease),color .14s var(--ease)}
+.add:hover{border-color:var(--fg3);color:var(--fg)}
+.add .plus{color:var(--fg);font-weight:600}
+.add .sp{flex:1}
+
+/* table */
+.grid{display:grid;grid-template-columns:22px 46px minmax(0,1fr) 72px 108px 210px 166px 56px;column-gap:10px;align-items:center}
+.th{color:var(--fg3);padding:0 6px 4px;border-bottom:1px solid #262626;margin-bottom:4px}
+.th > div:nth-child(4){text-align:right}
+.grp{color:var(--fg3);white-space:pre;padding:8px 0 2px;overflow:hidden}
+.grp b{color:var(--fg);font-weight:600}
+.grp.on b{color:var(--acc)}
+.row{padding:0 6px;height:26px;cursor:default;transition:background-color .12s var(--ease)}
+.row > div{white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.row > .sz{text-align:right}
+.row:hover{background:var(--cell-hi)}
+.row:active{background:#2a2a2a}
+.row.sel{background:#101010}
+.row.sel:hover{background:var(--cell-hi)}
+.row.cur{background:var(--fg);color:#000}
+.row.cur .dim{color:#3a3a3a}
+.row.cur .act button{color:#000}
+.row.locked{color:var(--fg3)}
+.row.locked:hover{background:transparent}
+.st{font-weight:600}
+.st.ok{color:var(--fg)}
+.st.s-run{color:var(--acc)}
+.st.wait{color:var(--fg3);font-weight:400}
+.st.e{color:var(--err)}
+.mark-c{color:var(--acc)}
+.row.cur .mark-c{color:#000}
+.bar .b{color:var(--acc)}
+.bar.done .b{color:var(--fg3)}
+.cont{padding:0 6px 4px;height:auto;color:var(--err)}
+.cont > div:nth-child(3){grid-column:3 / span 5;white-space:pre}
+.act{display:flex;gap:4px;justify-content:flex-end}
+.act button{width:26px;height:20px;color:var(--fg3);transition:color .12s var(--ease),background-color .12s var(--ease)}
+.act button:hover{color:var(--fg);background:#2a2a2a}
+.act button:active{transform:scale(.94)}
+.row.cur .act button:hover{background:#c8c8c8}
+
+.bar .x{color:var(--err)}
+.info{margin-top:auto;border-top:1px solid #262626;padding:10px 6px 4px}
+.ih{color:var(--fg3);margin-bottom:6px;white-space:pre}
+.ig{display:grid;grid-template-columns:68px 1fr;row-gap:2px;white-space:pre}
+.will{display:grid;grid-template-columns:1fr;font-size:12px;line-height:18px;white-space:pre;color:var(--fg)}
+.will .dim{color:var(--fg3)}
+/* row menu */
+.menu{position:absolute;z-index:3;background:#000;border:3px double var(--line-hi);padding:4px 0;width:200px}
+.menu button{display:flex;width:100%;padding:0 12px;height:24px;align-items:center;justify-content:space-between;text-align:left}
+.menu button:hover,.menu button.hl{background:var(--fg);color:#000}
+.menu button:hover .dim,.menu button.hl .dim{color:#3a3a3a}
+.menu button.rm{color:var(--err)}
+.menu button.rm:hover{background:var(--err);color:#000}
+.menu hr{border:0;border-top:1px solid #2a2a2a;margin:4px 0}
+
+/* options */
+.sec{margin-bottom:16px}
+.lab{display:flex;justify-content:space-between;margin-bottom:6px}
+.lab .dim{font-size:12px}
+.radios{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 0}
+.rd{display:flex;align-items:center;height:26px;padding:0 6px;white-space:pre;text-align:left;transition:background-color .12s var(--ease)}
+.rd:hover{background:var(--cell-hi)}
+.rd:active{background:#2a2a2a}
+.rd .o{color:var(--fg3)}
+.rd.on{background:var(--fg);color:#000}
+.rd.on .o{color:#000}
+.rd[disabled]{color:#8a8a8a;cursor:not-allowed;text-decoration:line-through;text-decoration-color:#555}
+.rd[disabled]:hover{background:transparent}
+.seg{display:flex}
+.seg .rd{flex:1}
+.outpath{border:1px solid #333;padding:3px 8px;margin-top:4px;display:flex;justify-content:space-between;color:var(--fg)}
+.outpath .dim{font-size:12px}
+.note{color:var(--fg3);font-size:12px;line-height:18px}
+.note code{font-family:inherit;color:var(--fg)}
+.sum{border-top:1px solid #262626;padding-top:10px;margin-top:auto;color:var(--fg3);font-size:12px;line-height:18px}
+.sum .r{display:flex;justify-content:space-between}
+.sum .r span:last-child{color:var(--fg)}
+.run{margin-top:12px;height:38px;width:100%;background:var(--fg);color:#000;font-weight:600;display:flex;align-items:center;justify-content:center;gap:14px;transition:background-color .14s var(--ease),transform .1s var(--ease)}
+.run:hover{background:#fff}
+.run:active{transform:scale(.97)}
+.run .k{font-weight:400;font-size:11px;border:1px solid #000;padding:0 5px;line-height:16px}
+.run[disabled]{background:transparent;color:var(--fg3);border:1px dashed #444;cursor:not-allowed}
+.disabled-demo{margin-top:6px;font-size:12px;color:var(--fg3);text-align:center}
+
+/* meter + status */
+.meter{display:flex;align-items:center;gap:22px;padding:14px 4px 6px;white-space:pre}
+.meter .lbl{color:var(--fg);font-weight:600}
+.meter .b{color:var(--acc)}
+.meter .sp{flex:1}
+.meter button{color:var(--fg3);padding:0 6px;transition:color .12s var(--ease),background-color .12s var(--ease)}
+.meter button:hover{color:var(--fg);background:var(--cell-hi)}
+.eng{display:flex;gap:22px;padding:0 4px 8px;color:var(--fg3);white-space:pre}
+.eng .on{color:var(--fg)}
+.eng .ok::before{content:"+ ";color:var(--acc)}
+.eng .no::before{content:"- ";color:var(--err)}
+
+/* F-key bar */
+.fbar{display:flex;height:28px;flex:none;border-top:1px solid #1c1c1c}
+.fk{display:flex;align-items:stretch;flex:1;min-width:0;text-align:left}
+.fk .n{background:var(--fg);color:#000;font-weight:600;padding:0 6px;display:flex;align-items:center;min-width:34px;justify-content:center}
+.fk .l{flex:1;background:var(--cell);display:flex;align-items:center;gap:6px;padding:0 8px;margin-right:2px;white-space:pre;transition:background-color .12s var(--ease)}
+.fk .l .c{color:var(--fg3)}
+.fk:hover .l{background:#2a2a2a}
+.fk:active .l{background:#353535}
+.fk.on .l{background:var(--acc);color:var(--acc-ink);font-weight:600}
+.fk.on .l .c{color:var(--acc-ink);font-weight:400}
+.fk.sec2 .n{background:#8a8a8a}
+.fk:focus-visible{outline-offset:-2px}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Filesmith">
+
+  <!-- titlebar -->
+  <header class="tb">
+    <div class="brand"><span class="mark" aria-hidden="true">F</span>Filesmith</div>
+    <div class="drag"><span class="path">convert</span><span>queue 8 · 2 running</span></div>
+    <div class="ver num">v0.3.0</div>
+    <button class="wc" aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+    <button class="wc" aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+    <button class="wc x" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </header>
+
+  <main class="ws">
+    <div class="head">
+      <h1><span class="big">F1 Convert</span></h1>
+      <span class="dim">Change format</span>
+      <span class="sp"></span>
+      <span class="dim">8 files</span>
+      <span class="dim">sort <span style="color:var(--fg)">group</span></span>
+      <span class="dim">next group <span class="kbd">Tab</span></span>
+    </div>
+
+    <div class="cols">
+      <!-- QUEUE -->
+      <section class="box q" aria-label="Queue">
+        <div class="ttl">╡ Queue <span class="dim">8 files · 4 groups</span> ╞</div>
+        <div class="ttr">╡ <u>a</u>dd · <u>s</u>top · <u>d</u>el ╞</div>
+
+        <button class="add" aria-label="Add files">
+          <span class="plus">+ add files</span><span class="kbd">Ctrl O</span>
+          <span>or drop anywhere in this box</span><span class="sp"></span>
+          <span>convert groups form by kind</span>
+        </button>
+
+        <div class="grid th" role="row">
+          <div></div><div>ST</div><div>NAME</div><div>SIZE</div><div>ROUTE</div><div>PROGRESS</div><div>RESULT</div><div></div>
+        </div>
+
+        <div class="grp on">├─ <b>images (4)</b> ─ active group, 4 selected ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</div>
+
+        <div class="grid row sel" tabindex="0">
+          <div class="mark-c">*</div><div class="st ok">OK</div><div>IMG_4821.HEIC</div><div class="sz num">3.2 MB</div><div>HEIC → WebP</div>
+          <div class="bar done num">[<span class="b">||||||||||||||||</span>  100%]</div>
+          <div class="num">3.2 MB → 640 KB <span class="acc">-80%</span></div>
+          <div class="act"><button aria-label="Row menu">⋯</button></div>
+        </div>
+        <div class="grid row sel" tabindex="0">
+          <div class="mark-c">*</div><div class="st s-run">RUN</div><div>screenshot-2026-10-03 141522.png</div><div class="sz num">1.8 MB</div><div>PNG → WebP</div>
+          <div class="bar num">[<span class="b">||||||||||</span>         62%]</div>
+          <div class="num dim">eta 4 s</div>
+          <div class="act"><button aria-label="Stop">■</button><button aria-label="Row menu">⋯</button></div>
+        </div>
+        <div class="grid row sel cur" tabindex="0">
+          <div class="mark-c">*</div><div class="st wait" style="color:#000">WAIT</div><div>hero-banner@2x.png</div><div class="sz num">4.6 MB</div><div>PNG → WebP</div>
+          <div class="bar num">[<span class="b"></span>                    0%]</div>
+          <div class="dim">queued, 1st</div>
+          <div class="act"><button aria-label="Stop">■</button><button aria-label="Row menu">⋯</button></div>
+        </div>
+        <div class="grid row sel" tabindex="0" style="position:relative">
+          <div class="mark-c">*</div><div class="st e">ERR</div><div>scan_receipt_0091.tiff</div><div class="sz num">22.4 MB</div><div>TIFF → WebP</div>
+          <div class="bar num err">[<span class="x">||||</span>               24%]</div>
+          <div class="err">not converted</div>
+          <div class="act"><button aria-label="Row menu">⋯</button></div>
+        </div>
+        <div class="grid row sel cont">
+          <div></div><div></div><div>└ Unsupported TIFF compression (JPEG-in-TIFF, old-style). Re-save as standard TIFF, then retry with <u>r</u>.</div>
+        </div>
+
+        <div class="grp">├─ <b>video (1)</b> ─ other group, not selectable while images is active ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</div>
+        <div class="grid row locked">
+          <div></div><div class="st s-run">RUN</div><div>screen-recording-standup.mov</div><div class="sz num">812 MB</div><div>MOV → MP4</div>
+          <div class="bar num">[<span class="b">|||</span>              18.4%]</div>
+          <div class="num">eta 3 min 12 s</div>
+          <div class="act"><button aria-label="Stop">■</button><button aria-label="Row menu">⋯</button></div>
+        </div>
+
+        <div class="grp">├─ <b>documents (2)</b> ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</div>
+        <div class="grid row locked">
+          <div></div><div class="st wait">WAIT</div><div>Q3-board-deck.pdf</div><div class="sz num">14.1 MB</div><div>PDF → DOCX</div>
+          <div class="bar num">[<span class="b"></span>                    0%]</div>
+          <div>queued</div>
+          <div class="act"><button aria-label="Stop">■</button><button aria-label="Row menu">⋯</button></div>
+        </div>
+        <div class="grid row locked">
+          <div></div><div class="st ok" style="color:var(--fg3)">OK</div><div>release-notes-0.3.txt</div><div class="sz num">6 KB</div><div>TXT → PDF</div>
+          <div class="bar done num">[<span class="b">||||||||||||||||</span>  100%]</div>
+          <div class="num">6 KB → 48 KB</div>
+          <div class="act"><button aria-label="Row menu">⋯</button></div>
+        </div>
+
+        <div class="grp">└─ <b>archives (1)</b> ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</div>
+        <div class="grid row locked">
+          <div></div><div class="st wait">WAIT</div><div>One-Piece-v104.cbz</div><div class="sz num">186 MB</div><div>CBZ → CB7</div>
+          <div class="bar num">[<span class="b"></span>                    0%]</div>
+          <div>queued</div>
+          <div class="act"><button aria-label="Stop">■</button><button aria-label="Row menu" aria-expanded="true" style="background:#2a2a2a;color:var(--fg)">⋯</button></div>
+        </div>
+
+        <!-- open row menu on the archive row -->
+        <div class="menu" role="menu" style="top:466px;right:20px">
+          <button role="menuitem" class="hl">Open <span class="dim">Enter</span></button>
+          <button role="menuitem">Show in folder <span class="dim">Ctrl E</span></button>
+          <button role="menuitem">Retry <span class="dim">R</span></button>
+          <hr>
+          <button role="menuitem" class="rm">Remove <span class="dim" style="color:inherit">Del</span></button>
+        </div>
+
+        <div class="info num">
+          <div class="ih">╞═ cursor ═ hero-banner@2x.png</div>
+          <div class="ig">
+            <span class="dim">from</span><span>D:\Design\exports\hero-banner@2x.png</span>
+            <span class="dim">image</span><span>PNG · 2880 × 1200 · RGBA · 4.6 MB</span>
+            <span class="dim">writes</span><span>D:\Design\exports\hero-banner@2x.webp</span>
+            <span class="dim">state</span><span>queued, starts when screenshot-2026-10-03 141522.png finishes</span>
+          </div>
+        </div>
+
+        <div class="ttb">╡ <span style="color:var(--fg)">↑↓</span> move  <span style="color:var(--fg)">Space</span> mark  <span style="color:var(--fg)">Tab</span> group  <span style="color:var(--fg)">F10</span> menu ╞</div>
+      </section>
+
+      <!-- OPTIONS -->
+      <aside class="box opt" aria-label="Options">
+        <div class="ttl">╡ Options <span class="dim">images · 4 selected</span> ╞</div>
+
+        <div class="sec">
+          <div class="lab"><span><u>t</u>arget format</span><span class="dim">from PNG HEIC TIFF</span></div>
+          <div class="radios" role="radiogroup">
+            <button class="rd" disabled title="Already PNG: hero-banner@2x.png, screenshot…png"><span class="o">( ) </span>PNG</button>
+            <button class="rd"><span class="o">( ) </span>JPG</button>
+            <button class="rd on" aria-checked="true"><span class="o">(•) </span>WebP</button>
+            <button class="rd"><span class="o">( ) </span>AVIF</button>
+            <button class="rd"><span class="o">( ) </span>JXL</button>
+            <button class="rd" disabled title="Already TIFF: scan_receipt_0091.tiff"><span class="o">( ) </span>TIFF</button>
+            <button class="rd"><span class="o">( ) </span>BMP</button>
+            <button class="rd"><span class="o">( ) </span>GIF</button>
+            <button class="rd"><span class="o">( ) </span>ICO</button>
+          </div>
+          <div class="note" style="margin-top:4px">PNG and TIFF are off: a selected file is already that format.</div>
+        </div>
+
+        <div class="sec">
+          <div class="lab"><span><u>q</u>uality</span><span class="dim">WebP q 82</span></div>
+          <div class="seg" role="radiogroup">
+            <button class="rd"><span class="o">( ) </span>Smaller</button>
+            <button class="rd on" aria-checked="true"><span class="o">(•) </span>Balanced</button>
+            <button class="rd"><span class="o">( ) </span>Best</button>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="lab"><span><u>o</u>utput</span><span class="dim">Ctrl Shift O</span></div>
+          <div class="seg" role="radiogroup">
+            <button class="rd on" aria-checked="true"><span class="o">(•) </span>Next to source</button>
+            <button class="rd"><span class="o">( ) </span>Folder…</button>
+          </div>
+          <div class="outpath"><span>D:\Photos\2026-10\</span><span class="dim">per file</span></div>
+        </div>
+
+        <p class="note">Never overwrites. Collisions save as <code>name (converted).webp</code>, then <code>&nbsp;(2)</code>.</p>
+
+        <div class="sec" style="margin-top:16px">
+          <div class="lab"><span>will write</span><span class="dim">4 files</span></div>
+          <div class="will">
+            <span><span class="dim">ok  </span>IMG_4821.webp</span>
+            <span><span class="dim">run </span>screenshot-2026-10-03 141522.webp</span>
+            <span><span class="dim">    </span>hero-banner@2x.webp</span>
+            <span><span class="dim">    </span>scan_receipt_0091.webp</span>
+          </div>
+        </div>
+
+        <div class="sum num">
+          <div class="r"><span>in</span><span>32.0 MB · 4 images</span></div>
+          <div class="r"><span>engine</span><span>ImageMagick 7.1.1</span></div>
+          <div class="r"><span>left to run</span><span>2 of 4</span></div>
+        </div>
+        <button class="run">Convert 4 images <span class="k">Enter</span></button>
+        <div class="disabled-demo">greyed with a dashed edge when nothing is marked</div>
+      </aside>
+    </div>
+
+    <!-- htop meter -->
+    <div class="meter num" role="status">
+      <span class="lbl">Total</span>
+      <span>[<span class="b">|||||||||||||||||||||||||</span>                                    <span style="color:var(--fg)">41%</span>]</span>
+      <span><span style="color:var(--fg)">2/8</span> done</span>
+      <span class="acc">2 run</span>
+      <span class="err">1 fail</span>
+      <span class="dim">4 wait</span>
+      <span class="sp"></span>
+      <button>Clear finished <span class="kbd">Ctrl L</span></button>
+    </div>
+    <div class="eng num">
+      <span class="ok on">ffmpeg 7.1</span>
+      <span class="ok on">ImageMagick 7.1.1</span>
+      <span class="ok on">mutool 1.24</span>
+      <span class="ok on">7-Zip 24.08</span>
+      <span class="no">Rar.exe not found, CBR writing off</span>
+      <span style="flex:1"></span>
+      <span>RTX 5090 · Real-ESRGAN ready</span>
+    </div>
+  </main>
+
+  <!-- F-key bar: the navigation -->
+  <nav class="fbar" aria-label="Verbs">
+    <button class="fk on" aria-current="page" title="Change format"><span class="n">F1</span><span class="l">Convert <span class="c">8</span></span></button>
+    <button class="fk" title="Shrink file size"><span class="n">F2</span><span class="l">Compress</span></button>
+    <button class="fk" title="Scale by percent or exact size"><span class="n">F3</span><span class="l">Resize</span></button>
+    <button class="fk" title="Enlarge 2x to 4x with AI"><span class="n">F4</span><span class="l">Upscale</span></button>
+    <button class="fk" title="Cut the subject out with AI"><span class="n">F5</span><span class="l">RemoveBG</span></button>
+    <button class="fk" title="Create an image from a text prompt"><span class="n">F6</span><span class="l">Generate</span></button>
+    <button class="fk" title="One-off jobs: PDF extract text, pages to PNG, merge, split, burst, extract images"><span class="n">F7</span><span class="l">Tools</span></button>
+    <button class="fk sec2" title="Reorder and hide verbs"><span class="n">F8</span><span class="l">Edit</span></button>
+    <button class="fk sec2" title="Everything Filesmith has produced"><span class="n">F9</span><span class="l">Done <span class="c">142</span></span></button>
+  </nav>
+</div>
+</body>
+</html>

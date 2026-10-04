@@ -1,0 +1,503 @@
+/* Views and states the mockup does not draw (spec 2.6, 3.3, 4.9, 4.12). */
+
+/* cross-group rows: fg3 text, thumbnail at 40% (monochrome replacement for opacity-40) */
+.tr.dim .name,
+.tr.dim .meta,
+.tr.dim .size {
+  color: var(--fg3);
+}
+.tr.dim .thumb {
+  opacity: 0.4;
+}
+
+/* mixed-queue group row: SettingGroup style, selects the whole group */
+.grp-row {
+  height: 28px;
+  border-bottom: 1px solid var(--line);
+}
+.grp {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 16px;
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.09em;
+  color: var(--fg3);
+}
+.grp::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.grp .n {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.grp:hover {
+  color: var(--fg1);
+  background: var(--hover);
+}
+
+/* narrow window (spec 3.7, O5): below 1180px the kind column folds into the
+   name cell as a trailing fg3 tag. Hidden cells take no grid slot, so the
+   head, rows and totals all drop their third cell and use five columns. */
+.ktag {
+  display: none;
+}
+@media (max-width: 1179px) {
+  .cols {
+    --cols: 40px 1fr 88px 184px 232px;
+  }
+  .cols > :nth-child(3) {
+    display: none;
+  }
+  .ktag {
+    display: inline;
+    margin-left: auto;
+  }
+}
+
+/* totals arrow is inline, not the split arrow */
+.totals .tarr,
+.totals .pct {
+  color: var(--fg3);
+}
+
+/* drop target: a 1px fg1 inset outline around the centre panel */
+.center.dropping::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  outline: 1px solid var(--fg1);
+  outline-offset: -1px;
+  pointer-events: none;
+}
+
+/* empty states */
+.empty {
+  height: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--fg2);
+}
+.empty .et {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--fg1);
+}
+.empty .el {
+  font-size: 12px;
+  color: var(--fg3);
+  margin-bottom: 6px;
+}
+.empty .sbtn {
+  align-self: center;
+}
+
+/* Remove BG custom colour: a 28px swatch button (user data, spec 4.2) */
+.swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  padding-right: 10px;
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  align-self: flex-start;
+  font-size: 13px;
+}
+.swatch:hover {
+  border-color: var(--fg3);
+}
+.swatch:focus-within {
+  outline: 1px solid var(--focus);
+  outline-offset: 1px;
+}
+.swatch .sw {
+  width: 26px;
+  height: 26px;
+  border-right: 1px solid var(--line-strong);
+}
+.vs-set > .vs-selwrap + .vs-selwrap,
+.vs-set > .vs-selwrap + .sbtn,
+.vs-set > .rng + .sizes {
+  margin-top: 6px;
+}
+
+/* preview wipe (Task 14) */
+.wipe {
+  cursor: default;
+  touch-action: none;
+}
+.wimg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.wext {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--fg3);
+  text-transform: uppercase;
+}
+.wipe .line {
+  cursor: ew-resize;
+  z-index: 1;
+}
+.wipe .line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  right: -6px;
+}
+.wipe .line:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+.wipe .tag {
+  z-index: 2;
+}
+/* info rows: the value wraps, an in-row button keeps its width */
+.dgrid dd > span {
+  flex: 1;
+  min-width: 0;
+}
+.dgrid dd > .sbtn {
+  flex: none;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+/* a path with a Show button: the path takes the full value width, the
+   button sits on its own line below, left-aligned */
+.dgrid dd.dd-reveal {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.dgrid dd.dd-reveal > span {
+  flex: none;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* view header row (Tools, Completed, Settings): 32px, title like .ihead */
+.vhead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 16px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.vhead h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.vhead > span {
+  font: 12px var(--mono);
+  color: var(--fg3);
+}
+.vhead .tb-right {
+  align-self: stretch;
+}
+.vhead .tbtn {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+  color: var(--fg2);
+}
+.vhead .tbtn:hover:not(:disabled),
+.toolbar .tbtn:not(.add):hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.tbtn:disabled {
+  color: var(--fg-disabled);
+}
+.vbody {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* tools list */
+.tlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.trow {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  text-align: left;
+  color: var(--fg2);
+}
+.trow:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.trow .tlab {
+  font-weight: 500;
+  color: var(--fg1);
+  min-width: 120px;
+}
+.trow .tdesc {
+  font-size: 12px;
+  color: var(--fg3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* generate */
+.prompt {
+  display: block;
+  width: 100%;
+  min-height: calc(6 * 1.4em + 24px);
+  resize: vertical;
+  padding: 12px 16px;
+  background: var(--bg-0);
+  color: var(--fg1);
+  caret-color: var(--fg1);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  font: 13px/1.4 var(--sans);
+}
+.prompt::placeholder {
+  color: var(--fg3);
+}
+.prompt:focus {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.gen-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 1279px) {
+  .gen-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.gtile {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--bg-0);
+}
+.gtile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.gtile:hover {
+  outline: 1px solid var(--fg3);
+  outline-offset: -1px;
+}
+.gtile.sel {
+  outline: 2px solid var(--fg1);
+  outline-offset: -2px;
+}
+.gtile.pending {
+  display: grid;
+  place-items: center;
+  background: var(--bg-1);
+  color: var(--fg2);
+}
+.gtile.pending .mini {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* completed table */
+.done-table {
+  --cols: 1fr 120px 64px 88px 184px 48px;
+}
+.ccols {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+}
+.done-table .th {
+  cursor: default;
+}
+
+/* settings: sortable sidebar list */
+.sortlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sortrow {
+  position: relative;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--bg-0);
+  color: var(--fg2);
+}
+.sortrow:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.sortrow.lifted {
+  z-index: 1;
+  background: var(--selected);
+  outline: 1px solid var(--line-strong);
+}
+.sortrow .grip {
+  cursor: grab;
+  color: var(--fg3);
+  display: grid;
+}
+.sortrow .slab {
+  flex: 1;
+}
+
+/* context menu: flush, square, no blur, no shadow */
+.menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 196px;
+  padding: 4px 0;
+  background: var(--bg-0);
+  border: 1px solid var(--line-strong);
+}
+.menu-item {
+  width: 100%;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--fg2);
+  text-align: left;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.menu-item.danger {
+  font-weight: 600;
+  color: var(--fg1);
+}
+.menu-item:disabled {
+  color: var(--fg-disabled);
+  font-weight: 400;
+  background: none;
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
+}
+
+/* confirm dialog */
+.dlg {
+  margin: auto;
+  padding: 0;
+  max-width: 420px;
+  background: var(--bg-0);
+  color: var(--fg1);
+  border: 1px solid var(--line-strong);
+}
+.dlg::backdrop {
+  background: var(--backdrop);
+}
+.dlg-body {
+  padding: 18px 20px 16px;
+}
+.dlg-body h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.dlg-body p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg2);
+}
+.dlg-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+.dlg-foot .sbtn {
+  height: 28px;
+}
+.dlg-ok {
+  height: 28px;
+  padding: 0 14px;
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+  font-weight: 600;
+  font-size: 12px;
+}
+.dlg-ok:hover {
+  background: var(--inv-hover);
+}
+.dlg-ok:active {
+  background: var(--inv-active);
+}
+
+/* render crash */
+.crash {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  text-align: center;
+  background: var(--bg-0);
+  color: var(--fg1);
+}
+.crash h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.crash p {
+  max-width: 520px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg3);
+  overflow-wrap: anywhere;
+}
+.crash-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}

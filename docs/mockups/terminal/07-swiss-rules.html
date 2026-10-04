@@ -1,0 +1,463 @@
+<!doctype html>
+<!--
+  Filesmith mockup 07 of 20 - Swiss Rules
+  Brutalist Swiss: heavy white rules, a condensed display face and verbs as top tabs, black and white only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filesmith Swiss Rules</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000000;
+    --fg: #f2f2f2;
+    --fg2: #c8c8c8;
+    --fg3: #9a9a9a;
+    --dim: #8a8a8a;
+    --hair: #2a2a2a;
+    --hover: #141414;
+    --sel: #0d0d0d;
+    --danger: #f0867e;
+    --cond: "Archivo Narrow", "Arial Narrow", sans-serif;
+    --mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+    --ease: cubic-bezier(.2,.7,.2,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #000; color: var(--fg); }
+  body {
+    min-height: 100vh; display: grid; place-items: center;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--fg); color: #000; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button:focus-visible, [tabindex]:focus-visible, a:focus-visible {
+    outline: 2px solid var(--fg); outline-offset: 2px;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  svg { display: block; }
+  .ico { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: square; stroke-linejoin: miter; }
+
+  .app {
+    width: 1440px; height: 900px; background: var(--bg);
+    border: 1px solid #262626; overflow: hidden;
+    display: grid; grid-template-rows: 36px 48px 112px 1fr 40px;
+  }
+
+  /* titlebar */
+  .titlebar { display: flex; align-items: stretch; border-bottom: 2px solid var(--fg); -webkit-app-region: drag; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 14px; }
+  .mark { width: 18px; height: 18px; background: var(--fg); display: grid; place-items: center; }
+  .mark svg { width: 12px; height: 12px; stroke: #000; stroke-width: 2; fill: none; stroke-linecap: square; }
+  .brand b { font-family: var(--cond); font-weight: 700; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
+  .drag { flex: 1; }
+  .tb-meta { display: flex; align-items: center; padding: 0 16px; color: var(--fg3); font-size: 11.5px; }
+  .wc { display: flex; -webkit-app-region: no-drag; }
+  .wc button { width: 46px; height: 34px; display: grid; place-items: center; color: var(--fg2); transition: background-color .14s var(--ease), color .14s var(--ease); }
+  .wc button:hover { background: #1a1a1a; color: var(--fg); }
+  .wc button:active { background: #262626; }
+  .wc button.close:hover { background: #c42b1c; color: #fff; }
+  .wc svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1; fill: none; }
+
+  /* tabs */
+  .tabs { display: flex; border-bottom: 2px solid var(--fg); }
+  .tab {
+    display: flex; align-items: center; gap: 8px; padding: 0 20px;
+    font-family: var(--cond); font-weight: 700; font-size: 16px; letter-spacing: .02em; text-transform: uppercase;
+    color: var(--fg3); border-right: 2px solid var(--fg);
+    transition: background-color .14s var(--ease), color .14s var(--ease);
+  }
+  .tab sup { font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0; align-self: flex-start; margin-top: 12px; }
+  .tab:hover { color: var(--fg); background: var(--hover); }
+  .tab:active { transform: scale(.97); }
+  .tab[aria-current="page"] { background: var(--fg); color: #000; }
+  .tab:focus-visible { outline-offset: -4px; }
+  .tabs .spacer { flex: 1; }
+  .tab.completed { border-right: 0; border-left: 4px solid var(--fg); }
+  .tab.edit { padding: 0 16px; border-left: 2px solid var(--fg); border-right: 0; }
+
+  /* header */
+  .head { display: grid; grid-template-columns: 1fr auto auto; border-bottom: 4px solid var(--fg); }
+  .head-title { padding: 14px 24px 12px; display: flex; flex-direction: column; justify-content: flex-end; }
+  .head-title h1 { font-family: var(--cond); font-weight: 700; font-size: 64px; line-height: .86; letter-spacing: .01em; text-transform: uppercase; }
+  .head-title p { margin-top: 8px; color: var(--fg3); font-size: 12.5px; }
+  .stat { border-left: 2px solid var(--fg); padding: 12px 24px 12px 20px; display: flex; align-items: flex-end; gap: 12px; min-width: 220px; }
+  .stat .big { font-family: var(--cond); font-weight: 700; font-size: 88px; line-height: .78; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .stat .lab { display: flex; flex-direction: column; gap: 3px; padding-bottom: 2px; }
+  .stat .lab b { font-family: var(--cond); font-weight: 700; font-size: 18px; letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
+  .stat .lab span { color: var(--fg3); font-size: 11.5px; }
+  .stat.prog { border-left-width: 4px; min-width: 330px; }
+
+  /* main */
+  .main { display: grid; grid-template-columns: 8fr 4fr; min-height: 0; }
+  .queue { min-height: 0; overflow: auto; border-right: 4px solid var(--fg); }
+  .queue::-webkit-scrollbar { width: 6px; }
+  .queue::-webkit-scrollbar-thumb { background: rgba(242,242,242,.16); border-radius: 3px; }
+
+  .drop {
+    display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 24px;
+    border-bottom: 2px solid var(--fg); width: 100%; text-align: left; color: var(--fg2);
+    transition: background-color .14s var(--ease), color .14s var(--ease);
+  }
+  .drop:hover { background: var(--hover); color: var(--fg); }
+  .drop:active { background: #1c1c1c; }
+  .drop .t { font-family: var(--cond); font-weight: 700; font-size: 15px; letter-spacing: .02em; text-transform: uppercase; color: var(--fg); }
+  .drop .hint { color: var(--fg3); }
+  .drop .sp { flex: 1; }
+  kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid #5a5a5a; padding: 1px 5px; color: var(--fg2); }
+
+  .group { border-bottom: 2px solid var(--fg); }
+  .ghead { display: flex; align-items: baseline; gap: 12px; padding: 10px 24px 8px; }
+  .ghead h2 { font-family: var(--cond); font-weight: 700; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
+  .ghead span { color: var(--fg3); }
+  .ghead .sp { flex: 1; }
+  .ghead .tag { font-family: var(--cond); font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; background: var(--fg); color: #000; padding: 2px 6px; }
+  .ghead .note { font-size: 11.5px; }
+  .group.active .ghead { padding-left: 20px; border-left: 4px solid var(--fg); }
+
+  .row {
+    position: relative; display: grid;
+    grid-template-columns: 30px 40px minmax(0,1fr) 108px 232px 64px;
+    align-items: center; column-gap: 12px; min-height: 48px; padding: 6px 16px 6px 24px;
+    border-top: 1px solid var(--hair);
+    transition: background-color .14s var(--ease);
+  }
+  .row:hover { background: var(--hover); }
+  .row:focus-visible { outline-offset: -2px; }
+  .group.active .row { border-left: 4px solid var(--fg); padding-left: 20px; background: var(--sel); }
+  .group.active .row:hover { background: #181818; }
+  .row .n { color: var(--fg3); font-size: 11.5px; }
+  .glyph {
+    width: 40px; height: 32px; border: 1px solid #4a4a4a; display: grid; place-items: center;
+    font-family: var(--cond); font-weight: 700; font-size: 11.5px; letter-spacing: .04em; color: var(--fg2);
+  }
+  .fname { min-width: 0; }
+  .fname b { display: block; font-weight: 500; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fname small { display: block; color: var(--fg3); font-size: 11.5px; margin-top: 1px; }
+  .bar { height: 6px; background: var(--fg); margin-top: 6px; }
+  .route { font-family: var(--cond); font-weight: 700; font-size: 15px; letter-spacing: .02em; text-transform: uppercase; color: var(--fg2); white-space: nowrap; }
+  .route i { font-style: normal; color: var(--fg3); padding: 0 4px; font-weight: 500; }
+  .st { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .st .k { font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--fg3); }
+  .st .pct { font-family: var(--cond); font-weight: 700; font-size: 22px; line-height: 1; letter-spacing: 0; color: var(--fg); }
+  .st .sub { color: var(--fg3); font-size: 11.5px; white-space: nowrap; }
+  .st .save { font-family: var(--cond); font-weight: 700; font-size: 26px; line-height: .9; color: var(--fg); }
+  .acts { display: flex; justify-content: flex-end; gap: 2px; }
+  .ib { width: 28px; height: 28px; display: grid; place-items: center; color: var(--fg3); transition: background-color .14s var(--ease), color .14s var(--ease); }
+  .ib:hover { background: #262626; color: var(--fg); }
+  .ib:active { transform: scale(.94); background: #333; }
+  .ib .ico { width: 14px; height: 14px; }
+
+  .row.failed { box-shadow: inset 2px 0 0 var(--danger); }
+  .group.active .row.failed { border-left-color: var(--fg); box-shadow: inset 2px 0 0 var(--danger); }
+  .row.failed .st .k { color: var(--danger); }
+  .reason { grid-column: 3 / 6; color: var(--danger); font-size: 11.5px; margin-top: 2px; }
+
+  .row.off { cursor: not-allowed; }
+  .row.off .fname b, .row.off .route, .row.off .glyph { color: var(--dim); }
+  .row.off .glyph { border-color: #333; }
+  .row.off .bar { background: var(--dim); }
+  .row.off .st .pct { color: var(--fg2); }
+
+  /* options */
+  .opts { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+  .ohead { padding: 14px 24px 12px; border-bottom: 2px solid var(--fg); display: flex; align-items: baseline; gap: 10px; }
+  .ohead h2 { font-family: var(--cond); font-weight: 700; font-size: 22px; letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
+  .ohead span { color: var(--fg3); }
+  .obody { overflow: auto; }
+  .sec { padding: 14px 24px 16px; border-bottom: 1px solid var(--hair); }
+  .sec h3 { font-family: var(--cond); font-weight: 700; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--fg2); margin-bottom: 10px; display: flex; justify-content: space-between; }
+  .sec h3 span { font-family: var(--mono); font-weight: 400; font-size: 11.5px; letter-spacing: 0; text-transform: none; color: var(--fg3); }
+  .fmt { display: grid; grid-template-columns: repeat(3, 1fr); border: 2px solid var(--fg); }
+  .fmt button {
+    height: 38px; font-family: var(--cond); font-weight: 700; font-size: 15px; letter-spacing: .04em;
+    border-right: 2px solid var(--fg); border-bottom: 2px solid var(--fg); color: var(--fg);
+    transition: background-color .14s var(--ease), color .14s var(--ease);
+  }
+  .fmt button:nth-child(3n) { border-right: 0; }
+  .fmt button:nth-child(n+7) { border-bottom: 0; }
+  .fmt button:hover:not(:disabled) { background: #1c1c1c; }
+  .fmt button:active:not(:disabled) { transform: scale(.97); }
+  .fmt button[aria-pressed="true"] { background: var(--fg); color: #000; }
+  .fmt button:disabled { color: var(--dim); text-decoration: line-through; text-decoration-thickness: 1px; cursor: not-allowed; background: repeating-linear-gradient(135deg, transparent 0 6px, #161616 6px 7px); }
+  .fmt button:focus-visible, .seg button:focus-visible { outline-offset: -5px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 2px solid var(--fg); }
+  .seg button {
+    height: 36px; font-family: var(--cond); font-weight: 700; font-size: 14px; letter-spacing: .04em; text-transform: uppercase;
+    border-right: 2px solid var(--fg); color: var(--fg2);
+    transition: background-color .14s var(--ease), color .14s var(--ease);
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button:hover { background: #1c1c1c; color: var(--fg); }
+  .seg button:active { transform: scale(.97); }
+  .seg button[aria-pressed="true"] { background: var(--fg); color: #000; }
+  .seg-cap { display: flex; justify-content: space-between; color: var(--fg3); font-size: 11px; margin-top: 6px; }
+  .out { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .out .v { color: var(--fg); font-weight: 500; }
+  .out .p { color: var(--fg3); font-size: 11.5px; margin-top: 2px; }
+  .link { font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--fg); border-bottom: 2px solid var(--fg); padding: 2px 0; white-space: nowrap; }
+  .link:hover { color: #000; background: var(--fg); }
+  .link:active { transform: scale(.97); }
+  .naming { color: var(--fg3); font-size: 11.5px; line-height: 1.5; margin-top: 12px; }
+  .naming code { color: var(--fg2); font-family: var(--mono); }
+
+  .sel { display: grid; grid-template-columns: 1.6fr repeat(4, 1fr); border-top: 2px solid var(--fg); }
+  .sel div { padding: 8px 0 0; display: flex; flex-direction: column; gap: 2px; }
+  .sel b { font-family: var(--cond); font-weight: 700; font-size: 24px; line-height: 1; }
+  .sel span { color: var(--fg3); font-size: 11px; }
+  .sel .f b, .sel .f span { color: var(--danger); }
+  .run {
+    display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 24px;
+    background: var(--fg); color: #000; width: 100%; border-top: 4px solid var(--fg);
+    font-family: var(--cond); font-weight: 700; font-size: 26px; letter-spacing: .02em; text-transform: uppercase;
+    transition: background-color .14s var(--ease);
+  }
+  .run:hover { background: #ffffff; }
+  .run:active { background: #d6d6d6; }
+  .run:focus-visible { outline: 2px solid #000; outline-offset: -6px; }
+  .run kbd { color: #000; border-color: #000; font-size: 11px; }
+  .run:disabled { background: #000; color: var(--dim); cursor: not-allowed; }
+
+  /* footer */
+  .foot { display: flex; align-items: center; border-top: 2px solid var(--fg); }
+  .foot > div { display: flex; align-items: center; gap: 10px; padding: 0 18px; height: 100%; border-right: 1px solid #3a3a3a; white-space: nowrap; }
+  .foot .tot b { font-family: var(--cond); font-weight: 700; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
+  .foot .tot .fail { color: var(--danger); }
+  .tbar { width: 140px; height: 6px; position: relative; }
+  .tbar::before { content: ""; position: absolute; inset: 2px 0; background: #3a3a3a; }
+  .tbar span { position: absolute; left: 0; top: 0; bottom: 0; width: 41%; background: var(--fg); }
+  .eng { color: var(--fg3); font-size: 11.5px; gap: 14px !important; flex: 1; border-right: 0 !important; }
+  .eng em { font-style: normal; color: var(--fg2); }
+  .eng .miss { color: var(--fg3); text-decoration: line-through; text-decoration-color: #666; }
+  .eng .sep { width: 1px; height: 12px; background: #3a3a3a; }
+  .foot .clear { border-left: 2px solid var(--fg); border-right: 0; font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--fg2); padding: 0 18px; transition: background-color .14s var(--ease), color .14s var(--ease); }
+  .foot .clear:hover { background: var(--fg); color: #000; }
+  .foot .clear:active { transform: scale(.97); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Filesmith">
+
+  <header class="titlebar">
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 12 12"><path d="M2 2h8M2 2v8M2 6h5"/></svg></div>
+      <b>Filesmith</b>
+    </div>
+    <div class="drag"></div>
+    <div class="tb-meta num">RTX 5090 &middot; Real-ESRGAN ready</div>
+    <div class="wc">
+      <button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button class="close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Verbs">
+    <button class="tab" aria-current="page" title="Change format">Convert <sup class="num">8</sup></button>
+    <button class="tab" title="Shrink file size">Compress</button>
+    <button class="tab" title="Scale by percent or exact size">Resize</button>
+    <button class="tab" title="Enlarge 2x to 4x with AI">Upscale</button>
+    <button class="tab" title="Cut the subject out with AI">Remove BG</button>
+    <button class="tab" title="Create an image from a text prompt">Generate</button>
+    <button class="tab" title="One-off jobs: PDF extract text, pages to PNG, merge, split, burst, extract images">Tools</button>
+    <div class="spacer"></div>
+    <button class="tab edit" aria-label="Reorder and hide verbs" title="Reorder and hide verbs">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M2 4h8M2 8h12M2 12h6M12 2v4M10 4h4"/></svg>
+    </button>
+    <button class="tab completed" title="Everything Filesmith has produced">Completed <sup class="num">142</sup></button>
+  </nav>
+
+  <section class="head">
+    <div class="head-title">
+      <h1>Convert</h1>
+      <p>Change format. Pick one group, choose a target, run it.</p>
+    </div>
+    <div class="stat">
+      <div class="big">8</div>
+      <div class="lab"><b>Files</b><span>4 groups</span></div>
+    </div>
+    <div class="stat prog">
+      <div class="big num">41%</div>
+      <div class="lab"><b>Total</b><span class="num">2 of 8 done</span><span class="num">2 running &middot; 1 failed</span></div>
+    </div>
+  </section>
+
+  <main class="main">
+    <div class="queue" aria-label="Queue">
+      <button class="drop">
+        <svg class="ico" viewBox="0 0 16 16"><path d="M8 2v12M2 8h12"/></svg>
+        <span class="t">Add files</span>
+        <span class="hint">or drop them anywhere in this column</span>
+        <span class="sp"></span>
+        <kbd>Ctrl O</kbd>
+      </button>
+
+      <section class="group active" aria-label="Images, selected">
+        <div class="ghead"><h2>Images</h2><span class="num">4 images</span><span class="sp"></span><span class="tag">Selected</span></div>
+
+        <div class="row" tabindex="0">
+          <span class="n num">01</span><div class="glyph">HEIC</div>
+          <div class="fname"><b>IMG_4821.HEIC</b><small class="num">3.2 MB</small></div>
+          <div class="route">HEIC<i>/</i>WEBP</div>
+          <div class="st"><span class="save num">&minus;80%</span><span class="sub num">3.2 MB &rarr; 640 KB</span></div>
+          <div class="acts">
+            <button class="ib" aria-label="Row menu"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h1M7.5 8h1M12 8h1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="row" tabindex="0">
+          <span class="n num">02</span><div class="glyph">PNG</div>
+          <div class="fname"><b>screenshot-2026-10-03 141522.png <span style="color:var(--fg3);font-weight:400">1.8 MB</span></b><div class="bar" style="width:62%"></div></div>
+          <div class="route">PNG<i>/</i>WEBP</div>
+          <div class="st"><span class="pct num">62%</span><span class="sub num">ETA 4 s</span></div>
+          <div class="acts">
+            <button class="ib" aria-label="Stop"><svg class="ico" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg></button>
+            <button class="ib" aria-label="Row menu"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h1M7.5 8h1M12 8h1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="row" tabindex="0">
+          <span class="n num">03</span><div class="glyph">PNG</div>
+          <div class="fname"><b>hero-banner@2x.png</b><small class="num">4.6 MB</small></div>
+          <div class="route">PNG<i>/</i>WEBP</div>
+          <div class="st"><span class="k">Queued</span></div>
+          <div class="acts">
+            <button class="ib" aria-label="Stop"><svg class="ico" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg></button>
+            <button class="ib" aria-label="Row menu"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h1M7.5 8h1M12 8h1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="row failed" tabindex="0">
+          <span class="n num">04</span><div class="glyph">TIFF</div>
+          <div class="fname"><b>scan_receipt_0091.tiff</b><small class="num">22.4 MB</small></div>
+          <div class="route">TIFF<i>/</i>WEBP</div>
+          <div class="st"><span class="k">Failed</span><span class="sub">Retry after fix</span></div>
+          <div class="acts">
+            <button class="ib" aria-label="Row menu"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h1M7.5 8h1M12 8h1"/></svg></button>
+          </div>
+          <div class="reason">Unsupported TIFF compression (JPEG-in-TIFF, old-style)</div>
+        </div>
+      </section>
+
+      <section class="group" aria-label="Video">
+        <div class="ghead"><h2>Video</h2><span class="num">1 video</span><span class="sp"></span><span class="note" style="color:var(--fg3)">Not in selection, one group at a time</span></div>
+        <div class="row off" aria-disabled="true">
+          <span class="n num">05</span><div class="glyph">MOV</div>
+          <div class="fname"><b>screen-recording-standup.mov <span style="font-weight:400">812 MB</span></b><div class="bar" style="width:18.4%"></div></div>
+          <div class="route">MOV<i>/</i>MP4</div>
+          <div class="st"><span class="pct num">18.4%</span><span class="sub num">ETA 3 min 12 s</span></div>
+          <div class="acts">
+            <button class="ib" aria-label="Stop"><svg class="ico" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg></button>
+            <button class="ib" aria-label="Row menu"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h1M7.5 8h1M12 8h1"/></svg></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="group" aria-label="Documents">
+        <div class="ghead"><h2>Documents</h2><span class="num">2 documents</span></div>
+        <div class="row" tabindex="0">
+          <span class="n num">06</span><div class="glyph">PDF</div>
+          <div class="fname"><b>Q3-board-deck.pdf</b><small class="num">14.1 MB</small></div>
+          <div class="route">PDF<i>/</i>DOCX</div>
+          <div class="st"><span class="k">Queued</span></div>
+          <div class="acts">
+            <button class="ib" aria-label="Stop"><svg class="ico" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg></button>
+            <button class="ib" aria-label="Row menu"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h1M7.5 8h1M12 8h1"/></svg></button>
+          </div>
+        </div>
+        <div class="row" tabindex="0">
+          <span class="n num">07</span><div class="glyph">TXT</div>
+          <div class="fname"><b>release-notes-0.3.txt</b><small class="num">6 KB</small></div>
+          <div class="route">TXT<i>/</i>PDF</div>
+          <div class="st"><span class="k" style="color:var(--fg)">Done</span><span class="sub num">6 KB &rarr; 48 KB</span></div>
+          <div class="acts">
+            <button class="ib" aria-label="Row menu"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h1M7.5 8h1M12 8h1"/></svg></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="group" aria-label="Archives" style="border-bottom:0">
+        <div class="ghead"><h2>Archives</h2><span class="num">1 archive</span></div>
+        <div class="row" tabindex="0">
+          <span class="n num">08</span><div class="glyph">CBZ</div>
+          <div class="fname"><b>One-Piece-v104.cbz</b><small class="num">186 MB</small></div>
+          <div class="route">CBZ<i>/</i>CB7</div>
+          <div class="st"><span class="k">Queued</span></div>
+          <div class="acts">
+            <button class="ib" aria-label="Stop"><svg class="ico" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg></button>
+            <button class="ib" aria-label="Row menu"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h1M7.5 8h1M12 8h1"/></svg></button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="opts" aria-label="Options for Images">
+      <div class="ohead"><h2>Images</h2><span class="num">4 selected</span></div>
+      <div class="obody">
+        <div class="sec">
+          <h3>Target format <span>Sources: HEIC, PNG, TIFF</span></h3>
+          <div class="fmt" role="group" aria-label="Target format">
+            <button disabled title="PNG is already a source format in this selection">PNG</button>
+            <button>JPG</button>
+            <button aria-pressed="true">WEBP</button>
+            <button>AVIF</button>
+            <button>JXL</button>
+            <button disabled title="TIFF is already a source format in this selection">TIFF</button>
+            <button>BMP</button>
+            <button>GIF</button>
+            <button>ICO</button>
+          </div>
+        </div>
+        <div class="sec">
+          <h3>Quality <span>WebP q80, effort 4</span></h3>
+          <div class="seg" role="group" aria-label="Quality">
+            <button>Smaller</button>
+            <button aria-pressed="true">Balanced</button>
+            <button>Best</button>
+          </div>
+        </div>
+        <div class="sec">
+          <h3>Output</h3>
+          <div class="out">
+            <div><div class="v">Next to source</div><div class="p">D:\Photos\2026-10\</div></div>
+            <button class="link">Change folder</button>
+          </div>
+          <p class="naming">Never overwrites. Collisions save as <code>name (converted).webp</code>, then <code>(2)</code>.</p>
+        </div>
+        <div class="sec" style="border-bottom:0">
+          <h3>Selection <span>4 of 4 images</span></h3>
+          <div class="sel">
+            <div><b class="num">32.0 MB</b><span>in</span></div>
+            <div><b class="num">1</b><span>done</span></div>
+            <div><b class="num">1</b><span>running</span></div>
+            <div><b class="num">1</b><span>queued</span></div>
+            <div class="f"><b class="num">1</b><span>failed</span></div>
+          </div>
+          <p class="naming" style="margin-top:10px">Running again skips done rows and retries the failed one.</p>
+        </div>
+      </div>
+      <button class="run"><span>Convert 4 images</span><kbd>Ctrl Enter</kbd></button>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    <div class="tot"><b class="num">2 of 8 done</b><span class="num" style="color:var(--fg3)">2 running</span><span class="fail num">1 failed</span><span class="tbar" aria-label="41 percent"><span></span></span></div>
+    <div class="eng num">
+      <span>ffmpeg <em>7.1</em></span><span class="sep"></span>
+      <span>ImageMagick <em>7.1.1</em></span><span class="sep"></span>
+      <span>mutool <em>1.24</em></span><span class="sep"></span>
+      <span>7-Zip <em>24.08</em></span><span class="sep"></span>
+      <span class="miss" title="CBR writing is disabled">Rar.exe not found</span>
+      <span style="margin-left:auto">v0.3.0</span>
+    </div>
+    <button class="clear">Clear finished</button>
+  </footer>
+</div>
+</body>
+</html>

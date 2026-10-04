@@ -172,9 +172,12 @@ export type Action =
   | { type: 'addSources'; items: QueueItem[]; key: QueueKey }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'dismiss'; id: string; column: 'input' | 'output' }
+  | { type: 'dismissAny'; ids: string[]; column: 'input' | 'output' }
   | { type: 'markQueued'; ids: string[]; options?: JobOptions }
   | { type: 'jobEvent'; event: JobEvent }
-  | { type: 'select'; id: string; mode: SelectMode }
+  | { type: 'select'; id: string; mode: SelectMode; order?: string[] }
+  | { type: 'selectIds'; ids: string[] }
+  | { type: 'hideFinished' }
   | { type: 'clearSelection' }
   | { type: 'hydrate'; state: AppState }
 
@@ -416,8 +419,15 @@ function mapItemById(state: AppState, id: string, fn: (i: QueueItem) => QueueIte
   return { ...state, queues }
 }
 
-function selectInQueue(q: QueueState, id: string, mode: SelectMode): QueueState {
-  const order = q.items.map((i) => i.id)
+function selectInQueue(
+  q: QueueState,
+  id: string,
+  mode: SelectMode,
+  visible?: string[]
+): QueueState {
+  const known = new Set(q.items.map((i) => i.id))
+  // Range follows what the user SEES: the table may be sorted.
+  const order = visible ? visible.filter((v) => known.has(v)) : q.items.map((i) => i.id)
   if (mode === 'toggle') {
     const clicked = q.items.find((i) => i.id === id)
     const first = q.selected.length ? q.items.find((i) => i.id === q.selected[0]) : null
@@ -577,6 +587,30 @@ export function reducer(state: AppState, action: Action): AppState {
           anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
         }
       })
+    case 'dismissAny': {
+      // Like 'dismiss', but across every queue: the Completed view acts on
+      // results that live in other tabs' queues.
+      const ids = new Set(action.ids)
+      const queues = { ...state.queues }
+      for (const [k, q] of Object.entries(queues) as [QueueKey, QueueState][]) {
+        if (!q.items.some((i) => ids.has(i.id))) continue
+        const items = q.items.map((i) =>
+          ids.has(i.id)
+            ? action.column === 'input'
+              ? { ...i, hiddenInput: true }
+              : { ...i, hiddenOutput: true }
+            : i
+        )
+        const kept = items.filter((i) => inInput(i) || inOutput(i))
+        const selectable = new Set(kept.filter(inInput).map((i) => i.id))
+        queues[k] = {
+          items: kept,
+          selected: q.selected.filter((s) => selectable.has(s)),
+          anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
+        }
+      }
+      return { ...state, queues }
+    }
     case 'markQueued':
       return mapQueue(state, (q) => ({
         ...q,
@@ -590,6 +624,8 @@ export function reducer(state: AppState, action: Action): AppState {
                 runOptions: action.options ?? i.runOptions,
                 error: undefined,
                 outputPath: undefined,
+                outputSize: undefined,
+                etaSec: undefined,
                 hiddenOutput: false
               }
             : i
@@ -626,7 +662,10 @@ export function reducer(state: AppState, action: Action): AppState {
                       status: 'done' as ItemStatus,
                       percent: 100,
                       message: undefined,
-                      error: undefined
+                      error: undefined,
+                      // The table shows source -> result on one row (spec 6.1).
+                      outputPath: e.outputPath,
+                      outputSize: e.outputSize
                     }
                   : i
               ),
@@ -643,7 +682,9 @@ export function reducer(state: AppState, action: Action): AppState {
         percent: e.percent ?? i.percent,
         // Only a real reported percentage flips the bar to determinate.
         hasProgress: e.percent != null || i.hasProgress,
-        etaSec: e.etaSec ?? i.etaSec,
+        // A fresh percent without an ETA means the tool no longer has one
+        // (ticker overdue, ffmpeg before its first time stamp): drop the old one.
+        etaSec: e.percent != null ? e.etaSec : i.etaSec,
         // Keep the last label on a percent-only update: the estimated-progress
         // ticker drives the % without resending the message every tick.
         message: e.message ?? i.message,
@@ -652,9 +693,30 @@ export function reducer(state: AppState, action: Action): AppState {
       }))
     }
     case 'select':
-      return mapQueue(state, (q) => selectInQueue(q, action.id, action.mode))
+      return mapQueue(state, (q) => selectInQueue(q, action.id, action.mode, action.order))
     case 'clearSelection':
       return mapQueue(state, (q) => ({ ...q, selected: [], anchor: null }))
+    case 'selectIds':
+      return mapQueue(state, (q) => {
+        const known = new Set(q.items.filter(inInput).map((i) => i.id))
+        const ids = action.ids.filter((id) => known.has(id))
+        return { ...q, selected: ids, anchor: ids[0] ?? null }
+      })
+    case 'hideFinished':
+      return mapQueue(state, (q) => {
+        const items = q.items.map((i) =>
+          !i.isResult && (i.status === 'done' || i.status === 'canceled')
+            ? { ...i, hiddenInput: true }
+            : i
+        )
+        const kept = items.filter((i) => inInput(i) || inOutput(i))
+        const selectable = new Set(kept.filter(inInput).map((i) => i.id))
+        return {
+          items: kept,
+          selected: q.selected.filter((s) => selectable.has(s)),
+          anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
+        }
+      })
     default:
       return state
   }

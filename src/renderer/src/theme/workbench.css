@@ -1,0 +1,1138 @@
+/* Workbench component CSS, ported from the signed-off mockup
+   docs/mockups/terminal-v5/10-s2-vscode-grouped.html. Every colour is a token
+   from tokens.css. Renamed against Tailwind collisions: .table is .qtable,
+   .grid is .dgrid; breadcrumb links are buttons. */
+
+/* ---------- title bar ---------- */
+.titlebar {
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  padding-left: 14px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg1);
+  font-weight: 600;
+  line-height: 1;
+}
+.tsep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 0 12px;
+}
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg3);
+  font: 12px/1 var(--mono);
+}
+.crumb button {
+  font: inherit;
+  color: var(--fg3);
+  text-decoration: none;
+  padding: 4px 2px;
+}
+.crumb button:hover {
+  color: var(--fg1);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.crumb b {
+  color: var(--fg1);
+  font-weight: 500;
+}
+.winctl {
+  margin-left: auto;
+  display: flex;
+  align-self: stretch;
+}
+.winctl button {
+  width: 46px;
+  display: grid;
+  place-items: center;
+  color: var(--fg2);
+  border-left: 1px solid var(--line);
+}
+.winctl button:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.winctl button:active {
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+}
+.winctl svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+/* ---------- workbench ---------- */
+.wb {
+  display: grid;
+  grid-template-columns: auto 1fr 340px;
+  min-height: 0;
+}
+
+/* sidebar */
+.side {
+  width: var(--sbw);
+  background: var(--bg-0);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+[data-sidebar='collapsed'] .side {
+  width: var(--sbw-c);
+}
+.side-head {
+  position: relative;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.side-head .lbl {
+  padding-left: 16px;
+  font: 11px/1 var(--mono);
+  color: var(--fg3);
+  white-space: nowrap;
+}
+.toggle {
+  margin-left: auto;
+  width: 47px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  color: var(--fg2);
+  flex: none;
+}
+.toggle:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.toggle:active {
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+}
+.toggle svg {
+  transition: transform 0.18s;
+}
+[data-sidebar='collapsed'] .toggle svg {
+  transform: scaleX(-1);
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+.item {
+  position: relative;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px 0 15px;
+  color: var(--fg2);
+  white-space: nowrap;
+  text-align: left;
+  width: 100%;
+}
+.item:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.item:active {
+  background: var(--selected);
+}
+.item.on {
+  color: var(--fg1);
+  font-weight: 600;
+  background: var(--selected);
+}
+.item .lab {
+  flex: 1;
+  transition: opacity 0.12s;
+}
+.item .n {
+  font: 500 11px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg3);
+  transition: opacity 0.12s;
+}
+.side .spacer {
+  flex: 1;
+}
+.nav.bottom {
+  border-top: 1px solid var(--line);
+}
+[data-sidebar='collapsed'] .item .lab,
+[data-sidebar='collapsed'] .side-head .lbl {
+  opacity: 0;
+  pointer-events: none;
+}
+[data-sidebar='collapsed'] .item {
+  padding-left: 16px;
+}
+[data-sidebar='collapsed'] .item .n {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 2px;
+}
+[data-sidebar='collapsed'] .item:not(.on) .n {
+  opacity: 0;
+}
+[data-sidebar='collapsed'] .side-head .lbl {
+  position: absolute;
+}
+[data-sidebar='collapsed'] .side-head .toggle {
+  margin-left: 0;
+}
+
+/* center */
+.center {
+  display: grid;
+  grid-template-rows: 32px 1fr;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-0);
+}
+.toolbar {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+}
+.tbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--fg1);
+  line-height: 1;
+  border-right: 1px solid var(--line);
+}
+.tbtn.add {
+  font-weight: 600;
+}
+.tbtn.add:hover {
+  background: var(--hover);
+}
+.tbtn.add:active {
+  background: var(--selected);
+}
+.ibtn {
+  width: 36px;
+  display: grid;
+  place-items: center;
+  color: var(--fg2);
+  border-right: 1px solid var(--line);
+}
+.ibtn:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.ibtn:active {
+  background: var(--selected);
+}
+.tb-right {
+  margin-left: auto;
+  display: flex;
+  align-items: stretch;
+}
+.count {
+  display: flex;
+  align-items: center;
+  font: 12px var(--mono);
+  color: var(--fg3);
+  padding: 0 12px;
+}
+.tb-right .ibtn {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+
+/* table */
+.qtable {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.cols {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+}
+.thead {
+  height: 28px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.th {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  font: 500 11px/1 var(--mono);
+  color: var(--fg3);
+  border-right: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+}
+.th:last-child {
+  border-right: 0;
+}
+.th:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.th .chev {
+  opacity: 0;
+}
+.th:hover .chev,
+.th.sorted .chev {
+  opacity: 1;
+}
+.th.sorted {
+  color: var(--fg1);
+}
+.th.num {
+  justify-content: flex-end;
+}
+.th.ck {
+  justify-content: center;
+  padding: 0;
+}
+.tr {
+  position: relative;
+  height: 32px;
+  border-bottom: 1px solid var(--line);
+  cursor: default;
+}
+.tr:hover {
+  background: var(--hover);
+}
+.tr.sel {
+  background: var(--selected);
+}
+.tr:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.td {
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.td.num {
+  justify-content: flex-end;
+}
+.td.ck {
+  justify-content: center;
+  padding: 0;
+}
+.box {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--fg3);
+  display: grid;
+  place-items: center;
+  flex: none;
+  cursor: pointer;
+  color: var(--inv-fg);
+}
+.box svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2;
+}
+.box.on {
+  background: var(--inv-bg);
+  border-color: var(--inv-bg);
+}
+.box.mixed {
+  border-color: var(--fg2);
+}
+.box.mixed::before {
+  content: '';
+  width: 8px;
+  height: 2px;
+  background: var(--fg1);
+}
+.box:hover {
+  border-color: var(--fg1);
+}
+.box:focus-visible {
+  outline-offset: 2px;
+}
+.name {
+  font: 13px var(--mono);
+  color: var(--fg1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thumb {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line-strong);
+  flex: none;
+}
+.meta {
+  font: 12px var(--mono);
+  color: var(--fg3);
+}
+.size {
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg2);
+}
+.tr:hover .meta,
+.tr.sel .meta {
+  color: var(--fg2);
+}
+.res {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.res .arr {
+  color: var(--fg3);
+}
+.res b {
+  font-weight: 600;
+  color: var(--fg1);
+}
+.res .pct {
+  color: var(--fg3);
+}
+.tr:hover .res .pct,
+.tr.sel .res .pct {
+  color: var(--fg2);
+}
+/* result arrow: centred on the size|result column boundary, on a patch of the row background */
+.td.rc {
+  position: relative;
+  overflow: visible;
+}
+.res .arr.split {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(calc(-50% - 0.5px), -50%);
+  box-sizing: content-box;
+  padding: 2px 1px;
+  background: var(--bg-0);
+}
+.tr:hover .res .arr.split {
+  background: var(--hover);
+}
+.tr.sel .res .arr.split {
+  background: var(--selected);
+}
+.res .est {
+  color: var(--fg2);
+}
+.st .prog {
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.st .prog b {
+  font-weight: 600;
+  color: var(--fg1);
+}
+.st .prog .eta {
+  color: var(--fg3);
+}
+.st {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.st.done {
+  color: var(--fg2);
+}
+.st.run {
+  color: var(--fg1);
+}
+.st.q {
+  color: var(--fg3);
+}
+.st.fail {
+  color: var(--inv-fg);
+  background: var(--inv-bg);
+  font-weight: 600;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  gap: 6px;
+}
+.row-act {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--fg1);
+  border: 1px solid var(--line-strong);
+}
+.row-act:hover {
+  border-color: var(--fg2);
+  background: var(--hover);
+}
+.row-act:focus-visible {
+  outline-offset: 1px;
+}
+.row-act:active {
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+}
+.row-act.ghost {
+  opacity: 0;
+  color: var(--fg2);
+}
+.tr:hover .row-act.ghost,
+.tr:focus-within .row-act.ghost {
+  opacity: 1;
+}
+.fill {
+  flex: 1;
+}
+.totals {
+  height: 30px;
+  border-top: 1px solid var(--line-strong);
+  font: 12px var(--mono);
+  color: var(--fg2);
+}
+.totals b {
+  font-weight: 600;
+  color: var(--fg1);
+}
+
+/* inspector */
+.insp {
+  background: var(--bg-0);
+  border-left: 1px solid var(--line);
+  display: grid;
+  grid-template-rows: 32px 1fr auto;
+  min-height: 0;
+}
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--fg3);
+  font-size: 12px;
+  line-height: 1;
+}
+.tab:hover {
+  color: var(--fg1);
+  background: var(--hover);
+}
+.tab.on {
+  color: var(--fg1);
+  font-weight: 600;
+}
+/* reserve the bold width so switching tabs never shifts the row */
+.tab .tl {
+  display: inline-flex;
+  flex-direction: column;
+}
+.tab .tl::after {
+  content: attr(data-t);
+  font-weight: 600;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+.tab.on::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--fg1);
+}
+.ihead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.ihead h1 {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ihead span {
+  font: 12px var(--mono);
+  color: var(--fg3);
+}
+
+/* segmented control: boxed group, 1px dividers, selected cell inverted */
+.seg {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-0);
+}
+.seg button {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  font: 13px/1 var(--mono);
+  color: var(--fg2);
+  border-left: 1px solid var(--line-strong);
+  transition:
+    background-color 0.1s,
+    color 0.1s;
+}
+.seg button:first-child {
+  border-left: 0;
+}
+.seg button:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.seg button:active {
+  background: var(--track);
+}
+.seg button.on {
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+  font-weight: 600;
+}
+.seg button.on:hover {
+  background: var(--inv-hover);
+}
+.seg button:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -3px;
+  position: relative;
+  z-index: 1;
+}
+.seg button.on:focus-visible {
+  outline-color: var(--inv-fg);
+}
+
+/* small outlined button */
+.sbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  font: 12px/1 var(--sans);
+  color: var(--fg1);
+  border: 1px solid var(--line-strong);
+  align-self: flex-start;
+  transition:
+    background-color 0.1s,
+    border-color 0.1s;
+}
+.sbtn svg {
+  color: var(--fg2);
+}
+.sbtn:hover {
+  background: var(--hover);
+  border-color: var(--fg3);
+}
+.sbtn:hover svg {
+  color: var(--fg1);
+}
+.sbtn:active {
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+  border-color: var(--inv-bg);
+}
+.sbtn:active svg {
+  color: var(--inv-fg);
+}
+.sbtn:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* info grid */
+.dgrid {
+  margin: 0;
+}
+.dgrid > div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  border-bottom: 1px solid var(--line);
+  height: 32px;
+}
+.dgrid dt {
+  display: flex;
+  align-items: center;
+  padding-left: 16px;
+  font: 12px var(--mono);
+  color: var(--fg3);
+  border-right: 1px solid var(--line);
+}
+.dgrid dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 14px;
+  font: 13px var(--mono);
+  color: var(--fg1);
+}
+
+/* footer */
+.ifoot {
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: stretch;
+  height: 48px;
+}
+.primary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+  font-weight: 600;
+  font-size: 13px;
+}
+.primary:hover {
+  background: var(--inv-hover);
+}
+.primary:active {
+  background: var(--inv-active);
+}
+.primary:focus-visible {
+  outline: 2px solid var(--fg1);
+  outline-offset: -4px;
+  box-shadow: inset 0 0 0 3px var(--inv-bg);
+}
+
+/* status bar */
+.statusbar {
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: stretch;
+  font: 12px var(--mono);
+  color: var(--fg2);
+}
+.sitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  line-height: 1;
+  border-right: 1px solid var(--line);
+}
+.sitem:hover {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.mini {
+  width: 96px;
+  height: 2px;
+  background: var(--track);
+  position: relative;
+  overflow: hidden;
+}
+.mini i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--fg1);
+}
+.sright {
+  margin-left: auto;
+  display: flex;
+}
+.sright .sitem {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+.sitem.warn {
+  font-weight: 600;
+  color: var(--fg1);
+}
+
+/* preview */
+.wipe {
+  margin: 16px;
+  height: 208px;
+  position: relative;
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+  background: var(--bg-1);
+}
+.wipe .line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--fg1);
+}
+.wipe .tag {
+  position: absolute;
+  top: 0;
+  padding: 4px 6px;
+  background: var(--bg-0);
+  font: 12px var(--mono);
+  color: var(--fg1);
+}
+.wipe .tag.l {
+  left: 0;
+}
+.wipe .tag.r {
+  right: 0;
+}
+
+/* ---------- grouped settings (options pane) ---------- */
+.vs {
+  padding: 0 0 12px;
+}
+.ibody {
+  min-height: 0;
+  overflow: auto;
+}
+.vs-gh {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 4px;
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.09em;
+  color: var(--fg3);
+}
+.vs-gh::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.vs-set {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 16px 9px;
+}
+.vs-set::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: transparent;
+}
+.vs-set:hover,
+.vs-set:focus-within {
+  background: var(--bg-1);
+}
+.vs-set:focus-within::before {
+  background: var(--fg1);
+}
+.vs-t {
+  font: 500 13px/1.3 var(--sans);
+  color: var(--fg1);
+}
+.vs-d {
+  font: 12px/1.4 var(--sans);
+  color: var(--fg3);
+  margin-bottom: 5px;
+}
+.vs-d code {
+  font: 11.5px var(--mono);
+  color: var(--fg2);
+}
+/* select: filled field, chevron glyph, no divider (VS Code dropdown) */
+.vs-sel {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  font: 13px var(--mono);
+  color: var(--fg1);
+  text-align: left;
+  transition:
+    border-color 0.1s,
+    background-color 0.1s;
+}
+.vs-sel .val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vs-sel svg {
+  color: var(--fg2);
+}
+.vs-sel:hover {
+  border-color: var(--fg3);
+  background: var(--hover);
+}
+.vs-sel:hover svg {
+  color: var(--fg1);
+}
+.vs-sel:active {
+  background: var(--selected);
+}
+.vs-sel:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+  border-color: var(--focus);
+}
+.vs-sel.half {
+  width: 168px;
+}
+/* text field */
+.vs-in {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  font: 13px var(--mono);
+  color: var(--fg1);
+  caret-color: var(--fg1);
+  transition: border-color 0.1s;
+}
+.vs-in:hover {
+  border-color: var(--fg3);
+}
+.vs-in:focus {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+  border-color: var(--focus);
+}
+.vs-row {
+  display: flex;
+  gap: 6px;
+}
+.vs-row > .vs-sel {
+  flex: 1;
+  width: auto;
+}
+.vs-row .sbtn {
+  height: 28px;
+  align-self: auto;
+  flex: none;
+}
+/* checkbox setting */
+.vs-chk {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.vs-chk .box {
+  margin-top: 1px;
+  width: 16px;
+  height: 16px;
+}
+.vs-chk .box svg {
+  width: 12px;
+  height: 12px;
+}
+.vs-chk .lt {
+  font: 13px/1.4 var(--sans);
+  color: var(--fg1);
+}
+.vs-chk .lt span {
+  display: block;
+  font-size: 12px;
+  color: var(--fg3);
+}
+.vs-chk:hover .box {
+  border-color: var(--fg1);
+}
+.vs-chk:hover .box.on {
+  background: var(--inv-hover);
+  border-color: var(--inv-hover);
+}
+.vs-chk:active .box {
+  background: var(--inv-active);
+  border-color: var(--inv-active);
+}
+.vs-chk .box:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+/* estimate: quiet summary block */
+.vs-est {
+  margin: 14px 16px 0;
+  border: 1px solid var(--line-strong);
+  padding: 12px 14px 13px;
+  display: grid;
+  gap: 9px;
+}
+.vs-est .eh {
+  display: flex;
+  justify-content: space-between;
+  font: 11px/1 var(--mono);
+  color: var(--fg3);
+  letter-spacing: 0.04em;
+}
+.vs-est .ev {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font: 13px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.vs-est .ev .from {
+  color: var(--fg2);
+}
+.vs-est .ev svg {
+  color: var(--fg3);
+  align-self: center;
+}
+.vs-est .ev b {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg1);
+}
+.vs-est .ev .pct {
+  margin-left: auto;
+  color: var(--fg2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side,
+  .toggle svg,
+  .item .lab,
+  .item .n {
+    transition: none;
+  }
+}
+
+/* ---------- app additions (not in the static mockup) ---------- */
+.wb.no-insp {
+  grid-template-columns: auto 1fr;
+}
+.center {
+  position: relative;
+}
+.qbody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.thead,
+.totals {
+  flex: none;
+}
+.th.ck {
+  cursor: default;
+}
+.th.desc .chev {
+  transform: scaleY(-1);
+}
+.thumb {
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  font: 9px/1 var(--mono);
+  color: var(--fg3);
+  overflow: hidden;
+}
+.res .pct.grew {
+  font-weight: 600;
+}
+.st {
+  min-width: 0;
+}
+.st.canceled {
+  color: var(--fg3);
+}
+.st.fail {
+  overflow: hidden;
+}
+.row-act {
+  flex: none;
+}
+.insp {
+  min-width: 0;
+}
+.ihead span {
+  white-space: nowrap;
+}
+.dgrid {
+  border-top: 1px solid var(--line);
+}
+.dgrid > div {
+  min-height: 32px;
+  height: auto;
+}
+.dgrid dd {
+  gap: 8px;
+  padding: 6px 12px 6px 14px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sitem {
+  white-space: nowrap;
+}
+.count {
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg button,
+  .sbtn,
+  .vs-sel,
+  .vs-in {
+    transition: none;
+  }
+}
+
+/* While work runs the primary button becomes Stop: the app's one hue. */
+.primary.stop {
+  background: var(--stop-bg);
+  color: var(--stop-fg);
+}
+.primary.stop:hover {
+  background: var(--stop-hover);
+}
+.primary.stop:active {
+  background: var(--stop-active);
+}

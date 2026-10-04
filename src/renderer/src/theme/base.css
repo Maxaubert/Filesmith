@@ -1,0 +1,127 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-radius: 0;
+}
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--bg-0);
+}
+body {
+  margin: 0;
+  overflow: hidden;
+  color: var(--fg1);
+  font: 13px/1.4 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+input,
+textarea,
+.select-text {
+  user-select: text;
+}
+img {
+  -webkit-user-drag: none;
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled='true'] {
+  cursor: default;
+}
+svg.i {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+svg.i * {
+  vector-effect: non-scaling-stroke;
+}
+svg.i12 {
+  width: 12px;
+  height: 12px;
+}
+svg.i10 {
+  width: 10px;
+  height: 10px;
+}
+:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) var(--bg-0);
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: var(--bg-0);
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* App frame (spec 3): title bar, workbench, status bar. */
+.app {
+  display: grid;
+  grid-template-rows: 32px 1fr 24px;
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+}
+
+/* Menus and dialogs only fade: no scale, no radius (spec 2.3). */
+@keyframes fs-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.ctx-pop,
+.modal-pop {
+  animation: fs-fade 0.12s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctx-pop,
+  .modal-pop {
+    animation: none;
+  }
+}

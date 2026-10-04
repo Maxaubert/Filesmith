@@ -171,35 +171,42 @@ test.afterAll(async () => {
 
 /** Tools always opens on its grid, however you last left it. */
 async function openToolsGrid(p: Page): Promise<void> {
-  await p.locator('button:has-text("Tools")').first().click()
+  await p
+    .getByRole('navigation', { name: 'Operations' })
+    .getByRole('button', { name: 'Tools' })
+    .click()
   await expect(p.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
 }
 
 test('the rail lists every verb and opens its workspace', async () => {
+  const nav = page.getByRole('navigation', { name: 'Operations' })
   for (const verb of ['Convert', 'Compress', 'Resize', 'Upscale', 'Remove BG', 'Generate']) {
-    await page.locator(`button:has-text("${verb}")`).first().click()
+    await nav.getByRole('button', { name: verb }).click()
     await expect(page.locator('h1', { hasText: verb }).first()).toBeVisible()
   }
   await openToolsGrid(page)
-  await page.locator('button:has-text("Convert")').first().click()
+  await nav.getByRole('button', { name: 'Convert' }).click()
 })
 
 test('Tools groups its one-off verbs and opens one as a workspace', async () => {
   await openToolsGrid(page)
-  for (const t of ['Extract text', 'Pages to PNG', 'Merge', 'Split', 'Burst']) {
-    await expect(page.locator(`text=${t}`).first()).toBeVisible()
-  }
+  const tools = page.getByRole('region', { name: 'Tools' })
+  for (const t of ['Extract text', 'Pages to PNG', 'Merge', 'Split', 'Burst'])
+    await expect(tools.getByText(t, { exact: true }).first()).toBeVisible()
   // Archive work is an ordinary Convert now, not a tool hidden in here.
   await expect(page.locator('text=Archive to PDF')).toHaveCount(0)
   await expect(page.locator('text=PDF to CBZ')).toHaveCount(0)
-  await page.locator('button:has-text("Merge")').first().click()
+  await tools.getByRole('button', { name: /^Merge/ }).click()
   // A tool workspace is an ordinary queue titled with the tool's name.
   await expect(page.locator('h1', { hasText: 'Merge' }).first()).toBeVisible()
-  await expect(page.locator('text=Files').first()).toBeVisible()
+  await expect(page.getByRole('grid', { name: 'Files' })).toBeVisible()
   // Back returns to the grid, which is the app's only second level.
   await page.locator('button[aria-label="Back to Tools"]').first().click()
   await expect(page.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
-  await page.locator('button:has-text("Convert")').first().click()
+  await page
+    .getByRole('navigation', { name: 'Operations' })
+    .getByRole('button', { name: 'Convert' })
+    .click()
 })
 
 // NOTE: the mixed-kind queue, its group headers and the kind-scoped options

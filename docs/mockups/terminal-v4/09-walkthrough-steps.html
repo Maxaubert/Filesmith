@@ -1,0 +1,534 @@
+<!doctype html>
+<!--
+  Filesmith round 4, mockup 09: Walkthrough
+  Pitch: borrowed from VS Code's Get Started walkthroughs. The left pane is a short numbered
+  checklist (Add files, Format, Quality, Output). The active step expands inline to its control,
+  finished steps show a check and read back their value. Setup becomes a guided menu, the queue
+  fills the rest, and the selected file opens below it with before / after details.
+  IDE sources: VS Code walkthrough step list, activity bar, status bar, list view with column headers,
+  property grid. Type pairing A: Segoe UI Variable + Cascadia Mono. Strict monochrome.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filesmith, Walkthrough</title>
+<style>
+:root{
+  --bg-0:#0b0b0b; --bg-1:#111111; --bg-step:#161616; --bg-chrome:#141414; --bg-input:#1a1a1a;
+  --raised:#1e1e1e; --hover:#1c1c1c; --selected:#262626; --selected-strong:#2e2e2e;
+  --hairline:#222222; --hairline-strong:#333333;
+  --fg1:#e8e8e8; --fg2:#b0b0b0; --fg3:#8a8a8a; --fg-disabled:#5a5a5a;
+  --accent-bg:#d6d6d6; --accent-fg:#0b0b0b; --focus:#cfcfcf; --bar:#e8e8e8; --track:#2a2a2a;
+  --ui:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg-0)}
+body{margin:0;width:1440px;height:900px;overflow:hidden;color:var(--fg1);font:13px/1.4 var(--ui);
+  display:grid;grid-template-rows:32px 1fr 22px;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.ico{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ico *{vector-effect:non-scaling-stroke}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:1px solid var(--focus);outline-offset:2px}
+
+/* ---------- title bar ---------- */
+.titlebar{display:flex;align-items:center;background:var(--bg-chrome);border-bottom:1px solid var(--hairline);height:32px}
+.brand{display:flex;align-items:center;gap:8px;padding:0 12px 0 14px;color:var(--fg2);line-height:1}
+.brand svg{width:16px;height:16px}
+.brand b{font-weight:600;color:var(--fg1)}
+.tcrumb{display:flex;align-items:center;gap:4px;color:var(--fg3);font-size:12px;line-height:1}
+.tcrumb .ico{width:12px;height:12px}
+.tcrumb span:last-child{color:var(--fg2)}
+.winctl{margin-left:auto;display:flex}
+.winctl button{width:46px;height:32px;display:grid;place-items:center;color:var(--fg2)}
+.winctl button:hover{background:var(--hover);color:var(--fg1)}
+.winctl button.x:hover{background:#3a3a3a}
+.winctl svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1}
+
+/* ---------- workbench ---------- */
+.work{display:grid;grid-template-columns:44px 340px 1fr;min-height:0}
+
+/* activity bar */
+.activity{background:var(--bg-chrome);border-right:1px solid var(--hairline);display:flex;flex-direction:column;justify-content:space-between}
+.activity nav{display:flex;flex-direction:column}
+.act{position:relative;width:44px;height:44px;display:grid;place-items:center;color:var(--fg3)}
+.act .ico{width:20px;height:20px}
+.act:hover{color:var(--fg2)}
+.act:active{color:var(--fg1)}
+.act:focus-visible{outline-offset:-3px}
+.act.on{color:var(--fg1)}
+.act.on::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.badge{position:absolute;right:6px;bottom:7px;min-width:14px;height:14px;padding:0 3px;border-radius:3px;
+  background:#bdbdbd;color:var(--bg-0);font:600 10px/14px var(--mono);text-align:center}
+.act-sep{height:1px;margin:6px 10px;background:var(--hairline)}
+
+/* ---------- walkthrough pane ---------- */
+.pane{background:var(--bg-1);border-right:1px solid var(--hairline);display:flex;flex-direction:column;min-height:0}
+.view-title{height:35px;flex:none;display:flex;align-items:center;padding:0 8px 0 16px;
+  font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);line-height:1}
+.view-title .acts{margin-left:auto;display:flex;gap:2px}
+.iconbtn{width:24px;height:24px;display:grid;place-items:center;border-radius:3px;color:var(--fg3)}
+.iconbtn:hover{background:var(--hover);color:var(--fg1)}
+.iconbtn:active{background:var(--selected)}
+
+.wt-head{padding:4px 16px 14px}
+.wt-head h1{margin:0;font-size:14px;font-weight:600;line-height:1.3}
+.wt-prog{display:flex;align-items:center;gap:10px;margin-top:8px;color:var(--fg3);font-size:12px;line-height:1}
+.ticks{display:flex;gap:3px}
+.ticks i{display:block;width:28px;height:2px;background:var(--track)}
+.ticks i.f{background:var(--fg2)}
+
+.steps{list-style:none;margin:0;padding:0;border-top:1px solid var(--hairline)}
+.step{position:relative;border-bottom:1px solid var(--hairline)}
+.step-row{width:100%;height:52px;display:grid;grid-template-columns:16px 14px 1fr auto;align-items:center;gap:8px;
+  padding:0 12px 0 16px;text-align:left}
+.step-row:hover{background:var(--hover)}
+.step-row:active{background:var(--selected)}
+.step-row:focus-visible{outline-offset:-1px}
+.glyph{width:16px;height:16px;color:var(--fg2)}
+.num{font:12px/1 var(--mono);color:var(--fg3)}
+.st-title{font-weight:600;line-height:1.2;display:block}
+.st-val{display:block;font:12px/1.3 var(--mono);color:var(--fg3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-val b{color:var(--fg2);font-weight:400}
+.step-row:hover .st-val{color:var(--fg2)}
+.chev{width:16px;height:16px;color:var(--fg3);transition:transform .12s}
+.step.open{background:var(--bg-step)}
+.step.open::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.step.open .chev{transform:rotate(90deg);color:var(--fg2)}
+.step.open .glyph{color:var(--fg1)}
+.step.open .st-val{display:none}
+.step.open .step-row{height:48px}
+.step.open .step-row:hover{background:transparent}
+.step-body{display:none;padding:0 16px 16px 54px}
+.step.open .step-body{display:block}
+.desc{margin:0 0 12px;font-size:12px;color:var(--fg2)}
+
+/* segmented */
+.seg{display:flex;border:1px solid var(--hairline-strong);border-radius:3px;overflow:hidden;width:max-content}
+.seg button{height:24px;padding:0 10px;color:var(--fg2);border-left:1px solid var(--hairline-strong);line-height:1}
+.seg button:first-child{border-left:0}
+.seg.fmt button{font:12px/1 var(--mono);padding:0;width:44px}
+.seg button:hover{background:var(--hover);color:var(--fg1)}
+.seg button:active{background:var(--selected)}
+.seg button:focus-visible{outline-offset:-2px}
+.seg button.on{background:var(--selected-strong);color:var(--fg1);font-weight:600}
+.fmt-meta{display:flex;gap:16px;margin-top:10px;font-size:12px;color:var(--fg3)}
+.fmt-meta span b{font-weight:400;color:var(--fg2)}
+.step-next{display:flex;align-items:center;gap:6px;margin-top:14px}
+.btn2{height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:2px;
+  background:var(--bg-input);border:1px solid var(--hairline-strong);color:var(--fg1);font-size:12px;line-height:1}
+.btn2:hover{background:#222}
+.btn2:active{background:var(--selected-strong)}
+.ghost{height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:2px;color:var(--fg2);font-size:12px;line-height:1}
+.ghost:hover{background:var(--hover);color:var(--fg1)}
+
+/* radios + checkbox (for the other steps' bodies) */
+.radio{display:flex;align-items:center;gap:8px;height:24px;color:var(--fg2);cursor:pointer}
+.radio i{width:16px;height:16px;border:1px solid var(--fg3);border-radius:50%;display:grid;place-items:center}
+.radio.on{color:var(--fg1)}
+.radio.on i::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg1)}
+.check{display:flex;align-items:center;gap:8px;height:24px;margin-top:8px;cursor:pointer}
+.check i{width:16px;height:16px;border-radius:2px;background:var(--accent-bg);display:grid;place-items:center;color:var(--accent-fg)}
+.check i svg{width:12px;height:12px;stroke-width:1.75}
+
+/* summary + footer */
+.pane-spacer{flex:1}
+.summary{padding:0 16px 12px}
+.tsep{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:6px;line-height:1}
+.tsep::after{content:"";flex:1;height:1px;background:var(--hairline)}
+.kv{display:grid;grid-template-columns:96px 1fr;font-size:12px}
+.kv dt,.kv dd{margin:0;height:24px;display:flex;align-items:center;border-bottom:1px solid var(--hairline)}
+.kv dt{color:var(--fg2)}
+.kv dd{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--fg1)}
+.kv dd .dim{color:var(--fg3)}
+.kv > :nth-last-child(-n+2){border-bottom:0}
+.pane-foot{padding:12px 16px 16px;border-top:1px solid var(--hairline)}
+.primary{width:100%;height:32px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:3px;
+  background:var(--accent-bg);color:var(--accent-fg);font-weight:600;line-height:1}
+.primary:hover{background:#e8e8e8}
+.primary:active{background:#bdbdbd}
+.primary .ico{stroke-width:1.5}
+
+/* ---------- queue (editor area) ---------- */
+.editor{display:grid;grid-template-rows:auto 1fr;min-height:0;background:var(--bg-0)}
+.qhead{height:35px;display:flex;align-items:center;gap:8px;padding:0 12px 0 20px;border-bottom:1px solid var(--hairline);background:var(--bg-0)}
+.qhead h2{margin:0;font-size:13px;font-weight:600;line-height:1}
+.qhead .count{font:12px/1 var(--mono);color:var(--fg3)}
+.qhead .right{margin-left:auto;display:flex;align-items:center;gap:4px}
+.vsep{width:1px;height:16px;background:var(--hairline-strong);margin:0 4px}
+
+.table{--cols:20px minmax(0,1fr) 210px 220px 24px}
+.thead{display:contents}
+.thead > div{height:24px;display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--fg3);line-height:1}
+.thead .ico{width:12px;height:12px}
+.rows{}
+.row{display:grid;grid-template-columns:var(--cols);column-gap:12px;align-items:center;height:34px;padding:0 12px 0 20px;position:relative;cursor:default}
+.thead-wrap{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px 0 20px;border-bottom:1px solid var(--hairline)}
+.row:hover{background:var(--hover)}
+.row.sel{background:var(--selected);box-shadow:inset 0 0 0 1px #555}
+.row.fail::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--fg1)}
+.thumb{width:20px;height:20px;border-radius:2px;border:1px solid var(--hairline-strong)}
+.t1{background:linear-gradient(180deg,#9a9a9a 0 40%,#5c5c5c 40% 62%,#3a3a3a 62%)}
+.t2{background:radial-gradient(circle at 50% 55%,#cfcfcf 0 30%,#6a6a6a 32%,#2a2a2a 70%)}
+.t3{background:linear-gradient(#3a3a3a 0 22%,#202020 22%),#202020;box-shadow:inset 3px 6px 0 -1px #555}
+.t4{background:linear-gradient(110deg,#262626 0 45%,#8f8f8f 45% 55%,#444 55%)}
+.t5{background:repeating-linear-gradient(0deg,#bdbdbd 0 2px,#d6d6d6 2px 4px)}
+.t6{background:radial-gradient(circle at 50% 50%,#e8e8e8 0 25%,#1e1e1e 27%)}
+.fname{font:13px/1 var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.size{font:12px/1 var(--mono);color:var(--fg2);display:flex;align-items:center;gap:6px}
+.size .before{color:var(--fg3)}
+.size .arr{width:12px;height:12px;color:var(--fg3)}
+.size .after{color:var(--fg1);font-weight:600}
+.row.sel .size .before,.row.sel .size .arr,.row:hover .size .before{color:var(--fg2)}
+.status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2);line-height:1;white-space:nowrap}
+.status .ico{width:16px;height:16px}
+.status.q{color:var(--fg3)}
+.row:hover .status.q,.row.sel .status.q{color:var(--fg2)}
+.status.f{color:var(--fg1);font-weight:600}
+.pbar{width:120px;height:2px;background:var(--track);position:relative}
+.pbar::after{content:"";position:absolute;inset:0 38% 0 0;background:var(--bar)}
+.pct{font:12px/1 var(--mono);color:var(--fg1)}
+.rowact{width:24px;height:24px;display:grid;place-items:center;border-radius:3px;color:var(--fg3);opacity:0}
+.row:hover .rowact,.row.fail .rowact{opacity:1}
+.row.fail .rowact{color:var(--fg1)}
+.rowact:hover{background:var(--selected-strong);color:var(--fg1)}
+.drop{height:34px;display:flex;align-items:center;gap:8px;padding:0 20px;color:var(--fg3);font-size:12px;
+  border-top:1px dashed var(--hairline-strong);border-bottom:1px solid var(--hairline)}
+.drop .ico{color:var(--fg3)}
+.drop button{color:var(--fg2);text-decoration:underline;text-underline-offset:2px;text-decoration-color:#555}
+.drop button:hover{color:var(--fg1)}
+
+/* ---------- details (selected file) ---------- */
+.details{display:grid;grid-template-rows:35px 1fr;min-height:0;border-top:1px solid var(--hairline)}
+.dhead{display:flex;align-items:center;gap:6px;padding:0 12px 0 14px;background:var(--bg-chrome);border-bottom:1px solid var(--hairline)}
+.dtab{height:35px;display:flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;color:var(--fg3);position:relative;line-height:1}
+.dtab:hover{color:var(--fg2)}
+.dtab.on{color:var(--fg1)}
+.dtab.on::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:1px;background:var(--fg1)}
+.dtab .mono{font-size:12px}
+.dhead .right{margin-left:auto;display:flex;gap:2px}
+.dbody{display:grid;grid-template-columns:1fr 320px;min-height:0}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--hairline);border-right:1px solid var(--hairline)}
+.shot{background:var(--bg-0);display:flex;flex-direction:column;justify-content:center;min-height:0;padding:0 24px}
+.shot .frame{aspect-ratio:4/3;border:1px solid var(--hairline-strong);border-radius:2px;overflow:hidden;position:relative}
+.shot .frame svg{display:block;width:100%;height:100%}
+.shot .cap{display:flex;align-items:center;gap:8px;height:32px;font-size:12px;color:var(--fg3);line-height:1}
+.shot .cap b{font:600 12px/1 var(--mono);color:var(--fg1)}
+.shot .cap .mono{color:var(--fg2)}
+.shot .cap .r{margin-left:auto}
+.props{padding:12px 16px;overflow:hidden}
+.props .kv{grid-template-columns:104px 1fr}
+.props .group{margin-bottom:16px}
+
+/* ---------- status bar ---------- */
+.statusbar{display:flex;align-items:stretch;background:var(--bg-chrome);border-top:1px solid var(--hairline);font-size:12px;color:var(--fg2);line-height:1}
+.sb{display:flex;align-items:center;gap:6px;padding:0 10px;cursor:default}
+.sb:hover{background:var(--hover);color:var(--fg1)}
+.sb .ico{width:14px;height:14px}
+.sb .hl{width:80px;height:1px;background:var(--track);position:relative}
+.sb .hl::after{content:"";position:absolute;inset:0;width:38%;background:var(--bar)}
+.sb.warn{color:var(--fg1);font-weight:600}
+.sb.r{margin-left:auto}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-convert" viewBox="0 0 16 16"><path d="M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13"/></symbol>
+    <symbol id="i-compress" viewBox="0 0 16 16"><path d="M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11"/></symbol>
+    <symbol id="i-resize" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10"/></symbol>
+    <symbol id="i-upscale" viewBox="0 0 16 16"><rect x="2.5" y="8.5" width="5" height="5" rx=".5"/><path d="M9 2.5h4.5V7M13.5 2.5L8.5 7.5"/></symbol>
+    <symbol id="i-removebg" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5"/></symbol>
+    <symbol id="i-generate" viewBox="0 0 16 16"><path d="M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx=".5"/><rect x="9" y="2.5" width="4.5" height="4.5" rx=".5"/><rect x="2.5" y="9" width="4.5" height="4.5" rx=".5"/><rect x="9" y="9" width="4.5" height="4.5" rx=".5"/></symbol>
+    <symbol id="i-completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8.25l1.75 1.75L10.75 6.5"/></symbol>
+    <symbol id="i-ring" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 16 16"><path d="M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6"/><circle cx="9" cy="5" r="1.5"/><circle cx="6" cy="11" r="1.5"/></symbol>
+    <symbol id="i-addfile" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3M8 7v5M5.5 9.5h5"/></symbol>
+    <symbol id="i-image" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3M3.5 12.5l3-3 2 2 1.5-1.5 2.5 2.5"/><circle cx="6.5" cy="7.5" r="1"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 16 16"><path d="M3 3v3h3M3.3 6A5 5 0 1 1 3 9.5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></symbol>
+    <symbol id="i-spin" viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/></symbol>
+    <symbol id="i-chev-r" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M10 5l3 3-3 3"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6 4.5V2.5h4v2M4.5 4.5l.5 9h6l.5-9"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 16 16"><path d="M2.5 4.5h7a4 4 0 0 1 0 8h-5M5 2l-2.5 2.5L5 7"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z"/></symbol>
+    <symbol id="i-split" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx=".5"/><path d="M8 2.5v11"/></symbol>
+    <symbol id="i-open" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13zM9.5 9h3.5"/></symbol>
+  </defs>
+</svg>
+
+<!-- ================= title bar ================= -->
+<header class="titlebar">
+  <div class="brand">
+    <svg viewBox="0 0 16 16" fill="none" stroke="#e8e8e8" stroke-width="1.25" stroke-linejoin="round"><path d="M2.5 4.5h11l-2 3h-3v4h2.5v2h-7v-2H6.5v-4h-4z"/></svg>
+    <b>Filesmith</b>
+  </div>
+  <div class="tcrumb"><svg class="ico"><use href="#i-chev-r"/></svg><span>Convert</span></div>
+  <div class="winctl">
+    <button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+    <button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+    <button class="x" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </div>
+</header>
+
+<div class="work">
+
+  <!-- ================= activity bar ================= -->
+  <aside class="activity">
+    <nav aria-label="Operations">
+      <button class="act on" title="Convert" aria-current="page"><svg class="ico"><use href="#i-convert"/></svg><span class="badge">6</span></button>
+      <button class="act" title="Compress"><svg class="ico"><use href="#i-compress"/></svg></button>
+      <button class="act" title="Resize"><svg class="ico"><use href="#i-resize"/></svg></button>
+      <button class="act" title="Upscale"><svg class="ico"><use href="#i-upscale"/></svg></button>
+      <button class="act" title="Remove BG"><svg class="ico"><use href="#i-removebg"/></svg></button>
+      <button class="act" title="Generate"><svg class="ico"><use href="#i-generate"/></svg></button>
+      <div class="act-sep"></div>
+      <button class="act" title="Tools"><svg class="ico"><use href="#i-tools"/></svg></button>
+    </nav>
+    <nav aria-label="App">
+      <button class="act" title="Completed, 142"><svg class="ico"><use href="#i-completed"/></svg></button>
+      <button class="act" title="Settings"><svg class="ico"><use href="#i-settings"/></svg></button>
+    </nav>
+  </aside>
+
+  <!-- ================= walkthrough pane ================= -->
+  <section class="pane" aria-label="Convert setup">
+    <div class="view-title">Convert
+      <div class="acts">
+        <button class="iconbtn" title="Reset to defaults"><svg class="ico"><use href="#i-reset"/></svg></button>
+      </div>
+    </div>
+    <div class="wt-head">
+      <h1>Convert images</h1>
+      <div class="wt-prog"><span class="ticks"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i></span><span>4 of 4 ready</span></div>
+    </div>
+
+    <ol class="steps" id="steps">
+      <li class="step">
+        <button class="step-row">
+          <svg class="ico glyph"><use href="#i-completed"/></svg><span class="num">1</span>
+          <span><span class="st-title">Add files</span><span class="st-val"><b>6</b> images, 35.2 MB</span></span>
+          <svg class="ico chev"><use href="#i-chev-r"/></svg>
+        </button>
+        <div class="step-body">
+          <p class="desc">Drop files on the queue, or pick them here.</p>
+          <button class="btn2"><svg class="ico"><use href="#i-addfile"/></svg>Add files</button>
+        </div>
+      </li>
+      <li class="step open">
+        <button class="step-row" aria-expanded="true">
+          <svg class="ico glyph"><use href="#i-ring"/></svg><span class="num">2</span>
+          <span><span class="st-title">Format</span><span class="st-val">WebP</span></span>
+          <svg class="ico chev"><use href="#i-chev-r"/></svg>
+        </button>
+        <div class="step-body">
+          <p class="desc">Every file in the queue becomes this format.</p>
+          <div class="seg fmt" role="radiogroup" aria-label="Format">
+            <button class="on" role="radio" aria-checked="true">WebP</button>
+            <button role="radio">JPG</button>
+            <button role="radio">PNG</button>
+            <button role="radio">AVIF</button>
+            <button role="radio">JXL</button>
+            <button role="radio">TIFF</button>
+          </div>
+          <div class="fmt-meta"><span>Transparency <b>yes</b></span><span>Typical size <b>-70%</b></span></div>
+          <div class="step-next">
+            <button class="btn2" data-next>Next: Quality<svg class="ico"><use href="#i-chev-r"/></svg></button>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <button class="step-row">
+          <svg class="ico glyph"><use href="#i-completed"/></svg><span class="num">3</span>
+          <span><span class="st-title">Quality</span><span class="st-val">Balanced</span></span>
+          <svg class="ico chev"><use href="#i-chev-r"/></svg>
+        </button>
+        <div class="step-body">
+          <p class="desc">Trade file size against detail.</p>
+          <div class="seg" role="radiogroup" aria-label="Quality">
+            <button role="radio">Smaller</button><button class="on" role="radio" aria-checked="true">Balanced</button><button role="radio">Best</button>
+          </div>
+          <div class="step-next"><button class="btn2" data-next>Next: Output<svg class="ico"><use href="#i-chev-r"/></svg></button></div>
+        </div>
+      </li>
+      <li class="step">
+        <button class="step-row">
+          <svg class="ico glyph"><use href="#i-completed"/></svg><span class="num">4</span>
+          <span><span class="st-title">Output</span><span class="st-val">Next to source, keep metadata</span></span>
+          <svg class="ico chev"><use href="#i-chev-r"/></svg>
+        </button>
+        <div class="step-body">
+          <p class="desc">Where converted files are saved.</p>
+          <label class="radio on"><i></i>Next to source</label>
+          <label class="radio"><i></i>Choose folder…</label>
+          <label class="check"><i><svg class="ico"><use href="#i-check"/></svg></i>Keep metadata</label>
+        </div>
+      </li>
+    </ol>
+
+    <div class="pane-spacer"></div>
+
+    <div class="summary">
+      <div class="tsep">Batch</div>
+      <dl class="kv">
+        <dt>Files</dt><dd>6 images</dd>
+        <dt>Converts to</dt><dd>WebP, balanced</dd>
+        <dt>Input</dt><dd>35.2 MB</dd>
+        <dt>Estimated</dt><dd>7.9 MB <span class="dim">&nbsp;-78%</span></dd>
+      </dl>
+    </div>
+    <div class="pane-foot">
+      <button class="primary"><svg class="ico"><use href="#i-convert"/></svg>Convert 6 files</button>
+    </div>
+  </section>
+
+  <!-- ================= queue + details ================= -->
+  <main class="editor">
+    <div>
+      <div class="qhead">
+        <h2>Queue</h2><span class="count">6</span>
+        <div class="right">
+          <button class="btn2"><svg class="ico"><use href="#i-addfile"/></svg>Add files</button>
+          <span class="vsep"></span>
+          <button class="iconbtn" title="Toggle details"><svg class="ico"><use href="#i-split"/></svg></button>
+          <button class="iconbtn" title="Clear queue"><svg class="ico"><use href="#i-trash"/></svg></button>
+        </div>
+      </div>
+
+      <div class="table" role="grid" aria-label="Queue">
+        <div class="thead-wrap" role="row">
+          <div class="thead"><div></div><div>Name <svg class="ico"><use href="#i-chev-d"/></svg></div><div>Size</div><div>Status</div><div></div></div>
+        </div>
+        <div class="rows">
+          <div class="row sel" role="row" tabindex="0">
+            <span class="thumb t1"></span><span class="fname">IMG_4821.HEIC</span>
+            <span class="size"><span class="before">3.2 MB</span><svg class="ico arr"><use href="#i-arrow"/></svg><span class="after">640 KB</span></span>
+            <span class="status"><svg class="ico"><use href="#i-check"/></svg>done</span>
+            <button class="rowact" title="Show in folder"><svg class="ico"><use href="#i-open"/></svg></button>
+          </div>
+          <div class="row" role="row" tabindex="0">
+            <span class="thumb t2"></span><span class="fname">product-shot.jpg</span>
+            <span class="size"><span class="before">2.1 MB</span><svg class="ico arr"><use href="#i-arrow"/></svg><span class="after">486 KB</span></span>
+            <span class="status"><svg class="ico"><use href="#i-check"/></svg>done</span>
+            <button class="rowact" title="Show in folder"><svg class="ico"><use href="#i-open"/></svg></button>
+          </div>
+          <div class="row" role="row" tabindex="0">
+            <span class="thumb t3"></span><span class="fname">screenshot-2026-10-03.png</span>
+            <span class="size">1.8 MB</span>
+            <span class="status"><span class="pbar"></span><span class="pct">62%</span></span>
+            <button class="rowact" title="Cancel"><svg class="ico"><use href="#i-close"/></svg></button>
+          </div>
+          <div class="row" role="row" tabindex="0">
+            <span class="thumb t4"></span><span class="fname">hero-banner@2x.png</span>
+            <span class="size">4.6 MB</span>
+            <span class="status q"><svg class="ico"><use href="#i-clock"/></svg>queued</span>
+            <button class="rowact" title="Remove"><svg class="ico"><use href="#i-close"/></svg></button>
+          </div>
+          <div class="row fail" role="row" tabindex="0">
+            <span class="thumb t5"></span><span class="fname">scan_0091.tiff</span>
+            <span class="size">22.4 MB</span>
+            <span class="status f"><svg class="ico"><use href="#i-warning"/></svg>Unsupported compression</span>
+            <button class="rowact" title="Retry"><svg class="ico"><use href="#i-retry"/></svg></button>
+          </div>
+          <div class="row" role="row" tabindex="0">
+            <span class="thumb t6"></span><span class="fname">logo-final.bmp</span>
+            <span class="size">1.1 MB</span>
+            <span class="status q"><svg class="ico"><use href="#i-clock"/></svg>queued</span>
+            <button class="rowact" title="Remove"><svg class="ico"><use href="#i-close"/></svg></button>
+          </div>
+          <div class="drop"><svg class="ico"><use href="#i-addfile"/></svg>Drop files here or <button>browse</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- selected file -->
+    <section class="details" aria-label="Selected file">
+      <div class="dhead">
+        <button class="dtab on"><svg class="ico"><use href="#i-eye"/></svg><span class="mono">IMG_4821.HEIC</span></button>
+        <div class="right">
+          <button class="iconbtn" title="Show in folder"><svg class="ico"><use href="#i-open"/></svg></button>
+          <button class="iconbtn" title="Close details"><svg class="ico"><use href="#i-close"/></svg></button>
+        </div>
+      </div>
+      <div class="dbody">
+        <div class="compare">
+          <figure class="shot" style="margin:0">
+            <div class="frame">
+              <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+                <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a5a5a"/><stop offset="1" stop-color="#a8a8a8"/></linearGradient></defs>
+                <rect width="400" height="300" fill="url(#sky)"/>
+                <circle cx="290" cy="96" r="26" fill="#dedede"/>
+                <path d="M0 210 L70 140 L120 180 L190 100 L260 170 L320 130 L400 190 V300 H0Z" fill="#3c3c3c"/>
+                <path d="M0 240 L90 200 L170 235 L250 205 L330 240 L400 225 V300 H0Z" fill="#242424"/>
+                <path d="M0 270 Q200 250 400 272 V300 H0Z" fill="#151515"/>
+              </svg>
+            </div>
+            <figcaption class="cap"><b>HEIC</b><span>Source</span><span class="mono r">3.2 MB</span></figcaption>
+          </figure>
+          <figure class="shot" style="margin:0">
+            <div class="frame">
+              <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+                <rect width="400" height="300" fill="url(#sky)"/>
+                <circle cx="290" cy="96" r="26" fill="#dedede"/>
+                <path d="M0 210 L70 140 L120 180 L190 100 L260 170 L320 130 L400 190 V300 H0Z" fill="#3c3c3c"/>
+                <path d="M0 240 L90 200 L170 235 L250 205 L330 240 L400 225 V300 H0Z" fill="#242424"/>
+                <path d="M0 270 Q200 250 400 272 V300 H0Z" fill="#151515"/>
+              </svg>
+            </div>
+            <figcaption class="cap"><b>WebP</b><span>Result</span><span class="mono r" style="color:var(--fg1);font-weight:600">640 KB</span></figcaption>
+          </figure>
+        </div>
+        <div class="props">
+          <div class="group">
+            <div class="tsep">File</div>
+            <dl class="kv">
+              <dt>Dimensions</dt><dd>4032 × 3024</dd>
+              <dt>Format</dt><dd>HEIC <span class="dim">&nbsp;→&nbsp;</span> WebP</dd>
+              <dt>Size</dt><dd><span class="dim">3.2 MB&nbsp;→&nbsp;</span>640 KB</dd>
+              <dt>Saved</dt><dd>80%</dd>
+            </dl>
+          </div>
+          <div class="group">
+            <div class="tsep">Output</div>
+            <dl class="kv">
+              <dt>Name</dt><dd>IMG_4821.webp</dd>
+              <dt>Location</dt><dd>Next to source</dd>
+              <dt>Metadata</dt><dd>Kept</dd>
+              <dt>Took</dt><dd>1.4 s</dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ================= status bar ================= -->
+<footer class="statusbar">
+  <div class="sb"><svg class="ico"><use href="#i-spin"/></svg>Converting 3 of 6<span class="hl"></span></div>
+  <div class="sb warn"><svg class="ico"><use href="#i-warning"/></svg>1 failed</div>
+  <div class="sb r">2 of 6 done</div>
+</footer>
+
+<script>
+  // one step open at a time, like a VS Code walkthrough
+  const steps=[...document.querySelectorAll('.step')];
+  function openStep(s){steps.forEach(x=>{x.classList.toggle('open',x===s);x.querySelector('.step-row').setAttribute('aria-expanded',x===s)})}
+  steps.forEach((s,i)=>{
+    s.querySelector('.step-row').addEventListener('click',()=>openStep(s));
+    const n=s.querySelector('[data-next]'); if(n) n.addEventListener('click',()=>openStep(steps[i+1]));
+  });
+</script>
+</body>
+</html>

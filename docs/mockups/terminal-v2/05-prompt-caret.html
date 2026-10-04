@@ -1,0 +1,161 @@
+<!--
+  Filesmith terminal v2, mockup 05: Prompt
+  Pitch: the title is a prompt, "› convert_", with a slow blinking underscore.
+  That one device carries the terminal feel. Everything else is quiet mono text on black.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Filesmith Prompt</title>
+<style>
+  :root {
+    --bg: #000000;
+    --fg: #f2f2f2;
+    --fg2: #d0d0d0;
+    --fg3: #8f8f8f;
+    --glyph: #b0b0b0;
+    --hover: #121212;
+    --m: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+    --ease: cubic-bezier(.2,.7,.2,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body {
+    width: 1440px; height: 900px; overflow: hidden;
+    color: var(--fg); font: 13px/1.4 var(--m);
+    -webkit-font-smoothing: antialiased;
+    display: grid; grid-template-rows: 38px 1fr;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+  /* title bar */
+  .bar { display: flex; align-items: center; padding-left: 20px; -webkit-app-region: drag; }
+  .mark { width: 12px; height: 12px; border: 1.5px solid var(--glyph); margin-right: 10px; }
+  .app { color: var(--fg3); font-size: 12px; }
+  .win { margin-left: auto; display: flex; height: 100%; -webkit-app-region: no-drag; }
+  .win button { width: 46px; height: 100%; display: grid; place-items: center; color: var(--glyph);
+    transition: background-color 150ms var(--ease), color 150ms var(--ease); }
+  .win button:hover { background: var(--hover); color: var(--fg); }
+  .win svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1; fill: none; }
+
+  .main { display: grid; grid-template-columns: 180px 1fr; }
+
+  /* verb rail: plain text list */
+  nav { padding: 144px 0 0 28px; display: flex; flex-direction: column; gap: 2px; }
+  nav button {
+    text-align: left; height: 32px; padding: 0 8px; margin-left: -8px; width: 140px;
+    border-radius: 6px; color: var(--fg3); font-size: 12.5px; font-weight: 500;
+    transition: color 150ms var(--ease), background-color 150ms var(--ease);
+  }
+  nav button:hover { color: var(--fg2); background: var(--hover); }
+  nav button:active { transform: scale(.97); }
+  nav button[aria-current="page"] { color: var(--fg); }
+
+  /* content */
+  .content { padding: 128px 0 0 80px; }
+  .col { width: 560px; }
+  h1 {
+    font-family: var(--m); font-weight: 300; font-size: 40px; line-height: 48px;
+    letter-spacing: -0.01em; color: var(--fg); margin-bottom: 48px;
+    display: flex;
+  }
+  .p { color: var(--fg3); width: 2ch; }
+  .caret { animation: blink 1.1s steps(1, end) infinite; color: var(--fg2); }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+
+  /* everything below aligns under the "c": 2ch of the 40px title */
+  .indent { padding-left: 48px; }
+
+  ul { list-style: none; }
+  li {
+    height: 40px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 12px; margin: 0 -12px; border-radius: 6px; font-size: 13px;
+    transition: background-color 150ms var(--ease);
+  }
+  li:hover { background: var(--hover); }
+  .name { color: var(--fg2); }
+  .s { font-variant-numeric: tabular-nums; text-align: right; }
+  .done { color: var(--fg3); }
+  .run { color: var(--fg); }
+  .wait { color: var(--fg3); }
+  .fail { color: var(--fg); font-weight: 700; }
+  li.failed .name { color: var(--fg); }
+
+  .drop {
+    display: block; margin-top: 8px; height: 40px; color: var(--fg3); text-align: left;
+    padding: 0 12px; margin-left: -12px; margin-right: -12px; width: calc(100% + 24px);
+    border-radius: 6px; transition: color 150ms var(--ease), background-color 150ms var(--ease);
+  }
+  .drop:hover { color: var(--fg2); background: var(--hover); }
+
+  .formats { display: flex; gap: 6px; margin-top: 56px; margin-left: -10px; }
+  .formats button {
+    height: 30px; padding: 0 10px; border-radius: 6px; color: var(--fg3);
+    transition: color 150ms var(--ease), background-color 150ms var(--ease);
+  }
+  .formats button:hover { color: var(--fg2); background: var(--hover); }
+  .formats button:active { transform: scale(.97); }
+  .formats button[aria-checked="true"] { color: var(--fg); text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1px; }
+
+  .go {
+    margin-top: 40px; height: 40px; padding: 0 22px; border-radius: 999px;
+    background: #ffffff; color: #000000; font-weight: 600; font-size: 13px;
+    transition: background-color 150ms var(--ease);
+  }
+  .go:hover { background: #d0d0d0; }
+  .go:active { transform: scale(.97); }
+</style>
+</head>
+<body>
+  <header class="bar">
+    <span class="mark" aria-hidden="true"></span>
+    <span class="app">Filesmith</span>
+    <div class="win">
+      <button aria-label="Minimise"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximise"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="main">
+    <nav aria-label="Operations">
+      <button aria-current="page">Convert</button>
+      <button>Compress</button>
+      <button>Resize</button>
+      <button>Upscale</button>
+      <button>Remove BG</button>
+      <button>Generate</button>
+      <button>Tools</button>
+    </nav>
+
+    <main class="content">
+      <div class="col">
+        <h1><span class="p" aria-hidden="true">›</span>convert<span class="caret" aria-hidden="true">_</span></h1>
+
+        <div class="indent">
+          <ul>
+            <li><span class="name">IMG_4821.HEIC</span><span class="s done">done</span></li>
+            <li><span class="name">screenshot.png</span><span class="s run">62%</span></li>
+            <li><span class="name">hero-banner.png</span><span class="s wait">queued</span></li>
+            <li class="failed"><span class="name">scan_0091.tiff</span><span class="s fail">✕ failed</span></li>
+          </ul>
+          <button class="drop">+ drop files</button>
+
+          <div class="formats" role="radiogroup" aria-label="Target format">
+            <button role="radio" aria-checked="true">webp</button>
+            <button role="radio" aria-checked="false">jpg</button>
+            <button role="radio" aria-checked="false">png</button>
+            <button role="radio" aria-checked="false">avif</button>
+          </div>
+
+          <button class="go">Convert 4 files</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

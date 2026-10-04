@@ -1,0 +1,416 @@
+<!--
+  Filesmith mockup 14 of 20: Serif Contrast
+  An editorial calm take: a sharp serif title against mono data, spacious rows,
+  almost a printed job sheet in the dark.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filesmith Serif Contrast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0b0a;
+  --bg-sel:#161614;
+  --bg-hover:#121211;
+  --bg-raise:#1c1c1a;
+  --line:#1e1e1c;
+  --line2:#2c2c29;
+  --fg:#ebe8e2;
+  --fg2:#c9c5bd;
+  --fg3:#8f8c86;
+  --fg-off:#5d5b57;
+  --danger:#f0867e;
+  --serif:"IBM Plex Serif",Georgia,serif;
+  --mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;
+  --sans:"IBM Plex Sans","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#050505}
+body{min-height:100vh;display:grid;place-items:center;font:400 13px/1.45 var(--sans);color:var(--fg);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible,a:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.mono{font-family:var(--mono)}
+.tnum{font-variant-numeric:tabular-nums}
+
+.app{width:1440px;height:900px;background:var(--bg);display:grid;grid-template-rows:36px 1fr 34px;overflow:hidden;border:1px solid var(--line)}
+
+/* ---------- titlebar ---------- */
+.titlebar{display:flex;align-items:center;border-bottom:1px solid var(--line);-webkit-app-region:drag;user-select:none}
+.brand{display:flex;align-items:center;gap:10px;padding-left:16px;width:240px}
+.mark{width:18px;height:18px;border:1.5px solid var(--fg);border-radius:4px;display:grid;place-items:center}
+.mark span{font:italic 600 12px/1 var(--serif);color:var(--fg);transform:translateY(-.5px)}
+.brand b{font:600 13px var(--serif);letter-spacing:.1px}
+.tb-path{flex:1;font:12px var(--mono);color:var(--fg3)}
+.tb-path em{font-style:normal;color:var(--fg2)}
+.wc{display:flex;-webkit-app-region:no-drag;height:100%}
+.wc button{width:46px;height:36px;display:grid;place-items:center;color:var(--fg2);transition:background-color .14s var(--ease),color .14s var(--ease)}
+.wc button:hover{background:var(--bg-raise);color:var(--fg)}
+.wc button:active{background:#262623}
+.wc button.close:hover{background:#c4433a;color:#fff}
+.wc button:focus-visible{outline-offset:-2px}
+
+/* ---------- body grid ---------- */
+.main{display:grid;grid-template-columns:240px 1fr 360px;min-height:0}
+
+/* ---------- rail ---------- */
+.rail{border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 10px 12px;min-height:0}
+.rail ul{list-style:none;display:flex;flex-direction:column;gap:2px}
+.nav{width:100%;display:grid;grid-template-columns:16px 1fr auto;column-gap:12px;align-items:start;text-align:left;padding:9px 12px 10px;border-radius:6px;color:var(--fg3);transition:background-color .14s var(--ease),color .14s var(--ease),transform .1s var(--ease)}
+.nav svg{margin-top:2px}
+.nav .lbl{font:500 12.5px/1.3 var(--mono);color:inherit}
+.nav .desc{grid-column:2/4;font:12px/1.35 var(--sans);color:var(--fg3);margin-top:2px}
+.nav .ct{font:500 11.5px var(--mono);color:var(--fg3)}
+.nav:hover{background:var(--bg-hover);color:var(--fg)}
+.nav:active{transform:scale(.985)}
+.nav[aria-current="page"]{background:var(--bg-raise);color:var(--fg)}
+.nav[aria-current="page"] .ct{color:var(--fg)}
+.rail .spacer{flex:1}
+.rail .pinned{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.rail-foot{display:flex;justify-content:space-between;align-items:center;padding:12px 12px 0;font:11.5px var(--mono);color:var(--fg3)}
+.rail-foot button{color:var(--fg3);padding:3px 6px;margin:-3px -6px;border-radius:4px;transition:color .14s var(--ease),background-color .14s var(--ease)}
+.rail-foot button:hover{color:var(--fg);background:var(--bg-hover)}
+.rail-foot button:active{transform:scale(.97)}
+
+/* ---------- workspace ---------- */
+.work{padding:30px 56px 0;display:flex;flex-direction:column;min-height:0;min-width:0}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+.head h1{font:600 40px/1 var(--serif);letter-spacing:-.6px}
+.head p{margin-top:10px;font:13px var(--sans);color:var(--fg3)}
+.head p .mono{color:var(--fg2);font-size:12.5px}
+.add{display:flex;align-items:center;gap:12px;height:38px;padding:0 10px 0 14px;border:1px dashed var(--line2);border-radius:6px;color:var(--fg2);font:13px var(--sans);transition:border-color .14s var(--ease),background-color .14s var(--ease),color .14s var(--ease)}
+.add u{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--fg3)}
+.add:hover{border-color:var(--fg3);color:var(--fg);background:var(--bg-hover)}
+.add:active{transform:scale(.98)}
+kbd{font:500 10.5px/1 var(--mono);color:var(--fg3);border:1px solid var(--line2);border-radius:3px;padding:3px 5px}
+
+.queue{flex:1;overflow:hidden;padding-top:8px}
+.group{display:grid;grid-template-columns:104px 1fr;padding-top:14px}
+.group + .group{border-top:1px solid var(--line);margin-top:6px}
+.gname{padding-top:14px}
+.gname h2{font:italic 600 18px/1.1 var(--serif)}
+.gname span{display:block;margin-top:5px;font:12px var(--sans);color:var(--fg3)}
+.group.off .gname h2{color:var(--fg3)}
+
+.row{position:relative;display:grid;grid-template-columns:40px 1fr 128px 64px 60px;align-items:center;column-gap:14px;height:72px;padding:0 10px 0 12px;border-radius:4px;transition:background-color .14s var(--ease)}
+.row:hover{background:var(--bg-hover)}
+.row:active{background:#1a1a18}
+.group.sel .row{background:var(--bg-sel)}
+.group.sel .row:hover{background:#1b1b19}
+.group.sel .row + .row{margin-top:2px}
+.row:focus-visible{outline-offset:-2px}
+.thumb{width:40px;height:40px;border-radius:3px;overflow:hidden;border:1px solid var(--line2);display:grid;place-items:center;background:#141413}
+.thumb svg{display:block}
+.thumb .ext{font:600 9.5px var(--mono);color:var(--fg2);letter-spacing:.4px}
+.fname{font:500 12.5px/1.3 var(--mono);color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{margin-top:4px;font:12px/1.3 var(--sans);color:var(--fg3);white-space:nowrap}
+.meta .mono{font-size:11.5px;color:var(--fg3)}
+.status{text-align:right;font:12px/1.3 var(--mono);color:var(--fg2);white-space:nowrap}
+.status small{display:block;font:12px/1.3 var(--sans);color:var(--fg3);margin-top:4px}
+.status.err{color:var(--danger)}
+.save{font:600 24px/1 var(--serif);text-align:right;letter-spacing:-.4px;color:var(--fg)}
+.save.up{font-size:17px;color:var(--fg3);font-weight:500}
+.act{display:flex;justify-content:flex-end;gap:2px}
+.ib{width:28px;height:28px;border-radius:4px;display:grid;place-items:center;color:var(--fg3);transition:background-color .14s var(--ease),color .14s var(--ease)}
+.ib:hover{background:var(--bg-raise);color:var(--fg)}
+.ib:active{transform:scale(.94);background:#262623}
+.ib.stop:hover{color:var(--danger)}
+.prog{position:absolute;left:12px;right:10px;bottom:0;height:1px;background:var(--line2)}
+.prog i{position:absolute;inset:0 auto 0 0;background:var(--fg)}
+.row.failed .fname{color:var(--fg)}
+.reason{display:block;max-width:330px;white-space:normal;color:var(--danger);font:12px/1.35 var(--sans);margin-top:4px}
+.row.failed{height:84px}
+
+.group.off .row{cursor:not-allowed}
+.group.off .row:hover{background:transparent}
+.group.off .fname{color:var(--fg3)}
+.group.off .prog i{background:var(--fg3)}
+.offnote{grid-column:2;font:12px var(--sans);color:var(--fg3);padding:0 12px 4px}
+
+/* ---------- options ---------- */
+.opts{border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.opts-body{flex:1;padding:30px 28px 0;overflow:hidden}
+.opts h2{font:italic 600 24px/1.1 var(--serif)}
+.opts .sub{margin-top:8px;font:13px var(--sans);color:var(--fg3)}
+.sect{margin-top:22px}
+.sect h3{font:500 13px var(--sans);color:var(--fg3);margin-bottom:10px;display:flex;justify-content:space-between}
+.sect h3 .mono{font-size:11.5px}
+.fmt{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.fmt button{height:36px;border:1px solid var(--line2);border-radius:5px;font:500 12.5px var(--mono);color:var(--fg2);transition:background-color .14s var(--ease),border-color .14s var(--ease),color .14s var(--ease)}
+.fmt button:hover{border-color:var(--fg3);color:var(--fg);background:var(--bg-hover)}
+.fmt button:active{transform:scale(.97)}
+.fmt button[aria-pressed="true"]{background:var(--fg);border-color:var(--fg);color:#0b0b0a;font-weight:600}
+.fmt button:disabled{color:var(--fg-off);border-style:dashed;border-color:#232321;cursor:not-allowed;background:transparent;text-decoration:line-through;text-decoration-color:#3c3b38}
+.hint{margin-top:9px;font:12px/1.45 var(--sans);color:var(--fg3)}
+.hint .mono{font-size:11.5px;color:var(--fg2)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line2);border-radius:5px;padding:2px;gap:2px}
+.seg button{height:30px;border-radius:3px;font:13px var(--sans);color:var(--fg3);transition:background-color .14s var(--ease),color .14s var(--ease)}
+.seg button:hover{color:var(--fg);background:var(--bg-hover)}
+.seg button:active{transform:scale(.97)}
+.seg button[aria-pressed="true"]{background:var(--bg-raise);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
+.out{border:1px solid var(--line2);border-radius:5px}
+.out label{display:flex;align-items:center;gap:10px;padding:9px 12px;font:13px var(--sans);color:var(--fg2);cursor:pointer;transition:background-color .14s var(--ease)}
+.out label + label{border-top:1px solid var(--line)}
+.out label:hover{background:var(--bg-hover);color:var(--fg)}
+.radio{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--fg3);flex:none}
+.radio.on{border-color:var(--fg);background:radial-gradient(circle,var(--fg) 0 2.5px,transparent 3px)}
+.out .path{margin-left:auto;font:11.5px var(--mono);color:var(--fg3)}
+.opts-foot{padding:14px 28px 16px;border-top:1px solid var(--line)}
+.run{width:100%;height:44px;border-radius:6px;background:var(--fg);color:#0b0b0a;display:flex;align-items:center;justify-content:center;gap:12px;font:600 14px var(--sans);transition:background-color .14s var(--ease),transform .1s var(--ease)}
+.run:hover{background:#fffdf8}
+.run:active{transform:scale(.98)}
+.run kbd{color:#4a4844;border-color:#bdb9b1}
+.run:disabled{background:var(--bg-raise);color:var(--fg-off);cursor:not-allowed}
+.applies{list-style:none;border-top:1px solid var(--line)}
+.applies li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);font:12px var(--mono);color:var(--fg2)}
+.applies li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.applies li span:last-child{color:var(--fg3);font-family:var(--sans);flex:none}
+.applies li.bad span:last-child{color:var(--danger)}
+.run-note{margin-top:9px;font:12px var(--sans);color:var(--fg3);text-align:center}
+
+/* ---------- footer ---------- */
+.foot{border-top:1px solid var(--line);display:flex;align-items:center;gap:20px;padding:0 16px;font:12px var(--mono);color:var(--fg3);white-space:nowrap}
+.foot .sum{color:var(--fg2);font-family:var(--sans)}
+.foot .sum b{font-weight:500;color:var(--fg)}
+.foot .sum .bad{color:var(--danger)}
+.bar{width:140px;height:1px;background:var(--line2);position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;width:41%;background:var(--fg)}
+.foot .eng{margin-left:auto;display:flex;gap:14px}
+.foot .eng s{text-decoration-color:var(--fg3)}
+.foot .clear{color:var(--fg2);font:12px var(--sans);padding:4px 8px;border-radius:4px;transition:background-color .14s var(--ease),color .14s var(--ease)}
+.foot .clear:hover{background:var(--bg-raise);color:var(--fg)}
+.foot .clear:active{transform:scale(.97)}
+.sep{width:1px;height:14px;background:var(--line2)}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Filesmith">
+
+  <!-- titlebar -->
+  <header class="titlebar">
+    <div class="brand"><div class="mark" aria-hidden="true"><span>f</span></div><b>Filesmith</b></div>
+    <div class="tb-path">convert <em>/</em> images, video, documents, archives</div>
+    <div class="wc">
+      <button aria-label="Minimize"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5.5h10" stroke="currentColor" stroke-width="1"/></svg></button>
+      <button aria-label="Maximize"><svg width="10" height="10" viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="currentColor"/></svg></button>
+      <button class="close" aria-label="Close"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1"/></svg></button>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- rail -->
+    <nav class="rail" aria-label="Operations">
+      <ul>
+        <li><button class="nav" aria-current="page">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 5h10M9.5 2.5L12 5 9.5 7.5M14 11H4M6.5 8.5L4 11l2.5 2.5"/></svg>
+          <span class="lbl">Convert</span><span class="ct tnum">8</span><span class="desc">Change format</span></button></li>
+        <li><button class="nav">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M8 1.5v4.5M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2 8h12"/></svg>
+          <span class="lbl">Compress</span><span></span><span class="desc">Shrink file size</span></button></li>
+        <li><button class="nav">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><rect x="2" y="6" width="8" height="8"/><path d="M6 2h8v8M10.5 5.5L14 2"/></svg>
+          <span class="lbl">Resize</span><span></span><span class="desc">Scale by percent or exact size</span></button></li>
+        <li><button class="nav">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><rect x="2" y="2" width="12" height="12"/><path d="M5 11l6-6M7 5h4v4"/></svg>
+          <span class="lbl">Upscale</span><span></span><span class="desc">Enlarge 2x to 4x with AI</span></button></li>
+        <li><button class="nav">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 2h3M11 2h3v3M14 11v3h-3M5 14H2v-3M2 5v0"/><circle cx="8" cy="7" r="2.2"/><path d="M4.5 13c.6-2 1.9-3 3.5-3s2.9 1 3.5 3"/></svg>
+          <span class="lbl">Remove BG</span><span></span><span class="desc">Cut the subject out with AI</span></button></li>
+        <li><button class="nav">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 13h5M3 10l7-7 3 3-7 7"/><path d="M12 9.5v3M10.5 11h3"/></svg>
+          <span class="lbl">Generate</span><span></span><span class="desc">Create an image from a text prompt</span></button></li>
+        <li><button class="nav">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M3 2h7l3 3v9H3z"/><path d="M6 8h4M6 11h4"/></svg>
+          <span class="lbl">Tools</span><span></span><span class="desc">One-off jobs: PDF text, pages, merge, split</span></button></li>
+      </ul>
+      <div class="spacer"></div>
+      <ul class="pinned">
+        <li><button class="nav">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M2 4h12v10H2zM2 4l1.5-2h9L14 4"/><path d="M5.5 9l2 2 3.5-3.5"/></svg>
+          <span class="lbl">Completed</span><span class="ct tnum">142</span><span class="desc">Everything Filesmith has produced</span></button></li>
+      </ul>
+      <div class="rail-foot"><button>Edit rail</button><span class="tnum">v0.3.0</span></div>
+    </nav>
+
+    <!-- workspace -->
+    <main class="work">
+      <div class="head">
+        <div>
+          <h1>Convert</h1>
+          <p>Change format, <span class="mono tnum">8 files</span> in the queue</p>
+        </div>
+        <button class="add">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M8 2v12M2 8h12"/></svg>
+          <span>Drop files here or <u>browse</u></span><kbd>Ctrl O</kbd>
+        </button>
+      </div>
+
+      <div class="queue">
+
+        <!-- Images, active group -->
+        <section class="group sel" aria-label="Images, 4 images, selected">
+          <div class="gname"><h2>Images</h2><span>4 images</span></div>
+          <div>
+            <div class="row" tabindex="0">
+              <div class="thumb"><svg width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="#2a2925"/><rect y="24" width="40" height="16" fill="#1a1917"/><circle cx="28" cy="13" r="5" fill="#8a8579"/><path d="M0 28l10-8 8 6 9-9 13 11v12H0z" fill="#3d3b36"/></svg></div>
+              <div style="min-width:0"><div class="fname">IMG_4821.HEIC</div><div class="meta"><span class="mono">HEIC → WebP</span>&nbsp; · &nbsp;3.2 MB</div></div>
+              <div class="status">Done<small class="tnum">3.2 MB → 640 KB</small></div>
+              <div class="save tnum">-80%</div>
+              <div class="act"><button class="ib" aria-label="Row menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2.5" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11.5" y="7" width="2" height="2"/></svg></button></div>
+            </div>
+            <div class="row" tabindex="0">
+              <div class="thumb"><svg width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="#1d1d1b"/><rect x="0" y="0" width="40" height="5" fill="#33322e"/><rect x="4" y="9" width="11" height="27" fill="#2a2926"/><rect x="18" y="9" width="18" height="3" fill="#56534d"/><rect x="18" y="15" width="14" height="2" fill="#3c3a36"/><rect x="18" y="20" width="16" height="2" fill="#3c3a36"/><rect x="18" y="25" width="10" height="2" fill="#3c3a36"/></svg></div>
+              <div style="min-width:0"><div class="fname">screenshot-2026-10-03 141522.png</div><div class="meta"><span class="mono">PNG → WebP</span>&nbsp; · &nbsp;1.8 MB</div></div>
+              <div class="status tnum">Running 62%<small>About 4 s left</small></div>
+              <div></div>
+              <div class="act"><button class="ib stop" aria-label="Stop"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7"/></svg></button><button class="ib" aria-label="Row menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2.5" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11.5" y="7" width="2" height="2"/></svg></button></div>
+              <div class="prog"><i style="width:62%"></i></div>
+            </div>
+            <div class="row" tabindex="0">
+              <div class="thumb"><svg width="40" height="40" viewBox="0 0 40 40"><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a4740"/><stop offset="1" stop-color="#161614"/></linearGradient></defs><rect width="40" height="40" fill="url(#g1)"/><rect x="6" y="15" width="20" height="3" fill="#cfcac0"/><rect x="6" y="21" width="13" height="2" fill="#7d796f"/></svg></div>
+              <div style="min-width:0"><div class="fname">hero-banner@2x.png</div><div class="meta"><span class="mono">PNG → WebP</span>&nbsp; · &nbsp;4.6 MB</div></div>
+              <div class="status">Queued<small>Next in line</small></div>
+              <div></div>
+              <div class="act"><button class="ib stop" aria-label="Remove from queue"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7"/></svg></button><button class="ib" aria-label="Row menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2.5" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11.5" y="7" width="2" height="2"/></svg></button></div>
+            </div>
+            <div class="row failed" tabindex="0">
+              <div class="thumb"><svg width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="#22211f"/><rect x="11" y="5" width="18" height="30" fill="#3a3834"/><rect x="14" y="10" width="12" height="1.5" fill="#6d6a63"/><rect x="14" y="14" width="9" height="1.5" fill="#6d6a63"/><rect x="14" y="18" width="12" height="1.5" fill="#6d6a63"/><rect x="14" y="27" width="12" height="2" fill="#8a867d"/></svg></div>
+              <div style="min-width:0"><div class="fname">scan_receipt_0091.tiff</div><div class="meta"><span class="mono">TIFF → WebP</span>&nbsp; · &nbsp;22.4 MB</div><span class="reason">Unsupported TIFF compression (JPEG-in-TIFF, old-style)</span></div>
+              <div class="status err">Failed<small>Retry or remove</small></div>
+              <div></div>
+              <div class="act"><button class="ib" aria-label="Retry"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M13 8a5 5 0 1 1-1.5-3.5M12 2v3H9"/></svg></button><button class="ib" aria-label="Row menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2.5" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11.5" y="7" width="2" height="2"/></svg></button></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Video, not selectable while Images is active -->
+        <section class="group off" aria-label="Video, 1 video">
+          <div class="gname"><h2>Video</h2><span>1 video</span></div>
+          <div>
+            <div class="row" aria-disabled="true" title="Select Video on its own to change its options">
+              <div class="thumb"><span class="ext">MOV</span></div>
+              <div style="min-width:0"><div class="fname">screen-recording-standup.mov</div><div class="meta"><span class="mono">MOV → MP4</span>&nbsp; · &nbsp;812 MB</div></div>
+              <div class="status tnum">Running 18.4%<small>About 3 min 12 s left</small></div>
+              <div></div>
+              <div class="act"><button class="ib stop" aria-label="Stop"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7"/></svg></button><button class="ib" aria-label="Row menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2.5" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11.5" y="7" width="2" height="2"/></svg></button></div>
+              <div class="prog"><i style="width:18.4%"></i></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Documents -->
+        <section class="group" aria-label="Documents, 2 documents">
+          <div class="gname"><h2>Documents</h2><span>2 documents</span></div>
+          <div>
+            <div class="row" tabindex="0">
+              <div class="thumb"><span class="ext">PDF</span></div>
+              <div style="min-width:0"><div class="fname">Q3-board-deck.pdf</div><div class="meta"><span class="mono">PDF → DOCX</span>&nbsp; · &nbsp;14.1 MB</div></div>
+              <div class="status">Queued<small>After images</small></div>
+              <div></div>
+              <div class="act"><button class="ib stop" aria-label="Remove from queue"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7"/></svg></button><button class="ib" aria-label="Row menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2.5" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11.5" y="7" width="2" height="2"/></svg></button></div>
+            </div>
+            <div class="row" tabindex="0">
+              <div class="thumb"><span class="ext">TXT</span></div>
+              <div style="min-width:0"><div class="fname">release-notes-0.3.txt</div><div class="meta"><span class="mono">TXT → PDF</span>&nbsp; · &nbsp;6 KB</div></div>
+              <div class="status">Done<small class="tnum">6 KB → 48 KB</small></div>
+              <div class="save up tnum">+700%</div>
+              <div class="act"><button class="ib" aria-label="Row menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2.5" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11.5" y="7" width="2" height="2"/></svg></button></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Archives -->
+        <section class="group" aria-label="Archives, 1 archive">
+          <div class="gname"><h2>Archives</h2><span>1 archive</span></div>
+          <div>
+            <div class="row" tabindex="0">
+              <div class="thumb"><span class="ext">CBZ</span></div>
+              <div style="min-width:0"><div class="fname">One-Piece-v104.cbz</div><div class="meta"><span class="mono">CBZ → CB7</span>&nbsp; · &nbsp;186 MB</div></div>
+              <div class="status">Queued<small>After documents</small></div>
+              <div></div>
+              <div class="act"><button class="ib stop" aria-label="Remove from queue"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7"/></svg></button><button class="ib" aria-label="Row menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2.5" y="7" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="11.5" y="7" width="2" height="2"/></svg></button></div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- options -->
+    <aside class="opts" aria-label="Options for Images">
+      <div class="opts-body">
+        <h2>Images</h2>
+        <p class="sub"><span class="mono tnum" style="color:var(--fg2);font-size:12.5px">4 selected</span>, one target for all of them</p>
+
+        <div class="sect">
+          <h3>Target format</h3>
+          <div class="fmt" role="group" aria-label="Target format">
+            <button disabled title="Already PNG: 2 of the selected sources are PNG">PNG</button>
+            <button>JPG</button>
+            <button aria-pressed="true">WebP</button>
+            <button>AVIF</button>
+            <button>JXL</button>
+            <button disabled title="Already TIFF: scan_receipt_0091.tiff is TIFF">TIFF</button>
+            <button>BMP</button>
+            <button>GIF</button>
+            <button>ICO</button>
+          </div>
+          <p class="hint">Struck out: some sources already are PNG or TIFF.</p>
+        </div>
+
+        <div class="sect">
+          <h3>Quality</h3>
+          <div class="seg" role="group" aria-label="Quality">
+            <button>Smaller</button>
+            <button aria-pressed="true">Balanced</button>
+            <button>Best</button>
+          </div>
+        </div>
+
+        <div class="sect">
+          <h3>Output</h3>
+          <div class="out">
+            <label><span class="radio on"></span>Next to source<span class="path">default</span></label>
+            <label><span class="radio"></span>Change folder…<span class="path">D:\Photos\2026-10\</span></label>
+          </div>
+          <p class="hint">Never overwrites. Collisions save as <span class="mono">name (converted).webp</span>, then <span class="mono">(2)</span>.</p>
+        </div>
+
+        <div class="sect">
+          <h3>Applies to <span class="mono tnum">4</span></h3>
+          <ul class="applies">
+            <li><span>IMG_4821.HEIC</span><span>done</span></li>
+            <li><span>screenshot-2026-10-03 141522.png</span><span>running</span></li>
+            <li><span>hero-banner@2x.png</span><span>queued</span></li>
+            <li class="bad"><span>scan_receipt_0091.tiff</span><span>failed</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="opts-foot">
+        <button class="run">Convert 4 images <kbd>Ctrl Enter</kbd></button>
+        <p class="run-note">3 left to run, 1 already done</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- status footer -->
+  <footer class="foot">
+    <span class="sum"><b class="tnum">2 of 8</b> done, 2 running, <span class="bad">1 failed</span></span>
+    <span class="bar" aria-hidden="true"><i></i></span>
+    <span class="tnum" style="color:var(--fg2)">41%</span>
+    <span class="sep"></span>
+    <button class="clear">Clear finished</button>
+    <span class="eng"><span>ffmpeg 7.1</span><span>ImageMagick 7.1.1</span><span>mutool 1.24</span><span>7-Zip 24.08</span><span title="CBR writing is disabled"><s>Rar.exe</s> not found</span><span class="sep" style="align-self:center"></span><span>RTX 5090, Real-ESRGAN ready</span></span>
+  </footer>
+</div>
+</body>
+</html>

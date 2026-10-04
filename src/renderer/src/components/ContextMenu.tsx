@@ -1,9 +1,24 @@
-import { useEffect, useLayoutEffect, useRef, type JSX } from 'react'
-import { Icon, type IconName } from './Icon'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type JSX,
+  type KeyboardEvent as ReactKeyboardEvent
+} from 'react'
+import type { IconName } from '@shared/icons'
+import { Icon } from './icons/Icon'
 
 export type MenuItem =
   | { sep: true }
-  | { sep?: false; label: string; icon: IconName; danger?: boolean; onClick: () => void }
+  | {
+      sep?: false
+      label: string
+      icon: IconName
+      danger?: boolean
+      /** Shown greyed out, so the menu keeps one shape for every selection. */
+      disabled?: boolean
+      onClick: () => void
+    }
 
 export interface MenuState {
   x: number
@@ -13,7 +28,7 @@ export interface MenuState {
 
 /**
  * A floating context menu anchored at (x, y). Measures itself, then flips
- * horizontally/vertically so it never spills off-screen — so the same call
+ * horizontally/vertically so it never spills off-screen, so the same call
  * works for a cursor position (right-click) or a button corner (the ⋯).
  */
 export function ContextMenu({
@@ -30,6 +45,7 @@ export function ContextMenu({
   useLayoutEffect(() => {
     const el = ref.current
     if (!menu || !el) return
+    const prev = document.activeElement as HTMLElement | null
     const { width, height } = el.getBoundingClientRect()
     const pad = 8
     const left = menu.x + width > window.innerWidth - pad ? menu.x - width : menu.x
@@ -37,7 +53,37 @@ export function ContextMenu({
     el.style.left = `${Math.max(pad, left)}px`
     el.style.top = `${Math.max(pad, top)}px`
     el.style.visibility = 'visible'
+    // Keyboard users land on the first live entry, as in a native menu.
+    el.querySelector<HTMLButtonElement>('.menu-item:not(:disabled)')?.focus()
+    // Hand focus back to whatever opened the menu (a table row) on close,
+    // unless the user has already moved it somewhere else.
+    return () => {
+      const a = document.activeElement
+      if ((!a || a === document.body || el.contains(a)) && prev?.isConnected) prev.focus()
+    }
   }, [menu])
+
+  // Arrow keys walk the enabled entries (disabled buttons are skipped, since
+  // they cannot take focus); Home/End jump to the ends.
+  function onMenuKey(e: ReactKeyboardEvent<HTMLDivElement>): void {
+    const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End']
+    if (!keys.includes(e.key)) return
+    e.preventDefault()
+    const items = Array.from(
+      ref.current?.querySelectorAll<HTMLButtonElement>('.menu-item:not(:disabled)') ?? []
+    )
+    if (!items.length) return
+    const i = items.indexOf(document.activeElement as HTMLButtonElement)
+    const next =
+      e.key === 'Home'
+        ? 0
+        : e.key === 'End'
+          ? items.length - 1
+          : e.key === 'ArrowDown'
+            ? (i + 1) % items.length
+            : (i - 1 + items.length) % items.length
+    items[next].focus()
+  }
 
   // Dismiss on any outside interaction.
   useEffect(() => {
@@ -68,32 +114,26 @@ export function ContextMenu({
       role="menu"
       onMouseDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
-      className="ctx-pop fixed z-50 min-w-[196px] rounded-[13px] border border-black/[.08] bg-white/90 p-[5px] shadow-[0_10px_40px_rgba(20,20,40,.18)] backdrop-blur-xl"
+      onKeyDown={onMenuKey}
+      className="ctx-pop menu"
       style={{ left: menu.x, top: menu.y, visibility: 'hidden' }}
     >
       {menu.items.map((item, i) =>
         item.sep ? (
-          <div key={i} className="mx-1.5 my-[5px] h-px bg-black/[.07]" />
+          <div key={i} className="menu-sep" role="separator" />
         ) : (
           <button
             key={i}
+            type="button"
             role="menuitem"
+            disabled={item.disabled}
+            className={`menu-item${item.danger ? ' danger' : ''}`}
             onClick={() => {
               item.onClick()
               onClose()
             }}
-            className={`group flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-[13px] transition ${
-              item.danger
-                ? 'text-[#d1362b] hover:bg-[#d1362b] hover:text-white'
-                : 'text-ink hover:bg-accent hover:text-white'
-            }`}
           >
-            <Icon
-              name={item.icon}
-              className={`h-4 w-4 shrink-0 transition group-hover:text-white ${
-                item.danger ? 'text-[#d1362b]' : 'text-muted'
-              }`}
-            />
+            <Icon name={item.icon} />
             {item.label}
           </button>
         )

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { reserveFileInDir, reserveOutPath, uniqueOutDir } from '../src/main/output'
+import { reserveFileInDir, reserveOutPath, resolveOutDir, uniqueOutDir } from '../src/main/output'
 
 // Collision-safe output naming is a hard rule (never overwrite the user's
 // source or an existing file). These tests target the functions PRODUCTION
@@ -83,5 +83,37 @@ describe('uniqueOutDir', () => {
   it('suffixes a taken directory name', () => {
     mkdirSync(join(dir, 'pages'))
     expect(uniqueOutDir(dir, 'pages')).toBe(join(dir, 'pages (2)'))
+  })
+})
+
+describe('output folder', () => {
+  it('reserves the output in the chosen folder, not next to the source', () => {
+    const root = mkdtempSync(join(tmpdir(), 'fs-outdir-'))
+    const srcDir = join(root, 'src')
+    const outDir = join(root, 'out')
+    mkdirSync(srcDir)
+    mkdirSync(outDir)
+    const src = join(srcDir, 'a.png')
+    writeFileSync(src, 'x')
+    const out = reserveOutPath(src, '.webp', 'converted', outDir)
+    expect(out).toBe(join(outDir, 'a.webp'))
+    expect(existsSync(join(srcDir, 'a.webp'))).toBe(false)
+  })
+
+  it('keeps collision safety inside the chosen folder', () => {
+    const root = mkdtempSync(join(tmpdir(), 'fs-outdir-'))
+    writeFileSync(join(root, 'a.webp'), 'existing')
+    const out = reserveOutPath(join(root, 'elsewhere', 'a.png'), '.webp', 'converted', root)
+    expect(out).toBe(join(root, 'a (converted).webp'))
+  })
+
+  it('treats an empty or missing option as next to the source', () => {
+    expect(resolveOutDir(undefined)).toBeUndefined()
+    expect(resolveOutDir('')).toBeUndefined()
+  })
+
+  it('refuses a folder that no longer exists instead of writing elsewhere', () => {
+    const gone = join(tmpdir(), `fs-gone-${Date.now()}`)
+    expect(() => resolveOutDir(gone)).toThrow(/Output folder not found/)
   })
 })

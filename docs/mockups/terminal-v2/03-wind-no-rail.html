@@ -1,0 +1,180 @@
+<!--
+  Filesmith terminal round 2, mockup 03: "Wind, no rail"
+  Pitch: Wind's tokens, but the rail is removed. The verbs become a quiet word row
+  under the title bar, which frees the whole width for black space.
+  Signature: zero lines anywhere. Verbs share the column's left edge, active verb is plain white text.
+  Structure comes from space and one shared alignment line alone.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Filesmith, no rail</title>
+<style>
+  :root {
+    --bg: #000000;
+    --fg: #f2f2f2;
+    --fg2: #d0d0d0;
+    --fg3: #8f8f8f;
+    --glyph: #b0b0b0;
+    --pill: #1d1d1d;
+    --hover: #121212;
+    --track: #303030;
+    --s: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --m: "Cascadia Mono", Consolas, monospace;
+    --ease: cubic-bezier(.2,.7,.2,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body {
+    width: 1440px; height: 900px; overflow: hidden;
+    color: var(--fg); font: 13px/1.4 var(--s);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+  /* title bar */
+  .titlebar {
+    height: 38px; display: flex; align-items: center;
+    padding-left: 16px;
+  }
+  .mark { width: 14px; height: 14px; color: var(--glyph); }
+  .appname { margin-left: 10px; font-size: 12px; color: var(--fg3); }
+  .win { margin-left: auto; display: flex; height: 100%; }
+  .win button {
+    width: 46px; height: 38px; display: grid; place-items: center; color: var(--glyph);
+    transition: background-color 150ms var(--ease), color 150ms var(--ease);
+  }
+  .win button:hover { background: var(--hover); color: var(--fg); }
+  .win svg { width: 10px; height: 10px; }
+
+  /* verbs */
+  /* verbs share the left edge of the content column (x=420) */
+  .verbs {
+    width: 600px; margin: 22px auto 0; display: flex; gap: 30px;
+  }
+  .verbs button {
+    font: 500 12.5px/1 var(--m); color: var(--fg3);
+    height: 28px; border-radius: 4px;
+    transition: color 150ms var(--ease), transform 120ms var(--ease);
+  }
+  .verbs button:hover { color: var(--fg2); }
+  .verbs button[aria-current="page"] { color: var(--fg); }
+  .verbs button:active { transform: scale(.97); }
+
+  /* centred column */
+  main { width: 600px; margin: 140px auto 0; }
+  h1 {
+    font: 600 34px/1.1 var(--s); letter-spacing: -.01em; color: var(--fg);
+    margin-bottom: 40px;
+  }
+
+  .queue { list-style: none; }
+  .queue li {
+    height: 40px; display: flex; align-items: center; justify-content: space-between;
+    font: 13px/1 var(--m); color: var(--fg2);
+  }
+  .st { font-variant-numeric: tabular-nums; text-align: right; }
+  .st.done { color: var(--fg3); }
+  .st.run { color: var(--fg); }
+  .queue li.queued { color: var(--fg3); }
+  .st.wait { color: var(--fg3); }
+  .st.fail { color: var(--fg); font-weight: 700; }
+
+  .drop {
+    margin-top: 4px; height: 40px; display: flex; align-items: center;
+    font: 13px/1 var(--m); color: var(--fg3); cursor: pointer;
+    transition: color 150ms var(--ease);
+  }
+  .drop:hover { color: var(--fg); }
+
+  /* options */
+  .opts { margin-top: 56px; }
+  .opt { height: 44px; display: flex; align-items: center; justify-content: space-between; }
+
+  .seg { display: flex; gap: 2px; margin-left: -12px; }
+  .seg button {
+    font: 500 12.5px/1 var(--m); color: var(--fg3);
+    height: 28px; padding: 0 12px; border-radius: 6px;
+    transition: background-color 150ms var(--ease), color 150ms var(--ease), transform 120ms var(--ease);
+  }
+  .seg button:hover { color: var(--fg2); background: var(--hover); }
+  .seg button[aria-checked="true"] { background: var(--pill); color: var(--fg); }
+  .seg button:active { transform: scale(.97); }
+
+  .slider { display: flex; align-items: center; gap: 16px; }
+  .track { position: relative; width: 196px; height: 3px; background: var(--track); border-radius: 3px; }
+  .track .fill { position: absolute; inset: 0 20% 0 0; background: var(--fg); border-radius: 3px; }
+  .track .thumb {
+    position: absolute; left: 80%; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+    border-radius: 50%; background: var(--fg);
+  }
+  .val { font: 13px/1 var(--m); color: var(--fg2); width: 24px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .act { margin-top: 48px; display: flex; justify-content: flex-end; }
+  .primary {
+    height: 38px; padding: 0 22px; border-radius: 999px;
+    background: var(--fg); color: #000; font: 600 13px/1 var(--s);
+    transition: background-color 150ms var(--ease), transform 120ms var(--ease);
+  }
+  .primary:hover { background: #ffffff; }
+  .primary:active { transform: scale(.97); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+  <header class="titlebar">
+    <svg class="mark" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">
+      <path d="M2 2h10M2 2v10M2 7h7"/>
+    </svg>
+    <span class="appname">Filesmith</span>
+    <div class="win">
+      <button aria-label="Minimise"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0 5.5h10"/></svg></button>
+      <button aria-label="Maximise"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+      <button aria-label="Close"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </header>
+
+  <nav class="verbs" aria-label="Operations">
+    <button aria-current="page">Convert</button>
+    <button>Compress</button>
+    <button>Resize</button>
+    <button>Upscale</button>
+    <button>Remove BG</button>
+    <button>Generate</button>
+    <button>Tools</button>
+  </nav>
+
+  <main>
+    <h1>Convert</h1>
+
+    <ul class="queue">
+      <li><span>IMG_4821.HEIC</span><span class="st done">done</span></li>
+      <li><span>screenshot.png</span><span class="st run">62%</span></li>
+      <li class="queued"><span>hero-banner.png</span><span class="st wait">queued</span></li>
+      <li class="failed"><span>scan_0091.tiff</span><span class="st fail">failed</span></li>
+    </ul>
+    <div class="drop" tabindex="0" role="button">+ drop files</div>
+
+    <div class="opts">
+      <div class="opt">
+        <div class="seg" role="radiogroup" aria-label="Format">
+          <button role="radio" aria-checked="true">WebP</button>
+          <button role="radio" aria-checked="false">JPG</button>
+          <button role="radio" aria-checked="false">PNG</button>
+          <button role="radio" aria-checked="false">AVIF</button>
+        </div>
+        <div class="slider" role="slider" tabindex="0" aria-label="Quality" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80">
+          <span class="track"><span class="fill"></span><span class="thumb"></span></span>
+          <span class="val">80</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="act"><button class="primary">Convert 4 files</button></div>
+  </main>
+</body>
+</html>

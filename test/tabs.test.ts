@@ -3,6 +3,7 @@ import {
   TABS,
   TOOL_CARDS,
   engineFor,
+  SETTINGS_TAB,
   tabAccepts,
   tabById,
   toolCardById,
@@ -97,5 +98,12 @@ describe('tab model', () => {
     const ids = TOOL_CARDS.map((c) => c.id)
     expect(new Set(ids).size).toBe(ids.length)
     for (const c of TOOL_CARDS) expect(c.kinds.length, c.id).toBeGreaterThan(0)
+  })
+})
+
+describe('settings tab', () => {
+  it('is reachable by id but is not one of the seven verbs', () => {
+    expect(tabById('settings')).toBe(SETTINGS_TAB)
+    expect(TABS.some((t) => t.id === 'settings')).toBe(false)
   })
 })
