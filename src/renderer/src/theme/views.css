@@ -227,9 +227,6 @@
 .tbtn:disabled {
   color: var(--fg-disabled);
 }
-.tbtn.add:disabled {
-  background: var(--selected);
-}
 .vbody {
   min-height: 0;
   overflow-y: auto;

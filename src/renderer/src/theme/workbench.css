@@ -231,12 +231,10 @@
   border-right: 1px solid var(--line);
 }
 .tbtn.add {
-  background: var(--track);
-  color: var(--fg1);
   font-weight: 600;
 }
 .tbtn.add:hover {
-  background: var(--line-strong);
+  background: var(--hover);
 }
 .tbtn.add:active {
   background: var(--selected);
