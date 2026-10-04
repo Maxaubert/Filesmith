@@ -31,3 +31,15 @@ export function toggleAllIds(items: QueueItem[], selected: string[]): string[] {
   const ids = groupIds(items, activeGroupFor(items, selected))
   return headerCheck(items, selected) === 'all' ? [] : ids
 }
+
+/** Restrict a set of ids to one convert group (the first in display order among
+ * them), so bulk selections such as "select the failed rows" never span groups. */
+export function oneGroupIds(items: QueueItem[], ids: string[]): string[] {
+  const set = new Set(ids)
+  const rows = items.filter((i) => inInput(i) && set.has(i.id))
+  if (!rows.length) return []
+  const group = [...new Set(rows.map((i) => groupOf(i.file)))].sort(
+    (a, b) => groupRank(a) - groupRank(b)
+  )[0]
+  return ids.filter((id) => rows.some((r) => r.id === id && groupOf(r.file) === group))
+}

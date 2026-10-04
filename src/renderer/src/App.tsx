@@ -45,8 +45,16 @@ import {
   type SelectMode
 } from './state'
 import { engineFor, tabAccepts, tabById, toolCardById, type TabId } from '@shared/tabs'
-import { TopBar } from './components/TopBar'
-import { TabRail } from './components/TabRail'
+import { TitleBar } from './components/shell/TitleBar'
+import { Sidebar } from './components/shell/Sidebar'
+import { StatusBar } from './components/shell/StatusBar'
+import { crumbsFor } from './components/shell/crumbs'
+import { useSidebar } from './components/shell/useSidebar'
+import { useRailPrefs } from './components/shell/useRailPrefs'
+import { sidebarVerbs } from './components/shell/railPrefs'
+import { statusSummary } from './components/shell/statusModel'
+import { shortcutFor } from './components/shell/shortcuts'
+import { oneGroupIds } from './components/queue/selectAll'
 import { OperationTitle } from './components/OperationTitle'
 import { ToolsGrid } from './components/ToolsGrid'
 import { CompletedView } from './components/CompletedView'
@@ -143,6 +151,10 @@ export default function App(): JSX.Element {
   // Session persistence: restore the last session (queues + produced files) on
   // launch, pruning anything whose file was deleted since; then save on change.
   const hydrated = useRef(false)
+  const sidebar = useSidebar()
+  const rail = useRailPrefs()
+  // Ids of the last run per workspace, for "Converting 3 of 6" (spec 6.4).
+  const [batches, setBatches] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
     let alive = true
@@ -695,6 +707,7 @@ export default function App(): JSX.Element {
         anchorId = src.id
       }
       dispatch({ type: 'markQueued', ids: [anchorId], options: opts })
+      setBatches((b) => ({ ...b, [qKey]: [anchorId] }))
       void window.filesmith.runJob({
         id: anchorId,
         tool: 'pdf',
@@ -724,6 +737,7 @@ export default function App(): JSX.Element {
     if (newSources.length) dispatch({ type: 'addSources', items: newSources, key: qKey })
     if (!targets.length) return
     dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), options: opts })
+    setBatches((b) => ({ ...b, [qKey]: targets.map((t) => t.id) }))
     for (const t of targets) {
       void window.filesmith.runJob({ id: t.id, tool, input: t.path, options: opts })
     }
@@ -741,6 +755,28 @@ export default function App(): JSX.Element {
       : isMerge && runList.length < 2
         ? 0
         : runList.length
+
+  // Global shortcuts (spec 4.1). `run` and `browse` are re-created each render,
+  // so the window listener reads the latest ones through a ref, refreshed after
+  // every render like `latest` above (assigning it during render breaks the
+  // react-hooks/refs rule).
+  const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle })
+  useEffect(() => {
+    actions.current = { run, browse, runCount, toggle: sidebar.toggle }
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const s = shortcutFor(e)
+      if (!s) return
+      e.preventDefault()
+      const a = actions.current
+      if (s === 'toggleSidebar') a.toggle()
+      else if (s === 'addFiles') void a.browse()
+      else if (s === 'run' && a.runCount > 0) void a.run()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   // The kind the options panel should key off is what will actually RUN, not the
   // anchor item: a PDF co-selected with a non-compressible doc (same group)
   // leaves the anchor 'document' while only the PDF runs. All-same-kind -> that
@@ -849,29 +885,54 @@ export default function App(): JSX.Element {
     counts[bucket] = (counts[bucket] ?? 0) + n
   }
 
+  const crumbs = crumbsFor(state.tab, card ?? null, activeGroup)
+  const verbLabel = card ? card.label : tab.label
+  const summary = statusSummary(
+    onToolsGrid || onCompleted || state.tab === 'settings' ? [] : cur.items,
+    batches[qKey] ?? null,
+    verbLabel,
+    genRun.running && genRun.message && !genRun.message.startsWith('Generating')
+      ? genRun.message
+      : null
+  )
+  const showInspector = !onToolsGrid && !onCompleted && state.tab !== 'settings'
+
   return (
-    <div className="flex h-screen flex-col">
-      <TopBar />
-      <div className="flex min-h-0 flex-1">
-        <TabRail
+    // The whole window accepts drops (spec 4.9).
+    <div
+      className="app"
+      data-sidebar={sidebar.collapsed ? 'collapsed' : 'expanded'}
+      onDragOver={(e) => {
+        e.preventDefault()
+        if (tool !== 'generate' && !onToolsGrid && !onCompleted) setDragging(true)
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragging(false)
+      }}
+      onDrop={onDrop}
+    >
+      <TitleBar
+        crumbs={crumbs}
+        onCrumb={(a) =>
+          a === 'tools'
+            ? dispatch({ type: 'setActiveTool', tool: null })
+            : dispatch({ type: 'clearSelection' })
+        }
+      />
+      <div className={`wb${showInspector ? '' : ' no-insp'}`}>
+        <Sidebar
           tab={state.tab}
+          verbs={sidebarVerbs(rail.order, rail.hidden)}
+          showTools={!rail.hidden.includes('tools')}
           counts={counts}
           completedCount={completed.length}
+          collapsed={sidebar.collapsed}
+          onToggle={sidebar.toggle}
           onSelect={(t) => dispatch({ type: 'setTab', tab: t })}
         />
 
         <>
-          <section
-            className="flex min-w-0 flex-1 flex-col gap-3 px-4 pb-4 pt-1 lg:gap-4 lg:px-7 lg:pb-5"
-            onDragOver={(e) => {
-              e.preventDefault()
-              if (tool !== 'generate' && !onToolsGrid && !onCompleted) setDragging(true)
-            }}
-            onDragLeave={(e) => {
-              if (e.currentTarget === e.target) setDragging(false)
-            }}
-            onDrop={onDrop}
-          >
+          <main className="center" aria-label="Workspace">
             {/* The rail names the verb, so this heading just repeats it back and
                   carries the file count (or the open tool's name inside Tools). */}
             <OperationTitle
@@ -991,9 +1052,9 @@ export default function App(): JSX.Element {
                 />
               </>
             )}
-          </section>
+          </main>
 
-          {!onToolsGrid && !onCompleted && (
+          {showInspector && (
             <OptionsPanel
               tab={state.tab}
               tool={tool}
@@ -1016,6 +1077,18 @@ export default function App(): JSX.Element {
           )}
         </>
       </div>
+      <StatusBar
+        summary={summary}
+        onFailedClick={() =>
+          dispatch({
+            type: 'selectIds',
+            ids: oneGroupIds(
+              cur.items,
+              cur.items.filter((i) => i.status === 'failed').map((i) => i.id)
+            )
+          })
+        }
+      />
       <ContextMenu menu={menu} onClose={closeMenu} />
       <ConfirmDialog state={confirm} onClose={closeConfirm} />
     </div>

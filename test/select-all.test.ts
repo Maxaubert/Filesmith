@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   activeGroupFor,
   headerCheck,
+  oneGroupIds,
   toggleAllIds
 } from '../src/renderer/src/components/queue/selectAll'
 import type { QueueItem } from '../src/renderer/src/state'
@@ -47,5 +48,13 @@ describe('header checkbox', () => {
   })
   it('clears when the whole group is already selected', () => {
     expect(toggleAllIds(items, ['i1', 'i2'])).toEqual([])
+  })
+})
+
+describe('oneGroupIds', () => {
+  it('keeps only the ids of the first display group among them', () => {
+    expect(oneGroupIds(items, ['v1', 'i2', 'v2'])).toEqual(['i2'])
+    expect(oneGroupIds(items, ['v1', 'v2'])).toEqual(['v1', 'v2'])
+    expect(oneGroupIds(items, [])).toEqual([])
   })
 })
