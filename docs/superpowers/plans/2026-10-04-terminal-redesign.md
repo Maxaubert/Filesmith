@@ -214,23 +214,23 @@ if (userDataOverride) app.setPath('userData', userDataOverride)
 Replace the `new BrowserWindow({...})` options head in `createWindow()` with:
 
 ```ts
-  // Dark only: native scrollbars, dialogs and the pre-paint fill follow the app.
-  nativeTheme.themeSource = 'dark'
-  const size = initialWindowSize(screen.getPrimaryDisplay().workAreaSize)
-  const mainWindow = new BrowserWindow({
-    width: size.width,
-    height: size.height,
-    minWidth: MIN_WINDOW.width,
-    minHeight: MIN_WINDOW.height,
-    show: false,
-    // Frameless: the renderer draws the 32px title bar and window controls.
-    frame: false,
-    backgroundColor: '#0a0a0a',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
-  })
+// Dark only: native scrollbars, dialogs and the pre-paint fill follow the app.
+nativeTheme.themeSource = 'dark'
+const size = initialWindowSize(screen.getPrimaryDisplay().workAreaSize)
+const mainWindow = new BrowserWindow({
+  width: size.width,
+  height: size.height,
+  minWidth: MIN_WINDOW.width,
+  minHeight: MIN_WINDOW.height,
+  show: false,
+  // Frameless: the renderer draws the 32px title bar and window controls.
+  frame: false,
+  backgroundColor: '#0a0a0a',
+  webPreferences: {
+    preload: join(__dirname, '../preload/index.js'),
+    sandbox: false
+  }
+})
 ```
 
 - [ ] **Step 6: Add the folder picker (OUTPUT > Location needs it)**
@@ -238,14 +238,14 @@ Replace the `new BrowserWindow({...})` options head in `createWindow()` with:
 In `src/main/ipc.ts`, after the `'files:pick'` handler:
 
 ```ts
-  // Output folder for OUTPUT > Location. Additive: no existing channel changes.
-  ipcMain.handle('files:pick-folder', async (e) => {
-    const r = await openDialog(e, {
-      title: 'Choose output folder',
-      properties: ['openDirectory', 'createDirectory']
-    })
-    return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
+// Output folder for OUTPUT > Location. Additive: no existing channel changes.
+ipcMain.handle('files:pick-folder', async (e) => {
+  const r = await openDialog(e, {
+    title: 'Choose output folder',
+    properties: ['openDirectory', 'createDirectory']
   })
+  return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
+})
 ```
 
 In `src/preload/index.ts`, after `pickImage`:
@@ -325,11 +325,11 @@ export function estimateProgress(
 and inside `tick`:
 
 ```ts
-    const pct = startPct + (ceiling - startPct) * (1 - Math.exp(-elapsed / tau))
-    // The same expected duration that shapes the curve doubles as an ETA, so
-    // image, PDF and rembg rows can show 62%(4s) like ffmpeg rows do.
-    const left = expectedSec - elapsed
-    onPct(Math.min(ceiling, pct), left > 0 ? Math.ceil(left) : null)
+const pct = startPct + (ceiling - startPct) * (1 - Math.exp(-elapsed / tau))
+// The same expected duration that shapes the curve doubles as an ETA, so
+// image, PDF and rembg rows can show 62%(4s) like ffmpeg rows do.
+const left = expectedSec - elapsed
+onPct(Math.min(ceiling, pct), left > 0 ? Math.ceil(left) : null)
 ```
 
 - [ ] **Step 4: Forward the ETA at every caller in `registry.ts`**
@@ -337,22 +337,22 @@ and inside `tick`:
 Replace each `(p) => ctx.onProgress(p)` passed to `estimateProgress` with `(p, eta) => ctx.onProgress(p, undefined, eta)` (lines 118, 442, 595, 990). For the PiD ticker at `:724-730`:
 
 ```ts
-    est = estimateProgress(
-      expectedSec,
-      (p, eta) => {
-        lastPct = p
-        ctx.onProgress(p, undefined, eta)
-      },
-      { startPct: lastPct }
-    )
+est = estimateProgress(
+  expectedSec,
+  (p, eta) => {
+    lastPct = p
+    ctx.onProgress(p, undefined, eta)
+  },
+  { startPct: lastPct }
+)
 ```
 
 For the archive from-pdf ticker at `:1307-1309`, which caps the estimate at 90%:
 
 ```ts
-      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p, eta) =>
-        ctx.onProgress(Math.min(p, 90), undefined, eta)
-      )
+const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p, eta) =>
+  ctx.onProgress(Math.min(p, 90), undefined, eta)
+)
 ```
 
 Check with `grep -n "estimateProgress(" src/main/tools/registry.ts` that all six call sites now take `(p, eta)`.
@@ -438,7 +438,12 @@ Expected: FAIL, `resolveOutDir` is not exported and the first test writes next t
 ```ts
 /** Atomically-reserved output with a new extension: next to the source, or in
  * `outDir` when the user chose an output folder. Collision rules are identical. */
-export function reserveOutPath(sourcePath: string, ext: string, tag: string, outDir?: string): string {
+export function reserveOutPath(
+  sourcePath: string,
+  ext: string,
+  tag: string,
+  outDir?: string
+): string {
   const dir = outDir ?? dirname(sourcePath)
   const name = basename(sourcePath, extname(sourcePath))
   return reserveFileInDir(dir, name, ext, tag)
@@ -582,7 +587,10 @@ describe('clear finished', () => {
       key: CONVERT
     })
     const [a, b] = s.queues[CONVERT]!.items.map((i) => i.id)
-    s = reducer(s, { type: 'jobEvent', event: { id: a, status: 'done', outputPath: 'C:/x/a.webp' } })
+    s = reducer(s, {
+      type: 'jobEvent',
+      event: { id: a, status: 'done', outputPath: 'C:/x/a.webp' }
+    })
     s = reducer(s, { type: 'jobEvent', event: { id: b, status: 'canceled' } })
     s = reducer(s, { type: 'hideFinished' })
     const q = s.queues[CONVERT]!
@@ -888,7 +896,12 @@ describe('rowView', () => {
     const v = rowView(item({ status: 'done', outputPath: 'C:/x/a.webp', outputSize: 640_000 }))
     expect(v.status).toMatchObject({ kind: 'done', text: 'Done' })
     expect(v.result).toEqual({ text: '625 KB', pct: '-80%', estimate: false, grew: false })
-    expect(v.action).toEqual({ kind: 'reveal', icon: 'folder', label: 'Show in folder', ghost: true })
+    expect(v.action).toEqual({
+      kind: 'reveal',
+      icon: 'folder',
+      label: 'Show in folder',
+      ghost: true
+    })
   })
   it('done with a folder output: no size, no percentage', () => {
     const v = rowView(item({ status: 'done', outputPath: 'C:/x/a (pages)' }))
@@ -904,7 +917,10 @@ describe('rowView', () => {
     expect(v.result).toMatchObject({ pct: '+100%', grew: true })
   })
   it('running: progress, compact ETA, grey estimate, cancel ghost', () => {
-    const v = rowView(item({ status: 'running', percent: 62, hasProgress: true, etaSec: 4 }), 410_000)
+    const v = rowView(
+      item({ status: 'running', percent: 62, hasProgress: true, etaSec: 4 }),
+      410_000
+    )
     expect(v.status).toMatchObject({ kind: 'running', pct: '62%', eta: '(4s)' })
     expect(v.result).toMatchObject({ text: '~400 KB', estimate: true })
     expect(v.action).toMatchObject({ kind: 'cancel', icon: 'close', ghost: true })
@@ -921,7 +937,9 @@ describe('rowView', () => {
     expect(v.action).toMatchObject({ kind: 'remove', ghost: true })
   })
   it('failed: short label, full tooltip, retry always visible', () => {
-    const v = rowView(item({ status: 'failed', error: 'Unsupported compression in TIFF. Try PNG.' }))
+    const v = rowView(
+      item({ status: 'failed', error: 'Unsupported compression in TIFF. Try PNG.' })
+    )
     expect(v.status).toMatchObject({
       text: 'Unsupported compression',
       title: 'Unsupported compression in TIFF. Try PNG.'
@@ -975,7 +993,12 @@ describe('doneSamples', () => {
     const s = doneSamples(
       [
         item({ id: '1', status: 'done', outputSize: 800_000, runOptions: opts }),
-        item({ id: '2', status: 'done', outputSize: 100, runOptions: { ...opts, quality: 'best' } }),
+        item({
+          id: '2',
+          status: 'done',
+          outputSize: 100,
+          runOptions: { ...opts, quality: 'best' }
+        }),
         item({ id: '3', status: 'running', runOptions: opts })
       ],
       'image',
@@ -1255,7 +1278,13 @@ import {
 } from '../src/renderer/src/components/queue/tableSort'
 import type { QueueItem } from '../src/renderer/src/state'
 
-const it_ = (id: string, name: string, ext: string, size: number, over: Partial<QueueItem> = {}): QueueItem => ({
+const it_ = (
+  id: string,
+  name: string,
+  ext: string,
+  size: number,
+  over: Partial<QueueItem> = {}
+): QueueItem => ({
   id,
   file: { path: `C:/x/${name}`, name, ext, kind: ext === '.mp4' ? 'video' : 'image', size },
   thumb: null,
@@ -1278,7 +1307,11 @@ describe('nextSort', () => {
 })
 
 describe('sortItems', () => {
-  const rows = [it_('1', 'b.png', '.png', 30), it_('2', 'a.png', '.png', 10), it_('3', 'c.jpg', '.jpg', 20)]
+  const rows = [
+    it_('1', 'b.png', '.png', 30),
+    it_('2', 'a.png', '.png', 10),
+    it_('3', 'c.jpg', '.jpg', 20)
+  ]
   it('keeps insertion order when off and never mutates', () => {
     const copy = [...rows]
     expect(sortItems(rows, null).map((r) => r.id)).toEqual(['1', '2', '3'])
@@ -1320,7 +1353,10 @@ describe('groupedRows', () => {
   })
   it('skips hidden inputs and results', () => {
     const g = groupedRows(
-      [it_('1', 'a.png', '.png', 1, { hiddenInput: true }), it_('2', 'b.png', '.png', 1, { isResult: true })],
+      [
+        it_('1', 'a.png', '.png', 1, { hiddenInput: true }),
+        it_('2', 'b.png', '.png', 1, { isResult: true })
+      ],
       null
     )
     expect(g).toEqual([])
@@ -1340,7 +1376,13 @@ import type { QueueItem } from '../src/renderer/src/state'
 
 const row = (id: string, ext: string): QueueItem => ({
   id,
-  file: { path: `C:/x/${id}${ext}`, name: id + ext, ext, kind: ext === '.mp4' ? 'video' : 'image', size: 1 },
+  file: {
+    path: `C:/x/${id}${ext}`,
+    name: id + ext,
+    ext,
+    kind: ext === '.mp4' ? 'video' : 'image',
+    size: 1
+  },
   thumb: null,
   status: 'ready',
   percent: 0
@@ -1382,7 +1424,10 @@ describe('header checkbox', () => {
 import { describe, expect, it } from 'vitest'
 import { tableKey } from '../src/renderer/src/components/queue/tableKeys'
 
-const k = (key: string, mods: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({
+const k = (
+  key: string,
+  mods: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}
+) => ({
   key,
   ctrlKey: false,
   metaKey: false,
@@ -1466,7 +1511,10 @@ const STATUS_RANK: Record<ItemStatus, number> = {
 function compare(a: QueueItem, b: QueueItem, key: SortKey): number {
   switch (key) {
     case 'name':
-      return a.file.name.localeCompare(b.file.name, undefined, { numeric: true, sensitivity: 'base' })
+      return a.file.name.localeCompare(b.file.name, undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      })
     case 'kind':
       return a.file.ext.localeCompare(b.file.ext)
     case 'size':
@@ -1561,15 +1609,7 @@ export function toggleAllIds(items: QueueItem[], selected: string[]): string[] {
 ```ts
 // src/renderer/src/components/queue/tableKeys.ts
 export type TableKey =
-  | 'up'
-  | 'down'
-  | 'extendUp'
-  | 'extendDown'
-  | 'toggle'
-  | 'selectAll'
-  | 'remove'
-  | 'open'
-  | 'menu'
+  'up' | 'down' | 'extendUp' | 'extendDown' | 'toggle' | 'selectAll' | 'remove' | 'open' | 'menu'
 
 export interface KeyLike {
   key: string
@@ -1635,23 +1675,47 @@ Order of evidence (spec 6.2): batch samples first, then pixels (resize, upscale)
 ```ts
 // test/size-estimate.test.ts
 import { describe, expect, it } from 'vitest'
-import {
-  estimateBatch,
-  estimateOutputBytes,
-  medianRatio,
-  ratioFor
-} from '@shared/sizeEstimate'
+import { estimateBatch, estimateOutputBytes, medianRatio, ratioFor } from '@shared/sizeEstimate'
 import type { FileInfo } from '@shared/types'
 
-const png: FileInfo = { path: 'C:/a.png', name: 'a.png', ext: '.png', kind: 'image', size: 1_000_000 }
-const mp4: FileInfo = { path: 'C:/a.mp4', name: 'a.mp4', ext: '.mp4', kind: 'video', size: 10_000_000 }
-const wav: FileInfo = { path: 'C:/a.wav', name: 'a.wav', ext: '.wav', kind: 'audio', size: 5_000_000 }
+const png: FileInfo = {
+  path: 'C:/a.png',
+  name: 'a.png',
+  ext: '.png',
+  kind: 'image',
+  size: 1_000_000
+}
+const mp4: FileInfo = {
+  path: 'C:/a.mp4',
+  name: 'a.mp4',
+  ext: '.mp4',
+  kind: 'video',
+  size: 10_000_000
+}
+const wav: FileInfo = {
+  path: 'C:/a.wav',
+  name: 'a.wav',
+  ext: '.wav',
+  kind: 'audio',
+  size: 5_000_000
+}
 const pdf: FileInfo = { path: 'C:/a.pdf', name: 'a.pdf', ext: '.pdf', kind: 'pdf', size: 2_000_000 }
 
 describe('medianRatio', () => {
   it('takes the median output/source ratio', () => {
-    expect(medianRatio([{ source: 10, output: 1 }, { source: 10, output: 3 }, { source: 10, output: 9 }])).toBeCloseTo(0.3)
-    expect(medianRatio([{ source: 10, output: 2 }, { source: 10, output: 4 }])).toBeCloseTo(0.3)
+    expect(
+      medianRatio([
+        { source: 10, output: 1 },
+        { source: 10, output: 3 },
+        { source: 10, output: 9 }
+      ])
+    ).toBeCloseTo(0.3)
+    expect(
+      medianRatio([
+        { source: 10, output: 2 },
+        { source: 10, output: 4 }
+      ])
+    ).toBeCloseTo(0.3)
   })
   it('ignores zero-byte sources and returns null with nothing usable', () => {
     expect(medianRatio([])).toBeNull()
@@ -1688,14 +1752,23 @@ describe('ratio table', () => {
 
 describe('estimateOutputBytes', () => {
   it('prefers finished rows of the same batch over the table', () => {
-    const v = estimateOutputBytes(png, 'convert', { format: '.webp', quality: 'balanced' }, {
-      samples: [{ source: 100, output: 50 }]
-    })
+    const v = estimateOutputBytes(
+      png,
+      'convert',
+      { format: '.webp', quality: 'balanced' },
+      {
+        samples: [{ source: 100, output: 50 }]
+      }
+    )
     expect(v).toBe(500_000)
   })
   it('uses pixels for resize and upscale', () => {
-    expect(estimateOutputBytes(png, 'resize', { mode: 'percent', percent: 50 }, { pixelRatio: 0.25 })).toBe(250_000)
-    expect(estimateOutputBytes(png, 'upscale', { upscaleFactor: 2 }, { outPixels: 1000 })).toBe(1200)
+    expect(
+      estimateOutputBytes(png, 'resize', { mode: 'percent', percent: 50 }, { pixelRatio: 0.25 })
+    ).toBe(250_000)
+    expect(estimateOutputBytes(png, 'upscale', { upscaleFactor: 2 }, { outPixels: 1000 })).toBe(
+      1200
+    )
   })
   it('returns null, never 0 or NaN, when there is nothing to go on', () => {
     expect(estimateOutputBytes(png, 'resize', {}, {})).toBeNull()
@@ -1812,9 +1885,13 @@ export function estimateOutputBytes(
   const fromBatch = medianRatio(ctx.samples ?? [])
   if (fromBatch != null) return Math.round(file.size * fromBatch)
   if (tool === 'resize')
-    return ctx.pixelRatio != null && ctx.pixelRatio > 0 ? Math.round(file.size * ctx.pixelRatio) : null
+    return ctx.pixelRatio != null && ctx.pixelRatio > 0
+      ? Math.round(file.size * ctx.pixelRatio)
+      : null
   if (tool === 'upscale')
-    return ctx.outPixels != null && ctx.outPixels > 0 ? Math.round(estimatedPngBytes(ctx.outPixels, 1)) : null
+    return ctx.outPixels != null && ctx.outPixels > 0
+      ? Math.round(estimatedPngBytes(ctx.outPixels, 1))
+      : null
   const r = ratioFor(tool, file, options)
   return r == null ? null : Math.round(file.size * r)
 }
@@ -1908,7 +1985,12 @@ const EXPECTED: Record<string, string> = {
 
 function expand(hex: string): string {
   const h = hex.slice(1).toLowerCase()
-  return h.length === 3 ? h.split('').map((c) => c + c).join('') : h.slice(0, 6)
+  return h.length === 3
+    ? h
+        .split('')
+        .map((c) => c + c)
+        .join('')
+    : h.slice(0, 6)
 }
 
 describe('design tokens', () => {
@@ -2106,20 +2188,20 @@ svg.i10 {
 
 This is the mockup's component CSS (`10-s2-vscode-grouped.html:50-319`), tokenised and renamed. Port it rule by rule in this order: title bar, workbench, sidebar, centre, table, inspector, segmented, small button, info grid, footer, status bar, preview, grouped settings, reduced motion. Apply exactly these transformations and nothing else:
 
-| Mockup | Port |
-|---|---|
-| `#ffffff` (hover on inverted surfaces) | `var(--inv-hover)` |
-| `#bdbdbd` (active on inverted surfaces) | `var(--inv-active)` |
-| `#141414` (`.vs-sel`, `.vs-in` fill) | `var(--field)` |
-| `#2a2a2a` (`.seg button:active`) | `var(--track)` |
-| `.table` | `.qtable` |
-| `.grid`, `.grid div`, `.grid dt`, `.grid dd` | `.dgrid`, `.dgrid > div`, `.dgrid dt`, `.dgrid dd` |
-| `.crumb a`, `.crumb a:hover` | `.crumb button` (add `font: inherit`), `.crumb button:hover` |
-| `.ihead b` | `.ihead h1` (add `margin: 0; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap`) |
-| `.sitem .mini`, `.sitem .mini i` | `.mini`, `.mini i` (drop the fixed `width: 43%` on `i`; width comes from inline style; add `overflow: hidden` on `.mini`) |
-| `.wipe` background gradient, `.wipe .flr`, `.wipe .btl` | `.wipe { background: var(--bg-1) }`; drop `.flr` and `.btl` (demo art); drop `left: 50%` from `.wipe .line` (set inline) |
-| `html,body`, `body`, `button`, `svg.i`, `:focus-visible`, `.mono`, `:root` | not ported here (they live in `base.css` and `tokens.css`) |
-| `.kv*`, `.dv*`, `.sub`, `.chk`, `.seg.dense`, `.estv*`, `.vs-est .bar*`, `.pane`, `.pane.on` | not ported (dead in S2) |
+| Mockup                                                                                       | Port                                                                                                                      |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `#ffffff` (hover on inverted surfaces)                                                       | `var(--inv-hover)`                                                                                                        |
+| `#bdbdbd` (active on inverted surfaces)                                                      | `var(--inv-active)`                                                                                                       |
+| `#141414` (`.vs-sel`, `.vs-in` fill)                                                         | `var(--field)`                                                                                                            |
+| `#2a2a2a` (`.seg button:active`)                                                             | `var(--track)`                                                                                                            |
+| `.table`                                                                                     | `.qtable`                                                                                                                 |
+| `.grid`, `.grid div`, `.grid dt`, `.grid dd`                                                 | `.dgrid`, `.dgrid > div`, `.dgrid dt`, `.dgrid dd`                                                                        |
+| `.crumb a`, `.crumb a:hover`                                                                 | `.crumb button` (add `font: inherit`), `.crumb button:hover`                                                              |
+| `.ihead b`                                                                                   | `.ihead h1` (add `margin: 0; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap`)           |
+| `.sitem .mini`, `.sitem .mini i`                                                             | `.mini`, `.mini i` (drop the fixed `width: 43%` on `i`; width comes from inline style; add `overflow: hidden` on `.mini`) |
+| `.wipe` background gradient, `.wipe .flr`, `.wipe .btl`                                      | `.wipe { background: var(--bg-1) }`; drop `.flr` and `.btl` (demo art); drop `left: 50%` from `.wipe .line` (set inline)  |
+| `html,body`, `body`, `button`, `svg.i`, `:focus-visible`, `.mono`, `:root`                   | not ported here (they live in `base.css` and `tokens.css`)                                                                |
+| `.kv*`, `.dv*`, `.sub`, `.chk`, `.seg.dense`, `.estv*`, `.vs-est .bar*`, `.pane`, `.pane.on` | not ported (dead in S2)                                                                                                   |
 
 Then append these rules, which the app needs and the static mockup does not:
 
@@ -2301,15 +2383,42 @@ describe('icon registry', () => {
     for (const n of ICON_NAMES) expect(ICON_SHAPES[n]?.length, n).toBeGreaterThan(0)
   })
   it('contains the full mockup set', () => {
-    const mockup = ['convert', 'compress', 'resize', 'upscale', 'removebg', 'generate', 'tools',
-      'completed', 'settings', 'addfile', 'folder', 'play', 'stop', 'retry', 'close', 'check',
-      'warning', 'clock', 'sync', 'chev-r', 'chev-d', 'trash', 'eye', 'info', 'arrow', 'sidebar', 'anvil']
+    const mockup = [
+      'convert',
+      'compress',
+      'resize',
+      'upscale',
+      'removebg',
+      'generate',
+      'tools',
+      'completed',
+      'settings',
+      'addfile',
+      'folder',
+      'play',
+      'stop',
+      'retry',
+      'close',
+      'check',
+      'warning',
+      'clock',
+      'sync',
+      'chev-r',
+      'chev-d',
+      'trash',
+      'eye',
+      'info',
+      'arrow',
+      'sidebar',
+      'anvil'
+    ]
     for (const n of mockup) expect(ICON_NAMES as readonly string[]).toContain(n)
   })
   it('stays inside the 16px grid', () => {
     for (const [name, prims] of Object.entries(ICON_SHAPES))
       for (const p of prims)
-        if (p[0] !== 'path') for (const v of p.slice(1) as number[]) expect(v, name).toBeLessThanOrEqual(16)
+        if (p[0] !== 'path')
+          for (const v of p.slice(1) as number[]) expect(v, name).toBeLessThanOrEqual(16)
   })
   it('every tab and tool card names a real icon', () => {
     for (const t of [...TABS, COMPLETED_TAB, SETTINGS_TAB, ...TOOL_CARDS])
@@ -2329,11 +2438,50 @@ Expected: FAIL, `@shared/icons` not found.
 // Icon names shared by the navigation model (tabs.ts) and the renderer's
 // registry, so a misspelt icon fails typecheck instead of rendering nothing.
 export const ICON_NAMES = [
-  'convert', 'compress', 'resize', 'upscale', 'removebg', 'generate', 'tools', 'completed',
-  'settings', 'addfile', 'folder', 'play', 'stop', 'retry', 'close', 'check', 'warning',
-  'clock', 'sync', 'chev-r', 'chev-d', 'trash', 'eye', 'info', 'arrow', 'sidebar', 'anvil',
-  'image', 'pdf', 'text', 'merge', 'split', 'burst', 'pull', 'archive', 'video', 'audio',
-  'doc', 'unpack', 'topdf', 'tocbz', 'edit', 'grip', 'dots'
+  'convert',
+  'compress',
+  'resize',
+  'upscale',
+  'removebg',
+  'generate',
+  'tools',
+  'completed',
+  'settings',
+  'addfile',
+  'folder',
+  'play',
+  'stop',
+  'retry',
+  'close',
+  'check',
+  'warning',
+  'clock',
+  'sync',
+  'chev-r',
+  'chev-d',
+  'trash',
+  'eye',
+  'info',
+  'arrow',
+  'sidebar',
+  'anvil',
+  'image',
+  'pdf',
+  'text',
+  'merge',
+  'split',
+  'burst',
+  'pull',
+  'archive',
+  'video',
+  'audio',
+  'doc',
+  'unpack',
+  'topdf',
+  'tocbz',
+  'edit',
+  'grip',
+  'dots'
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]
@@ -2347,9 +2495,7 @@ The first 27 entries are copied from the mockup's `<symbol>`s (`10-s2-vscode-gro
 import type { IconName } from '@shared/icons'
 
 export type Prim =
-  | ['path', string]
-  | ['rect', number, number, number, number]
-  | ['circle', number, number, number]
+  ['path', string] | ['rect', number, number, number, number] | ['circle', number, number, number]
 
 const page = 'M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3'
 const box = 'M2 2.5h12v3H2z M3 5.5v8h10v-8'
@@ -2358,12 +2504,29 @@ export const ICON_SHAPES: Record<IconName, Prim[]> = {
   convert: [['path', 'M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13']],
   compress: [['path', 'M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11']],
   resize: [['path', 'M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10']],
-  upscale: [['rect', 2.5, 8.5, 5, 5], ['path', 'M9 2.5h4.5V7M13.5 2.5L8.5 7.5']],
+  upscale: [
+    ['rect', 2.5, 8.5, 5, 5],
+    ['path', 'M9 2.5h4.5V7M13.5 2.5L8.5 7.5']
+  ],
   removebg: [['path', 'M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5']],
-  generate: [['path', 'M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4']],
-  tools: [['rect', 2.5, 2.5, 4.5, 4.5], ['rect', 9, 2.5, 4.5, 4.5], ['rect', 2.5, 9, 4.5, 4.5], ['rect', 9, 9, 4.5, 4.5]],
-  completed: [['circle', 8, 8, 5.5], ['path', 'M5.5 8.25l1.75 1.75L10.75 6.5']],
-  settings: [['path', 'M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6'], ['circle', 9, 5, 1.5], ['circle', 6, 11, 1.5]],
+  generate: [
+    ['path', 'M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4']
+  ],
+  tools: [
+    ['rect', 2.5, 2.5, 4.5, 4.5],
+    ['rect', 9, 2.5, 4.5, 4.5],
+    ['rect', 2.5, 9, 4.5, 4.5],
+    ['rect', 9, 9, 4.5, 4.5]
+  ],
+  completed: [
+    ['circle', 8, 8, 5.5],
+    ['path', 'M5.5 8.25l1.75 1.75L10.75 6.5']
+  ],
+  settings: [
+    ['path', 'M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6'],
+    ['circle', 9, 5, 1.5],
+    ['circle', 6, 11, 1.5]
+  ],
   addfile: [['path', 'M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3M8 7v5M5.5 9.5h5']],
   folder: [['path', 'M1.5 3.5h4.5l1.5 1.5h7v8h-13z']],
   play: [['path', 'M5 3.5v9l7.5-4.5z']],
@@ -2372,33 +2535,73 @@ export const ICON_SHAPES: Record<IconName, Prim[]> = {
   close: [['path', 'M4 4l8 8M12 4l-8 8']],
   check: [['path', 'M3 8.5l3 3 7-7']],
   warning: [['path', 'M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5']],
-  clock: [['circle', 8, 8, 5.5], ['path', 'M8 5v3l2 1.5']],
+  clock: [
+    ['circle', 8, 8, 5.5],
+    ['path', 'M8 5v3l2 1.5']
+  ],
   sync: [['path', 'M13.5 8A5.5 5.5 0 1 1 8 2.5']],
   'chev-r': [['path', 'M6 4l4 4-4 4']],
   'chev-d': [['path', 'M4 6l4 4 4-4']],
   trash: [['path', 'M3 4.5h10M6 4.5V2.5h4v2M4.5 4.5l.5 9h6l.5-9']],
-  eye: [['path', 'M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z'], ['circle', 8, 8, 2]],
-  info: [['circle', 8, 8, 5.5], ['path', 'M8 7.5v3.5M8 5v.5']],
+  eye: [
+    ['path', 'M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z'],
+    ['circle', 8, 8, 2]
+  ],
+  info: [
+    ['circle', 8, 8, 5.5],
+    ['path', 'M8 7.5v3.5M8 5v.5']
+  ],
   arrow: [['path', 'M3 8h10M10 5l3 3-3 3']],
-  sidebar: [['rect', 2, 2.5, 12, 11], ['path', 'M6 2.5v11M10.5 6.5L9 8l1.5 1.5']],
+  sidebar: [
+    ['rect', 2, 2.5, 12, 11],
+    ['path', 'M6 2.5v11M10.5 6.5L9 8l1.5 1.5']
+  ],
   anvil: [['path', 'M1.5 4.5h10c0 2 1.5 3 3 3v1h-5l-1 2h2v2h-6v-2h2l-1-2c-2.5 0-4-1.5-4-4z']],
-  image: [['rect', 2.5, 2.5, 11, 11], ['path', 'M2.5 11l3.5-3.5 3 3 2-2 2.5 2.5'], ['circle', 10.5, 5.5, 1]],
+  image: [
+    ['rect', 2.5, 2.5, 11, 11],
+    ['path', 'M2.5 11l3.5-3.5 3 3 2-2 2.5 2.5'],
+    ['circle', 10.5, 5.5, 1]
+  ],
   pdf: [['path', `${page}M5.5 9h5M5.5 11.5h3`]],
   text: [['path', 'M3 4h10M3 7h10M3 10h10M3 13h6']],
   merge: [['path', 'M2.5 3l5.5 5M13.5 3L8 8v6M5.5 11.5L8 14l2.5-2.5']],
   split: [['path', 'M8 2v6l-5.5 5.5M8 8l5.5 5.5M5.5 4.5L8 2l2.5 2.5']],
-  burst: [['rect', 2.5, 3.5, 5, 6], ['rect', 8.5, 6.5, 5, 6]],
+  burst: [
+    ['rect', 2.5, 3.5, 5, 6],
+    ['rect', 8.5, 6.5, 5, 6]
+  ],
   pull: [['path', 'M2.5 6.5v7h11v-7M8 2v8M5.5 7.5L8 10l2.5-2.5']],
   archive: [['path', `${box}M6.5 8.5h3`]],
-  video: [['rect', 1.5, 3.5, 9, 9], ['path', 'M10.5 7l4-2.5v7l-4-2.5']],
-  audio: [['path', 'M6 12V3.5l7.5-1.5V10.5'], ['circle', 4.5, 12, 1.5], ['circle', 12, 10.5, 1.5]],
+  video: [
+    ['rect', 1.5, 3.5, 9, 9],
+    ['path', 'M10.5 7l4-2.5v7l-4-2.5']
+  ],
+  audio: [
+    ['path', 'M6 12V3.5l7.5-1.5V10.5'],
+    ['circle', 4.5, 12, 1.5],
+    ['circle', 12, 10.5, 1.5]
+  ],
   doc: [['path', `${page}M5.5 8h5M5.5 10.5h5M5.5 13h3`]],
   unpack: [['path', `${box}M8 7v5M5.5 9.5L8 12l2.5-2.5`]],
   topdf: [['path', 'M5.5 1.5h5l3 3v10h-8v-4M10.5 1.5v3h3M1.5 8h6M5 5.5L7.5 8 5 10.5']],
-  tocbz: [['rect', 6.5, 6.5, 8, 7], ['path', 'M1.5 4h7M6 1.5L8.5 4 6 6.5']],
+  tocbz: [
+    ['rect', 6.5, 6.5, 8, 7],
+    ['path', 'M1.5 4h7M6 1.5L8.5 4 6 6.5']
+  ],
   edit: [['path', 'M10.5 2.5l3 3-8 8h-3v-3zM9 4l3 3']],
-  grip: [['circle', 6, 4, 0.75], ['circle', 10, 4, 0.75], ['circle', 6, 8, 0.75], ['circle', 10, 8, 0.75], ['circle', 6, 12, 0.75], ['circle', 10, 12, 0.75]],
-  dots: [['circle', 8, 3.5, 0.75], ['circle', 8, 8, 0.75], ['circle', 8, 12.5, 0.75]]
+  grip: [
+    ['circle', 6, 4, 0.75],
+    ['circle', 10, 4, 0.75],
+    ['circle', 6, 8, 0.75],
+    ['circle', 10, 8, 0.75],
+    ['circle', 6, 12, 0.75],
+    ['circle', 10, 12, 0.75]
+  ],
+  dots: [
+    ['circle', 8, 3.5, 0.75],
+    ['circle', 8, 8, 0.75],
+    ['circle', 8, 12.5, 0.75]
+  ]
 }
 ```
 
@@ -2422,7 +2625,12 @@ export function Icon({
 }): JSX.Element {
   const cls = `i${size === 12 ? ' i12' : size === 10 ? ' i10' : ''}${className ? ' ' + className : ''}`
   return (
-    <svg className={cls} viewBox="0 0 16 16" aria-hidden="true" style={strokeWidth ? { strokeWidth } : undefined}>
+    <svg
+      className={cls}
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      style={strokeWidth ? { strokeWidth } : undefined}
+    >
       {ICON_SHAPES[name].map((p, i) =>
         p[0] === 'path' ? (
           <path key={i} d={p[1]} />
@@ -2513,7 +2721,12 @@ describe('rovingIndex', () => {
 })
 
 describe('nextEnabled (select popup keyboard)', () => {
-  const opts = [{ label: 'webp' }, { label: 'png', disabled: true }, { label: 'avif' }, { label: 'jpg' }]
+  const opts = [
+    { label: 'webp' },
+    { label: 'png', disabled: true },
+    { label: 'avif' },
+    { label: 'jpg' }
+  ]
   it('skips disabled options with the arrows and stops at the ends', () => {
     expect(nextEnabled(opts, 0, 'ArrowDown')).toBe(2)
     expect(nextEnabled(opts, 2, 'ArrowUp')).toBe(0)
@@ -2541,7 +2754,12 @@ Expected: FAIL, modules not found.
 ```ts
 // src/renderer/src/components/ui/roving.ts
 /** Next index for roving-tabindex groups (tabs, segments, chips). */
-export function rovingIndex(key: string, i: number, n: number, axis: 'x' | 'y' = 'x'): number | null {
+export function rovingIndex(
+  key: string,
+  i: number,
+  n: number,
+  axis: 'x' | 'y' = 'x'
+): number | null {
   if (n <= 0) return null
   const back = axis === 'x' ? 'ArrowLeft' : 'ArrowUp'
   const fwd = axis === 'x' ? 'ArrowRight' : 'ArrowDown'
@@ -2627,7 +2845,11 @@ export function AddFilesButton({ children = 'Add files', ...rest }: B): JSX.Elem
   )
 }
 
-export function IconButton({ icon, label, ...rest }: B & { icon: IconName; label: string }): JSX.Element {
+export function IconButton({
+  icon,
+  label,
+  ...rest
+}: B & { icon: IconName; label: string }): JSX.Element {
   return (
     <button type="button" className="ibtn" aria-label={label} title={label} {...rest}>
       <Icon name={icon} />
@@ -2821,7 +3043,12 @@ export function Select<T extends string>({
   }, [open])
 
   function show(): void {
-    setActive(Math.max(0, options.findIndex((o) => o.value === value)))
+    setActive(
+      Math.max(
+        0,
+        options.findIndex((o) => o.value === value)
+      )
+    )
     setOpen(true)
   }
   function commit(i: number): void {
@@ -2873,7 +3100,9 @@ export function Select<T extends string>({
         onClick={() => (open ? setOpen(false) : show())}
         onKeyDown={onKey}
       >
-        <span className="val">{current ? current.label : <span className="ph">{placeholder}</span>}</span>
+        <span className="val">
+          {current ? current.label : <span className="ph">{placeholder}</span>}
+        </span>
         <Icon name="chev-d" />
       </button>
       {open && (
@@ -2919,7 +3148,10 @@ export function Select<T extends string>({
 // src/renderer/src/components/ui/TextField.tsx
 import { useState, type InputHTMLAttributes, type JSX } from 'react'
 
-export function TextField({ className = '', ...rest }: InputHTMLAttributes<HTMLInputElement>): JSX.Element {
+export function TextField({
+  className = '',
+  ...rest
+}: InputHTMLAttributes<HTMLInputElement>): JSX.Element {
   return <input spellCheck={false} {...rest} className={`vs-in ${className}`} />
 }
 
@@ -3043,7 +3275,13 @@ export function CheckSetting({
 }): JSX.Element {
   return (
     <div className="vs-chk" onClick={() => onChange(!checked)}>
-      <Checkbox checked={checked} onChange={() => onChange(!checked)} label={label} size="md" focusable />
+      <Checkbox
+        checked={checked}
+        onChange={() => onChange(!checked)}
+        label={label}
+        size="md"
+        focusable
+      />
       <span className="lt">
         {label}
         {sub && <span>{sub}</span>}
@@ -3131,7 +3369,13 @@ export function ChipGrid<T extends string | number>({
 }): JSX.Element {
   const refs = useRef<(HTMLButtonElement | null)[]>([])
   const idx = chips.findIndex((c) => c.value === value && !c.disabled)
-  const focusIdx = idx >= 0 ? idx : Math.max(0, chips.findIndex((c) => !c.disabled))
+  const focusIdx =
+    idx >= 0
+      ? idx
+      : Math.max(
+          0,
+          chips.findIndex((c) => !c.disabled)
+        )
   return (
     <div
       className="chips"
@@ -3273,7 +3517,15 @@ import { formatBytes } from '@shared/compress'
 import { Icon } from '../icons/Icon'
 import { formatPct, pctChange } from '../queue/rowModel'
 
-export function EstimateCard({ from, to, files }: { from: number; to: number; files: number }): JSX.Element {
+export function EstimateCard({
+  from,
+  to,
+  files
+}: {
+  from: number
+  to: number
+  files: number
+}): JSX.Element {
   const pct = pctChange(from, to)
   const noun = `${files} file${files === 1 ? '' : 's'}`
   const label = `Estimated output for ${noun}: ${formatBytes(from)} to about ${formatBytes(to)}${
@@ -3615,7 +3867,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 import { describe, expect, it } from 'vitest'
 import { crumbsFor } from '../src/renderer/src/components/shell/crumbs'
 import { afterToggle, isCollapsed } from '../src/renderer/src/components/shell/sidebarState'
-import { moveItem, normalizeOrder, sidebarVerbs } from '../src/renderer/src/components/shell/railPrefs'
+import {
+  moveItem,
+  normalizeOrder,
+  sidebarVerbs
+} from '../src/renderer/src/components/shell/railPrefs'
 import { statusSummary, verbGerund } from '../src/renderer/src/components/shell/statusModel'
 import { shortcutFor } from '../src/renderer/src/components/shell/shortcuts'
 import { TABS, toolCardById, type TabId } from '@shared/tabs'
@@ -3660,7 +3916,10 @@ describe('sidebar collapse', () => {
 describe('rail preferences', () => {
   const all = TABS.map((t) => t.id)
   it('keeps a saved order, drops unknown ids and appends new verbs', () => {
-    expect(normalizeOrder(['resize', 'bogus', 'convert'], all).slice(0, 2)).toEqual(['resize', 'convert'])
+    expect(normalizeOrder(['resize', 'bogus', 'convert'], all).slice(0, 2)).toEqual([
+      'resize',
+      'convert'
+    ])
     expect(normalizeOrder(['resize'], all)).toHaveLength(all.length)
     expect(normalizeOrder('garbage', all)).toEqual(all)
   })
@@ -3668,7 +3927,13 @@ describe('rail preferences', () => {
     expect(moveItem(['a', 'b', 'c'], 0, 2)).toEqual(['b', 'c', 'a'])
   })
   it('lists visible verbs without Tools, which has its own slot', () => {
-    expect(sidebarVerbs(all, ['upscale'])).toEqual(['convert', 'compress', 'resize', 'removebg', 'generate'])
+    expect(sidebarVerbs(all, ['upscale'])).toEqual([
+      'convert',
+      'compress',
+      'resize',
+      'removebg',
+      'generate'
+    ])
   })
 })
 
@@ -3697,12 +3962,19 @@ describe('status bar', () => {
     expect(s.failed).toBe(1)
   })
   it('drops the running item once the batch settles or without a batch', () => {
-    const settled = items.map((i) => (i.status === 'queued' || i.status === 'running' ? { ...i, status: 'done' as const } : i))
+    const settled = items.map((i) =>
+      i.status === 'queued' || i.status === 'running' ? { ...i, status: 'done' as const } : i
+    )
     expect(statusSummary(settled, ['a', 'b', 'c', 'd', 'e', 'f'], 'Convert').running).toBeNull()
     expect(statusSummary(items, null, 'Convert').running).toBeNull()
   })
   it('renders nothing for an empty queue', () => {
-    expect(statusSummary([], null, 'Convert')).toEqual({ running: null, message: null, done: null, failed: 0 })
+    expect(statusSummary([], null, 'Convert')).toEqual({
+      running: null,
+      message: null,
+      done: null,
+      failed: 0
+    })
   })
   it('names each verb', () => {
     expect(verbGerund('Remove BG')).toBe('Removing backgrounds')
@@ -3711,8 +3983,16 @@ describe('status bar', () => {
 })
 
 describe('global shortcuts', () => {
-  const k = (key: string, o: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({
-    key, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...o
+  const k = (
+    key: string,
+    o: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}
+  ) => ({
+    key,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    altKey: false,
+    ...o
   })
   it('maps Ctrl+B, Ctrl+O and Ctrl+Enter', () => {
     expect(shortcutFor(k('b', { ctrlKey: true }))).toBe('toggleSidebar')
@@ -3765,7 +4045,10 @@ export interface Crumb {
 export function crumbsFor(tab: TabId, card: ToolCard | null, group: string | null): Crumb[] {
   if (tab === 'tools')
     return card
-      ? [{ label: 'tools', action: 'tools', ariaLabel: 'Back to Tools' }, { label: card.label.toLowerCase() }]
+      ? [
+          { label: 'tools', action: 'tools', ariaLabel: 'Back to Tools' },
+          { label: card.label.toLowerCase() }
+        ]
       : [{ label: 'tools' }]
   const label = tabById(tab).label.toLowerCase()
   if (tab === 'generate' || tab === 'completed' || tab === 'settings' || !group) return [{ label }]
@@ -4008,7 +4291,9 @@ export function oneGroupIds(items: QueueItem[], ids: string[]): string[] {
   const set = new Set(ids)
   const rows = items.filter((i) => inInput(i) && set.has(i.id))
   if (!rows.length) return []
-  const group = [...new Set(rows.map((i) => groupOf(i.file)))].sort((a, b) => groupRank(a) - groupRank(b))[0]
+  const group = [...new Set(rows.map((i) => groupOf(i.file)))].sort(
+    (a, b) => groupRank(a) - groupRank(b)
+  )[0]
   return ids.filter((id) => rows.some((r) => r.id === id && groupOf(r.file) === group))
 }
 ```
@@ -4025,7 +4310,13 @@ Expected: PASS.
 import { Fragment, type JSX } from 'react'
 import type { Crumb, CrumbAction } from './crumbs'
 
-export function Breadcrumb({ crumbs, onCrumb }: { crumbs: Crumb[]; onCrumb: (a: CrumbAction) => void }): JSX.Element {
+export function Breadcrumb({
+  crumbs,
+  onCrumb
+}: {
+  crumbs: Crumb[]
+  onCrumb: (a: CrumbAction) => void
+}): JSX.Element {
   return (
     <nav className="crumb no-drag" aria-label="Breadcrumb">
       {crumbs.map((c, i) => (
@@ -4059,7 +4350,13 @@ import { Icon } from '../icons/Icon'
 import { Breadcrumb } from './Breadcrumb'
 import type { Crumb, CrumbAction } from './crumbs'
 
-export function TitleBar({ crumbs, onCrumb }: { crumbs: Crumb[]; onCrumb: (a: CrumbAction) => void }): JSX.Element {
+export function TitleBar({
+  crumbs,
+  onCrumb
+}: {
+  crumbs: Crumb[]
+  onCrumb: (a: CrumbAction) => void
+}): JSX.Element {
   return (
     <header className="titlebar drag">
       <div className="brand">
@@ -4070,17 +4367,32 @@ export function TitleBar({ crumbs, onCrumb }: { crumbs: Crumb[]; onCrumb: (a: Cr
       <Breadcrumb crumbs={crumbs} onCrumb={onCrumb} />
       {/* Window controls: 10x10 glyphs at stroke 1; close is not red (spec 2.5). */}
       <div className="winctl no-drag">
-        <button type="button" aria-label="Minimize" title="Minimize" onClick={() => window.filesmith.minimize()}>
+        <button
+          type="button"
+          aria-label="Minimize"
+          title="Minimize"
+          onClick={() => window.filesmith.minimize()}
+        >
           <svg viewBox="0 0 10 10" aria-hidden="true">
             <path d="M0 5.5h10" />
           </svg>
         </button>
-        <button type="button" aria-label="Maximize" title="Maximize" onClick={() => window.filesmith.toggleMaximize()}>
+        <button
+          type="button"
+          aria-label="Maximize"
+          title="Maximize"
+          onClick={() => window.filesmith.toggleMaximize()}
+        >
           <svg viewBox="0 0 10 10" aria-hidden="true">
             <rect x=".5" y=".5" width="9" height="9" />
           </svg>
         </button>
-        <button type="button" aria-label="Close" title="Close" onClick={() => window.filesmith.close()}>
+        <button
+          type="button"
+          aria-label="Close"
+          title="Close"
+          onClick={() => window.filesmith.close()}
+        >
           <svg viewBox="0 0 10 10" aria-hidden="true">
             <path d="M0 0l10 10M10 0L0 10" />
           </svg>
@@ -4171,7 +4483,13 @@ import { Icon } from '../icons/Icon'
 import { ProgressBar } from '../ui/ProgressBar'
 import type { StatusSummary } from './statusModel'
 
-export function StatusBar({ summary, onFailedClick }: { summary: StatusSummary; onFailedClick: () => void }): JSX.Element {
+export function StatusBar({
+  summary,
+  onFailedClick
+}: {
+  summary: StatusSummary
+  onFailedClick: () => void
+}): JSX.Element {
   return (
     <footer className="statusbar" aria-label="Status">
       {summary.running && (
@@ -4191,7 +4509,12 @@ export function StatusBar({ summary, onFailedClick }: { summary: StatusSummary; 
       {summary.done && <div className="sitem">{summary.done}</div>}
       <div className="sright">
         {summary.failed > 0 && (
-          <button type="button" className="sitem warn" onClick={onFailedClick} title="Select the failed files">
+          <button
+            type="button"
+            className="sitem warn"
+            onClick={onFailedClick}
+            title="Select the failed files"
+          >
             <Icon name="warning" />
             {summary.failed} failed
           </button>
@@ -4222,10 +4545,10 @@ import { oneGroupIds } from './components/queue/selectAll'
 New state next to the other `useState`s:
 
 ```ts
-  const sidebar = useSidebar()
-  const rail = useRailPrefs()
-  // Ids of the last run per workspace, for "Converting 3 of 6" (spec 6.4).
-  const [batches, setBatches] = useState<Record<string, string[]>>({})
+const sidebar = useSidebar()
+const rail = useRailPrefs()
+// Ids of the last run per workspace, for "Converting 3 of 6" (spec 6.4).
+const [batches, setBatches] = useState<Record<string, string[]>>({})
 ```
 
 In `run()`: after the merge branch's `dispatch({ type: 'markQueued', ids: [anchorId], ... })` add `setBatches((b) => ({ ...b, [qKey]: [anchorId] }))`; after the per-file `dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), ... })` add `setBatches((b) => ({ ...b, [qKey]: targets.map((t) => t.id) }))`.
@@ -4233,72 +4556,79 @@ In `run()`: after the merge branch's `dispatch({ type: 'markQueued', ids: [ancho
 Global shortcuts effect (after the job-event effect). `run` and `browse` are re-created each render, so read them through the existing `latest` ref pattern: add a ref `const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle })` and assign `actions.current = { run, browse, runCount, toggle: sidebar.toggle }` in the render body after `runCount` is computed, then:
 
 ```ts
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      const s = shortcutFor(e)
-      if (!s) return
-      e.preventDefault()
-      const a = actions.current
-      if (s === 'toggleSidebar') a.toggle()
-      else if (s === 'addFiles') void a.browse()
-      else if (s === 'run' && a.runCount > 0) void a.run()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+useEffect(() => {
+  const onKey = (e: KeyboardEvent): void => {
+    const s = shortcutFor(e)
+    if (!s) return
+    e.preventDefault()
+    const a = actions.current
+    if (s === 'toggleSidebar') a.toggle()
+    else if (s === 'addFiles') void a.browse()
+    else if (s === 'run' && a.runCount > 0) void a.run()
+  }
+  window.addEventListener('keydown', onKey)
+  return () => window.removeEventListener('keydown', onKey)
+}, [])
 ```
 
 Derived values before `return`:
 
 ```ts
-  const crumbs = crumbsFor(state.tab, card ?? null, activeGroup)
-  const verbLabel = card ? card.label : tab.label
-  const summary = statusSummary(
-    onToolsGrid || onCompleted || state.tab === 'settings' ? [] : cur.items,
-    batches[qKey] ?? null,
-    verbLabel,
-    genRun.running && genRun.message && !genRun.message.startsWith('Generating') ? genRun.message : null
-  )
-  const showInspector = !onToolsGrid && !onCompleted && state.tab !== 'settings'
+const crumbs = crumbsFor(state.tab, card ?? null, activeGroup)
+const verbLabel = card ? card.label : tab.label
+const summary = statusSummary(
+  onToolsGrid || onCompleted || state.tab === 'settings' ? [] : cur.items,
+  batches[qKey] ?? null,
+  verbLabel,
+  genRun.running && genRun.message && !genRun.message.startsWith('Generating')
+    ? genRun.message
+    : null
+)
+const showInspector = !onToolsGrid && !onCompleted && state.tab !== 'settings'
 ```
 
 Replace the outer layout. The root becomes:
 
 ```tsx
-    <div className="app" data-sidebar={sidebar.collapsed ? 'collapsed' : 'expanded'}>
-      <TitleBar
-        crumbs={crumbs}
-        onCrumb={(a) =>
-          a === 'tools' ? dispatch({ type: 'setActiveTool', tool: null }) : dispatch({ type: 'clearSelection' })
-        }
-      />
-      <div className={`wb${showInspector ? '' : ' no-insp'}`}>
-        <Sidebar
-          tab={state.tab}
-          verbs={sidebarVerbs(rail.order, rail.hidden)}
-          showTools={!rail.hidden.includes('tools')}
-          counts={counts}
-          completedCount={completed.length}
-          collapsed={sidebar.collapsed}
-          onToggle={sidebar.toggle}
-          onSelect={(t) => dispatch({ type: 'setTab', tab: t })}
-        />
-        {/* existing <section> ... </section> stays for now; change its tag to
+<div className="app" data-sidebar={sidebar.collapsed ? 'collapsed' : 'expanded'}>
+  <TitleBar
+    crumbs={crumbs}
+    onCrumb={(a) =>
+      a === 'tools'
+        ? dispatch({ type: 'setActiveTool', tool: null })
+        : dispatch({ type: 'clearSelection' })
+    }
+  />
+  <div className={`wb${showInspector ? '' : ' no-insp'}`}>
+    <Sidebar
+      tab={state.tab}
+      verbs={sidebarVerbs(rail.order, rail.hidden)}
+      showTools={!rail.hidden.includes('tools')}
+      counts={counts}
+      completedCount={completed.length}
+      collapsed={sidebar.collapsed}
+      onToggle={sidebar.toggle}
+      onSelect={(t) => dispatch({ type: 'setTab', tab: t })}
+    />
+    {/* existing <section> ... </section> stays for now; change its tag to
             <main className="center" aria-label="Workspace"> and drop its Tailwind classes */}
-        {/* existing OptionsPanel stays for now, rendered when showInspector */}
-      </div>
-      <StatusBar
-        summary={summary}
-        onFailedClick={() =>
-          dispatch({
-            type: 'selectIds',
-            ids: oneGroupIds(cur.items, cur.items.filter((i) => i.status === 'failed').map((i) => i.id))
-          })
-        }
-      />
-      <ContextMenu menu={menu} onClose={closeMenu} />
-      <ConfirmDialog state={confirm} onClose={closeConfirm} />
-    </div>
+    {/* existing OptionsPanel stays for now, rendered when showInspector */}
+  </div>
+  <StatusBar
+    summary={summary}
+    onFailedClick={() =>
+      dispatch({
+        type: 'selectIds',
+        ids: oneGroupIds(
+          cur.items,
+          cur.items.filter((i) => i.status === 'failed').map((i) => i.id)
+        )
+      })
+    }
+  />
+  <ContextMenu menu={menu} onClose={closeMenu} />
+  <ConfirmDialog state={confirm} onClose={closeConfirm} />
+</div>
 ```
 
 Move the `onDragOver` / `onDragLeave` / `onDrop` handlers from the old `<section>` onto the `.app` root (spec 4.9: the whole window accepts drops). Keep the existing window-level `dragover`/`drop` `preventDefault` effect.
@@ -4367,7 +4697,10 @@ export function ResultCell({ result }: { result: ResultView | null }): JSX.Eleme
           <Icon name="arrow" size={12} className="arr split" />
           {result.estimate ? <span className="est">{result.text}</span> : <b>{result.text}</b>}
           {result.pct && (
-            <span className={`pct${result.grew ? ' grew' : ''}`} title={result.grew ? 'Larger than the original' : undefined}>
+            <span
+              className={`pct${result.grew ? ' grew' : ''}`}
+              title={result.grew ? 'Larger than the original' : undefined}
+            >
               {result.pct}
             </span>
           )}
@@ -4794,7 +5127,13 @@ export function QueueTable({
             <Fragment key={g.group}>
               {groups.length > 1 && (
                 <div className="grp-row" role="row">
-                  <button type="button" className="grp" role="gridcell" onClick={() => onSelectGroup(g.group)} title={`Select all ${g.label.toLowerCase()}`}>
+                  <button
+                    type="button"
+                    className="grp"
+                    role="gridcell"
+                    onClick={() => onSelectGroup(g.group)}
+                    title={`Select all ${g.label.toLowerCase()}`}
+                  >
                     {g.label.toUpperCase()}
                     <span className="n">{g.items.length}</span>
                   </button>
@@ -4958,20 +5297,22 @@ State: `const [sorts, setSorts] = useState<Record<string, SortState | null>>({})
 **Run scope** (spec 4.1). Replace the selection-derived block (`:265-276`) so that with nothing selected the panel and Run act on the first display group:
 
 ```ts
-  const selectedItems = cur.items.filter((i) => cur.selected.includes(i.id))
-  // With nothing selected, options and Run speak for the first group in the
-  // queue (spec 4.1), not an empty panel.
-  const firstGroup = activeGroupFor(cur.items, [])
-  const scopeItems = selectedItems.length
-    ? selectedItems
-    : cur.items.filter((i) => inInput(i) && firstGroup != null && groupOf(i.file) === firstGroup)
-  const selEff = scopeItems.map(effectiveFile)
-  const activeKind: FileKind | null = selEff.length ? selEff[0].kind : null
-  // Dimming and the breadcrumb follow the SELECTION only.
-  const activeGroup: string | null = selectedItems.length ? groupOf(effectiveFile(selectedItems[0])) : null
-  const scopeGroup: string | null = selEff.length ? groupOf(selEff[0]) : null
-  const fallbackKind: FileKind = tab.kinds[0] ?? card?.kinds[0] ?? 'image'
-  const optGroup = scopeGroup ?? convertGroup(fallbackKind, '')
+const selectedItems = cur.items.filter((i) => cur.selected.includes(i.id))
+// With nothing selected, options and Run speak for the first group in the
+// queue (spec 4.1), not an empty panel.
+const firstGroup = activeGroupFor(cur.items, [])
+const scopeItems = selectedItems.length
+  ? selectedItems
+  : cur.items.filter((i) => inInput(i) && firstGroup != null && groupOf(i.file) === firstGroup)
+const selEff = scopeItems.map(effectiveFile)
+const activeKind: FileKind | null = selEff.length ? selEff[0].kind : null
+// Dimming and the breadcrumb follow the SELECTION only.
+const activeGroup: string | null = selectedItems.length
+  ? groupOf(effectiveFile(selectedItems[0]))
+  : null
+const scopeGroup: string | null = selEff.length ? groupOf(selEff[0]) : null
+const fallbackKind: FileKind = tab.kinds[0] ?? card?.kinds[0] ?? 'image'
+const optGroup = scopeGroup ?? convertGroup(fallbackKind, '')
 ```
 
 and in the `runList` filter (`:298`) change `selectedItems.filter(` to `scopeItems.filter(`. Leave the rest of `runList`'s predicate unchanged. Everywhere the OptionsPanel props used `activeGroup` to decide whether to show options, pass `scopeGroup` instead (until Task 13 replaces the panel).
@@ -4979,54 +5320,59 @@ and in the `runList` filter (`:298`) change `selectedItems.filter(` to `scopeIte
 **Row clicks follow the visible order:**
 
 ```ts
-  const sort = sorts[qKey] ?? null
-  const groups = groupedRows(cur.items, sort)
-  const order = visibleOrder(groups)
+const sort = sorts[qKey] ?? null
+const groups = groupedRows(cur.items, sort)
+const order = visibleOrder(groups)
 
-  function onItemClick(id: string, e: MouseEvent): void {
-    const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
-    dispatch({ type: 'select', id, mode, order })
-  }
+function onItemClick(id: string, e: MouseEvent): void {
+  const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
+  dispatch({ type: 'select', id, mode, order })
+}
 ```
 
 **Retry and row actions:**
 
 ```ts
-  function toolFor(it: QueueItem, opts: JobOptions): ToolId {
-    return engineFor(
-      state.tab,
-      groupOf(it.file),
-      card,
-      { kind: it.file.kind, ext: it.file.ext },
-      typeof opts.format === 'string' ? opts.format : undefined
-    ).tool
-  }
+function toolFor(it: QueueItem, opts: JobOptions): ToolId {
+  return engineFor(
+    state.tab,
+    groupOf(it.file),
+    card,
+    { kind: it.file.kind, ext: it.file.ext },
+    typeof opts.format === 'string' ? opts.format : undefined
+  ).tool
+}
 
-  /** Same path as run() for one in-place item, with the options it last ran
-   * with (spec 4.3). A merge row retries with the same input list, because
-   * run() now stores `mergeInputs` in its `runOptions` (see below). */
-  function retry(ids: string[]): void {
-    const started: string[] = []
-    for (const id of ids) {
-      const it = cur.items.find((i) => i.id === id)
-      if (!it || (it.status !== 'failed' && it.status !== 'canceled')) continue
-      const opts = it.runOptions ?? curOptions
-      dispatch({ type: 'markQueued', ids: [id], options: opts })
-      void window.filesmith.runJob({ id, tool: toolFor(it, opts), input: it.file.path, options: opts })
-      started.push(id)
-    }
-    if (started.length) setBatches((b) => ({ ...b, [qKey]: started }))
-  }
-
-  function onRowAction(id: string, kind: RowActionKind): void {
+/** Same path as run() for one in-place item, with the options it last ran
+ * with (spec 4.3). A merge row retries with the same input list, because
+ * run() now stores `mergeInputs` in its `runOptions` (see below). */
+function retry(ids: string[]): void {
+  const started: string[] = []
+  for (const id of ids) {
     const it = cur.items.find((i) => i.id === id)
-    if (!it) return
-    if (kind === 'reveal') {
-      if (it.outputPath) window.filesmith.reveal(it.outputPath)
-    } else if (kind === 'cancel') cancelJob(id)
-    else if (kind === 'remove') dismiss([id], 'input')
-    else retry([id])
+    if (!it || (it.status !== 'failed' && it.status !== 'canceled')) continue
+    const opts = it.runOptions ?? curOptions
+    dispatch({ type: 'markQueued', ids: [id], options: opts })
+    void window.filesmith.runJob({
+      id,
+      tool: toolFor(it, opts),
+      input: it.file.path,
+      options: opts
+    })
+    started.push(id)
   }
+  if (started.length) setBatches((b) => ({ ...b, [qKey]: started }))
+}
+
+function onRowAction(id: string, kind: RowActionKind): void {
+  const it = cur.items.find((i) => i.id === id)
+  if (!it) return
+  if (kind === 'reveal') {
+    if (it.outputPath) window.filesmith.reveal(it.outputPath)
+  } else if (kind === 'cancel') cancelJob(id)
+  else if (kind === 'remove') dismiss([id], 'input')
+  else retry([id])
+}
 ```
 
 In `run()`'s merge branch (`App.tsx:697`) change `dispatch({ type: 'markQueued', ids: [anchorId], options: opts })` to `dispatch({ type: 'markQueued', ids: [anchorId], options: { ...opts, mergeInputs: paths } })`. Without it a retried merge row would reach the engine with no input list and fail again with "Select at least two PDFs to merge" (`registry.ts:322-323`).
@@ -5034,30 +5380,38 @@ In `run()`'s merge branch (`App.tsx:697`) change `dispatch({ type: 'markQueued',
 **Per-row estimates** for running rows:
 
 ```ts
-  function estimateFor(it: QueueItem): number | null {
-    const opts = it.runOptions ?? curOptions
-    const t = toolFor(it, opts)
-    const d = vDims[it.file.path]
-    let pixelRatio: number | null = null
-    let outPixels: number | null = null
-    if (t === 'resize') {
-      if (String(opts.mode ?? 'percent') === 'percent') pixelRatio = (Number(opts.percent ?? 50) / 100) ** 2
-      else if (d) {
-        const o = resizedSize(d.width, d.height, numOrNull(opts.width), numOrNull(opts.height), opts.fit === 'stretch' ? 'stretch' : 'contain')
-        if (o) pixelRatio = (o.w * o.h) / (d.width * d.height)
-      }
-    } else if (t === 'upscale' && d) {
-      const f = Number(opts.upscaleFactor ?? 4)
-      outPixels = d.width * f * d.height * f
+function estimateFor(it: QueueItem): number | null {
+  const opts = it.runOptions ?? curOptions
+  const t = toolFor(it, opts)
+  const d = vDims[it.file.path]
+  let pixelRatio: number | null = null
+  let outPixels: number | null = null
+  if (t === 'resize') {
+    if (String(opts.mode ?? 'percent') === 'percent')
+      pixelRatio = (Number(opts.percent ?? 50) / 100) ** 2
+    else if (d) {
+      const o = resizedSize(
+        d.width,
+        d.height,
+        numOrNull(opts.width),
+        numOrNull(opts.height),
+        opts.fit === 'stretch' ? 'stretch' : 'contain'
+      )
+      if (o) pixelRatio = (o.w * o.h) / (d.width * d.height)
     }
-    return estimateOutputBytes(it.file, t, opts, {
-      samples: doneSamples(cur.items, groupOf(it.file), opts),
-      pixelRatio,
-      outPixels
-    })
+  } else if (t === 'upscale' && d) {
+    const f = Number(opts.upscaleFactor ?? 4)
+    outPixels = d.width * f * d.height * f
   }
-  const estimates: Record<string, number | null> = {}
-  for (const i of cur.items) if (inInput(i) && i.status === 'running') estimates[i.id] = estimateFor(i)
+  return estimateOutputBytes(it.file, t, opts, {
+    samples: doneSamples(cur.items, groupOf(it.file), opts),
+    pixelRatio,
+    outPixels
+  })
+}
+const estimates: Record<string, number | null> = {}
+for (const i of cur.items)
+  if (inInput(i) && i.status === 'running') estimates[i.id] = estimateFor(i)
 ```
 
 (`numOrNull` already exists at `:803`; move it above `estimateFor` if it is declared later.)
@@ -5065,63 +5419,68 @@ In `run()`'s merge branch (`App.tsx:697`) change `dispatch({ type: 'markQueued',
 **Toolbar flags and handlers:**
 
 ```ts
-  const inputs = cur.items.filter(inInput)
-  const groupForBulk = activeGroupFor(cur.items, cur.selected)
-  const failedInGroup = inputs.filter((i) => i.status === 'failed' && groupOf(i.file) === groupForBulk)
-  const inFlight = inputs.filter((i) => i.status === 'queued' || i.status === 'running')
+const inputs = cur.items.filter(inInput)
+const groupForBulk = activeGroupFor(cur.items, cur.selected)
+const failedInGroup = inputs.filter(
+  (i) => i.status === 'failed' && groupOf(i.file) === groupForBulk
+)
+const inFlight = inputs.filter((i) => i.status === 'queued' || i.status === 'running')
 ```
 
 Replace the old `DropZone` + `Queues` branch of the centre with:
 
 ```tsx
-              <>
-                <QueueToolbar
-                  files={inputs.length}
-                  selected={cur.selected.length}
-                  dropping={dragging}
-                  canRemove={cur.selected.length > 0}
-                  canRetry={failedInGroup.length > 0}
-                  canClear={inputs.some((i) => i.status === 'done' || i.status === 'canceled')}
-                  canStop={inFlight.length > 0}
-                  onAdd={() => void browse()}
-                  onRemove={() => dismiss(cur.selected, 'input')}
-                  onRetry={() => retry(failedInGroup.map((i) => i.id))}
-                  onClear={() => dispatch({ type: 'hideFinished' })}
-                  onStop={() => inFlight.forEach((i) => cancelJob(i.id))}
-                />
-                <QueueTable
-                  groups={groups}
-                  totals={queueTotals(cur.items)}
-                  selected={cur.selected}
-                  activeGroup={activeGroup}
-                  sort={sort}
-                  check={headerCheck(cur.items, cur.selected)}
-                  estimates={estimates}
-                  onSort={(k) => setSorts((s) => ({ ...s, [qKey]: nextSort(sort, k) }))}
-                  onToggleAll={() => dispatch({ type: 'selectIds', ids: toggleAllIds(cur.items, cur.selected) })}
-                  onSelectAll={() => {
-                    const ids = toggleAllIds(cur.items, cur.selected)
-                    if (ids.length) dispatch({ type: 'selectIds', ids })
-                  }}
-                  onRowClick={onItemClick}
-                  onToggleRow={(id) => dispatch({ type: 'select', id, mode: 'toggle', order })}
-                  onExtend={(id) => dispatch({ type: 'select', id, mode: 'range', order })}
-                  onOpen={(id) => {
-                    const it = cur.items.find((i) => i.id === id)
-                    if (it) openExternally('input', it)
-                  }}
-                  onMenu={(id, x, y) => {
-                    const it = cur.items.find((i) => i.id === id)
-                    if (it) openMenu('input', it, x, y)
-                  }}
-                  onAction={onRowAction}
-                  onRemove={(id) => dismiss(cur.selected.includes(id) ? cur.selected : [id], 'input')}
-                  onSelectGroup={(g) =>
-                    dispatch({ type: 'selectIds', ids: inputs.filter((i) => groupOf(i.file) === g).map((i) => i.id) })
-                  }
-                  onAdd={() => void browse()}
-                />
-              </>
+<>
+  <QueueToolbar
+    files={inputs.length}
+    selected={cur.selected.length}
+    dropping={dragging}
+    canRemove={cur.selected.length > 0}
+    canRetry={failedInGroup.length > 0}
+    canClear={inputs.some((i) => i.status === 'done' || i.status === 'canceled')}
+    canStop={inFlight.length > 0}
+    onAdd={() => void browse()}
+    onRemove={() => dismiss(cur.selected, 'input')}
+    onRetry={() => retry(failedInGroup.map((i) => i.id))}
+    onClear={() => dispatch({ type: 'hideFinished' })}
+    onStop={() => inFlight.forEach((i) => cancelJob(i.id))}
+  />
+  <QueueTable
+    groups={groups}
+    totals={queueTotals(cur.items)}
+    selected={cur.selected}
+    activeGroup={activeGroup}
+    sort={sort}
+    check={headerCheck(cur.items, cur.selected)}
+    estimates={estimates}
+    onSort={(k) => setSorts((s) => ({ ...s, [qKey]: nextSort(sort, k) }))}
+    onToggleAll={() => dispatch({ type: 'selectIds', ids: toggleAllIds(cur.items, cur.selected) })}
+    onSelectAll={() => {
+      const ids = toggleAllIds(cur.items, cur.selected)
+      if (ids.length) dispatch({ type: 'selectIds', ids })
+    }}
+    onRowClick={onItemClick}
+    onToggleRow={(id) => dispatch({ type: 'select', id, mode: 'toggle', order })}
+    onExtend={(id) => dispatch({ type: 'select', id, mode: 'range', order })}
+    onOpen={(id) => {
+      const it = cur.items.find((i) => i.id === id)
+      if (it) openExternally('input', it)
+    }}
+    onMenu={(id, x, y) => {
+      const it = cur.items.find((i) => i.id === id)
+      if (it) openMenu('input', it, x, y)
+    }}
+    onAction={onRowAction}
+    onRemove={(id) => dismiss(cur.selected.includes(id) ? cur.selected : [id], 'input')}
+    onSelectGroup={(g) =>
+      dispatch({
+        type: 'selectIds',
+        ids: inputs.filter((i) => groupOf(i.file) === g).map((i) => i.id)
+      })
+    }
+    onAdd={() => void browse()}
+  />
+</>
 ```
 
 Set the centre element's class to `` `center${dragging ? ' dropping' : ''}` ``. The `.center` grid has rows `32px 1fr`; the toolbar and table are its two children. `dragging` is still set by the root's `onDragOver` and cleared by `onDragLeave` / `onDrop`; skip setting it while on Generate, the Tools grid, Completed or Settings (unchanged guard).
@@ -5223,7 +5582,13 @@ import type { SetOption } from './types'
 
 /** Page rendering for every route that turns a PDF into images. Writes
  * `pageQuality`, never `quality`, so it cannot collide with convert's preset. */
-export function PageRenderSettings({ options, set }: { options: JobOptions; set: SetOption }): JSX.Element {
+export function PageRenderSettings({
+  options,
+  set
+}: {
+  options: JobOptions
+  set: SetOption
+}): JSX.Element {
   const pageFormat = String(options.pageFormat ?? 'jpg')
   return (
     <SettingGroup title="PAGES">
@@ -5307,7 +5672,9 @@ export function ConvertSettings({
 }): JSX.Element {
   // Targets valid for EVERY selected source, so a mixed pdf+docx selection never
   // offers CBZ (which only the pdf could do).
-  const formats = srcExts.length ? sharedTargets(kind, srcExts) : familyFormats(kind, sourceExt ?? '')
+  const formats = srcExts.length
+    ? sharedTargets(kind, srcExts)
+    : familyFormats(kind, sourceExt ?? '')
   const choices: SelectOption<string>[] = formats.map((f) => {
     const isSource = srcExts.some((e) => isSameFormat(f.ext, e))
     const noRar = needsRar(f.ext) && !hasRar
@@ -5322,7 +5689,12 @@ export function ConvertSettings({
     <>
       <SettingGroup title="FORMAT">
         <Setting title="Format" desc="The format the selected files are converted to.">
-          <Select label="Format" value={String(options.format ?? '')} options={choices} onChange={(v) => set('format', v)} />
+          <Select
+            label="Format"
+            value={String(options.format ?? '')}
+            options={choices}
+            onChange={(v) => set('format', v)}
+          />
         </Setting>
         {kind === 'image' && (
           <Setting title="Quality" desc="Smaller files, or closer to the original.">
@@ -5339,7 +5711,10 @@ export function ConvertSettings({
           </Setting>
         )}
         {verb === 'repack' && (
-          <Setting title="Compression" desc="Comic pages are already compressed images, so store is faster at the same size.">
+          <Setting
+            title="Compression"
+            desc="Comic pages are already compressed images, so store is faster at the same size."
+          >
             <Segmented
               label="Compression"
               value={options.store === false ? 'normal' : 'store'}
@@ -5372,7 +5747,13 @@ const baseName = (p: string): string => p.split(/[\\/]/).filter(Boolean).pop() ?
 
 /** OUTPUT > Location (engine support: Task 3) and FILES > If file exists, which
  * is fixed because the never-overwrite rule leaves one possible value (O7). */
-export function OutputSettings({ options, set }: { options: JobOptions; set: SetOption }): JSX.Element {
+export function OutputSettings({
+  options,
+  set
+}: {
+  options: JobOptions
+  set: SetOption
+}): JSX.Element {
   const dir = typeof options.outDir === 'string' ? options.outDir : ''
   async function choose(): Promise<void> {
     const p = await window.filesmith.pickFolder()
@@ -5381,14 +5762,22 @@ export function OutputSettings({ options, set }: { options: JobOptions; set: Set
   return (
     <>
       <SettingGroup title="OUTPUT">
-        <Setting title="Location" desc={dir ? <code>{dir}</code> : 'Files are written next to each source.'}>
+        <Setting
+          title="Location"
+          desc={dir ? <code>{dir}</code> : 'Files are written next to each source.'}
+        >
           <div className="vs-row">
             <Select
               label="Location"
               value={dir ? 'folder' : 'source'}
               options={[
                 { value: 'source', label: 'next to source' },
-                { value: 'folder', label: dir ? baseName(dir) : 'chosen folder', disabled: !dir, reason: dir ? undefined : 'choose one first' }
+                {
+                  value: 'folder',
+                  label: dir ? baseName(dir) : 'chosen folder',
+                  disabled: !dir,
+                  reason: dir ? undefined : 'choose one first'
+                }
               ]}
               onChange={(v) => {
                 if (v === 'source') set('outDir', '')
@@ -5402,7 +5791,14 @@ export function OutputSettings({ options, set }: { options: JobOptions; set: Set
       </SettingGroup>
       <SettingGroup title="FILES">
         <Setting title="If file exists" desc="Existing files are never overwritten.">
-          <Select half disabled label="If file exists" value="add" options={[{ value: 'add', label: 'add (2)' }]} onChange={() => undefined} />
+          <Select
+            half
+            disabled
+            label="If file exists"
+            value="add"
+            options={[{ value: 'add', label: 'add (2)' }]}
+            onChange={() => undefined}
+          />
         </Setting>
       </SettingGroup>
     </>
@@ -5458,11 +5854,24 @@ export function CompressSettings({
   if (kind === 'pdf')
     return (
       <SettingGroup title="PDF">
-        <Setting title="Level" desc="Lossless keeps every pixel; smallest recompresses images hardest.">
-          <Select label="Level" value={String(options.pdfLevel ?? 'balanced')} options={PDF_LEVELS} onChange={(v) => set('pdfLevel', v)} />
+        <Setting
+          title="Level"
+          desc="Lossless keeps every pixel; smallest recompresses images hardest."
+        >
+          <Select
+            label="Level"
+            value={String(options.pdfLevel ?? 'balanced')}
+            options={PDF_LEVELS}
+            onChange={(v) => set('pdfLevel', v)}
+          />
         </Setting>
         <Setting title="Colour">
-          <CheckSetting checked={Boolean(options.pdfGray)} onChange={(v) => set('pdfGray', v)} label="Convert to greyscale" sub="Smaller, but every page loses its colour" />
+          <CheckSetting
+            checked={Boolean(options.pdfGray)}
+            onChange={(v) => set('pdfGray', v)}
+            label="Convert to greyscale"
+            sub="Smaller, but every page loses its colour"
+          />
         </Setting>
       </SettingGroup>
     )
@@ -5471,7 +5880,12 @@ export function CompressSettings({
     return (
       <SettingGroup title="VIDEO">
         <Setting title="Codec">
-          <Select label="Codec" value={String(options.videoCodec ?? 'h264')} options={VIDEO_CODECS} onChange={(v) => set('videoCodec', v)} />
+          <Select
+            label="Codec"
+            value={String(options.videoCodec ?? 'h264')}
+            options={VIDEO_CODECS}
+            onChange={(v) => set('videoCodec', v)}
+          />
         </Setting>
         <Setting title="Scale" desc="Downscale while compressing.">
           <RangeField
@@ -5494,7 +5908,12 @@ export function CompressSettings({
     return (
       <SettingGroup title="AUDIO">
         <Setting title="Codec">
-          <Select label="Codec" value={String(options.audioCodec ?? 'keep')} options={AUDIO_CODECS} onChange={(v) => set('audioCodec', v)} />
+          <Select
+            label="Codec"
+            value={String(options.audioCodec ?? 'keep')}
+            options={AUDIO_CODECS}
+            onChange={(v) => set('audioCodec', v)}
+          />
         </Setting>
         <Setting title="Bitrate">
           <ChipGrid
@@ -5510,7 +5929,12 @@ export function CompressSettings({
   return (
     <SettingGroup title="FORMAT">
       <Setting title="Format">
-        <Select label="Format" value={String(options.imageFormat ?? 'keep')} options={IMAGE_FORMATS} onChange={(v) => set('imageFormat', v)} />
+        <Select
+          label="Format"
+          value={String(options.imageFormat ?? 'keep')}
+          options={IMAGE_FORMATS}
+          onChange={(v) => set('imageFormat', v)}
+        />
       </Setting>
       {quality(options, set)}
     </SettingGroup>
@@ -5532,9 +5956,18 @@ import { Setting, SettingGroup } from '../ui/Setting'
 import { NumberField } from '../ui/TextField'
 import type { SetOption } from './types'
 
-const dim = (v: unknown): number | '' => (v == null || v === '' || !Number.isFinite(Number(v)) ? '' : Number(v))
+const dim = (v: unknown): number | '' =>
+  v == null || v === '' || !Number.isFinite(Number(v)) ? '' : Number(v)
 
-export function ResizeSettings({ options, outputs, set }: { options: JobOptions; outputs: SizeRow[]; set: SetOption }): JSX.Element {
+export function ResizeSettings({
+  options,
+  outputs,
+  set
+}: {
+  options: JobOptions
+  outputs: SizeRow[]
+  set: SetOption
+}): JSX.Element {
   const mode = String(options.mode ?? 'percent')
   return (
     <SettingGroup title="SIZE">
@@ -5551,17 +5984,39 @@ export function ResizeSettings({ options, outputs, set }: { options: JobOptions;
       </Setting>
       {mode === 'percent' ? (
         <Setting title="Percent">
-          <RangeField label="Percent" min={5} max={200} value={Number(options.percent ?? 50)} onChange={(v) => set('percent', v)} format={(v) => `${v}%`} />
+          <RangeField
+            label="Percent"
+            min={5}
+            max={200}
+            value={Number(options.percent ?? 50)}
+            onChange={(v) => set('percent', v)}
+            format={(v) => `${v}%`}
+          />
         </Setting>
       ) : (
         <>
           <Setting title="Width and height" desc="Leave one blank to scale by the other.">
             <div className="vs-row">
-              <NumberField label="Width" placeholder="auto" value={dim(options.width)} onCommit={(v) => set('width', v)} clamp={(n) => Math.max(1, Math.round(n))} />
-              <NumberField label="Height" placeholder="auto" value={dim(options.height)} onCommit={(v) => set('height', v)} clamp={(n) => Math.max(1, Math.round(n))} />
+              <NumberField
+                label="Width"
+                placeholder="auto"
+                value={dim(options.width)}
+                onCommit={(v) => set('width', v)}
+                clamp={(n) => Math.max(1, Math.round(n))}
+              />
+              <NumberField
+                label="Height"
+                placeholder="auto"
+                value={dim(options.height)}
+                onCommit={(v) => set('height', v)}
+                clamp={(n) => Math.max(1, Math.round(n))}
+              />
             </div>
           </Setting>
-          <Setting title="Fit" desc="Contain keeps the aspect ratio inside the box; stretch honours both numbers.">
+          <Setting
+            title="Fit"
+            desc="Contain keeps the aspect ratio inside the box; stretch honours both numbers."
+          >
             <Segmented
               label="Fit"
               value={options.fit === 'stretch' ? 'stretch' : 'contain'}
@@ -5589,7 +6044,13 @@ import type { SetOption } from './types'
 
 /** One fill choice plus its custom colour or image. The model and matting
  * thresholds are deliberately not exposed (see src/shared/removebg.ts). */
-export function RemoveBgSettings({ options, set }: { options: JobOptions; set: SetOption }): JSX.Element {
+export function RemoveBgSettings({
+  options,
+  set
+}: {
+  options: JobOptions
+  set: SetOption
+}): JSX.Element {
   const fill = String(options.bgFill ?? BG_DEFAULTS.bgFill) as BgFill
   const bgImage = String(options.bgImagePath ?? '')
   const color = String(options.bgCustomColor ?? BG_DEFAULTS.bgCustomColor)
@@ -5602,15 +6063,15 @@ export function RemoveBgSettings({ options, set }: { options: JobOptions; set: S
     }
   }, [])
   const notice =
-    rembg && !rembg.ready
-      ? rembg.uvAvailable
-        ? 'The first run downloads the AI model once (a few hundred MB), then works offline.'
-        : (
-            <>
-              Needs the free uv tool: <code>winget install astral-sh.uv</code>, then reopen Filesmith.
-            </>
-          )
-      : undefined
+    rembg && !rembg.ready ? (
+      rembg.uvAvailable ? (
+        'The first run downloads the AI model once (a few hundred MB), then works offline.'
+      ) : (
+        <>
+          Needs the free uv tool: <code>winget install astral-sh.uv</code>, then reopen Filesmith.
+        </>
+      )
+    ) : undefined
   return (
     <SettingGroup title="BACKGROUND">
       <Setting title="Fill" desc={notice} warn={notice != null}>
@@ -5622,12 +6083,20 @@ export function RemoveBgSettings({ options, set }: { options: JobOptions; set: S
           <label className="swatch">
             <span className="sw" style={{ background: color }} />
             <span className="mono">{color}</span>
-            <input type="color" className="sr-only" value={color} onChange={(e) => set('bgCustomColor', e.target.value)} />
+            <input
+              type="color"
+              className="sr-only"
+              value={color}
+              onChange={(e) => set('bgCustomColor', e.target.value)}
+            />
           </label>
         </Setting>
       )}
       {fill === 'image' && (
-        <Setting title="Background image" desc={bgImage ? <code>{bgImage.split(/[\\/]/).pop()}</code> : undefined}>
+        <Setting
+          title="Background image"
+          desc={bgImage ? <code>{bgImage.split(/[\\/]/).pop()}</code> : undefined}
+        >
           <SmallButton
             icon="image"
             onClick={() =>
@@ -5655,21 +6124,49 @@ import { TextField } from '../ui/TextField'
 import type { SetOption } from './types'
 
 /** Each Tools card is one op, so there is no op picker (spec 4.2). */
-export function PdfSettings({ options, runCount, set }: { options: JobOptions; runCount: number; set: SetOption }): JSX.Element | null {
+export function PdfSettings({
+  options,
+  runCount,
+  set
+}: {
+  options: JobOptions
+  runCount: number
+  set: SetOption
+}): JSX.Element | null {
   const op = String(options.op ?? 'extract-text')
   if (op === 'pages-to-images')
     return (
       <SettingGroup title="PAGES">
         <Setting title="Resolution" desc="Dots per inch for each rendered page.">
-          <RangeField label="Resolution" min={72} max={400} step={2} value={Number(options.dpi ?? 150)} onChange={(v) => set('dpi', v)} format={(v) => `${v} dpi`} />
+          <RangeField
+            label="Resolution"
+            min={72}
+            max={400}
+            step={2}
+            value={Number(options.dpi ?? 150)}
+            onChange={(v) => set('dpi', v)}
+            format={(v) => `${v} dpi`}
+          />
         </Setting>
       </SettingGroup>
     )
   if (op === 'split-range')
     return (
       <SettingGroup title="PAGES">
-        <Setting title="Pages to keep" desc={<>Ranges and single pages, for example <code>1-3,5,8-10</code>.</>}>
-          <TextField aria-label="Pages to keep" placeholder="1-3,5,8-10" value={String(options.range ?? '')} onChange={(e) => set('range', e.target.value)} />
+        <Setting
+          title="Pages to keep"
+          desc={
+            <>
+              Ranges and single pages, for example <code>1-3,5,8-10</code>.
+            </>
+          }
+        >
+          <TextField
+            aria-label="Pages to keep"
+            placeholder="1-3,5,8-10"
+            value={String(options.range ?? '')}
+            onChange={(e) => set('range', e.target.value)}
+          />
         </Setting>
       </SettingGroup>
     )
@@ -5722,7 +6219,11 @@ export function ArchiveSettings({
             value: f.ext,
             label: f.label.toLowerCase(),
             disabled: isSource || noRar,
-            title: noRar ? 'WinRAR not found' : isSource ? 'Files are already this format' : undefined
+            title: noRar
+              ? 'WinRAR not found'
+              : isSource
+                ? 'Files are already this format'
+                : undefined
           }
         })}
         onChange={(v) => set('format', v)}
@@ -5738,7 +6239,10 @@ export function ArchiveSettings({
   if (op === 'to-pdf')
     return (
       <SettingGroup title="OUTPUT">
-        <Setting title="To PDF" desc="Pages are ordered by filename, the way a reader shows them." />
+        <Setting
+          title="To PDF"
+          desc="Pages are ordered by filename, the way a reader shows them."
+        />
       </SettingGroup>
     )
   if (op === 'from-pdf')
@@ -5751,7 +6255,10 @@ export function ArchiveSettings({
   return (
     <SettingGroup title="FORMAT">
       {targets(ARCHIVE_FORMATS)}
-      <Setting title="Compression" desc="Comic pages are already compressed images, so store is faster at the same size.">
+      <Setting
+        title="Compression"
+        desc="Comic pages are already compressed images, so store is faster at the same size."
+      >
         <Segmented
           label="Compression"
           value={options.store === false ? 'normal' : 'store'}
@@ -5773,13 +6280,13 @@ The two info-only descriptions (`extract`, `to-pdf`) and the `.cbz` default targ
 
 `options/upscale/PidSetup.tsx`: move `PidInstallCard` from `components/PidUpscale.tsx` and `PidRemoveButton` from `OptionsPanel.tsx`, keeping every state, effect and IPC call (`pidInstalling`, `pidInstall`, `onPidProgress`, `pidRemove`, the two-step remove confirmation). Restyle as `Setting` blocks per spec 5.5, using this mapping:
 
-| Old markup | New |
-|---|---|
-| card container with title + paragraph | `<Setting title="..." desc="...">` (licence notice and VRAM text become the description) |
-| primary download button | `<SmallButton icon="pull">` |
-| remove / uninstall button | `<SmallButton icon="trash">` |
-| progress bar (rounded track + accent fill) | `<ProgressBar wide value={pct} label="..."/>` followed by `<span className="mono">{pct}%</span>` |
-| any `text-[#...]`, `bg-[#...]`, `rounded-*`, `shadow-*` class | removed |
+| Old markup                                                    | New                                                                                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| card container with title + paragraph                         | `<Setting title="..." desc="...">` (licence notice and VRAM text become the description)         |
+| primary download button                                       | `<SmallButton icon="pull">`                                                                      |
+| remove / uninstall button                                     | `<SmallButton icon="trash">`                                                                     |
+| progress bar (rounded track + accent fill)                    | `<ProgressBar wide value={pct} label="..."/>` followed by `<span className="mono">{pct}%</span>` |
+| any `text-[#...]`, `bg-[#...]`, `rounded-*`, `shadow-*` class | removed                                                                                          |
 
 `options/upscale/ComfySetup.tsx`: the same treatment for `ComfyImportCard` and its local `ProgressBar` from `components/ComfyImport.tsx` (three states: engine not built, scanning, ready; the unusable-files list renders as a `<ul className="sizes mono">`). Delete the local `ProgressBar` in favour of `ui/ProgressBar`.
 
@@ -5807,7 +6314,15 @@ import { ComfyImportCard } from './upscale/ComfySetup'
 import { PidInstallCard, PidRemoveButton } from './upscale/PidSetup'
 import type { SetOption } from './types'
 
-export function UpscaleSettings({ options, outputs, set }: { options: JobOptions; outputs: SizeRow[]; set: SetOption }): JSX.Element {
+export function UpscaleSettings({
+  options,
+  outputs,
+  set
+}: {
+  options: JobOptions
+  outputs: SizeRow[]
+  set: SetOption
+}): JSX.Element {
   const factor = Number(options.upscaleFactor ?? 4)
   const comfy = useComfyModels()
   const { status: pid, refresh: refreshPid } = usePidStatus()
@@ -5831,15 +6346,25 @@ export function UpscaleSettings({ options, outputs, set }: { options: JobOptions
     [comfyModels]
   )
   const ncnnChoices: Choice<UpscaleModel>[] = ncnn?.length
-    ? ncnn.map((m) => ({ value: m.value as UpscaleModel, label: m.user ? `${m.label}, added by you` : m.label }))
+    ? ncnn.map((m) => ({
+        value: m.value as UpscaleModel,
+        label: m.user ? `${m.label}, added by you` : m.label
+      }))
     : UPSCALE_MODELS
   const isPid = rawModel === 'pid'
   const isComfyPath = rawModel.startsWith('comfy:')
   const inAi = isPid || isComfyPath || rawModel === 'comfy'
-  const category = inAi ? 'comfy' : ncnnChoices.some((c) => c.value === rawModel) ? rawModel : (ncnnChoices[0]?.value ?? 'photo')
+  const category = inAi
+    ? 'comfy'
+    : ncnnChoices.some((c) => c.value === rawModel)
+      ? rawModel
+      : (ncnnChoices[0]?.value ?? 'photo')
   const categoryChoices = [...ncnnChoices, ...(hasNvidia ? [UPSCALE_COMFY] : [])]
   const showPid = hasNvidia && Boolean(pid?.installed || comfy.status?.pidReusable)
-  const subChoices = [...comfyChoices, ...(showPid ? [{ value: 'pid', label: 'PiD (diffusion), 4×' }] : [])]
+  const subChoices = [
+    ...comfyChoices,
+    ...(showPid ? [{ value: 'pid', label: 'PiD (diffusion), 4×' }] : [])
+  ]
   const subDefault = comfyChoices[0]?.value ?? (showPid ? 'pid' : 'comfy')
   const subValue = isPid ? 'pid' : isComfyPath ? rawModel : subDefault
   const pidNeedsInstall = isPid && pid != null && !pid.installed
@@ -5849,9 +6374,22 @@ export function UpscaleSettings({ options, outputs, set }: { options: JobOptions
   useEffect(() => {
     if (pid == null || comfy.status == null) return
     if (inAi && !hasNvidia) set('upscaleModel', 'photo')
-    else if (isComfyPath && !comfyChoices.some((c) => c.value === rawModel)) set('upscaleModel', subDefault)
+    else if (isComfyPath && !comfyChoices.some((c) => c.value === rawModel))
+      set('upscaleModel', subDefault)
     else if (isPid && !showPid) set('upscaleModel', subDefault)
-  }, [pid, comfy.status, hasNvidia, inAi, isComfyPath, isPid, showPid, rawModel, comfyChoices, subDefault, set])
+  }, [
+    pid,
+    comfy.status,
+    hasNvidia,
+    inAi,
+    isComfyPath,
+    isPid,
+    showPid,
+    rawModel,
+    comfyChoices,
+    subDefault,
+    set
+  ])
   const gpuReason = !hasNvidia ? (pid?.cudaReason ?? comfy.status?.cudaReason) : undefined
 
   return (
@@ -5867,19 +6405,36 @@ export function UpscaleSettings({ options, outputs, set }: { options: JobOptions
           />
         </Setting>
         <Setting title="Model" desc={gpuReason ?? undefined}>
-          <Select label="Model" value={category} options={categoryChoices} onChange={pickCategory} />
+          <Select
+            label="Model"
+            value={category}
+            options={categoryChoices}
+            onChange={pickCategory}
+          />
           {category === 'comfy' && subChoices.length > 0 && (
-            <Select label="AI model" value={subValue} options={subChoices} onChange={(v) => set('upscaleModel', v)} />
+            <Select
+              label="AI model"
+              value={subValue}
+              options={subChoices}
+              onChange={(v) => set('upscaleModel', v)}
+            />
           )}
           {!inAi && (
-            <SmallButton icon="folder" onClick={() => void window.filesmith.upscaleOpenModelsFolder()}>
+            <SmallButton
+              icon="folder"
+              onClick={() => void window.filesmith.upscaleOpenModelsFolder()}
+            >
               Add your own model
             </SmallButton>
           )}
         </Setting>
         {category === 'comfy' && pidNeedsInstall && <PidInstallCard onInstalled={refreshPid} />}
-        {category === 'comfy' && isPid && pid?.installed && <PidRemoveButton onRemoved={refreshPid} />}
-        {category === 'comfy' && comfy.status && <ComfyImportCard status={comfy.status} refresh={comfy.refresh} />}
+        {category === 'comfy' && isPid && pid?.installed && (
+          <PidRemoveButton onRemoved={refreshPid} />
+        )}
+        {category === 'comfy' && comfy.status && (
+          <ComfyImportCard status={comfy.status} refresh={comfy.refresh} />
+        )}
       </SettingGroup>
       {(!isPid || lowVram) && (
         <SettingGroup title="PERFORMANCE">
@@ -5888,7 +6443,10 @@ export function UpscaleSettings({ options, outputs, set }: { options: JobOptions
               <Segmented
                 label="GPU mode"
                 value={String(options.gpuMode ?? 'full')}
-                options={UPSCALE_GPU_MODES.map((o) => ({ value: o.value, label: o.label.toLowerCase() }))}
+                options={UPSCALE_GPU_MODES.map((o) => ({
+                  value: o.value,
+                  label: o.label.toLowerCase()
+                }))}
                 onChange={(v) => set('gpuMode', v)}
               />
             </Setting>
@@ -5914,7 +6472,7 @@ export function UpscaleSettings({ options, outputs, set }: { options: JobOptions
 }
 ```
 
-The separators inside model labels change from ` · ` to `, ` only for display; stored values (`comfy:<path>`, `pid`, `photo`, ...) are unchanged.
+The separators inside model labels change from `·` to `, ` only for display; stored values (`comfy:<path>`, `pid`, `photo`, ...) are unchanged.
 
 - [ ] **Step 5: Generate settings**
 
@@ -5944,13 +6502,20 @@ import { LocateComfy } from './LocateComfy'
 import { ModelSelect } from './ModelSelect'
 import { isRestoreName } from './restore'
 
-export function GenerateSettings({ options, set }: { options: JobOptions; set: SetOption }): JSX.Element {
+export function GenerateSettings({
+  options,
+  set
+}: {
+  options: JobOptions
+  set: SetOption
+}): JSX.Element {
   const { status, refresh } = useGenerateStatus()
   const model = String(options.model ?? '')
   const w = Number(options.width ?? 1024)
   const h = Number(options.height ?? 1024)
   const isPreset = GEN_SIZES.some((s) => s.width === w && s.height === h)
-  const sizeValue = String(options.sizeMode ?? '') === 'custom' || !isPreset ? 'custom' : `${w}x${h}`
+  const sizeValue =
+    String(options.sizeMode ?? '') === 'custom' || !isPreset ? 'custom' : `${w}x${h}`
   const models = useMemo(() => status?.models ?? [], [status])
   const selected = models.find((m) => m.name === model)
   const tryAnyway = Boolean(options.tryAnyway)
@@ -5959,7 +6524,10 @@ export function GenerateSettings({ options, set }: { options: JobOptions; set: S
   const info = archInfoFor(arch, status?.archInfo)
   useEffect(() => {
     if (!models.length || selected) return
-    const good = models.find((m) => m.runnable && !isRestoreName(m.label)) ?? models.find((m) => m.runnable) ?? models[0]
+    const good =
+      models.find((m) => m.runnable && !isRestoreName(m.label)) ??
+      models.find((m) => m.runnable) ??
+      models[0]
     if (good && good.name !== model) set('model', good.name)
   }, [model, models, selected, set])
   const prevArch = useRef<GenArch | null>(null)
@@ -5987,22 +6555,39 @@ export function GenerateSettings({ options, set }: { options: JobOptions; set: S
       <SettingGroup title="MODEL">
         <Setting
           title="Model"
-          desc={!models.length ? 'No image models found in your ComfyUI models folder.' : selected && !selected.runnable && !selected.missing?.length ? selected.reason : undefined}
+          desc={
+            !models.length
+              ? 'No image models found in your ComfyUI models folder.'
+              : selected && !selected.runnable && !selected.missing?.length
+                ? selected.reason
+                : undefined
+          }
         >
-          {models.length > 0 && <ModelSelect models={models} value={model} onChange={(v) => set('model', v)} />}
+          {models.length > 0 && (
+            <ModelSelect models={models} value={model} onChange={(v) => set('model', v)} />
+          )}
           {selected && !selected.runnable && !selected.missing?.length && selected.tryAnyway && (
-            <SmallButton icon={tryAnyway ? 'close' : 'play'} onClick={() => set('tryAnyway', tryAnyway ? 0 : 1)}>
+            <SmallButton
+              icon={tryAnyway ? 'close' : 'play'}
+              onClick={() => set('tryAnyway', tryAnyway ? 0 : 1)}
+            >
               {tryAnyway ? 'Will try anyway, click to cancel' : 'Try anyway'}
             </SmallButton>
           )}
         </Setting>
-        {selected && !selected.runnable && selected.missing?.length ? <CompanionDownload model={selected} onDone={refresh} /> : null}
+        {selected && !selected.runnable && selected.missing?.length ? (
+          <CompanionDownload model={selected} onDone={refresh} />
+        ) : null}
         <AddModel onAdded={refresh} comfyFolder={status?.comfyFolder} />
       </SettingGroup>
       <SettingGroup title="PROMPT">
         {info.cfg !== 1 && (
           <Setting title="Negative prompt" desc="What the image should avoid.">
-            <TextField aria-label="Negative prompt" value={String(options.negative ?? '')} onChange={(e) => set('negative', e.target.value)} />
+            <TextField
+              aria-label="Negative prompt"
+              value={String(options.negative ?? '')}
+              onChange={(e) => set('negative', e.target.value)}
+            />
           </Setting>
         )}
         <Setting title="Style">
@@ -6017,7 +6602,13 @@ export function GenerateSettings({ options, set }: { options: JobOptions; set: S
       </SettingGroup>
       <SettingGroup title="OUTPUT">
         <Setting title="Count">
-          <RangeField label="Count" min={1} max={GEN_MAX_COUNT} value={Number(options.count ?? 1)} onChange={(v) => set('count', v)} />
+          <RangeField
+            label="Count"
+            min={1}
+            max={GEN_MAX_COUNT}
+            value={Number(options.count ?? 1)}
+            onChange={(v) => set('count', v)}
+          />
         </Setting>
         <Setting title="Size">
           <Select
@@ -6034,8 +6625,18 @@ export function GenerateSettings({ options, set }: { options: JobOptions; set: S
           />
           {sizeValue === 'custom' && (
             <div className="vs-row">
-              <NumberField label="Width" value={w} onCommit={(v) => v !== '' && set('width', v)} clamp={(n) => clampDim(n, dimCaps)} />
-              <NumberField label="Height" value={h} onCommit={(v) => v !== '' && set('height', v)} clamp={(n) => clampDim(n, dimCaps)} />
+              <NumberField
+                label="Width"
+                value={w}
+                onCommit={(v) => v !== '' && set('width', v)}
+                clamp={(n) => clampDim(n, dimCaps)}
+              />
+              <NumberField
+                label="Height"
+                value={h}
+                onCommit={(v) => v !== '' && set('height', v)}
+                clamp={(n) => clampDim(n, dimCaps)}
+              />
             </div>
           )}
         </Setting>
@@ -6113,7 +6714,9 @@ export function OptionsPane({
       )
     switch (tool) {
       case 'compress':
-        return <CompressSettings options={options} kind={kind} videoOutputs={videoOutputs} set={set} />
+        return (
+          <CompressSettings options={options} kind={kind} videoOutputs={videoOutputs} set={set} />
+        )
       case 'resize':
         return <ResizeSettings options={options} outputs={resizeOutputs} set={set} />
       case 'upscale':
@@ -6179,7 +6782,12 @@ export function Inspector({
           { id: 'info', label: 'Info', icon: 'info' }
         ]}
       />
-      <div className="ibody scroll-thin" role="tabpanel" id={`insp-panel-${tab}`} aria-labelledby={`insp-tab-${tab}`}>
+      <div
+        className="ibody scroll-thin"
+        role="tabpanel"
+        id={`insp-panel-${tab}`}
+        aria-labelledby={`insp-tab-${tab}`}
+      >
         <div className="ihead">
           <h1>{title}</h1>
           <span>{sub}</span>
@@ -6187,7 +6795,12 @@ export function Inspector({
         {children}
       </div>
       <div className="ifoot">
-        <PrimaryButton data-testid="run" disabled={runDisabled} onClick={onRun} title="Run (Ctrl+Enter)">
+        <PrimaryButton
+          data-testid="run"
+          disabled={runDisabled}
+          onClick={onRun}
+          title="Run (Ctrl+Enter)"
+        >
           {runLabel}
         </PrimaryButton>
       </div>
@@ -6201,10 +6814,11 @@ export function Inspector({
 1. Memoize the setter (spec 4.2; the inline arrow re-ran two effects every render):
 
 ```ts
-  const onSet = useCallback(
-    (k: string, v: string | number | boolean) => dispatch({ type: 'setOption', group: optGroup, key: k, value: v }),
-    [optGroup]
-  )
+const onSet = useCallback(
+  (k: string, v: string | number | boolean) =>
+    dispatch({ type: 'setOption', group: optGroup, key: k, value: v }),
+  [optGroup]
+)
 ```
 
 2. Inspector state: `const [inspTab, setInspTab] = useState<InspTab>('options')`. In the Sidebar `onSelect`, also call `setInspTab('options')`, so every workspace opens on its options and its `<h1>` names the verb.
@@ -6220,75 +6834,85 @@ export function Inspector({
 (change the signature; body unchanged) and
 
 ```ts
-  const batchEstimate =
-    tool === 'generate' || runList.length === 0
-      ? null
-      : estimateBatch(runList.map((i) => ({ size: i.file.size, estimate: estimateFor(i, curOptions) })))
+const batchEstimate =
+  tool === 'generate' || runList.length === 0
+    ? null
+    : estimateBatch(
+        runList.map((i) => ({ size: i.file.size, estimate: estimateFor(i, curOptions) }))
+      )
 ```
 
 5. Inspector head and Run label:
 
 ```ts
-  const verbLabel = card ? card.label : tab.label
-  const focused = cur.items.find((i) => i.id === (cur.anchor && cur.selected.includes(cur.anchor) ? cur.anchor : cur.selected[0]))
-  const scopeCount = scopeItems.length
-  const inspSub =
-    tool === 'generate'
-      ? ''
-      : inspTab !== 'options'
-        ? focused
-          ? 'selected'
-          : ''
-        : cur.selected.length
-          ? `${cur.selected.length} selected`
-          : scopeCount
-            ? `all ${scopeCount} file${scopeCount === 1 ? '' : 's'}`
-            : 'no files'
-  const inspTitle = inspTab === 'options' || !focused ? verbLabel : focused.file.name
-  const genCount = Number(curOptions.count ?? 1)
-  const runLabel =
-    tool === 'generate'
-      ? genCount > 1
-        ? `Generate ${genCount} images`
-        : 'Generate'
-      : runCount > 0
-        ? `${verbLabel} ${groupNoun(optGroup, runCount)}`
-        : verbLabel
+const verbLabel = card ? card.label : tab.label
+const focused = cur.items.find(
+  (i) => i.id === (cur.anchor && cur.selected.includes(cur.anchor) ? cur.anchor : cur.selected[0])
+)
+const scopeCount = scopeItems.length
+const inspSub =
+  tool === 'generate'
+    ? ''
+    : inspTab !== 'options'
+      ? focused
+        ? 'selected'
+        : ''
+      : cur.selected.length
+        ? `${cur.selected.length} selected`
+        : scopeCount
+          ? `all ${scopeCount} file${scopeCount === 1 ? '' : 's'}`
+          : 'no files'
+const inspTitle = inspTab === 'options' || !focused ? verbLabel : focused.file.name
+const genCount = Number(curOptions.count ?? 1)
+const runLabel =
+  tool === 'generate'
+    ? genCount > 1
+      ? `Generate ${genCount} images`
+      : 'Generate'
+    : runCount > 0
+      ? `${verbLabel} ${groupNoun(optGroup, runCount)}`
+      : verbLabel
 ```
 
 6. Replace `<OptionsPanel ... />` with:
 
 ```tsx
-          {showInspector && (
-            <Inspector
-              tab={inspTab}
-              onTab={setInspTab}
-              title={inspTitle}
-              sub={inspSub}
-              runLabel={runLabel}
-              runDisabled={runCount === 0}
-              onRun={() => void run()}
-            >
-              {inspTab === 'options' ? (
-                <OptionsPane
-                  tab={state.tab}
-                  tool={tool}
-                  options={curOptions}
-                  kind={tool === 'compress' ? (runKind ?? fallbackKind) : (activeKind ?? fallbackKind)}
-                  srcExts={srcExts}
-                  sourceExt={sourceExt}
-                  runCount={runCount}
-                  videoOutputs={videoOutputs}
-                  resizeOutputs={resizeOutputs}
-                  upscaleOutputs={upscaleOutputs}
-                  estimate={batchEstimate}
-                  set={onSet}
-                />
-              ) : (
-                <EmptyState icon={inspTab === 'preview' ? 'eye' : 'info'} title="Nothing selected" line="Select a file in the table to see it here" />
-              )}
-            </Inspector>
-          )}
+{
+  showInspector && (
+    <Inspector
+      tab={inspTab}
+      onTab={setInspTab}
+      title={inspTitle}
+      sub={inspSub}
+      runLabel={runLabel}
+      runDisabled={runCount === 0}
+      onRun={() => void run()}
+    >
+      {inspTab === 'options' ? (
+        <OptionsPane
+          tab={state.tab}
+          tool={tool}
+          options={curOptions}
+          kind={tool === 'compress' ? (runKind ?? fallbackKind) : (activeKind ?? fallbackKind)}
+          srcExts={srcExts}
+          sourceExt={sourceExt}
+          runCount={runCount}
+          videoOutputs={videoOutputs}
+          resizeOutputs={resizeOutputs}
+          upscaleOutputs={upscaleOutputs}
+          estimate={batchEstimate}
+          set={onSet}
+        />
+      ) : (
+        <EmptyState
+          icon={inspTab === 'preview' ? 'eye' : 'info'}
+          title="Nothing selected"
+          line="Select a file in the table to see it here"
+        />
+      )}
+    </Inspector>
+  )
+}
 ```
 
 (Import `EmptyState` from `./components/queue/EmptyState`, `Inspector` and `type InspTab` from `./components/inspector/Inspector`, and `OptionsPane` from `./components/options/OptionsPane`. Task 14 replaces the `EmptyState` branch with the real Preview and Info panes.) Generate keeps the inspector; its options now show with no file selected because `OptionsPane` no longer gates on a selection (spec 4.1).
@@ -6409,15 +7033,27 @@ describe('infoRows', () => {
   it('uses the word "to", never an arrow', () => {
     const rows = infoRows(done, { width: 10, height: 20 }, null)
     expect(rows.find((r) => r.k === 'format')?.v).toBe('jpg to webp')
-    expect(rows.find((r) => r.k === 'output')).toEqual({ k: 'output', v: 'C:/p/a.webp', reveal: 'C:/p/a.webp' })
+    expect(rows.find((r) => r.k === 'output')).toEqual({
+      k: 'output',
+      v: 'C:/p/a.webp',
+      reveal: 'C:/p/a.webp'
+    })
     expect(rows.map((r) => r.v).join(' ')).not.toMatch(/→|->/)
   })
   it('shows the planned target before a run', () => {
     expect(infoRows(base, null, '.webp').find((r) => r.k === 'format')?.v).toBe('jpg to webp')
   })
   it('gives a failed row its full, selectable error', () => {
-    const r = infoRows({ ...base, status: 'failed', error: 'Unsupported compression in TIFF' }, null, null)
-    expect(r.find((x) => x.k === 'error')).toEqual({ k: 'error', v: 'Unsupported compression in TIFF', selectable: true })
+    const r = infoRows(
+      { ...base, status: 'failed', error: 'Unsupported compression in TIFF' },
+      null,
+      null
+    )
+    expect(r.find((x) => x.k === 'error')).toEqual({
+      k: 'error',
+      v: 'Unsupported compression in TIFF',
+      selectable: true
+    })
   })
 })
 
@@ -6465,10 +7101,15 @@ const pixels = (d: Dims): string => (d ? `${d.width} × ${d.height}` : 'unknown'
 export function previewRows(item: QueueItem, dims: Dims): InfoRow[] {
   const src = item.file.size
   const out = item.status === 'done' ? item.outputSize : undefined
-  const rows: InfoRow[] = [{ k: 'size', v: out != null ? `${formatBytes(src)} to ${formatBytes(out)}` : formatBytes(src) }]
+  const rows: InfoRow[] = [
+    { k: 'size', v: out != null ? `${formatBytes(src)} to ${formatBytes(out)}` : formatBytes(src) }
+  ]
   if (out != null) {
     const pct = pctChange(src, out)
-    rows.push({ k: 'saved', v: `${formatBytes(Math.max(0, src - out))}${pct != null ? `, ${formatPct(pct)}` : ''}` })
+    rows.push({
+      k: 'saved',
+      v: `${formatBytes(Math.max(0, src - out))}${pct != null ? `, ${formatPct(pct)}` : ''}`
+    })
   }
   rows.push({ k: 'pixels', v: pixels(dims) })
   return rows
@@ -6476,17 +7117,27 @@ export function previewRows(item: QueueItem, dims: Dims): InfoRow[] {
 
 export function infoRows(item: QueueItem, dims: Dims, target: string | null): InfoRow[] {
   const src = item.file.ext.replace(/^\./, '').toLowerCase()
-  const to = item.status === 'done' && item.outputPath ? extOf(item.outputPath) : target ? target.replace(/^\./, '').toLowerCase() : ''
+  const to =
+    item.status === 'done' && item.outputPath
+      ? extOf(item.outputPath)
+      : target
+        ? target.replace(/^\./, '').toLowerCase()
+        : ''
   const rows: InfoRow[] = [
     { k: 'format', v: to && to !== src ? `${src} to ${to}` : src },
     { k: 'pixels', v: pixels(dims) },
     {
       k: 'size',
-      v: item.status === 'done' && item.outputSize != null ? `${formatBytes(item.file.size)} to ${formatBytes(item.outputSize)}` : formatBytes(item.file.size)
+      v:
+        item.status === 'done' && item.outputSize != null
+          ? `${formatBytes(item.file.size)} to ${formatBytes(item.outputSize)}`
+          : formatBytes(item.file.size)
     }
   ]
-  if (item.status === 'done' && item.outputPath) rows.push({ k: 'output', v: item.outputPath, reveal: item.outputPath })
-  if (item.status === 'failed' && item.error) rows.push({ k: 'error', v: item.error, selectable: true })
+  if (item.status === 'done' && item.outputPath)
+    rows.push({ k: 'output', v: item.outputPath, reveal: item.outputPath })
+  if (item.status === 'failed' && item.error)
+    rows.push({ k: 'error', v: item.error, selectable: true })
   return rows
 }
 
@@ -6515,7 +7166,17 @@ import { useRef, useState, type JSX } from 'react'
 import { wipeStep } from './infoModel'
 
 /** Source left, result right, a 1px fg1 divider you can drag (spec 4.6, O9). */
-export function Wipe({ left, right, leftTag, rightTag }: { left: string | null; right: string | null; leftTag: string; rightTag?: string }): JSX.Element {
+export function Wipe({
+  left,
+  right,
+  leftTag,
+  rightTag
+}: {
+  left: string | null
+  right: string | null
+  leftTag: string
+  rightTag?: string
+}): JSX.Element {
   const [pos, setPos] = useState(50)
   const frame = useRef<HTMLDivElement>(null)
   function fromPointer(clientX: number): void {
@@ -6536,8 +7197,14 @@ export function Wipe({ left, right, leftTag, rightTag }: { left: string | null; 
         if (split && e.buttons === 1) fromPointer(e.clientX)
       }}
     >
-      {left ? <img className="wimg" src={left} alt="" /> : <span className="wext mono">{leftTag.split(' ')[0]}</span>}
-      {split && right && <img className="wimg" src={right} alt="" style={{ clipPath: `inset(0 0 0 ${pos}%)` }} />}
+      {left ? (
+        <img className="wimg" src={left} alt="" />
+      ) : (
+        <span className="wext mono">{leftTag.split(' ')[0]}</span>
+      )}
+      {split && right && (
+        <img className="wimg" src={right} alt="" style={{ clipPath: `inset(0 0 0 ${pos}%)` }} />
+      )}
       {split && (
         <div
           className="line"
@@ -6589,8 +7256,11 @@ export function PreviewPane({
   const out = item.status === 'done' && item.outputSize != null ? item.outputPath : undefined
   useEffect(() => {
     let alive = true
-    void window.filesmith.thumbnail(item.file.path, 640, item.file.kind).then((t) => alive && t && setSrcImg(t))
-    if (out && outKind) void window.filesmith.thumbnail(out, 640, outKind).then((t) => alive && setOutImg(t))
+    void window.filesmith
+      .thumbnail(item.file.path, 640, item.file.kind)
+      .then((t) => alive && t && setSrcImg(t))
+    if (out && outKind)
+      void window.filesmith.thumbnail(out, 640, outKind).then((t) => alive && setOutImg(t))
     return () => {
       alive = false
     }
@@ -6601,7 +7271,9 @@ export function PreviewPane({
         left={srcImg}
         right={out ? outImg : null}
         leftTag={`${ext(item.file.name)} ${formatBytes(item.file.size)}`}
-        rightTag={out && item.outputSize != null ? `${ext(out)} ${formatBytes(item.outputSize)}` : undefined}
+        rightTag={
+          out && item.outputSize != null ? `${ext(out)} ${formatBytes(item.outputSize)}` : undefined
+        }
       />
       <dl className="dgrid">
         {previewRows(item, dims).map((r) => (
@@ -6640,7 +7312,10 @@ export function InfoPane({
           <dd className={r.selectable || r.reveal ? 'select-text' : undefined}>
             <span>{r.v}</span>
             {r.reveal && (
-              <SmallButton icon="folder" onClick={() => window.filesmith.reveal(r.reveal as string)}>
+              <SmallButton
+                icon="folder"
+                onClick={() => window.filesmith.reveal(r.reveal as string)}
+              >
                 Show
               </SmallButton>
             )}
@@ -6793,7 +7468,9 @@ import { genInfoRows } from '../src/renderer/src/components/inspector/infoModel'
 
 describe('genInfoRows', () => {
   it('shows model, size, seed and a revealable path', () => {
-    expect(genInfoRows('C:/g/a.png', { model: 'flux1-dev', width: 1024, height: 768, seed: -1 })).toEqual([
+    expect(
+      genInfoRows('C:/g/a.png', { model: 'flux1-dev', width: 1024, height: 768, seed: -1 })
+    ).toEqual([
       { k: 'model', v: 'flux1-dev' },
       { k: 'size', v: '1024 × 768' },
       { k: 'seed', v: 'random' },
@@ -6801,7 +7478,9 @@ describe('genInfoRows', () => {
     ])
   })
   it('still shows the path for an image from an earlier session', () => {
-    expect(genInfoRows('C:/g/b.png', null)).toEqual([{ k: 'path', v: 'C:/g/b.png', reveal: 'C:/g/b.png' }])
+    expect(genInfoRows('C:/g/b.png', null)).toEqual([
+      { k: 'path', v: 'C:/g/b.png', reveal: 'C:/g/b.png' }
+    ])
   })
 })
 ```
@@ -6958,7 +7637,13 @@ export function GenerateView({
   return (
     <>
       <div className="toolbar" role="toolbar" aria-label="Generate actions">
-        <button type="button" className="tbtn add" disabled={!canRun} onClick={onRun} title="Generate (Ctrl+Enter)">
+        <button
+          type="button"
+          className="tbtn add"
+          disabled={!canRun}
+          onClick={onRun}
+          title="Generate (Ctrl+Enter)"
+        >
           <Icon name="play" />
           Generate
         </button>
@@ -6995,7 +7680,11 @@ export function GenerateView({
             {results.map((p) => tile(p, p))}
           </div>
         ) : (
-          <EmptyState icon="generate" title="Nothing generated yet" line="Write a prompt, then press Generate" />
+          <EmptyState
+            icon="generate"
+            title="Nothing generated yet"
+            line="Write a prompt, then press Generate"
+          />
         )}
       </div>
     </>
@@ -7051,7 +7740,8 @@ export function CompletedView({
       setPicked(ids.slice(a, b + 1))
       return
     }
-    if (e.ctrlKey || e.metaKey) setPicked((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+    if (e.ctrlKey || e.metaKey)
+      setPicked((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
     else setPicked([id])
     setAnchor(id)
   }
@@ -7064,17 +7754,33 @@ export function CompletedView({
           {entries.length} file{entries.length === 1 ? '' : 's'}
         </span>
         <div className="tb-right">
-          <button type="button" className="tbtn" disabled={!selected.length} onClick={() => onDelete(selected)}>
+          <button
+            type="button"
+            className="tbtn"
+            disabled={!selected.length}
+            onClick={() => onDelete(selected)}
+          >
             <Icon name="trash" />
             Delete selected
           </button>
-          <button type="button" className="tbtn" disabled={!entries.length} onClick={() => onClear(ids)} title="Hides the list; files stay on disk">
+          <button
+            type="button"
+            className="tbtn"
+            disabled={!entries.length}
+            onClick={() => onClear(ids)}
+            title="Hides the list; files stay on disk"
+          >
             <Icon name="close" />
             Clear list
           </button>
         </div>
       </div>
-      <section className="qtable done-table" role="grid" aria-label="Completed" aria-multiselectable="true">
+      <section
+        className="qtable done-table"
+        role="grid"
+        aria-label="Completed"
+        aria-multiselectable="true"
+      >
         <div className="thead ccols" role="row">
           {['name', 'from', 'kind', 'size', 'result', ''].map((h, i) => (
             <div key={i} className={`th${h === 'size' ? ' num' : ''}`} role="columnheader">
@@ -7084,7 +7790,11 @@ export function CompletedView({
         </div>
         <div className="qbody scroll-thin" role="rowgroup">
           {entries.length === 0 ? (
-            <EmptyState icon="completed" title="Nothing finished yet" line="Files you convert, compress or resize land here" />
+            <EmptyState
+              icon="completed"
+              title="Nothing finished yet"
+              line="Files you convert, compress or resize land here"
+            />
           ) : (
             entries.map(({ item, from }) => {
               const out = item.outputPath as string
@@ -7105,7 +7815,11 @@ export function CompletedView({
                   }}
                 >
                   <div className="td" role="gridcell">
-                    {thumb ? <img className="thumb" src={thumb} alt="" /> : <span className="thumb">{kindLabel(extOf(out)).slice(0, 3)}</span>}
+                    {thumb ? (
+                      <img className="thumb" src={thumb} alt="" />
+                    ) : (
+                      <span className="thumb">{kindLabel(extOf(out)).slice(0, 3)}</span>
+                    )}
                     <span className="name" title={out}>
                       {baseName(out)}
                     </span>
@@ -7173,12 +7887,32 @@ export function ToolStatus(): JSX.Element {
   }
   return (
     <>
-      <Setting title="WinRAR" desc={rar == null ? 'Checking' : rar ? 'Found. RAR and CBR targets are available.' : 'Not found. RAR and CBR targets stay disabled.'} />
+      <Setting
+        title="WinRAR"
+        desc={
+          rar == null
+            ? 'Checking'
+            : rar
+              ? 'Found. RAR and CBR targets are available.'
+              : 'Not found. RAR and CBR targets stay disabled.'
+        }
+      />
       <Setting
         title="Background removal"
-        desc={bg == null ? 'Checking' : bg.ready ? 'Ready, works offline.' : bg.uvAvailable ? 'Downloads its model on first use.' : 'Needs the free uv tool (winget install astral-sh.uv).'}
+        desc={
+          bg == null
+            ? 'Checking'
+            : bg.ready
+              ? 'Ready, works offline.'
+              : bg.uvAvailable
+                ? 'Downloads its model on first use.'
+                : 'Needs the free uv tool (winget install astral-sh.uv).'
+        }
       />
-      <Setting title="ComfyUI folder" desc={note ?? (comfy === undefined ? 'Checking' : comfy ? <code>{comfy}</code> : 'Not set')}>
+      <Setting
+        title="ComfyUI folder"
+        desc={note ?? (comfy === undefined ? 'Checking' : comfy ? <code>{comfy}</code> : 'Not set')}
+      >
         <SmallButton icon="folder" onClick={() => void changeComfy()}>
           Change folder
         </SmallButton>
@@ -7210,7 +7944,12 @@ import { Checkbox } from '../ui/Checkbox'
 import { SettingGroup } from '../ui/Setting'
 import { ToolStatus } from './ToolStatus'
 
-type Rail = { order: TabId[]; hidden: TabId[]; setOrder: (o: TabId[]) => void; toggleHidden: (id: TabId) => void }
+type Rail = {
+  order: TabId[]
+  hidden: TabId[]
+  setOrder: (o: TabId[]) => void
+  toggleHidden: (id: TabId) => void
+}
 
 /** Sidebar order and visibility (moved from the old rail edit mode, spec 3.2 /
  * 5.4) and tool status. Same pointer sortable as before, plus Alt+Up/Down. */
@@ -7234,13 +7973,18 @@ export function SettingsView({ rail }: { rail: Rail }): JSX.Element {
       const d = dragRef.current
       set(null)
       if (!d) return
-      const target = Math.max(0, Math.min(rail.order.length - 1, d.index + Math.round(d.offset / PITCH)))
+      const target = Math.max(
+        0,
+        Math.min(rail.order.length - 1, d.index + Math.round(d.offset / PITCH))
+      )
       if (target !== d.index) rail.setOrder(moveItem(rail.order, d.index, target))
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
   }
-  const target = drag ? Math.max(0, Math.min(rail.order.length - 1, drag.index + Math.round(drag.offset / PITCH))) : null
+  const target = drag
+    ? Math.max(0, Math.min(rail.order.length - 1, drag.index + Math.round(drag.offset / PITCH)))
+    : null
   function shift(i: number): number {
     if (!drag || target == null) return 0
     if (i === drag.index) return drag.offset
@@ -7265,14 +8009,18 @@ export function SettingsView({ rail }: { rail: Rail }): JSX.Element {
                 <li
                   key={id}
                   className={`sortrow${drag?.index === i ? ' lifted' : ''}`}
-                  style={{ transform: `translateY(${shift(i)}px)`, transition: drag && drag.index !== i ? 'transform .15s' : undefined }}
+                  style={{
+                    transform: `translateY(${shift(i)}px)`,
+                    transition: drag && drag.index !== i ? 'transform .15s' : undefined
+                  }}
                   tabIndex={0}
                   aria-label={`${t.label}, position ${i + 1}. Alt+Up or Alt+Down to move`}
                   onKeyDown={(e) => {
                     if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
                     e.preventDefault()
                     const to = e.key === 'ArrowUp' ? i - 1 : i + 1
-                    if (to >= 0 && to < rail.order.length) rail.setOrder(moveItem(rail.order, i, to))
+                    if (to >= 0 && to < rail.order.length)
+                      rail.setOrder(moveItem(rail.order, i, to))
                   }}
                 >
                   <span className="grip" onPointerDown={(e) => begin(i, e)} aria-hidden="true">
@@ -7280,7 +8028,13 @@ export function SettingsView({ rail }: { rail: Rail }): JSX.Element {
                   </span>
                   <Icon name={t.icon} />
                   <span className="slab">{t.label}</span>
-                  <Checkbox checked={shown} onChange={() => rail.toggleHidden(id)} label={`Show ${t.label} in the sidebar`} size="md" focusable />
+                  <Checkbox
+                    checked={shown}
+                    onChange={() => rail.toggleHidden(id)}
+                    label={`Show ${t.label} in the sidebar`}
+                    size="md"
+                    focusable
+                  />
                 </li>
               )
             })}
@@ -7300,24 +8054,26 @@ export function SettingsView({ rail }: { rail: Rail }): JSX.Element {
 `ContextMenu.tsx`: change the import to `import { Icon } from './icons/Icon'` and `import type { IconName } from '@shared/icons'`; keep every effect (measure and flip, the five close listeners). Replace the container classes with `className="ctx-pop menu"` and render items as:
 
 ```tsx
-      {menu.items.map((item, i) =>
-        item.sep ? (
-          <div key={i} className="menu-sep" role="separator" />
-        ) : (
-          <button
-            key={i}
-            role="menuitem"
-            className={`menu-item${item.danger ? ' danger' : ''}`}
-            onClick={() => {
-              item.onClick()
-              onClose()
-            }}
-          >
-            <Icon name={item.icon} />
-            {item.label}
-          </button>
-        )
-      )}
+{
+  menu.items.map((item, i) =>
+    item.sep ? (
+      <div key={i} className="menu-sep" role="separator" />
+    ) : (
+      <button
+        key={i}
+        role="menuitem"
+        className={`menu-item${item.danger ? ' danger' : ''}`}
+        onClick={() => {
+          item.onClick()
+          onClose()
+        }}
+      >
+        <Icon name={item.icon} />
+        {item.label}
+      </button>
+    )
+  )
+}
 ```
 
 `ConfirmDialog.tsx`: keep the native `<dialog>` logic, `autoFocus` rules and `onCancel`/backdrop click. Replace the markup classes:
@@ -7355,19 +8111,23 @@ export function SettingsView({ rail }: { rail: Rail }): JSX.Element {
 `ErrorBoundary.tsx`: delete the unused `Boundary` export; render the fallback as
 
 ```tsx
-      <div className="crash" role="alert">
-        <Icon name="warning" />
-        <h1>Something went wrong</h1>
-        <p className="mono select-text">{this.state.error.message}</p>
-        <div className="crash-actions">
-          <SmallButton icon="retry" onClick={() => window.location.reload()}>
-            Reload
-          </SmallButton>
-          <SmallButton icon="trash" onClick={this.reset} title="Clears the saved queues and options, then reloads">
-            Reset session
-          </SmallButton>
-        </div>
-      </div>
+<div className="crash" role="alert">
+  <Icon name="warning" />
+  <h1>Something went wrong</h1>
+  <p className="mono select-text">{this.state.error.message}</p>
+  <div className="crash-actions">
+    <SmallButton icon="retry" onClick={() => window.location.reload()}>
+      Reload
+    </SmallButton>
+    <SmallButton
+      icon="trash"
+      onClick={this.reset}
+      title="Clears the saved queues and options, then reloads"
+    >
+      Reset session
+    </SmallButton>
+  </div>
+</div>
 ```
 
 keeping its existing reset handler (the `sessionSave(null)` then reload logic at `:26-32`) under whatever name it has today.
@@ -7690,7 +8450,7 @@ Append to `theme/views.css`:
 3. Output actions across queues:
 
 ```ts
-  const allItems = Object.values(state.queues).flatMap((q) => q?.items ?? [])
+const allItems = Object.values(state.queues).flatMap((q) => q?.items ?? [])
 ```
 
 In `trashOutputs`, look items up in `allItems` instead of `cur.items`, and dispatch `{ type: 'dismissAny', ids: [id], column: 'output' }` instead of `dismiss`. In `openMenu`, add an optional fifth parameter `targetIds?: string[]`; on the output side use `targetIds ?? [item.id]` for `targets` (the Completed view passes its own selection).
@@ -7804,7 +8564,13 @@ function walk(dir: string): string[] {
 }
 
 const grey = (h: string): boolean => {
-  const x = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  const x =
+    h.length === 3
+      ? h
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : h
   return x.slice(0, 2) === x.slice(2, 4) && x.slice(2, 4) === x.slice(4, 6)
 }
 
@@ -7824,7 +8590,8 @@ describe('strict monochrome source', () => {
 
   it('carries no light-theme utility classes', () => {
     const bad: string[] = []
-    const light = /\b(text-ink|text-muted|text-dim|bg-canvas|bg-accent|text-accent|border-accent|bg-white|border-black\/|rounded-(lg|xl|2xl|full|\[))/
+    const light =
+      /\b(text-ink|text-muted|text-dim|bg-canvas|bg-accent|text-accent|border-accent|bg-white|border-black\/|rounded-(lg|xl|2xl|full|\[))/
     for (const f of walk(ROOT)) {
       if (!/\.tsx?$/.test(f)) continue
       const src = readFileSync(f, 'utf-8')
@@ -7894,11 +8661,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 Replace the body of `test('the app boots to the Convert workspace', ...)` with:
 
 ```ts
-  await expect(page.locator('h1', { hasText: 'Convert' }).first()).toBeVisible()
-  // The pinned Run button is reachable without scrolling and names the verb.
-  const run = page.getByTestId('run')
-  await expect(run).toBeVisible()
-  await expect(run).toHaveText(/Convert/)
+await expect(page.locator('h1', { hasText: 'Convert' }).first()).toBeVisible()
+// The pinned Run button is reachable without scrolling and names the verb.
+const run = page.getByTestId('run')
+await expect(run).toBeVisible()
+await expect(run).toHaveText(/Convert/)
 ```
 
 (Keep any surrounding lines of that test that are not about these two locators.)
@@ -7908,7 +8675,10 @@ Replace the body of `test('the app boots to the Convert workspace', ...)` with:
 ```ts
 /** Tools always opens on its grid, however you last left it. */
 async function openToolsGrid(p: Page): Promise<void> {
-  await p.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: 'Tools' }).click()
+  await p
+    .getByRole('navigation', { name: 'Operations' })
+    .getByRole('button', { name: 'Tools' })
+    .click()
   await expect(p.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
 }
 
@@ -7934,7 +8704,10 @@ test('Tools groups its one-off verbs and opens one as a workspace', async () => 
   await expect(page.getByRole('grid', { name: 'Files' })).toBeVisible()
   await page.locator('button[aria-label="Back to Tools"]').first().click()
   await expect(page.locator('h1', { hasText: 'Tools' }).first()).toBeVisible()
-  await page.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: 'Convert' }).click()
+  await page
+    .getByRole('navigation', { name: 'Operations' })
+    .getByRole('button', { name: 'Convert' })
+    .click()
 })
 ```
 
@@ -7960,7 +8733,10 @@ let userData: string
 test.beforeAll(async () => {
   test.skip(!existsSync(MAIN), 'run `npm run build` first')
   userData = mkdtempSync(join(tmpdir(), 'filesmith-ui-'))
-  app = await _electron.launch({ args: [ROOT], env: { ...process.env, FILESMITH_USER_DATA: userData } })
+  app = await _electron.launch({
+    args: [ROOT],
+    env: { ...process.env, FILESMITH_USER_DATA: userData }
+  })
   page = await app.firstWindow()
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900))
 })
@@ -7985,10 +8761,18 @@ test('the sidebar collapses with its toggle and Ctrl+B, and remembers it', async
   await expect(toggle).toHaveAttribute('aria-expanded', 'false')
   await expect.poll(async () => (await nav.boundingBox())?.width).toBe(48)
   await page.reload()
-  await expect(page.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: /sidebar/ })).toHaveAttribute('aria-expanded', 'false')
+  await expect(
+    page.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: /sidebar/ })
+  ).toHaveAttribute('aria-expanded', 'false')
   await page.keyboard.press('Control+B')
-  await expect(page.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: /sidebar/ })).toHaveAttribute('aria-expanded', 'true')
-  await expect.poll(async () => (await page.getByRole('navigation', { name: 'Operations' }).boundingBox())?.width).toBe(208)
+  await expect(
+    page.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: /sidebar/ })
+  ).toHaveAttribute('aria-expanded', 'true')
+  await expect
+    .poll(
+      async () => (await page.getByRole('navigation', { name: 'Operations' }).boundingBox())?.width
+    )
+    .toBe(208)
 })
 
 test('inspector tabs switch with a click and the arrow keys', async () => {
@@ -8011,7 +8795,9 @@ test('inspector tabs switch with a click and the arrow keys', async () => {
 
 test('an empty workspace offers Add files and a disabled Run', async () => {
   await expect(page.getByText('No files yet')).toBeVisible()
-  await expect(page.getByRole('grid', { name: 'Files' }).getByRole('button', { name: 'Add files' })).toBeVisible()
+  await expect(
+    page.getByRole('grid', { name: 'Files' }).getByRole('button', { name: 'Add files' })
+  ).toBeVisible()
   await expect(page.getByTestId('run')).toBeDisabled()
   await expect(page.getByText('no files', { exact: true })).toBeVisible()
 })
@@ -8036,7 +8822,14 @@ let page: Page
 let userData: string
 let files: string
 
-const NAMES = ['IMG_2041.heic', 'beach-panorama.png', 'scan_0007.tiff', 'portrait.jpg', 'diagram.png', 'IMG_2042.heic']
+const NAMES = [
+  'IMG_2041.heic',
+  'beach-panorama.png',
+  'scan_0007.tiff',
+  'portrait.jpg',
+  'diagram.png',
+  'IMG_2042.heic'
+]
 
 function make(name: string, size: string): string {
   const p = join(files, name)
@@ -8047,16 +8840,32 @@ function make(name: string, size: string): string {
 
 test.beforeAll(async () => {
   // Opt-in: the shots are tracked files, so a routine `npm run test:e2e` must not rewrite them.
-  test.skip(!process.env['FILESMITH_SHOTS'], 'set FILESMITH_SHOTS=1 to capture the redesign screenshots')
+  test.skip(
+    !process.env['FILESMITH_SHOTS'],
+    'set FILESMITH_SHOTS=1 to capture the redesign screenshots'
+  )
   test.skip(!existsSync(MAIN) || !existsSync(MAGICK), 'needs `npm run build` and resources/bin')
   userData = mkdtempSync(join(tmpdir(), 'filesmith-visual-'))
   files = join(userData, 'files')
   mkdirSync(files)
-  const paths = NAMES.map((n, i) => make(n.endsWith('.heic') ? n.replace('.heic', '.jpg') : n, i === 2 ? '6000x4000' : i === 1 ? '3000x2000' : '1600x1200'))
+  const paths = NAMES.map((n, i) =>
+    make(
+      n.endsWith('.heic') ? n.replace('.heic', '.jpg') : n,
+      i === 2 ? '6000x4000' : i === 1 ? '3000x2000' : '1600x1200'
+    )
+  )
   const outs = [make('IMG_2041.webp', '800x600'), make('beach-panorama.webp', '1200x800')]
-  const info = (p: string): { path: string; name: string; ext: string; kind: string; size: number } => {
+  const info = (
+    p: string
+  ): { path: string; name: string; ext: string; kind: string; size: number } => {
     const name = p.split(/[\\/]/).pop() as string
-    return { path: p, name, ext: '.' + name.split('.').pop(), kind: 'image', size: statSync(p).size }
+    return {
+      path: p,
+      name,
+      ext: '.' + name.split('.').pop(),
+      kind: 'image',
+      size: statSync(p).size
+    }
   }
   const item = (i: number, over: Record<string, unknown>): Record<string, unknown> => ({
     id: `seed-${i}`,
@@ -8074,21 +8883,41 @@ test.beforeAll(async () => {
     queues: {
       convert: {
         items: [
-          item(0, { status: 'done', percent: 100, outputPath: outs[0], outputSize: statSync(outs[0]).size, runOptions: { format: '.webp', quality: 'balanced' } }),
-          item(1, { status: 'done', percent: 100, outputPath: outs[1], outputSize: statSync(outs[1]).size, runOptions: { format: '.webp', quality: 'balanced' } }),
+          item(0, {
+            status: 'done',
+            percent: 100,
+            outputPath: outs[0],
+            outputSize: statSync(outs[0]).size,
+            runOptions: { format: '.webp', quality: 'balanced' }
+          }),
+          item(1, {
+            status: 'done',
+            percent: 100,
+            outputPath: outs[1],
+            outputSize: statSync(outs[1]).size,
+            runOptions: { format: '.webp', quality: 'balanced' }
+          }),
           item(2, {}),
           item(3, {}),
           item(4, {}),
-          item(5, { status: 'failed', error: 'Unsupported compression in this TIFF variant. Convert it to PNG first.' })
+          item(5, {
+            status: 'failed',
+            error: 'Unsupported compression in this TIFF variant. Convert it to PNG first.'
+          })
         ]
       }
     }
   }
   writeFileSync(join(userData, 'session.json'), JSON.stringify(session))
-  app = await _electron.launch({ args: [ROOT], env: { ...process.env, FILESMITH_USER_DATA: userData } })
+  app = await _electron.launch({
+    args: [ROOT],
+    env: { ...process.env, FILESMITH_USER_DATA: userData }
+  })
   page = await app.firstWindow()
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900))
-  await expect(page.getByRole('grid', { name: 'Files' }).getByRole('row', { name: /portrait/ })).toBeVisible()
+  await expect(
+    page.getByRole('grid', { name: 'Files' }).getByRole('row', { name: /portrait/ })
+  ).toBeVisible()
 })
 
 test.afterAll(async () => {
@@ -8101,13 +8930,24 @@ test('capture the redesign next to the mockup', async () => {
   // running row with NN%(Ns) is on screen.
   await page.getByRole('row', { name: /beach-panorama/ }).click()
   await page.evaluate(
-    ({ input }) => window.filesmith.runJob({ id: 'seed-2', tool: 'resize', input, options: { mode: 'percent', percent: 300 } }),
+    ({ input }) =>
+      window.filesmith.runJob({
+        id: 'seed-2',
+        tool: 'resize',
+        input,
+        options: { mode: 'percent', percent: 300 }
+      }),
     { input: join(files, NAMES[2]) }
   )
-  await expect(page.getByRole('row', { name: /scan_0007/ }).getByText(/%/)).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('row', { name: /scan_0007/ }).getByText(/%/)).toBeVisible({
+    timeout: 20_000
+  })
   await page.screenshot({ path: join(SHOTS, 'impl-10-s2.png') })
 
-  await page.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: /sidebar/ }).click()
+  await page
+    .getByRole('navigation', { name: 'Operations' })
+    .getByRole('button', { name: /sidebar/ })
+    .click()
   await page.screenshot({ path: join(SHOTS, 'impl-collapsed.png') })
   await page.keyboard.press('Control+B')
 
@@ -8178,6 +9018,7 @@ npm version 0.5.0 --no-git-tag-version
 - [ ] **Step 2: Update `CLAUDE.md`**
 
 First run `git diff CLAUDE.md` and keep the owner's pending edit intact. Then:
+
 - In "Design process", replace "The current renderer is a deliberately plain placeholder until that design work happens." with: "The renderer implements the signed-off terminal design (`docs/mockups/terminal-v5/10-s2-vscode-grouped.html`, rules in `docs/design/redesign-direction.md`). Dark only, strict monochrome: every colour is a token in `src/renderer/src/theme/tokens.css`, and `test/monochrome-source.test.ts` fails on any other colour literal. New screens still go through mockups first."
 - In "Project layout", replace the `renderer/` line with `renderer/    React UI: shell/ (title bar, sidebar, status bar), queue/ (files table), inspector/ (Options, Preview, Info), options/ (one settings file per verb), views/ (Generate, Tools, Completed, Settings), ui/ (primitives), icons/, theme/ (tokens and CSS)`.
 - In "Working with the owner", replace "README-only changes commit directly." with "Every change, README included, goes through a branch and PR (global rule)."
@@ -8259,42 +9100,42 @@ Report the PR link, the gate results and a one-line recommendation, then ask "me
 
 **Spec coverage**
 
-| Spec section | Task |
-|---|---|
-| 1 hard rules (dark, monochrome, square, flush, buttons, no drop row, no row bar, no Wind signatures) | 8, 10, 12, 16 (guard test), 17 (dark and square e2e) |
-| M1 window, nativeTheme, background | 1 |
-| M2 ETA for ticker jobs | 2 |
-| M3 output folder | 3, 13 (OUTPUT > Location) |
-| M4 userData override | 1, 17 |
-| M5 bundled fonts | 8 |
-| 2.1 tokens + Tailwind mirror + monochrome tests | 8, 16 |
-| 2.2 type, 2.3 lines / focus / motion | 8, 10 |
-| 2.4 icons, typed `IconName` | 9 (window controls keep their own 10x10 paths in `TitleBar`, so `minimize`/`maximize` are not registry entries) |
-| 2.5 component inventory | 10, 11, 12, 13, 15 |
-| 2.6 cross-group rows | 12 (`.tr.dim`) |
-| 2.7 select popup | 10 |
-| 3.1 title bar and breadcrumb | 11 |
-| 3.2 sidebar, collapse, Ctrl+B, rail edit moved | 11, 15 |
-| 3.3 toolbar, table, group rows | 12 |
-| 3.4 inspector, 3.5 status bar | 11, 13 |
-| 3.6 views replacing the table | 15 |
-| 3.7 window size, auto-collapse under 1280, kind fold under 1180 | 1, 11, 12 (`.ktag` and the `max-width: 1179px` rule; at the 1100px minimum with the sidebar auto-collapsed the name column gets about 170px instead of about 100px) |
-| 4.1 selection, checkbox column, keyboard, sorting, run scope | 4, 6, 11, 12 |
-| 4.2 options per verb + clean-ups + pageQuality fix | 13 |
-| 4.3 result and status columns, retry | 5, 12 |
-| 4.4 totals, 4.5 batch estimate | 5, 7, 12, 13 |
-| 4.6 Preview, 4.7 Info | 14, 15 (Generate) |
-| 4.8 toolbar actions | 4 (`hideFinished`), 12 |
-| 4.9 drops | 11, 12 |
-| 4.10 menu, 4.11 dialogs | 15 |
-| 4.12 empty states | 12, 15 |
-| 5.1 to 5.6 undrawn screens | 13 (setup cards), 15 |
-| 6.1 source-to-result link | 4 |
-| 6.2 estimates, 6.3 ETA, 6.4 totals and batch, 6.5 short error | 7, 2, 5, 11 |
-| 7.1 unit tests | 1 to 7, 9 to 11, 13 to 16 |
-| 7.2 e2e selectors | 17 |
-| 7.3 screenshots, 7.4 gate | 17, 18 |
-| 9 delivery | 0, 18 |
+| Spec section                                                                                         | Task                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 hard rules (dark, monochrome, square, flush, buttons, no drop row, no row bar, no Wind signatures) | 8, 10, 12, 16 (guard test), 17 (dark and square e2e)                                                                                                                |
+| M1 window, nativeTheme, background                                                                   | 1                                                                                                                                                                   |
+| M2 ETA for ticker jobs                                                                               | 2                                                                                                                                                                   |
+| M3 output folder                                                                                     | 3, 13 (OUTPUT > Location)                                                                                                                                           |
+| M4 userData override                                                                                 | 1, 17                                                                                                                                                               |
+| M5 bundled fonts                                                                                     | 8                                                                                                                                                                   |
+| 2.1 tokens + Tailwind mirror + monochrome tests                                                      | 8, 16                                                                                                                                                               |
+| 2.2 type, 2.3 lines / focus / motion                                                                 | 8, 10                                                                                                                                                               |
+| 2.4 icons, typed `IconName`                                                                          | 9 (window controls keep their own 10x10 paths in `TitleBar`, so `minimize`/`maximize` are not registry entries)                                                     |
+| 2.5 component inventory                                                                              | 10, 11, 12, 13, 15                                                                                                                                                  |
+| 2.6 cross-group rows                                                                                 | 12 (`.tr.dim`)                                                                                                                                                      |
+| 2.7 select popup                                                                                     | 10                                                                                                                                                                  |
+| 3.1 title bar and breadcrumb                                                                         | 11                                                                                                                                                                  |
+| 3.2 sidebar, collapse, Ctrl+B, rail edit moved                                                       | 11, 15                                                                                                                                                              |
+| 3.3 toolbar, table, group rows                                                                       | 12                                                                                                                                                                  |
+| 3.4 inspector, 3.5 status bar                                                                        | 11, 13                                                                                                                                                              |
+| 3.6 views replacing the table                                                                        | 15                                                                                                                                                                  |
+| 3.7 window size, auto-collapse under 1280, kind fold under 1180                                      | 1, 11, 12 (`.ktag` and the `max-width: 1179px` rule; at the 1100px minimum with the sidebar auto-collapsed the name column gets about 170px instead of about 100px) |
+| 4.1 selection, checkbox column, keyboard, sorting, run scope                                         | 4, 6, 11, 12                                                                                                                                                        |
+| 4.2 options per verb + clean-ups + pageQuality fix                                                   | 13                                                                                                                                                                  |
+| 4.3 result and status columns, retry                                                                 | 5, 12                                                                                                                                                               |
+| 4.4 totals, 4.5 batch estimate                                                                       | 5, 7, 12, 13                                                                                                                                                        |
+| 4.6 Preview, 4.7 Info                                                                                | 14, 15 (Generate)                                                                                                                                                   |
+| 4.8 toolbar actions                                                                                  | 4 (`hideFinished`), 12                                                                                                                                              |
+| 4.9 drops                                                                                            | 11, 12                                                                                                                                                              |
+| 4.10 menu, 4.11 dialogs                                                                              | 15                                                                                                                                                                  |
+| 4.12 empty states                                                                                    | 12, 15                                                                                                                                                              |
+| 5.1 to 5.6 undrawn screens                                                                           | 13 (setup cards), 15                                                                                                                                                |
+| 6.1 source-to-result link                                                                            | 4                                                                                                                                                                   |
+| 6.2 estimates, 6.3 ETA, 6.4 totals and batch, 6.5 short error                                        | 7, 2, 5, 11                                                                                                                                                         |
+| 7.1 unit tests                                                                                       | 1 to 7, 9 to 11, 13 to 16                                                                                                                                           |
+| 7.2 e2e selectors                                                                                    | 17                                                                                                                                                                  |
+| 7.3 screenshots, 7.4 gate                                                                            | 17, 18                                                                                                                                                              |
+| 9 delivery                                                                                           | 0, 18                                                                                                                                                               |
 
 **Deviations and additions to flag in review**
 

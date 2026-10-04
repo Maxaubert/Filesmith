@@ -41,13 +41,13 @@ Hard rules (from `redesign-direction.md`; not negotiable in this work):
 Main process, IPC, preload and tool modules stay untouched, except for the small additions listed
 below. Each one is also tracked in section 6.
 
-| # | Change outside the renderer | Why | Size |
-|---|---|---|---|
-| M1 | `src/main/index.ts`: `backgroundColor` becomes `#0a0a0a`; `nativeTheme.themeSource = 'dark'`; default window 1440×900 (clamped to the work area), minimum 1100×640 | No light flash before the first paint; dark native scrollbars and dialogs; the layout needs the width (section 3.7) | a few lines |
-| M2 | `src/main/tools/estimate.ts` plus its callers: `estimateProgress` also reports a remaining-seconds estimate through the existing `onProgress(pct, msg, etaSec)` | Image, PDF and rembg jobs can show `62%(4s)` and not only ffmpeg jobs | small; the signature only gains a value the job queue already forwards |
-| M3 | `src/main/output.ts` and `registry.ts`: optional `outDir` job option. When it is set, outputs are reserved in that folder rather than next to the source; collision safety is unchanged. A chosen folder that no longer exists fails the job ("Output folder not found"), never falls back. Plus one additive IPC channel `files:pick-folder` and preload method `pickFolder()` for the Choose folder button | The OUTPUT › Location setting | moderate; **owner decision O7** |
-| M4 | Test-only: `FILESMITH_USER_DATA` env override for `app.setPath('userData', …)`, read only when it is set | Lets e2e seed a session so the screenshot test has rows | 3 lines |
-| M5 | `package.json`: add `@fontsource/ibm-plex-sans` and `@fontsource/ibm-plex-mono` (400/500/600) | The mockup uses IBM Plex. Fonts are bundled so they work offline and stay within the CSP (no Google Fonts) | dependency only |
+| #   | Change outside the renderer                                                                                                                                                                                                                                                                                                                                                                                  | Why                                                                                                                 | Size                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| M1  | `src/main/index.ts`: `backgroundColor` becomes `#0a0a0a`; `nativeTheme.themeSource = 'dark'`; default window 1440×900 (clamped to the work area), minimum 1100×640                                                                                                                                                                                                                                           | No light flash before the first paint; dark native scrollbars and dialogs; the layout needs the width (section 3.7) | a few lines                                                            |
+| M2  | `src/main/tools/estimate.ts` plus its callers: `estimateProgress` also reports a remaining-seconds estimate through the existing `onProgress(pct, msg, etaSec)`                                                                                                                                                                                                                                              | Image, PDF and rembg jobs can show `62%(4s)` and not only ffmpeg jobs                                               | small; the signature only gains a value the job queue already forwards |
+| M3  | `src/main/output.ts` and `registry.ts`: optional `outDir` job option. When it is set, outputs are reserved in that folder rather than next to the source; collision safety is unchanged. A chosen folder that no longer exists fails the job ("Output folder not found"), never falls back. Plus one additive IPC channel `files:pick-folder` and preload method `pickFolder()` for the Choose folder button | The OUTPUT › Location setting                                                                                       | moderate; **owner decision O7**                                        |
+| M4  | Test-only: `FILESMITH_USER_DATA` env override for `app.setPath('userData', …)`, read only when it is set                                                                                                                                                                                                                                                                                                     | Lets e2e seed a session so the screenshot test has rows                                                             | 3 lines                                                                |
+| M5  | `package.json`: add `@fontsource/ibm-plex-sans` and `@fontsource/ibm-plex-mono` (400/500/600)                                                                                                                                                                                                                                                                                                                | The mockup uses IBM Plex. Fonts are bundled so they work offline and stay within the CSP (no Google Fonts)          | dependency only                                                        |
 
 No existing IPC channel or preload signature changes; the only addition is `pickFolder()` (M3).
 `FilesmithApi` keeps every method the e2e specs drive.
@@ -61,25 +61,25 @@ into Tailwind v4 `@theme` so that utility classes (`bg-bg-0`, `text-fg2`, `borde
 variables. A future theme then only has to redefine the variables. The old tokens (`ink`, `muted`, `dim`,
 `canvas`, `line`, `accent*`) are deleted. So is the inline black-accent override in `OptionsPanel`.
 
-| Token | Value | Use |
-|---|---|---|
-| `--bg-0` | `#0a0a0a` | app, panels, body; the patch behind the split arrow; preview tags |
-| `--bg-1` | `#0f0f0f` | setting block hover and focus-within |
-| `--hover` | `#1a1a1a` | hover on any neutral surface |
-| `--selected` | `#202020` | selected row; `:active` on neutral surfaces |
-| `--field` | `#141414` | select and text-field fill |
-| `--track` | `#2a2a2a` | progress track; segment `:active` |
-| `--line` | `#262626` | every 1px hairline |
+| Token           | Value     | Use                                                                                      |
+| --------------- | --------- | ---------------------------------------------------------------------------------------- |
+| `--bg-0`        | `#0a0a0a` | app, panels, body; the patch behind the split arrow; preview tags                        |
+| `--bg-1`        | `#0f0f0f` | setting block hover and focus-within                                                     |
+| `--hover`       | `#1a1a1a` | hover on any neutral surface                                                             |
+| `--selected`    | `#202020` | selected row; `:active` on neutral surfaces                                              |
+| `--field`       | `#141414` | select and text-field fill                                                               |
+| `--track`       | `#2a2a2a` | progress track; segment `:active`                                                        |
+| `--line`        | `#262626` | every 1px hairline                                                                       |
 | `--line-strong` | `#3a3a3a` | table head bottom, totals top, control outlines, thumbnails, estimate box, preview frame |
-| `--fg1` | `#ededed` | primary text, active bars, focus |
-| `--fg2` | `#b4b4b4` | secondary text, idle icons |
-| `--fg3` | `#8c8c8c` | labels, meta, placeholders, checkbox border |
-| `--fg-disabled` | `#5c5c5c` | disabled text (for example a RAR target without WinRAR) |
-| `--inv-bg` | `#ededed` | inverted fills: primary, Add files, selected segment, checked box, badge, failed pill |
-| `--inv-fg` | `#0a0a0a` | text on inverted fills |
-| `--inv-hover` | `#ffffff` | hover on inverted surfaces |
-| `--inv-active` | `#bdbdbd` | `:active` on inverted surfaces |
-| `--focus` | `#ededed` | focus outlines |
+| `--fg1`         | `#ededed` | primary text, active bars, focus                                                         |
+| `--fg2`         | `#b4b4b4` | secondary text, idle icons                                                               |
+| `--fg3`         | `#8c8c8c` | labels, meta, placeholders, checkbox border                                              |
+| `--fg-disabled` | `#5c5c5c` | disabled text (for example a RAR target without WinRAR)                                  |
+| `--inv-bg`      | `#ededed` | inverted fills: primary, Add files, selected segment, checked box, badge, failed pill    |
+| `--inv-fg`      | `#0a0a0a` | text on inverted fills                                                                   |
+| `--inv-hover`   | `#ffffff` | hover on inverted surfaces                                                               |
+| `--inv-active`  | `#bdbdbd` | `:active` on inverted surfaces                                                           |
+| `--focus`       | `#ededed` | focus outlines                                                                           |
 
 A unit test parses `tokens.css` and asserts that every colour token has r=g=b. That is the monochrome
 guard. A lint-style test also greps `src/renderer/src/**/*.{ts,tsx,css}` for hex or `rgb(` literals
@@ -97,7 +97,7 @@ outside `tokens.css` and fails on any non-grey value.
   `controls.css`, `views.css`), ported from the mockup; there is no separate type-utility file. The ad hoc
   Tailwind pixel sizes in the current components go away.
 - Labels are lowercase where the mockup has them lowercase: the table head (`name kind size result
-  status`), the sidebar head (`operations`), the segment values and the estimate head. Group heads
+status`), the sidebar head (`operations`), the segment values and the estimate head. Group heads
   (`FORMAT`, `OUTPUT`, `FILES`) are uppercase literals.
 
 ### 2.3 Spacing, lines, focus and motion
@@ -139,34 +139,34 @@ Each primitive lives in `src/renderer/src/components/ui/` and covers every state
 Disabled is not drawn in the mockup; its rule is `--fg-disabled` text, `--line` border, no hover change
 and `cursor: default`.
 
-| Primitive | Mockup class | States (hover / active / on / focus / disabled) |
-|---|---|---|
-| `TitleBar`, `WinControls` | `.titlebar`, `.winctl` | 46px buttons, left border; hover `--hover`/fg1; active inverted; close is **not** red |
-| `Breadcrumb` | `.crumb` | link segment: fg3, and fg1 with a 3px-offset underline on hover; current segment is `<b>` 500 fg1. Link segments are `<button>`s (section 7.2) |
-| `Sidebar`, `SidebarItem` | `.side`, `.item` | hover `--hover`/fg1; active `--selected`; on: fg1, 600, 2px left bar, `aria-current="page"`, inverted count chip; collapsed: labels faded out, badge pinned top-right, only the active item's badge kept |
-| `ToolbarButton` (`add`, `icon`) | `.tbtn.add`, `.ibtn` | Add files inverted, hover `--inv-hover`, active `--inv-active`; icon buttons 36px, hover `--hover`, active `--selected`, disabled when there is nothing to act on |
-| `Table`, `TableHead`, `TableRow`, `TotalsRow` | `.thead/.th/.tr/.td/.totals` | head cell hover `--hover`; sort chevron hidden until hover or sorted, `aria-sort`; row hover `--hover`, selected `--selected` plus a 2px left bar covering the borders above and below, focus outline inset, cross-group rows dimmed (2.6) |
-| `Checkbox` | `.box` | 14px (table) or 16px (setting); hover border fg1; on: inverted with a check; mixed: an 8×2 bar; focus offset 2 |
-| `RowAction` | `.row-act` | 24×24 outlined; hover border fg2 + `--hover`; active inverted; `ghost` variant is hidden until row hover or focus-within; focus offset 1 |
-| `StatusCell` | `.st` | `done` (check, "Done", fg2), `run` (sync, `<b>62%</b>(4s)`), `queued` (clock, "Queued", fg3), `ready` (section 4.3), `canceled` (section 4.3), `fail` (inverted pill, warning glyph, short label) |
-| `ResultCell` | `.rc`, `.arr.split` | arrow centred on the size/result boundary with a background patch matching the row state; done `<b>` 600 fg1 plus `.pct`; running `~est` fg2 plus `.pct`; empty otherwise |
-| `Tabs` | `.tabs/.tab` | hover fg1/`--hover`; on 600 plus a 2px bottom bar; bold width reserved through `data-t` so the row never shifts; `role=tablist`, arrow-key roving |
-| `InspectorHead` | `.ihead` | title `<h1>` (section 7.2) at 14/600 plus a 12px mono sub-label |
-| `SettingGroup` | `.vs-gh` | 11/600 mono uppercase with a hairline to the right edge |
-| `Setting` | `.vs-set/.vs-t/.vs-d` | hover and focus-within `--bg-1`; focus-within shows a 2px left bar |
-| `Select` | `.vs-sel` | filled `--field`; hover border fg3 and `--hover`; active `--selected`; focus border `--focus`; `half` width; optional option groups (replaces both `ChoiceSelect` and `ModelPicker`); popup list in 2.7 |
-| `TextField`, `NumberField` | `.vs-in` | hover border fg3; focus border `--focus`; `spellcheck=false`; `NumberField` keeps `DimInput`'s commit-on-blur/Enter and clamping |
-| `Segmented` | `.seg` | `role=radiogroup`, arrow keys; hover `--hover`; active `--track`; on inverted 600, on+hover `--inv-hover`; focus offset -3 (`--inv-fg` on the selected button) |
-| `CheckSetting` | `.vs-chk` | label + sub-line; Space/Enter toggle |
-| `SmallButton` | `.sbtn` | outlined; hover `--hover`/fg3 border; active inverted; focus offset 1 |
-| `ChipGrid` | new (a segmented control in a grid) | the format, bitrate, factor, PDF op and style choices. Chips are square outlined cells; on is inverted; disabled uses `--fg-disabled` with a tooltip (`WinRAR not found`) |
-| `RangeField` | new | label, value readout in mono, a 2px `--track` slider with an `--fg1` fill and a square 10px thumb, end labels. Replaces about 9 copies |
-| `EstimateCard` | `.vs-est` | head `estimate … N files`; value `from → ~to` and `-N%`; full-sentence `aria-label` |
-| `ProgressBar` | `.mini` | 2px track with an fg1 fill; determinate or indeterminate (an fg1 segment sweeping, static under reduced motion). Replaces the 3 copies in CompanionDownload, ComfyImport and PidInstallCard |
-| `PrimaryButton` | `.ifoot .primary` | inverted, `i-play`; hover `--inv-hover`; active `--inv-active`; disabled: `--selected` fill with `--fg-disabled` text; 2px focus ring with an inset gap |
-| `StatusBar`, `StatusItem` | `.statusbar/.sitem` | hover `--hover`/fg1; right group uses left borders; `.warn` 600 fg1 with the warning glyph |
-| `ContextMenu` | restyled | section 4.10 |
-| `ConfirmDialog` | restyled | section 4.11 |
+| Primitive                                     | Mockup class                        | States (hover / active / on / focus / disabled)                                                                                                                                                                                            |
+| --------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TitleBar`, `WinControls`                     | `.titlebar`, `.winctl`              | 46px buttons, left border; hover `--hover`/fg1; active inverted; close is **not** red                                                                                                                                                      |
+| `Breadcrumb`                                  | `.crumb`                            | link segment: fg3, and fg1 with a 3px-offset underline on hover; current segment is `<b>` 500 fg1. Link segments are `<button>`s (section 7.2)                                                                                             |
+| `Sidebar`, `SidebarItem`                      | `.side`, `.item`                    | hover `--hover`/fg1; active `--selected`; on: fg1, 600, 2px left bar, `aria-current="page"`, inverted count chip; collapsed: labels faded out, badge pinned top-right, only the active item's badge kept                                   |
+| `ToolbarButton` (`add`, `icon`)               | `.tbtn.add`, `.ibtn`                | Add files inverted, hover `--inv-hover`, active `--inv-active`; icon buttons 36px, hover `--hover`, active `--selected`, disabled when there is nothing to act on                                                                          |
+| `Table`, `TableHead`, `TableRow`, `TotalsRow` | `.thead/.th/.tr/.td/.totals`        | head cell hover `--hover`; sort chevron hidden until hover or sorted, `aria-sort`; row hover `--hover`, selected `--selected` plus a 2px left bar covering the borders above and below, focus outline inset, cross-group rows dimmed (2.6) |
+| `Checkbox`                                    | `.box`                              | 14px (table) or 16px (setting); hover border fg1; on: inverted with a check; mixed: an 8×2 bar; focus offset 2                                                                                                                             |
+| `RowAction`                                   | `.row-act`                          | 24×24 outlined; hover border fg2 + `--hover`; active inverted; `ghost` variant is hidden until row hover or focus-within; focus offset 1                                                                                                   |
+| `StatusCell`                                  | `.st`                               | `done` (check, "Done", fg2), `run` (sync, `<b>62%</b>(4s)`), `queued` (clock, "Queued", fg3), `ready` (section 4.3), `canceled` (section 4.3), `fail` (inverted pill, warning glyph, short label)                                          |
+| `ResultCell`                                  | `.rc`, `.arr.split`                 | arrow centred on the size/result boundary with a background patch matching the row state; done `<b>` 600 fg1 plus `.pct`; running `~est` fg2 plus `.pct`; empty otherwise                                                                  |
+| `Tabs`                                        | `.tabs/.tab`                        | hover fg1/`--hover`; on 600 plus a 2px bottom bar; bold width reserved through `data-t` so the row never shifts; `role=tablist`, arrow-key roving                                                                                          |
+| `InspectorHead`                               | `.ihead`                            | title `<h1>` (section 7.2) at 14/600 plus a 12px mono sub-label                                                                                                                                                                            |
+| `SettingGroup`                                | `.vs-gh`                            | 11/600 mono uppercase with a hairline to the right edge                                                                                                                                                                                    |
+| `Setting`                                     | `.vs-set/.vs-t/.vs-d`               | hover and focus-within `--bg-1`; focus-within shows a 2px left bar                                                                                                                                                                         |
+| `Select`                                      | `.vs-sel`                           | filled `--field`; hover border fg3 and `--hover`; active `--selected`; focus border `--focus`; `half` width; optional option groups (replaces both `ChoiceSelect` and `ModelPicker`); popup list in 2.7                                    |
+| `TextField`, `NumberField`                    | `.vs-in`                            | hover border fg3; focus border `--focus`; `spellcheck=false`; `NumberField` keeps `DimInput`'s commit-on-blur/Enter and clamping                                                                                                           |
+| `Segmented`                                   | `.seg`                              | `role=radiogroup`, arrow keys; hover `--hover`; active `--track`; on inverted 600, on+hover `--inv-hover`; focus offset -3 (`--inv-fg` on the selected button)                                                                             |
+| `CheckSetting`                                | `.vs-chk`                           | label + sub-line; Space/Enter toggle                                                                                                                                                                                                       |
+| `SmallButton`                                 | `.sbtn`                             | outlined; hover `--hover`/fg3 border; active inverted; focus offset 1                                                                                                                                                                      |
+| `ChipGrid`                                    | new (a segmented control in a grid) | the format, bitrate, factor, PDF op and style choices. Chips are square outlined cells; on is inverted; disabled uses `--fg-disabled` with a tooltip (`WinRAR not found`)                                                                  |
+| `RangeField`                                  | new                                 | label, value readout in mono, a 2px `--track` slider with an `--fg1` fill and a square 10px thumb, end labels. Replaces about 9 copies                                                                                                     |
+| `EstimateCard`                                | `.vs-est`                           | head `estimate … N files`; value `from → ~to` and `-N%`; full-sentence `aria-label`                                                                                                                                                        |
+| `ProgressBar`                                 | `.mini`                             | 2px track with an fg1 fill; determinate or indeterminate (an fg1 segment sweeping, static under reduced motion). Replaces the 3 copies in CompanionDownload, ComfyImport and PidInstallCard                                                |
+| `PrimaryButton`                               | `.ifoot .primary`                   | inverted, `i-play`; hover `--inv-hover`; active `--inv-active`; disabled: `--selected` fill with `--fg-disabled` text; 2px focus ring with an inset gap                                                                                    |
+| `StatusBar`, `StatusItem`                     | `.statusbar/.sitem`                 | hover `--hover`/fg1; right group uses left borders; `.warn` 600 fg1 with the warning glyph                                                                                                                                                 |
+| `ContextMenu`                                 | restyled                            | section 4.10                                                                                                                                                                                                                               |
+| `ConfirmDialog`                               | restyled                            | section 4.11                                                                                                                                                                                                                               |
 
 ### 2.6 Cross-group rows
 
@@ -197,15 +197,15 @@ Minimize/maximize/close keep calling `window.filesmith.minimize/toggleMaximize/c
 
 Breadcrumb content per context:
 
-| Context | Breadcrumb |
-|---|---|
-| Verb workspace, no selection | `convert` (current) |
-| Verb workspace with an active group | `convert / images` (group label, lowercase) |
-| Tools grid | `tools` |
-| Tools card | `tools / merge` (the `tools` segment is the Back to Tools button) |
-| Generate | `generate` |
-| Completed | `completed` |
-| Settings | `settings` |
+| Context                             | Breadcrumb                                                        |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| Verb workspace, no selection        | `convert` (current)                                               |
+| Verb workspace with an active group | `convert / images` (group label, lowercase)                       |
+| Tools grid                          | `tools`                                                           |
+| Tools card                          | `tools / merge` (the `tools` segment is the Back to Tools button) |
+| Generate                            | `generate`                                                        |
+| Completed                           | `completed`                                                       |
+| Settings                            | `settings`                                                        |
 
 ### 3.2 Sidebar
 
@@ -229,7 +229,7 @@ Breadcrumb content per context:
 ### 3.3 Centre: toolbar and table
 
 - **Toolbar** (32px): Add files (inverted) | Remove selected | Retry failed | Clear finished … right: `N
-  files, M selected` | Stop all. Section 4.8 describes what each does.
+files, M selected` | Stop all. Section 4.8 describes what each does.
 - **Table**: columns `40px 1fr 64px 88px 184px 232px` (checkbox, name, kind, size, result, status).
   The head and totals are fixed; only the rows region scrolls (`.scroll-thin` restyled to a square 8px
   `--line-strong` thumb on `--bg-0`). The totals row pins to the bottom even when there are few rows.
@@ -309,21 +309,21 @@ Every existing control is kept. Headings group them; the setting title is the cu
 description is the current hint or help text. The `HelpTip` hover tooltips become `.vs-d` description
 text.
 
-| Verb / context | Groups and settings |
-|---|---|
-| **Convert** (image, video, audio, doc, sheet, slide) | FORMAT: Format (`Select` of `sharedTargets`; same-format and RAR-without-WinRAR targets disabled with reasons); Quality (`Segmented` smaller / balanced / best, images only). OUTPUT: Location (O7). FILES: If file exists (O7), Metadata (O7). Then the estimate card |
-| **Convert** › archive repack | FORMAT: Format (archive targets); Compression (`Segmented` store / normal + hint) |
-| **Convert** › from-pdf | FORMAT: Format; PAGES: DPI (`RangeField` 72–400 step 2); Page format (`Segmented` jpg / png + hint); Page quality (`RangeField`, writes `pageQuality`) |
-| **Compress** › image | FORMAT: Format (keep / webp / avif); Quality (`RangeField` 10–100) |
-| **Compress** › video | VIDEO: Codec (h264 / h265 / av1); Scale (`RangeField` 25–100, "original" at 100) with the output resolution list beneath it when below 100; Quality (`RangeField`) |
-| **Compress** › audio | AUDIO: Codec (keep / mp3 / aac / opus); Bitrate (`ChipGrid` 320 … 64) |
-| **Compress** › pdf | PDF: Level (lossless / high / balanced / smallest); Greyscale (`CheckSetting`; replaces the only toggle switch) |
-| **Resize** | SIZE: Mode (`Segmented` percent / dimensions); Percent (`RangeField` 5–200) or Width and Height (`NumberField`, placeholder `auto`) plus Fit (`Segmented` contain / stretch); the output size list |
-| **Upscale** | MODEL: Factor (`ChipGrid` 2× 3× 4×); Model (category `Select`, then sub-`Select` for AI models; "Add your own model" as a `SmallButton` with `i-folder`); the GPU reason as description text; the PiD install card, PiD remove and Comfy import card (section 5). PERFORMANCE: GPU mode (`Segmented` full / background); the low-VRAM warning as a warning-glyph description. Then the output size list |
-| **Remove BG** | BACKGROUND: Fill (`Select`); Custom colour (a 28px swatch button opening the native colour input; the swatch shows the chosen colour, which is the one place a non-grey value appears, because it is user content); Background image (`SmallButton` "Choose image" + file name). The first-run download or missing-`uv` notice is a setting description with the warning glyph |
-| **Tools** › PDF cards | One card = one op, so there is no op chip grid. Pages to images: DPI. Split range: Range (`TextField`, placeholder `1-3,5,8-10`). Merge: the hint "Select 2 or more PDFs" as a description while `runCount < 2` |
-| **Tools** › archive cards (when present) | Extract / to-pdf: an info description only. From-pdf: reuses `PageRenderOptions`, which **fixes the existing bug** where `ArchiveOptions` wrote `quality` and the engine read `pageQuality` |
-| **Generate** | MODEL: Model (`Select` with architecture option groups; non-runnable models stay selectable with a `needs download` suffix, as today, because selecting one is what reveals the download card or Try anyway); CompanionDownload / reason + Try anyway; Add model / Open folder / Change ComfyUI folder as `SmallButton`s. PROMPT: Negative (`TextField`, hidden when cfg is 1); Style (`ChipGrid`). OUTPUT: Count (`RangeField` 1–8); Size (`Select` + custom Width/Height `NumberField`s with clamping). ADVANCED: a collapsible `SettingGroup` (chevron) holding Steps, CFG, Guidance and Seed (+ Random `CheckSetting`) |
+| Verb / context                                       | Groups and settings                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Convert** (image, video, audio, doc, sheet, slide) | FORMAT: Format (`Select` of `sharedTargets`; same-format and RAR-without-WinRAR targets disabled with reasons); Quality (`Segmented` smaller / balanced / best, images only). OUTPUT: Location (O7). FILES: If file exists (O7), Metadata (O7). Then the estimate card                                                                                                                                                                                                                                                                                                                                                     |
+| **Convert** › archive repack                         | FORMAT: Format (archive targets); Compression (`Segmented` store / normal + hint)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Convert** › from-pdf                               | FORMAT: Format; PAGES: DPI (`RangeField` 72–400 step 2); Page format (`Segmented` jpg / png + hint); Page quality (`RangeField`, writes `pageQuality`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Compress** › image                                 | FORMAT: Format (keep / webp / avif); Quality (`RangeField` 10–100)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Compress** › video                                 | VIDEO: Codec (h264 / h265 / av1); Scale (`RangeField` 25–100, "original" at 100) with the output resolution list beneath it when below 100; Quality (`RangeField`)                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Compress** › audio                                 | AUDIO: Codec (keep / mp3 / aac / opus); Bitrate (`ChipGrid` 320 … 64)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Compress** › pdf                                   | PDF: Level (lossless / high / balanced / smallest); Greyscale (`CheckSetting`; replaces the only toggle switch)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Resize**                                           | SIZE: Mode (`Segmented` percent / dimensions); Percent (`RangeField` 5–200) or Width and Height (`NumberField`, placeholder `auto`) plus Fit (`Segmented` contain / stretch); the output size list                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Upscale**                                          | MODEL: Factor (`ChipGrid` 2× 3× 4×); Model (category `Select`, then sub-`Select` for AI models; "Add your own model" as a `SmallButton` with `i-folder`); the GPU reason as description text; the PiD install card, PiD remove and Comfy import card (section 5). PERFORMANCE: GPU mode (`Segmented` full / background); the low-VRAM warning as a warning-glyph description. Then the output size list                                                                                                                                                                                                                    |
+| **Remove BG**                                        | BACKGROUND: Fill (`Select`); Custom colour (a 28px swatch button opening the native colour input; the swatch shows the chosen colour, which is the one place a non-grey value appears, because it is user content); Background image (`SmallButton` "Choose image" + file name). The first-run download or missing-`uv` notice is a setting description with the warning glyph                                                                                                                                                                                                                                             |
+| **Tools** › PDF cards                                | One card = one op, so there is no op chip grid. Pages to images: DPI. Split range: Range (`TextField`, placeholder `1-3,5,8-10`). Merge: the hint "Select 2 or more PDFs" as a description while `runCount < 2`                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Tools** › archive cards (when present)             | Extract / to-pdf: an info description only. From-pdf: reuses `PageRenderOptions`, which **fixes the existing bug** where `ArchiveOptions` wrote `quality` and the engine read `pageQuality`                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **Generate**                                         | MODEL: Model (`Select` with architecture option groups; non-runnable models stay selectable with a `needs download` suffix, as today, because selecting one is what reveals the download card or Try anyway); CompanionDownload / reason + Try anyway; Add model / Open folder / Change ComfyUI folder as `SmallButton`s. PROMPT: Negative (`TextField`, hidden when cfg is 1); Style (`ChipGrid`). OUTPUT: Count (`RangeField` 1–8); Size (`Select` + custom Width/Height `NumberField`s with clamping). ADVANCED: a collapsible `SettingGroup` (chevron) holding Steps, CFG, Guidance and Seed (+ Random `CheckSetting`) |
 
 Engineering clean-ups that come with the split (no behaviour change except the bug fix):
 `OptionsPanel.tsx` becomes `components/options/` with one file per verb plus `primitives`; a memoized
@@ -334,14 +334,14 @@ of two; the stale "three toggles" comment removed.
 
 Derived per row by `rowView(item, ctx)` in `components/queue/rowModel.ts`.
 
-| Status | Status cell | Result cell | Row action |
-|---|---|---|---|
-| `ready` (never run) | blank, no glyph | empty | `i-close` Remove (ghost) |
-| `queued` | `i-clock` "Queued" fg3 | empty | `i-close` Remove (ghost): cancels the queued job **and** removes the row (today the inline × only cancels) |
-| `running` | `i-sync` + `<b>62%</b>(4s)`; `(4s)` only when `etaSec` is known; `!hasProgress` shows `<b>…</b>` | `~410 KB -77%` in fg2 when an estimate exists, otherwise empty | `i-close` Cancel (ghost) |
-| `done` | `i-check` "Done" fg2 | `<b>640 KB</b> -80%`; a directory output shows `<b>N files</b>` or `<b>folder</b>` and no percentage | `i-folder` Show in folder (ghost), revealing the **output** |
-| `failed` | inverted pill, `i-warning`, short label | empty | `i-retry` Retry, **always visible** |
-| `canceled` | `i-close` "Canceled" fg3 | empty | `i-retry` Retry (ghost) |
+| Status              | Status cell                                                                                      | Result cell                                                                                          | Row action                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `ready` (never run) | blank, no glyph                                                                                  | empty                                                                                                | `i-close` Remove (ghost)                                                                                   |
+| `queued`            | `i-clock` "Queued" fg3                                                                           | empty                                                                                                | `i-close` Remove (ghost): cancels the queued job **and** removes the row (today the inline × only cancels) |
+| `running`           | `i-sync` + `<b>62%</b>(4s)`; `(4s)` only when `etaSec` is known; `!hasProgress` shows `<b>…</b>` | `~410 KB -77%` in fg2 when an estimate exists, otherwise empty                                       | `i-close` Cancel (ghost)                                                                                   |
+| `done`              | `i-check` "Done" fg2                                                                             | `<b>640 KB</b> -80%`; a directory output shows `<b>N files</b>` or `<b>folder</b>` and no percentage | `i-folder` Show in folder (ghost), revealing the **output**                                                |
+| `failed`            | inverted pill, `i-warning`, short label                                                          | empty                                                                                                | `i-retry` Retry, **always visible**                                                                        |
+| `canceled`          | `i-close` "Canceled" fg3                                                                         | empty                                                                                                | `i-retry` Retry (ghost)                                                                                    |
 
 **Ready** shows a blank status, because the mockup has no ready label. **Owner check O4.**
 
@@ -397,13 +397,13 @@ selectable). Values use the word "to", not an arrow.
 
 ### 4.8 Toolbar actions
 
-| Button | Does | Enabled when |
-|---|---|---|
-| Add files | `browse()` | always on a queue workspace |
-| Remove selected | `dismiss` on the selection (cancels in-flight jobs first, as today) | selection is non-empty |
-| Retry failed | Retry every failed row in the active group | any failed row |
-| Clear finished | Hide done and canceled input rows (results stay in Completed) | any done or canceled row |
-| Stop all | `cancelJob` for every queued or running row in this workspace | any in flight |
+| Button          | Does                                                                | Enabled when                |
+| --------------- | ------------------------------------------------------------------- | --------------------------- |
+| Add files       | `browse()`                                                          | always on a queue workspace |
+| Remove selected | `dismiss` on the selection (cancels in-flight jobs first, as today) | selection is non-empty      |
+| Retry failed    | Retry every failed row in the active group                          | any failed row              |
+| Clear finished  | Hide done and canceled input rows (results stay in Completed)       | any done or canceled row    |
+| Stop all        | `cancelJob` for every queued or running row in this workspace       | any in flight               |
 
 The toolbar count reads `N files, M selected` (or just `N files`).
 
@@ -505,18 +505,18 @@ See O3, O4, O5, O8 and O10.
 
 ### Open items for the owner's single approval
 
-| # | Item | Proposal |
-|---|---|---|
-| O1 | Generate, Tools grid, Completed, tool setup cards, ErrorBoundary | Sections 5.1, 5.2, 5.3, 5.5, 5.6 |
-| O2 | Empty states | Section 4.12 |
-| O3 | Select popup list | Section 2.7 |
-| O4 | Mixed-group table (group rows) and the `ready` / `canceled` status display | Sections 3.3, 4.3 |
-| O5 | Window size and narrow-width behaviour | Section 3.7 |
-| O6 | Settings view, and moving rail edit mode into it | Sections 3.2, 5.4 |
-| O7 | OUTPUT and FILES settings: Location, Naming, If file exists, Keep metadata | Ship **Location** (next to source / chosen folder, needs M3). Show **If file exists** as a fixed, disabled select reading `add (2)` with the description "Existing files are never overwritten" (the never-overwrite rule makes it the only value). **Defer Naming and Keep metadata** (both need per-tool engine work; metadata stripping differs per tool). Alternative: defer all four and drop the OUTPUT/FILES groups |
-| O8 | Keyboard shortcut set | Section 4.1 |
-| O9 | Preview: draggable wipe, non-image fallbacks | Section 4.6 |
-| O10 | Run scope versus the mockup | The mockup shows one selected row while Options reads `all 6 files` and Run reads `Convert 6 files`, which suggests "selection is only the focus, Run takes the whole batch". The proposal keeps today's rule (Run takes the selection, header `N selected`) and adds: with nothing selected, Run and Options take the whole first group (`all N files`). Alternative: checkboxes alone set the run scope, and a plain click only focuses a row for Preview and Info (section 4.1) |
+| #   | Item                                                                       | Proposal                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O1  | Generate, Tools grid, Completed, tool setup cards, ErrorBoundary           | Sections 5.1, 5.2, 5.3, 5.5, 5.6                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| O2  | Empty states                                                               | Section 4.12                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| O3  | Select popup list                                                          | Section 2.7                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| O4  | Mixed-group table (group rows) and the `ready` / `canceled` status display | Sections 3.3, 4.3                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| O5  | Window size and narrow-width behaviour                                     | Section 3.7                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| O6  | Settings view, and moving rail edit mode into it                           | Sections 3.2, 5.4                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| O7  | OUTPUT and FILES settings: Location, Naming, If file exists, Keep metadata | Ship **Location** (next to source / chosen folder, needs M3). Show **If file exists** as a fixed, disabled select reading `add (2)` with the description "Existing files are never overwritten" (the never-overwrite rule makes it the only value). **Defer Naming and Keep metadata** (both need per-tool engine work; metadata stripping differs per tool). Alternative: defer all four and drop the OUTPUT/FILES groups                                                         |
+| O8  | Keyboard shortcut set                                                      | Section 4.1                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| O9  | Preview: draggable wipe, non-image fallbacks                               | Section 4.6                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| O10 | Run scope versus the mockup                                                | The mockup shows one selected row while Options reads `all 6 files` and Run reads `Convert 6 files`, which suggests "selection is only the focus, Run takes the whole batch". The proposal keeps today's rule (Run takes the selection, header `N selected`) and adds: with nothing selected, Run and Options take the whole first group (`all N files`). Alternative: checkboxes alone set the run scope, and a plain click only focuses a row for Preview and Info (section 4.1) |
 
 ## 6. Data gaps
 
@@ -601,14 +601,14 @@ There are no `data-testid`s today, and Playwright's `has-text` is case-insensiti
 breadcrumb `convert` would capture `button:has-text("Convert").first()`. The specs move to scoped role
 selectors, and the DOM keeps the contracts they need:
 
-| Today | After |
-|---|---|
-| `h1` hasText `<Verb>` | The inspector `ihead` title is an `<h1>`; Tools grid, Completed and Settings have their own `<h1>`. Specs keep `h1` |
-| `button:has-text("<verb>").first()` | `page.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: '<verb>' })` |
-| `button:has-text("Convert").last()` (Run) | `page.getByTestId('run')` |
-| `text=Files` | `page.getByRole('grid', { name: 'Files' })` (the table's `aria-label`) |
-| `button[aria-label="Back to Tools"]` | kept: the breadcrumb `tools` segment is a button with that `aria-label` |
-| Tools card labels visible | kept; labels come from `TOOL_CARDS` |
+| Today                                     | After                                                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `h1` hasText `<Verb>`                     | The inspector `ihead` title is an `<h1>`; Tools grid, Completed and Settings have their own `<h1>`. Specs keep `h1` |
+| `button:has-text("<verb>").first()`       | `page.getByRole('navigation', { name: 'Operations' }).getByRole('button', { name: '<verb>' })`                      |
+| `button:has-text("Convert").last()` (Run) | `page.getByTestId('run')`                                                                                           |
+| `text=Files`                              | `page.getByRole('grid', { name: 'Files' })` (the table's `aria-label`)                                              |
+| `button[aria-label="Back to Tools"]`      | kept: the breadcrumb `tools` segment is a button with that `aria-label`                                             |
+| Tools card labels visible                 | kept; labels come from `TOOL_CARDS`                                                                                 |
 
 `window.filesmith.*` contracts used by the engine specs are untouched.
 

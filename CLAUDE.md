@@ -24,12 +24,17 @@ Remove BG / Generate / Tools, each owning one queue that may hold several
 convert groups at once. A selection never spans two convert groups, because one
 options panel can only describe one target set. See `src/shared/tabs.ts`.
 
+**Signed-off redesign (2026-10-04):** `docs/mockups/terminal-v5/10-s2-vscode-grouped.html`, dark-only,
+strict monochrome. Rules and feedback trail: `docs/design/redesign-direction.md`.
+
 **The look is designed collaboratively with the owner. Make NO visual assumptions.**
 Before building or restyling any UI, present mockups (self-contained browser HTML, like the
 RCMM Show/Hide exploration), offer options, and iterate to explicit sign-off. This covers
 layout, components, palette, typography, motion, empty/loading states, and the file-preview
-experience. The current renderer is a deliberately plain placeholder until that design work
-happens. Engineering/plumbing (main process, tool modules, IPC, tests, packaging) moves fast
+experience. The renderer implements the signed-off terminal design (rules in
+`docs/design/redesign-direction.md`): dark only, strict monochrome, every colour is a token in
+`src/renderer/src/theme/tokens.css`, and `test/monochrome-source.test.ts` fails on any other colour
+literal. New screens still go through mockups first. Engineering/plumbing (main process, tool modules, IPC, tests, packaging) moves fast
 without design ceremony.
 
 ## Scope (v1, built in phases)
@@ -57,7 +62,9 @@ src/
     (planned) output.ts        collision-safe output naming (ported from RCMM Get-UniqueOutPath)
     (planned) ipc.ts           renderer <-> engine wiring
   preload/     contextBridge — the typed `window.filesmith` API
-  renderer/    React UI (placeholder until designed)
+  renderer/    React UI: shell/ (title bar, sidebar, status bar), queue/ (files table),
+               inspector/ (Options, Preview, Info), options/ (one settings file per verb),
+               views/ (Generate, Tools, Completed, Settings), ui/ (primitives), icons/, theme/ (tokens, CSS)
   shared/      types.ts — Job, ToolId, FileKind, Options, progress events
                tabs.ts  — the VERB-first navigation model (rail tabs + Tools cards)
 resources/bin/ bundled CLI binaries (gitignored; fetched by scripts, packed by electron-builder)
