@@ -75,8 +75,10 @@ test('the app boots to the Convert workspace', async () => {
   // The rail names the verb, so the app opens on the first one rather than on
   // a file type.
   await expect(page.locator('h1', { hasText: 'Convert' }).first()).toBeVisible()
-  // The primary action is on screen without scrolling (the pinned footer).
-  await expect(page.locator('button', { hasText: 'Convert' }).last()).toBeVisible()
+  // The pinned Run button is reachable without scrolling and names the verb.
+  const run = page.getByTestId('run')
+  await expect(run).toBeVisible()
+  await expect(run).toHaveText(/Convert/)
 })
 
 test('convert PNG -> JPG lands a collision-safe output', async () => {
