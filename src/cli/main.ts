@@ -27,8 +27,24 @@ async function dispatch(
   }
 }
 
+/** The one terminal line in JSON mode (spec 2.6) when nothing was counted. */
+function emptySummary(reporter: Reporter, exitCode: number): void {
+  reporter.emit({
+    event: 'summary',
+    ok: 0,
+    failed: 0,
+    skipped: 0,
+    canceled: 0,
+    inBytes: 0,
+    outBytes: 0,
+    ms: 0,
+    exitCode
+  })
+}
+
 function failure(e: unknown, io: CliIO, reporter: Reporter, json: boolean): number {
   if (e instanceof CliError) {
+    const exitCode = e.code === 'CANCELED' ? EXIT.CANCELED : EXIT.USAGE
     reporter.emit({ event: 'error', code: e.code, message: e.message, hint: e.hint })
     if (e instanceof UsageError && !json) {
       const cmd = findCommand(e.commandPath)
@@ -37,19 +53,8 @@ function failure(e: unknown, io: CliIO, reporter: Reporter, json: boolean): numb
         `${cmd ? usageLine(cmd) : 'Usage: filesmith <command> [options]'}\nRun 'filesmith ${where}--help' for details.\n`
       )
     }
-    if (json)
-      reporter.emit({
-        event: 'summary',
-        ok: 0,
-        failed: 0,
-        skipped: 0,
-        canceled: 0,
-        inBytes: 0,
-        outBytes: 0,
-        ms: 0,
-        exitCode: EXIT.USAGE
-      })
-    return EXIT.USAGE
+    if (json) emptySummary(reporter, exitCode)
+    return exitCode
   }
   reporter.emit({
     event: 'error',
@@ -57,6 +62,7 @@ function failure(e: unknown, io: CliIO, reporter: Reporter, json: boolean): numb
     message: e instanceof Error ? e.message : String(e)
   })
   io.stderr.write(`${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`)
+  if (json) emptySummary(reporter, EXIT.FAILED)
   return EXIT.FAILED
 }
 

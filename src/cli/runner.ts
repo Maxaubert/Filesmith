@@ -85,6 +85,16 @@ export function runPlanned(
   for (const j of jobs) if (j.state !== 'ready') totals[emitNotReady(j, reporter)]++
   const ready = jobs.filter((j) => j.state === 'ready')
   if (!ready.length) return Promise.resolve(totals)
+  // Canceled before the run began (Ctrl+C or a closed stdout during input
+  // expansion or readiness): start nothing, or the queue would spawn tools
+  // only to kill them.
+  if (signal.aborted) {
+    for (const j of ready) {
+      reporter.emit({ event: 'canceled', id: j.id, input: j.input })
+      totals.canceled++
+    }
+    return Promise.resolve(totals)
+  }
 
   return new Promise((resolve) => {
     const byId = new Map(ready.map((j) => [j.id, j]))

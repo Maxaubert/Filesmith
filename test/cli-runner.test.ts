@@ -125,6 +125,25 @@ describe('runPlanned', () => {
     const t = await runPlanned([job('1')], r, deps(fakeQueue(() => {})), ctrl.signal)
     expect(t.canceled).toBe(1)
   })
+
+  it('an already-aborted signal never creates the queue, so no tool is spawned', async () => {
+    const r = recorder()
+    const ctrl = new AbortController()
+    ctrl.abort()
+    const t = await runPlanned(
+      [job('1'), job('2')],
+      r,
+      {
+        ...deps(fakeQueue(() => {})),
+        queue: () => {
+          throw new Error('the queue must not be created after an abort')
+        }
+      },
+      ctrl.signal
+    )
+    expect(t.canceled).toBe(2)
+    expect(r.events.map((e) => e.event)).toEqual(['canceled', 'canceled'])
+  })
 })
 
 describe('classifyError', () => {

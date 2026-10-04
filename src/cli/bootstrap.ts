@@ -7,6 +7,7 @@ import { stopComfyServer } from '../main/generate'
 import { cliEngineEnv } from './env'
 import type { Out } from './events'
 import { defaultDeps } from './deps'
+import { CliError } from './exit'
 import { main } from './main'
 
 // The process entry (spec 4.1): the only file that touches `process`. Runs as
@@ -51,13 +52,24 @@ process.stdout.on('error', (e: NodeJS.ErrnoException) => {
 const stdout: Out = { write: (s) => void (stdoutClosed || process.stdout.write(s)) }
 const stderr: Out = { write: (s) => void process.stderr.write(s) }
 
+// Ctrl+C while `filesmith <verb> -` still waits on an interactive stdin
+// cancels at once instead of needing a second Ctrl+C.
 function readStdin(): Promise<string> {
   return new Promise((resolve, reject) => {
+    const canceled = (): void => {
+      process.stdin.pause()
+      reject(new CliError('CANCELED', 'Canceled while reading file names from stdin.'))
+    }
+    if (ctrl.signal.aborted) return canceled()
     let text = ''
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', (d) => (text += d))
-    process.stdin.on('end', () => resolve(text))
+    process.stdin.on('end', () => {
+      ctrl.signal.removeEventListener('abort', canceled)
+      resolve(text)
+    })
     process.stdin.on('error', reject)
+    ctrl.signal.addEventListener('abort', canceled, { once: true })
   })
 }
 

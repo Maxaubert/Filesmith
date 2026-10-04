@@ -142,6 +142,17 @@ test('--out: a missing folder is created; a file is exit 2 OUT_DIR_MISSING', () 
   const r = cli(['convert', 'a.png', '--to', 'webp', '--out', 'afile', '--json'])
   expect(r.code).toBe(2)
   expect(of(r.events, 'error')[0]).toMatchObject({ code: 'OUT_DIR_MISSING' })
+  // A folder that cannot be created (under a file): the dry run ends like the
+  // real run, exit 2 before any job, nothing written (spec 2.4).
+  for (const extra of [['--dry-run'], []]) {
+    const u = cli(['convert', 'a.png', '--to', 'webp', '--out', 'afile\\sub', '--json', ...extra])
+    expect(u.code).toBe(2)
+    expect(u.events.map((e) => [e.event, e.code ?? e.exitCode])).toEqual([
+      ['error', 'OUT_DIR_MISSING'],
+      ['summary', 2]
+    ])
+  }
+  expect(existsSync(join(work, 'a.webp'))).toBe(false)
 })
 
 test('folder, --recursive and stdin inputs', () => {
@@ -196,8 +207,22 @@ test('the built CLI and every chunk it loads never require electron', () => {
   expect(seen.size).toBeGreaterThan(1)
 })
 
+const UPSCALER = 'realesrgan-ncnn-vulkan.exe'
+function upscalerPids(): Set<string> {
+  const out = execFileSync('tasklist', ['/FI', `IMAGENAME eq ${UPSCALER}`, '/FO', 'CSV', '/NH'], {
+    encoding: 'utf-8'
+  })
+  return new Set(
+    out
+      .split(/\r?\n/)
+      .filter((l) => l.startsWith(`"${UPSCALER}"`))
+      .map((l) => l.split('","')[1])
+  )
+}
+
 test('a closed stdout cancels the run and exits 130 without a stack trace', async () => {
   for (const n of ['a', 'b', 'c', 'd', 'e', 'f']) image(`${n}.png`, '1600x1200')
+  const before = upscalerPids()
   const child = spawn(process.execPath, [CLI, 'upscale', '.', '--factor', '2', '--json'], {
     cwd: work,
     env: { ...process.env, FILESMITH_USER_DATA: join(work, '.ud') }
@@ -209,6 +234,15 @@ test('a closed stdout cancels the run and exits 130 without a stack trace', asyn
   const code = await new Promise<number | null>((res) => child.on('exit', res))
   expect(code).toBe(130)
   expect(err).not.toMatch(/at .*\.js:\d+/)
+  // No orphaned tool process: every upscaler this run started is gone after
+  // a short grace period.
+  let orphans: string[] = []
+  for (let i = 0; i < 20; i++) {
+    orphans = [...upscalerPids()].filter((pid) => !before.has(pid))
+    if (!orphans.length) break
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  expect(orphans).toEqual([])
 })
 
 test('works while the app is open, and its jobs never reach the app', async () => {
