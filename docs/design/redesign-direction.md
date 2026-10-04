@@ -26,5 +26,9 @@ Mockup rounds live in `docs/mockups/terminal*/` (each has an `index.html` galler
   like the other toolbar buttons. No white fills anywhere: selected segments, chips, checkboxes and the primary
   button use grey `#2a2a2a` with light text (the `--inv-*` tokens). The Tools tab is "PDF Tools", with no
   divider line above it.
+- Files toolbar is only Add files + count. Row actions live in a right-click menu (Open, Show in File
+  Explorer, Retry, Stop, Clear finished, Remove from list, Delete); destructive ones confirm first. While work
+  runs, the run button becomes a red Stop (`--stop-*`, the app's one hue). Preview/Info show nothing for a
+  multi-selection ("Select one file to preview").
 - Wind is a reference, not a template. Avoid its signatures: the floating progress+button pill, the icon-tile
   header band, and big rounded cards of right-aligned setting rows.
