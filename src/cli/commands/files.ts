@@ -9,6 +9,7 @@ import type { CliIO } from '../io'
 import { buildOptions, type PathState, type Warning } from '../options'
 import type { ParsedArgs } from '../parse'
 import { acceptsKind, planJobs, type PlanEnv, type PlanResult } from '../plan'
+import { planPdfJobs } from '../planPdf'
 import { emitNotReady, runPlanned, type QueueFactory, type RunTotals } from '../runner'
 import { VERSION } from '../version'
 
@@ -48,7 +49,9 @@ function planAny(
   built: ReturnType<typeof buildOptions>,
   env: PlanEnv
 ): PlanResult {
-  return planJobs(id, files, built, env)
+  return id.startsWith('pdf ') && id !== 'pdf compress'
+    ? planPdfJobs(id, files, built, env)
+    : planJobs(id, files, built, env)
 }
 
 /** convert, compress, resize, upscale, removebg and the pdf tools. */

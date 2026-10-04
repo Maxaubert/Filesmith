@@ -13,7 +13,7 @@ import {
 } from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
-import { MAGICK, ROOT, magickEnv } from './helpers'
+import { MAGICK, MUTOOL, ROOT, magickEnv } from './helpers'
 
 // The CLI as a real process (spec 8.2): `node out/main/cli.js` against the
 // repo's bundled tools, with an isolated userData. Run `npm run build` first.
@@ -262,4 +262,49 @@ test('works while the app is open, and its jobs never reach the app', async () =
   } finally {
     await app.close()
   }
+})
+
+const pdfOf = (name: string, ...pages: string[]): string => {
+  const imgs = pages.map((size, i) => image(`${name}-p${i}.png`, size))
+  const p = join(work, name)
+  execFileSync(MAGICK, [...imgs, p], { env: magickEnv })
+  return p
+}
+// This mutool build prints `<MediaBox l="0" b="0" r="200" t="100" />` per page.
+const pageWidths = (pdf: string): number[] =>
+  [
+    ...execFileSync(MUTOOL, ['pages', pdf])
+      .toString()
+      .matchAll(/<MediaBox[^>]*\br="([\d.]+)"/g)
+  ].map((m) => Math.round(Number(m[1])))
+
+test('pdf merge keeps argument order; split keeps the listed pages; burst makes a folder', () => {
+  pdfOf('a.pdf', '100x100')
+  pdfOf('b.pdf', '200x100', '300x100', '400x100')
+  const merged = cli(['pdf', 'merge', 'b.pdf', 'a.pdf', '--json'])
+  expect(merged.code).toBe(0)
+  const out = of(merged.events, 'done')[0].output as string
+  expect(out).toBe(join(work, 'b (merged).pdf'))
+  expect(pageWidths(out)).toEqual([200, 300, 400, 100])
+
+  const split = cli(['pdf', 'split', 'b.pdf', '--pages', '2-3', '--json'])
+  expect(pageWidths(of(split.events, 'done')[0].output as string)).toEqual([300, 400])
+
+  const burst = cli(['pdf', 'burst', 'b.pdf', '--json'])
+  expect(of(burst.events, 'done')[0]).toMatchObject({
+    output: join(work, 'b (split)'),
+    outputKind: 'dir',
+    files: 3
+  })
+})
+
+test('pdf tools reject non-PDF inputs; pdf compress is compress', () => {
+  image('x.png')
+  const bad = cli(['pdf', 'extract-text', 'x.png', '--json'])
+  expect(bad.code).toBe(2)
+  expect(of(bad.events, 'error')[0]).toMatchObject({ code: 'UNSUPPORTED_KIND' })
+  pdfOf('c.pdf', '100x100')
+  const c = cli(['pdf', 'compress', 'c.pdf', '--level', 'lossless', '--json'])
+  expect(c.code).toBe(0)
+  expect(of(c.events, 'done')[0].output).toBe(join(work, 'c (compressed).pdf'))
 })
