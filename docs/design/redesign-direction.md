@@ -21,5 +21,7 @@ Mockup rounds live in `docs/mockups/terminal*/` (each has an `index.html` galler
   in the status column.
 - Result column: the arrow sits on the size/result split. Done = actual result, running = grey `~estimate`,
   queued/failed = empty. The batch estimate shows in the right panel before you press Convert.
+- Post-build feedback (2026-10-04): Add files is grey (not white); no white left bars on selected rows or the
+  active sidebar item; the active item's count is a plain number, not an inverted box.
 - Wind is a reference, not a template. Avoid its signatures: the floating progress+button pill, the icon-tile
   header band, and big rounded cards of right-aligned setting rows.
