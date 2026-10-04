@@ -50,6 +50,9 @@ describe('labels', () => {
   })
   it('signs the percentage with a plain hyphen', () => {
     expect(pctChange(1000, 200)).toBe(-80)
+    // A tiny but non-empty output rounds to -99%, never a false -100%.
+    expect(pctChange(29_000_000, 51_000)).toBe(-99)
+    expect(pctChange(1000, 0)).toBe(-100)
     expect(formatPct(-80)).toBe('-80%')
     expect(formatPct(12)).toBe('+12%')
     expect(formatPct(0)).toBe('0%')

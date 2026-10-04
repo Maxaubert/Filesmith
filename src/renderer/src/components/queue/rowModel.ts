@@ -31,7 +31,9 @@ export function kindLabel(ext: string): string {
 
 export function pctChange(src: number, out: number): number | null {
   if (!(src > 0) || !Number.isFinite(out)) return null
-  return Math.round(((out - src) / src) * 100)
+  const pct = Math.round(((out - src) / src) * 100)
+  // A non-empty output never saved everything: 29 MB to 51 KB reads -99%, not -100%.
+  return pct === -100 && out > 0 ? -99 : pct
 }
 
 export function formatPct(n: number): string {

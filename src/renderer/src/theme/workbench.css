@@ -976,7 +976,7 @@
   display: flex;
   gap: 6px;
 }
-.vs-row .vs-sel {
+.vs-row > .vs-sel {
   flex: 1;
   width: auto;
 }
