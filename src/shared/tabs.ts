@@ -23,7 +23,6 @@ export interface Tab {
   label: string
   /** One line under the title, and on the empty state. */
   desc: string
-  color: string
   icon: IconName
   /** Kinds this verb can act on. Empty means the tab takes no dropped input. */
   kinds: FileKind[]
@@ -37,7 +36,6 @@ export const TABS: Tab[] = [
     // family, so PDF -> DOCX/TXT/RTF is an ordinary convert.
     label: 'Convert',
     desc: 'Change format',
-    color: '#5b5bd6',
     icon: 'convert',
     kinds: ['image', 'video', 'audio', 'document', 'text', 'pdf', 'archive'],
     tool: 'convert'
@@ -46,7 +44,6 @@ export const TABS: Tab[] = [
     id: 'compress',
     label: 'Compress',
     desc: 'Shrink file size',
-    color: '#f5920b',
     icon: 'compress',
     kinds: ['image', 'video', 'audio', 'pdf'],
     tool: 'compress'
@@ -55,7 +52,6 @@ export const TABS: Tab[] = [
     id: 'resize',
     label: 'Resize',
     desc: 'Scale by percent or exact size',
-    color: '#22b364',
     icon: 'resize',
     kinds: ['image'],
     tool: 'resize'
@@ -64,7 +60,6 @@ export const TABS: Tab[] = [
     id: 'upscale',
     label: 'Upscale',
     desc: 'Enlarge 2x to 4x with AI',
-    color: '#8b5cf6',
     icon: 'upscale',
     kinds: ['image'],
     tool: 'upscale'
@@ -73,7 +68,6 @@ export const TABS: Tab[] = [
     id: 'removebg',
     label: 'Remove BG',
     desc: 'Cut the subject out with AI',
-    color: '#12b3a6',
     icon: 'removebg',
     kinds: ['image'],
     tool: 'removebg'
@@ -83,7 +77,6 @@ export const TABS: Tab[] = [
     id: 'generate',
     label: 'Generate',
     desc: 'Create an image from a text prompt',
-    color: '#d6409f',
     icon: 'generate',
     kinds: [],
     tool: 'generate'
@@ -94,7 +87,6 @@ export const TABS: Tab[] = [
     id: 'tools',
     label: 'Tools',
     desc: 'One-off jobs, grouped by what they act on',
-    color: '#6e6e73',
     icon: 'tools',
     kinds: [],
     tool: 'pdf'
@@ -110,7 +102,6 @@ export const COMPLETED_TAB: Tab = {
   id: 'completed',
   label: 'Completed',
   desc: 'Everything Filesmith has produced',
-  color: '#22b364',
   icon: 'completed',
   kinds: [],
   tool: 'convert'
@@ -121,7 +112,6 @@ export const SETTINGS_TAB: Tab = {
   id: 'settings',
   label: 'Settings',
   desc: 'Sidebar and tools',
-  color: '#6e6e6e',
   icon: 'settings',
   kinds: [],
   tool: 'convert'
@@ -133,7 +123,6 @@ export interface ToolCard {
   desc: string
   /** Section heading in the Tools grid. */
   group: string
-  color: string
   icon: IconName
   tool: ToolId
   opKey: string
@@ -149,7 +138,6 @@ export const TOOL_CARDS: ToolCard[] = [
     label: 'Extract text',
     desc: 'Save the text layer as .txt',
     group: 'PDF',
-    color: '#ef4444',
     icon: 'text',
     tool: 'pdf',
     opKey: 'extract-text',
@@ -160,7 +148,6 @@ export const TOOL_CARDS: ToolCard[] = [
     label: 'Pages to PNG',
     desc: 'Render each page to an image',
     group: 'PDF',
-    color: '#ef4444',
     icon: 'image',
     tool: 'pdf',
     opKey: 'pages-to-images',
@@ -171,7 +158,6 @@ export const TOOL_CARDS: ToolCard[] = [
     label: 'Merge',
     desc: 'Combine PDFs into one',
     group: 'PDF',
-    color: '#ef4444',
     icon: 'merge',
     tool: 'pdf',
     opKey: 'merge',
@@ -182,7 +168,6 @@ export const TOOL_CARDS: ToolCard[] = [
     label: 'Split',
     desc: 'Keep only the pages you list',
     group: 'PDF',
-    color: '#ef4444',
     icon: 'split',
     tool: 'pdf',
     opKey: 'split-range',
@@ -193,7 +178,6 @@ export const TOOL_CARDS: ToolCard[] = [
     label: 'Burst',
     desc: 'Save every page separately',
     group: 'PDF',
-    color: '#ef4444',
     icon: 'burst',
     tool: 'pdf',
     opKey: 'split-pages',
@@ -204,7 +188,6 @@ export const TOOL_CARDS: ToolCard[] = [
     label: 'Extract images',
     desc: 'Pull out embedded images',
     group: 'PDF',
-    color: '#ef4444',
     icon: 'pull',
     tool: 'pdf',
     opKey: 'extract-images',
