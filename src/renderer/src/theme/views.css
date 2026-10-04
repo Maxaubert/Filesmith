@@ -130,3 +130,54 @@
 .vs-set > .rng + .sizes {
   margin-top: 6px;
 }
+
+/* preview wipe (Task 14) */
+.wipe {
+  cursor: default;
+  touch-action: none;
+}
+.wimg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.wext {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--fg3);
+  text-transform: uppercase;
+}
+.wipe .line {
+  cursor: ew-resize;
+  z-index: 1;
+}
+.wipe .line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  right: -6px;
+}
+.wipe .line:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+.wipe .tag {
+  z-index: 2;
+}
+/* info rows: the value wraps, an in-row button keeps its width */
+.dgrid dd > span {
+  flex: 1;
+  min-width: 0;
+}
+.dgrid dd > .sbtn {
+  flex: none;
+  white-space: nowrap;
+  align-self: flex-start;
+}

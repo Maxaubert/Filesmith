@@ -67,6 +67,8 @@ import { groupedRows, nextSort, visibleOrder, type SortState } from './component
 import { estimateBatch, estimateOutputBytes } from '@shared/sizeEstimate'
 import { EmptyState } from './components/queue/EmptyState'
 import { Inspector, type InspTab } from './components/inspector/Inspector'
+import { InfoPane } from './components/inspector/InfoPane'
+import { PreviewPane } from './components/inspector/PreviewPane'
 import { OptionsPane } from './components/options/OptionsPane'
 import { useOptionSetter } from './components/options/useOptionSetter'
 import type { SizeRow } from './components/ui/OutputSizeList'
@@ -876,15 +878,32 @@ export default function App(): JSX.Element {
             .map((f) => f.path)
         : []
   const compressVideoPaths = tool === 'compress' ? probePaths : []
+  // The focused file, shown by the Preview and Info panes (spec 4.6).
+  const focused = cur.items.find(
+    (i) => i.id === (cur.anchor && cur.selected.includes(cur.anchor) ? cur.anchor : cur.selected[0])
+  )
+  // Preview and Info show the focused file's pixels, so probe it too.
+  const focusedProbe =
+    inspTab !== 'options' &&
+    focused &&
+    (focused.file.kind === 'image' || focused.file.kind === 'video')
+      ? focused.file
+      : null
+  const probeKinds: Record<string, 'image' | 'video'> = {}
+  for (const p of probePaths)
+    probeKinds[p] = tool === 'upscale' || tool === 'resize' ? 'image' : 'video'
+  if (focusedProbe && !(focusedProbe.path in probeKinds))
+    probeKinds[focusedProbe.path] = focusedProbe.kind === 'image' ? 'image' : 'video'
+  const probeKey = Object.keys(probeKinds)
+    .map((p) => `${probeKinds[p]}:${p}`)
+    .join('|')
   useEffect(() => {
-    for (const p of probePaths) {
+    for (const [p, kind] of Object.entries(probeKinds)) {
       if (p in vDims || vDimsRequested.current.has(p)) continue
       vDimsRequested.current.add(p)
       // Images resolve via ImageMagick, video via ffprobe (rotation-aware).
       const probe =
-        tool === 'upscale' || tool === 'resize'
-          ? window.filesmith.imageDimensions(p)
-          : window.filesmith.videoDimensions(p)
+        kind === 'image' ? window.filesmith.imageDimensions(p) : window.filesmith.videoDimensions(p)
       void probe.then((d) => {
         // A failed probe returns null; don't cache it — drop the request marker
         // so it can be re-probed (transient errors, a file still being written).
@@ -893,7 +912,7 @@ export default function App(): JSX.Element {
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [probePaths.join('|')])
+  }, [probeKey])
   const compressScale = Number(curOptions.scale ?? 100)
   const videoOutputs: SizeRow[] = compressVideoPaths.map((p) => {
     const d = vDims[p]
@@ -1022,9 +1041,6 @@ export default function App(): JSX.Element {
   const showInspector = !onToolsGrid && !onCompleted && state.tab !== 'settings'
 
   // Inspector head and Run label (spec 3.4, 4.1).
-  const focused = cur.items.find(
-    (i) => i.id === (cur.anchor && cur.selected.includes(cur.anchor) ? cur.anchor : cur.selected[0])
-  )
   const scopeCount = scopeItems.length
   const inspSub =
     tool === 'generate'
@@ -1264,6 +1280,21 @@ export default function App(): JSX.Element {
                   estimate={batchEstimate}
                   set={onSet}
                 />
+              ) : focused ? (
+                inspTab === 'preview' ? (
+                  <PreviewPane
+                    key={focused.id}
+                    item={focused}
+                    outKind={focused.outputPath ? fileKind(extOfPath(focused.outputPath)) : null}
+                    dims={vDims[focused.file.path] ?? null}
+                  />
+                ) : (
+                  <InfoPane
+                    item={focused}
+                    dims={vDims[focused.file.path] ?? null}
+                    target={typeof curOptions.format === 'string' ? curOptions.format : null}
+                  />
+                )
               ) : (
                 <EmptyState
                   icon={inspTab === 'preview' ? 'eye' : 'info'}
