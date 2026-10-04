@@ -44,7 +44,10 @@ describe('design tokens', () => {
   })
 
   it('is strictly monochrome: every colour token has r = g = b', () => {
-    const all = [...css.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{3,8})\b/g)]
+    // The Stop button is the one approved hue (owner, 2026-10-04).
+    const all = [...css.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{3,8})\b/g)].filter(
+      ([, name]) => !name.startsWith('stop-')
+    )
     expect(all.length).toBeGreaterThanOrEqual(Object.keys(EXPECTED).length)
     for (const [, name, hex] of all) {
       const h = expand(hex)

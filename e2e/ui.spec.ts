@@ -78,3 +78,12 @@ test('an empty workspace offers Add files and a disabled Run', async () => {
   await expect(page.getByText('no files', { exact: true })).toBeVisible()
   await expect(page.getByRole('row', { name: 'Totals' })).toHaveCount(0)
 })
+
+test('the toolbar is Add files, Clear finished, then Remove; Stop lives in the run button', async () => {
+  const bar = page.getByRole('toolbar', { name: 'File actions' })
+  const names = await bar
+    .getByRole('button')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent?.trim()))
+  expect(names).toEqual(['Add files', 'Clear finished', 'Remove selected'])
+  await expect(page.getByTestId('stop')).toHaveCount(0)
+})

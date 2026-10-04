@@ -60,10 +60,11 @@ export function RowAction({
 export function PrimaryButton({
   icon = 'play',
   children,
+  className,
   ...rest
 }: B & { icon?: IconName; children: ReactNode }): JSX.Element {
   return (
-    <button type="button" className="primary" {...rest}>
+    <button type="button" className={className ? `primary ${className}` : 'primary'} {...rest}>
       <Icon name={icon} />
       {children}
     </button>

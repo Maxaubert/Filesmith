@@ -1124,3 +1124,15 @@
     transition: none;
   }
 }
+
+/* While work runs the primary button becomes Stop: the app's one hue. */
+.primary.stop {
+  background: var(--stop-bg);
+  color: var(--stop-fg);
+}
+.primary.stop:hover {
+  background: var(--stop-hover);
+}
+.primary.stop:active {
+  background: var(--stop-active);
+}

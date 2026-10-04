@@ -18,6 +18,11 @@
   --inv-hover: #3a3a3a;
   --inv-active: #202020;
   --focus: #ededed;
+  /* The one hue in the app (owner, 2026-10-04): the Stop button while work runs. */
+  --stop-bg: #c42b1c;
+  --stop-hover: #d13b2c;
+  --stop-active: #a8251a;
+  --stop-fg: #ffffff;
   --backdrop: rgba(0, 0, 0, 0.6);
 
   --sans: 'IBM Plex Sans', system-ui, sans-serif;

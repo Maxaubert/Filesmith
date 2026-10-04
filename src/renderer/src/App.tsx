@@ -1005,12 +1005,8 @@ export default function App(): JSX.Element {
           runList.map((i) => ({ size: i.file.size, estimate: estimateFor(i, curOptions) }))
         )
 
-  // Toolbar flags. Retry acts on the failed rows of one group only.
+  // Toolbar and Stop flags.
   const inputs = cur.items.filter(inInput)
-  const groupForBulk = activeGroupFor(cur.items, cur.selected)
-  const failedInGroup = inputs.filter(
-    (i) => i.status === 'failed' && groupOf(i.file) === groupForBulk
-  )
   const inFlight = inputs.filter((i) => i.status === 'queued' || i.status === 'running')
 
   // Everything produced, across every workspace, for the Completed tab.
@@ -1161,14 +1157,20 @@ export default function App(): JSX.Element {
                   selected={cur.selected.length}
                   dropping={dragging}
                   canRemove={cur.selected.length > 0}
-                  canRetry={failedInGroup.length > 0}
                   canClear={inputs.some((i) => i.status === 'done' || i.status === 'canceled')}
-                  canStop={inFlight.length > 0}
                   onAdd={() => void browse()}
-                  onRemove={() => dismiss(cur.selected, 'input')}
-                  onRetry={() => retry(failedInGroup.map((i) => i.id))}
+                  onRemove={() => {
+                    const ids = cur.selected
+                    const n = ids.length
+                    setConfirm({
+                      title: n === 1 ? 'Remove this file?' : `Remove ${n} files?`,
+                      body: 'They leave the list. Files on disk are not touched; running jobs are stopped.',
+                      confirmLabel: 'Remove',
+                      danger: true,
+                      onConfirm: () => dismiss(ids, 'input')
+                    })
+                  }}
                   onClear={() => dispatch({ type: 'hideFinished' })}
-                  onStop={() => inFlight.forEach((i) => cancelJob(i.id))}
                 />
                 <QueueTable
                   groups={groups}
@@ -1222,6 +1224,12 @@ export default function App(): JSX.Element {
               runLabel={runLabel}
               runDisabled={runCount === 0}
               onRun={() => void run()}
+              stopping={tool === 'generate' ? genRun.running : inFlight.length > 0}
+              onStop={() => {
+                if (tool === 'generate') {
+                  if (genActiveId.current) window.filesmith.generateCancel(genActiveId.current)
+                } else inFlight.forEach((i) => cancelJob(i.id))
+              }}
             >
               {inspTab === 'options' ? (
                 <OptionsPane

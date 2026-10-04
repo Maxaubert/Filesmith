@@ -48,6 +48,7 @@ export const ICON_SHAPES: Record<IconName, Prim[]> = {
   sync: [['path', 'M13.5 8A5.5 5.5 0 1 1 8 2.5']],
   'chev-r': [['path', 'M6 4l4 4-4 4']],
   'chev-d': [['path', 'M4 6l4 4 4-4']],
+  cleardone: [['path', 'M2 4.5l1.25 1.25L5.5 3.5M2 10.5l1.25 1.25L5.5 9.5M7.5 4.5H14M7.5 10.5H14']],
   trash: [['path', 'M3 4.5h10M6 4.5V2.5h4v2M4.5 4.5l.5 9h6l.5-9']],
   eye: [
     ['path', 'M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z'],

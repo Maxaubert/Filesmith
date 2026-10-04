@@ -14,6 +14,8 @@ export function Inspector({
   runLabel,
   runDisabled,
   onRun,
+  stopping = false,
+  onStop,
   children
 }: {
   tab: InspTab
@@ -23,6 +25,9 @@ export function Inspector({
   runLabel: string
   runDisabled: boolean
   onRun: () => void
+  /** While work runs, Run becomes Stop (owner, 2026-10-04). */
+  stopping?: boolean
+  onStop?: () => void
   children: ReactNode
 }): JSX.Element {
   return (
@@ -51,14 +56,20 @@ export function Inspector({
         {children}
       </div>
       <div className="ifoot">
-        <PrimaryButton
-          data-testid="run"
-          disabled={runDisabled}
-          onClick={onRun}
-          title="Run (Ctrl+Enter)"
-        >
-          {runLabel}
-        </PrimaryButton>
+        {stopping ? (
+          <PrimaryButton data-testid="stop" className="stop" icon="stop" onClick={onStop}>
+            Stop
+          </PrimaryButton>
+        ) : (
+          <PrimaryButton
+            data-testid="run"
+            disabled={runDisabled}
+            onClick={onRun}
+            title="Run (Ctrl+Enter)"
+          >
+            {runLabel}
+          </PrimaryButton>
+        )}
       </div>
     </aside>
   )
