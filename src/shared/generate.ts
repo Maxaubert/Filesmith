@@ -22,6 +22,9 @@ export interface GenerateOptions {
   seed: number
   /** Run an unrecognized model through a generic graph instead of refusing. */
   tryAnyway?: boolean
+  /** Output folder. The app leaves it unset (Downloads); the CLI passes --out
+   * or the current folder. */
+  outDir?: string
 }
 
 export const GEN_DEFAULTS: Omit<GenerateOptions, 'model' | 'prompt'> = {

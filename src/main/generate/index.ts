@@ -1,6 +1,5 @@
 import { writeFileSync } from 'fs'
-import { join } from 'path'
-import { reserveOutPath } from '../output'
+import { reserveFileInDir } from '../output'
 import { engineEnv } from '../env'
 import type { GenerateOptions } from '@shared/generate'
 import { GEN_MAX_COUNT } from '@shared/generate'
@@ -28,7 +27,7 @@ export {
 let clientCounter = 0
 
 /** A filename-safe slug from the start of the prompt. */
-function slug(prompt: string): string {
+export function slug(prompt: string): string {
   const s = prompt
     .trim()
     .toLowerCase()
@@ -36,6 +35,11 @@ function slug(prompt: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
   return s || 'image'
+}
+
+/** Where generated images go: the caller's folder, else Downloads (the app). */
+export function generatedOutputDir(opts: GenerateOptions): string {
+  return opts.outDir ?? engineEnv().downloadsDir
 }
 
 /**
@@ -116,8 +120,7 @@ export async function generateImages(
 
       const imgs = await waitForImages(baseUrl, promptId, signal, () => sawProgress)
       const bytes = await fetchImage(baseUrl, imgs[0])
-      const base = join(engineEnv().downloadsDir, `${slug(opts.prompt)}.png`)
-      const out = reserveOutPath(base, '.png', 'generated')
+      const out = reserveFileInDir(generatedOutputDir(opts), slug(opts.prompt), '.png', 'generated')
       writeFileSync(out, bytes)
       onProgress(i, 100)
       onImage(i, out)

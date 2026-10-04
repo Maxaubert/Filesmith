@@ -1,6 +1,7 @@
 import type { CommandSpec } from './catalog'
 import { findCommand } from './catalog'
 import { runFileCommand, type FileCommandDeps } from './commands/files'
+import { runGenerate, type GenerateDeps } from './commands/generate'
 import { JsonReporter, type Reporter } from './events'
 import { CliError, EXIT, UsageError } from './exit'
 import { renderGroupHelp, renderHelp, renderRootHelp, usageLine } from './help'
@@ -12,6 +13,7 @@ import { VERSION } from './version'
 export interface CliDeps {
   clock: () => number
   files: FileCommandDeps
+  generate: GenerateDeps
 }
 
 async function dispatch(
@@ -22,6 +24,8 @@ async function dispatch(
 ): Promise<number> {
   const cmd = args.command as CommandSpec
   switch (cmd.id) {
+    case 'generate':
+      return runGenerate(args, io, reporter, deps.generate, deps.clock)
     default:
       return runFileCommand(args, io, reporter, deps.files, deps.clock)
   }

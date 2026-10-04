@@ -5,7 +5,16 @@ import { fileInfoFromPath } from '../main/fileInfo'
 import { resolveRar } from '../main/toolResolver'
 import { usableComfyModels } from '../main/comfy/store'
 import { defaultReadinessDeps, removebgReadiness, upscaleReadiness } from '../main/tools/readiness'
+import {
+  comfyGenerationAvailable,
+  generateImages,
+  registryArchInfo,
+  registryDimCaps,
+  scanGenerationModels,
+  stopComfyServer
+} from '../main/generate'
 import type { FileCommandDeps } from './commands/files'
+import type { GenerateDeps } from './commands/generate'
 import { UsageError } from './exit'
 import { pathState } from './inputs'
 import type { CliDeps } from './main'
@@ -57,6 +66,23 @@ export function defaultFileDeps(): FileCommandDeps {
   }
 }
 
+export function defaultGenerateDeps(): GenerateDeps {
+  return {
+    scan: () => scanGenerationModels(),
+    archInfo: () => registryArchInfo(),
+    dimCaps: () => registryDimCaps(),
+    available: () => comfyGenerationAvailable(),
+    generate: (opts, onImage, onProgress, onStatus, signal) =>
+      generateImages(opts, onImage, onProgress, onStatus, signal),
+    stop: () => stopComfyServer(),
+    pathState,
+    mkdirp: (p) => {
+      mkdirSync(p, { recursive: true })
+    },
+    outSize: (p) => statOutput(p).outSize
+  }
+}
+
 export function defaultDeps(): CliDeps {
-  return { clock: Date.now, files: defaultFileDeps() }
+  return { clock: Date.now, files: defaultFileDeps(), generate: defaultGenerateDeps() }
 }

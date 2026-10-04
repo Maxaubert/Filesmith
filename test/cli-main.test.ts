@@ -53,6 +53,17 @@ function harness(
       pathState,
       mkdirp: () => {},
       ...over
+    },
+    generate: {
+      scan: () => ({ models: [] }),
+      archInfo: () => ({}),
+      dimCaps: () => ({}),
+      available: async () => false,
+      generate: async () => {},
+      stop: () => {},
+      pathState,
+      mkdirp: () => {},
+      outSize: () => undefined
     }
   }
   return {
