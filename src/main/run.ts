@@ -11,6 +11,8 @@ export interface RunOptions {
   /** Called with each stderr chunk — used to parse tool progress (ffmpeg etc.). */
   onStderr?: (chunk: string) => void
   cwd?: string
+  /** Child environment (defaults to this process's). rembg needs U2NET_HOME. */
+  env?: NodeJS.ProcessEnv
 }
 
 /**
@@ -38,7 +40,8 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       windowsHide: true,
-      cwd: opts.cwd
+      cwd: opts.cwd,
+      env: opts.env
     })
 
     // Abort kills the whole PROCESS TREE, not just the direct child. spawn's

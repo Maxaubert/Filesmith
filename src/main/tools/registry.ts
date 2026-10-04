@@ -30,7 +30,10 @@ import { reserveOutPath, uniqueOutDir } from '../output'
 import { ffmpegProgress, probeDuration, probeImageDimensions } from '../probe'
 import { buildUpscaleArgs, needsPreConvert, upscaleProgress } from './upscale'
 import { resolveNcnnModel } from './ncnnModels'
-import { buildCompositeArgs, buildRembgArgs, rembgPhase } from './removebg'
+import { bgModelOf, buildCompositeArgs, buildRembgArgs, rembgPhase } from './removebg'
+import { notReadyMessage } from './readiness'
+import { rembgModelPresent } from '../rembg/paths'
+import { setupRembg } from '../rembg/setup'
 import { pidSidecar } from '../pid/sidecar'
 import { pidInstalled } from '../pid/paths'
 import { spandrelSidecar } from '../comfy/sidecar'
@@ -720,8 +723,7 @@ async function restoreAlpha(
  * pid:status check (not this error) is what drives the one-click download prompt.
  */
 async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext): Promise<string> {
-  if (!pidInstalled('flux'))
-    throw new Error('PiD is not installed. Pick PiD in the options panel and click Download first.')
+  if (!pidInstalled('flux')) throw new Error(notReadyMessage('pid'))
   const tmp = mkdtempSync(join(tmpdir(), 'filesmith-pid-'))
   let output: string | undefined
   // PiD reports phases, not a percentage, so drive an estimated bar whose pace
@@ -969,11 +971,18 @@ const upscaleTool: ToolModule = {
 const removebgTool: ToolModule = {
   async run(file, options, ctx) {
     if (file.kind !== 'image') throw new Error(`Can't remove the background of ${file.kind} files`)
-    const rembg = resolveRembg()
-    if (!rembg) {
-      throw new Error(
-        'Background removal needs uv (which installs the AI model on first use). Install it with: winget install astral-sh.uv, then restart Filesmith.'
-      )
+    const model = bgModelOf(options)
+    let rembg = resolveRembg()
+    if (!rembg || !rembgModelPresent(model)) {
+      // The CLI never downloads from a job (spec M5); the app sets up inline,
+      // where its first removebg job used to download invisibly.
+      if (ctx.allowDownload === false) throw new Error(notReadyMessage('removebg'))
+      ctx.onProgress(undefined, 'Setting up background removal (one time)...')
+      await setupRembg(model, (step, pct) => ctx.onProgress(pct ?? undefined, step), {
+        signal: ctx.signal
+      })
+      rembg = resolveRembg()
+      if (!rembg) throw new Error('Background removal could not be set up.')
     }
 
     const tmp = mkdtempSync(join(tmpdir(), 'filesmith-bg-'))
@@ -1004,6 +1013,7 @@ const removebgTool: ToolModule = {
         [...rembg.prefix, ...buildRembgArgs(src, output, options)],
         {
           signal: ctx.signal,
+          env: rembg.env,
           onStderr: rembgPhase((message) => ctx.onProgress(undefined, message))
         }
       )
