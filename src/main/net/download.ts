@@ -69,6 +69,8 @@ export interface DownloadOptions {
   /** Expected sha256, verified WHILE STREAMING. A mismatch discards the .part. */
   sha256?: string
   signal?: AbortSignal
+  /** Bytes so far and the expected total (0 when unknown), for ETA. */
+  onBytes?: (got: number, total: number) => void
 }
 
 /** What a completed download turned out to be. */
@@ -197,6 +199,7 @@ async function downloadOne(
         hash.update(chunk)
         arm()
         if (total && opts.onPct) opts.onPct(Math.min(99, Math.round((got / total) * 100)))
+        opts.onBytes?.(got, total)
         cb(null, chunk)
       }
     })

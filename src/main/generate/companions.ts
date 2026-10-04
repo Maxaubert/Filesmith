@@ -4,6 +4,8 @@ import { downloadFile } from '../net/download'
 import { expectedHash, recordHash } from '../net/integrity'
 import { checkDiskSpace } from '../pid/install'
 import { findGenerationModel, primaryModelsDir } from './models'
+import { withFileLock } from '../locks'
+import type { InstallOpts } from '../uvInstall'
 
 /** Parse an approxSize like "8 GB" / "335 MB" into bytes (0 if unparseable). */
 function approxBytes(s: string): number {
@@ -32,12 +34,28 @@ export interface CompanionProgress {
 
 /**
  * Download every missing companion for `modelName`. Skips files already present
- * (idempotent / resumable across runs). Throws if the model is unknown, already
- * complete, or no ComfyUI models dir can be located.
+ * (idempotent / resumable across runs). One companion download per machine at
+ * a time: the app and the CLI share the models tree and its .part files.
  */
 export async function downloadCompanions(
   modelName: string,
-  onProgress: (p: CompanionProgress) => void
+  onProgress: (p: CompanionProgress) => void,
+  opts: InstallOpts = {}
+): Promise<void> {
+  return withFileLock(
+    'companions',
+    'model files',
+    () => downloadCompanionsInner(modelName, onProgress, opts),
+    { signal: opts.signal }
+  )
+}
+
+/** Throws if the model is unknown, already complete, or no ComfyUI models dir
+ * can be located. */
+async function downloadCompanionsInner(
+  modelName: string,
+  onProgress: (p: CompanionProgress) => void,
+  opts: InstallOpts
 ): Promise<void> {
   const model = findGenerationModel(modelName)
   if (!model) throw new Error('That model was not found. Try rescanning.')
@@ -58,6 +76,7 @@ export async function downloadCompanions(
 
   const total = missing.length
   for (let i = 0; i < missing.length; i += 1) {
+    opts.signal?.throwIfAborted()
     const f = missing[i]
     const dest = join(root, f.subdir, f.filename)
     // Skip a companion already fetched. "Complete" means matching the declared
@@ -87,7 +106,9 @@ export async function downloadCompanions(
       onPct: (pct) =>
         onProgress({ index: i + 1, total, label: f.label, filename: f.filename, pct }),
       minBytes: minBytes || undefined,
-      sha256
+      sha256,
+      signal: opts.signal,
+      onBytes: opts.onBytes
     })
     recordHash(result.url, result.sha256, result.bytes)
   }

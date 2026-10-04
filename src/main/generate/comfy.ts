@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { createServer } from 'net'
-import { existsSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { dirname, join, resolve } from 'path'
-import { userDataPath } from '../env'
+import { engineEnv, userDataPath } from '../env'
+import { writeFileAtomic } from '../atomicWrite'
+import { pidAlive } from '../locks'
 import { findComfyLaunchPython, findComfyMainPy } from '../comfy/pythonEnv'
 import { comfyModelsBases } from '../comfy/discover'
 import { readComfyStore } from '../comfy/store'
@@ -18,6 +20,40 @@ let ourUrl: string | null = null
 let procTail = ''
 let procExit: { code: number | null } | null = null
 
+// The URL of a ComfyUI the APP launched, so a CLI run attaches to it instead of
+// starting a second one (about 2x VRAM). The CLI never advertises its own: that
+// one dies when the command ends.
+function liveFile(): string {
+  return userDataPath('comfy-live.json')
+}
+
+export function recordLiveComfy(url: string): void {
+  if (engineEnv().host !== 'app') return
+  try {
+    writeFileAtomic(liveFile(), JSON.stringify({ url, pid: process.pid }))
+  } catch {
+    /* best effort */
+  }
+}
+
+export function clearLiveComfy(): void {
+  try {
+    const cur = JSON.parse(readFileSync(liveFile(), 'utf-8')) as { pid?: number }
+    if (cur.pid === process.pid) rmSync(liveFile(), { force: true })
+  } catch {
+    /* nothing recorded */
+  }
+}
+
+export function liveComfyUrl(): string | null {
+  try {
+    const cur = JSON.parse(readFileSync(liveFile(), 'utf-8')) as { url?: string; pid?: number }
+    return cur.url && typeof cur.pid === 'number' && pidAlive(cur.pid) ? cur.url : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * URLs to try before launching anything: an explicit override, whatever the user
  * recorded when locating their ComfyUI, then ComfyUI's default port. A server
@@ -28,6 +64,8 @@ export function candidateComfyUrls(): string[] {
   const out: string[] = []
   const env = process.env.FILESMITH_COMFY_URL?.trim()
   if (env) out.push(env.replace(/\/+$/, ''))
+  const live = liveComfyUrl()
+  if (live) out.push(live.replace(/\/+$/, ''))
   const stored = readComfyStore()?.serverUrl?.trim()
   if (stored) out.push(stored.replace(/\/+$/, ''))
   out.push('http://127.0.0.1:8188')
@@ -171,13 +209,17 @@ export async function ensureComfyServer(onStatus?: (s: string) => void): Promise
       procExit = { code }
       proc = null
       ourUrl = null
+      clearLiveComfy()
     })
     ourUrl = `http://127.0.0.1:${port}`
   }
   if (!ourUrl) throw new Error('ComfyUI could not be started.')
   const started = Date.now()
   while (Date.now() - started < 240_000) {
-    if (await alive(ourUrl)) return ourUrl
+    if (await alive(ourUrl)) {
+      recordLiveComfy(ourUrl)
+      return ourUrl
+    }
     // Bail the moment the child dies. Polling the full 240s after an instant
     // exit told the user "did not become ready in time" with nothing to act on.
     if (procExit) throw new Error(comfyStartError(`ComfyUI exited (code ${procExit.code}).`))
@@ -203,6 +245,7 @@ export function stopComfyServer(): void {
     proc.kill()
     proc = null
     ourUrl = null
+    clearLiveComfy()
   }
 }
 
