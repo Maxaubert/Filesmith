@@ -80,6 +80,10 @@ resources/bin/ bundled CLI binaries (gitignored; fetched by scripts, packed by e
 - `npm run package` — electron-vite build + electron-builder NSIS installer to `dist/`.
 - `npm run test:e2e` — Playwright end-to-end (launches the built app via `_electron`; run
   `npm run build` first). Covers the preload/IPC/engine chain unit tests can't reach.
+- Releases: push to main runs `.github/workflows/release.yml` (gates, then requires a NEW
+  `package.json` version, builds with `fetch-binaries --pinned`, publishes `v<version>`). Bump the
+  version in the PR. Tool versions + SHA-256 live in `scripts/pinned-tools.mjs`; PRs touching
+  the release machinery get a dry-run installer artifact.
 
 ## Conventions
 
