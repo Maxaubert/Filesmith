@@ -1,6 +1,8 @@
 import type { CommandSpec } from './catalog'
 import { findCommand } from './catalog'
 import { runFileCommand, type FileCommandDeps } from './commands/files'
+import { runDoctor, type DoctorDeps } from './commands/doctor'
+import { runFormats, type FormatsDeps } from './commands/formats'
 import { runGenerate, type GenerateDeps } from './commands/generate'
 import { runSetup, type SetupDeps } from './commands/setup'
 import { JsonReporter, type Reporter } from './events'
@@ -16,6 +18,8 @@ export interface CliDeps {
   files: FileCommandDeps
   generate: GenerateDeps
   setup: SetupDeps
+  formats: FormatsDeps
+  doctor: DoctorDeps
 }
 
 async function dispatch(
@@ -28,6 +32,10 @@ async function dispatch(
   switch (cmd.id) {
     case 'generate':
       return runGenerate(args, io, reporter, deps.generate, deps.clock)
+    case 'formats':
+      return runFormats(args, reporter, deps.formats)
+    case 'doctor':
+      return runDoctor(args, reporter, deps.doctor, deps.clock)
     case 'setup':
       return runSetup(args, io.cwd, reporter, deps.setup, io.signal, deps.clock)
     default:

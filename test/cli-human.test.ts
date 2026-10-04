@@ -138,3 +138,49 @@ describe('HumanReporter', () => {
     expect(o.text().startsWith('\x1b[33mskip    \x1b[0m')).toBe(true)
   })
 })
+
+describe('HumanReporter summaries per command', () => {
+  it('doctor says whether anything failed; setup prints no file summary', () => {
+    const o = sink()
+    const r = new HumanReporter(o.out, sink().out, { color: false, stderrTTY: false })
+    r.emit({
+      event: 'run',
+      command: 'doctor',
+      version: '0.6.0',
+      dryRun: false,
+      inputs: 0,
+      options: {}
+    })
+    r.emit({
+      event: 'summary',
+      ok: 9,
+      failed: 0,
+      skipped: 1,
+      canceled: 0,
+      inBytes: 0,
+      outBytes: 0,
+      ms: 1,
+      exitCode: 0
+    })
+    r.emit({
+      event: 'run',
+      command: 'setup pid',
+      version: '0.6.0',
+      dryRun: false,
+      inputs: 0,
+      options: {}
+    })
+    r.emit({
+      event: 'summary',
+      ok: 1,
+      failed: 0,
+      skipped: 0,
+      canceled: 0,
+      inBytes: 0,
+      outBytes: 0,
+      ms: 1,
+      exitCode: 0
+    })
+    expect(o.text()).toBe('No problems found.\n')
+  })
+})

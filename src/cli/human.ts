@@ -48,6 +48,7 @@ export class HumanReporter implements Reporter {
   private dryRun = false
   private progressShown = false
   private lastStep = ''
+  private command = ''
 
   constructor(
     private readonly stdout: Out,
@@ -81,6 +82,7 @@ export class HumanReporter implements Reporter {
     switch (e.event) {
       case 'run':
         this.dryRun = e.dryRun
+        this.command = e.command
         this.total = e.inputs
         return
       case 'plan': {
@@ -151,7 +153,14 @@ export class HumanReporter implements Reporter {
         this.out(resultLine('stop', baseName(e.input), '', color))
         return
       case 'summary':
-        this.out(summaryLine(e, this.dryRun))
+        if (this.command === 'doctor')
+          this.out(
+            e.failed
+              ? `${e.failed} ${e.failed === 1 ? 'check' : 'checks'} failed.\n`
+              : 'No problems found.\n'
+          )
+        else if (!this.command.startsWith('setup') && !this.command.startsWith('skill'))
+          this.out(summaryLine(e, this.dryRun))
         return
       case 'version':
         this.out(`${e.version}\n`)

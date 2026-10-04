@@ -168,6 +168,12 @@ export async function comfyGenerationAvailable(): Promise<boolean> {
   return findComfyLaunch() != null
 }
 
+/** The first ComfyUI that answers right now, without launching one (doctor). */
+export async function firstLiveComfy(): Promise<string | null> {
+  for (const url of candidateComfyUrls()) if (await alive(url)) return url
+  return null
+}
+
 /** A ready ComfyUI base URL — reuse a running one, else launch ours and wait. */
 export async function ensureComfyServer(onStatus?: (s: string) => void): Promise<string> {
   for (const url of candidateComfyUrls()) if (await alive(url)) return url

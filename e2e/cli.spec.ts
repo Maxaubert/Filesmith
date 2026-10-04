@@ -308,3 +308,13 @@ test('pdf tools reject non-PDF inputs; pdf compress is compress', () => {
   expect(c.code).toBe(0)
   expect(of(c.events, 'done')[0].output).toBe(join(work, 'c (compressed).pdf'))
 })
+
+test('formats --json and doctor --json produce valid events', () => {
+  const f = cli(['formats', '--json'])
+  expect(f.code).toBe(0)
+  expect(Object.keys(of(f.events, 'formats')[0].data as object)).toContain('convert')
+  const d = cli(['doctor', '--json'])
+  expect([0, 1]).toContain(d.code)
+  expect(of(d.events, 'check').find((c) => c.id === 'magick')).toMatchObject({ status: 'ok' })
+  expect(d.events.at(-1)).toMatchObject({ event: 'summary' })
+})
