@@ -159,15 +159,7 @@
 .item.on {
   color: var(--fg1);
   font-weight: 600;
-}
-.item.on::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--fg1);
+  background: var(--selected);
 }
 .item .lab {
   flex: 1;
@@ -178,11 +170,6 @@
   font-variant-numeric: tabular-nums;
   color: var(--fg3);
   transition: opacity 0.12s;
-}
-.item.on .n {
-  color: var(--inv-fg);
-  background: var(--inv-bg);
-  padding: 3px 5px;
 }
 .nav-sep {
   height: 1px;
@@ -244,15 +231,15 @@
   border-right: 1px solid var(--line);
 }
 .tbtn.add {
-  background: var(--inv-bg);
-  color: var(--inv-fg);
+  background: var(--track);
+  color: var(--fg1);
   font-weight: 600;
 }
 .tbtn.add:hover {
-  background: var(--inv-hover);
+  background: var(--line-strong);
 }
 .tbtn.add:active {
-  background: var(--inv-active);
+  background: var(--selected);
 }
 .ibtn {
   width: 36px;
@@ -348,15 +335,6 @@
 }
 .tr.sel {
   background: var(--selected);
-}
-.tr.sel::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: -1px;
-  bottom: -1px;
-  width: 2px;
-  background: var(--fg1);
 }
 .tr:focus-visible {
   outline: 1px solid var(--focus);
