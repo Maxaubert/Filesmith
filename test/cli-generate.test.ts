@@ -162,6 +162,104 @@ describe('generate', () => {
     expect(s.events.filter((e) => e.event === 'canceled')).toHaveLength(2)
   })
 
+  describe('an --out folder that cannot be created ends the same in a dry and a real run', () => {
+    const states: Record<string, 'file' | 'dir'> = { 'C:\\': 'dir', 'C:\\f.txt': 'file' }
+    const pathState = (p: string): 'file' | 'dir' | 'missing' => states[p] ?? 'missing'
+    const neverRun = {
+      generate: async () => {
+        throw new Error('must not run')
+      }
+    }
+    for (const dry of [true, false]) {
+      const extra = dry ? ['--dry-run'] : []
+      it(`--out is an existing file (${dry ? 'dry' : 'real'})`, async () => {
+        const s = setup(['generate', 'x', '--out', 'C:\\f.txt', ...extra], {
+          pathState,
+          ...neverRun
+        })
+        await expect(s.run()).rejects.toMatchObject({ code: 'OUT_DIR_MISSING' })
+        expect(s.events).toEqual([])
+      })
+      it(`--out is a folder under a file (${dry ? 'dry' : 'real'})`, async () => {
+        const s = setup(['generate', 'x', '--out', 'C:\\f.txt\\sub\\a', ...extra], {
+          pathState,
+          ...neverRun
+        })
+        await expect(s.run()).rejects.toMatchObject({
+          code: 'OUT_DIR_MISSING',
+          message: expect.stringContaining('C:\\f.txt is a file, not a folder')
+        })
+        expect(s.events).toEqual([])
+      })
+      it(`--out is on a missing drive (${dry ? 'dry' : 'real'})`, async () => {
+        const s = setup(['generate', 'x', '--out', 'Q:\\nope\\a', ...extra], {
+          pathState,
+          ...neverRun
+        })
+        await expect(s.run()).rejects.toMatchObject({
+          code: 'OUT_DIR_MISSING',
+          message: expect.stringContaining('does not exist')
+        })
+        expect(s.events).toEqual([])
+      })
+    }
+
+    it('a creatable --out is announced in a dry run and created in a real run', async () => {
+      const dry = setup(['generate', 'x', '--out', 'C:\\new', '--dry-run'], { pathState })
+      expect(await dry.run()).toBe(0)
+      expect(dry.events.some((e) => e.event === 'warning' && e.code === 'OUT_DIR_CREATE')).toBe(
+        true
+      )
+      const made: string[] = []
+      const real = setup(['generate', 'x', '--out', 'C:\\new'], {
+        pathState,
+        mkdirp: (p) => made.push(p)
+      })
+      expect(await real.run()).toBe(0)
+      expect(made).toEqual(['C:\\new'])
+    })
+
+    it('mkdirp failing is OUT_DIR_MISSING, not an internal error, and nothing runs', async () => {
+      const s = setup(['generate', 'x', '--out', 'C:\\new'], {
+        pathState,
+        mkdirp: () => {
+          throw new Error('EACCES: permission denied')
+        },
+        ...neverRun
+      })
+      await expect(s.run()).rejects.toMatchObject({
+        code: 'OUT_DIR_MISSING',
+        message: expect.stringContaining('EACCES: permission denied')
+      })
+      expect(s.events.some((e) => e.event === 'start' || e.event === 'summary')).toBe(false)
+    })
+  })
+
+  it('an engine failure fails the images not yet made and still stops ComfyUI', async () => {
+    const s = setup(['generate', 'x', '--count', '3', '--json'], {
+      generate: async (opts, onImage) => {
+        onImage(0, join(opts.outDir as string, 'one.png'))
+        throw new Error('ComfyUI rejected the prompt. Run: filesmith doctor.')
+      }
+    })
+    expect(await s.run()).toBe(1)
+    const errors = s.events.filter((e) => e.event === 'error') as {
+      id: string
+      message: string
+      hint?: string
+    }[]
+    expect(errors.map((e) => e.id)).toEqual(['2', '3'])
+    expect(errors[0]).toMatchObject({
+      message: 'ComfyUI rejected the prompt. Run: filesmith doctor.',
+      hint: 'filesmith doctor'
+    })
+    expect(errors[1]).toMatchObject({ message: 'Not generated: an earlier image failed.' })
+    expect(errors[1].hint).toBeUndefined()
+    const summary = s.events.at(-1) as Record<string, unknown>
+    expect(summary).toMatchObject({ event: 'summary', ok: 1, failed: 2, canceled: 0, exitCode: 1 })
+    expect(s.calls.at(-1)).toBe('stop')
+  })
+
   it('the app keeps Downloads when no outDir is given (M3)', () => {
     expect(generatedOutputDir({ outDir: 'D:\\x' } as never)).toBe('D:\\x')
     expect(generatedOutputDir({} as never)).toBe(engineEnv().downloadsDir)

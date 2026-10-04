@@ -11,6 +11,7 @@ import type { CliIO } from '../io'
 import { buildGenerateFlags, type PathState } from '../options'
 import type { ParsedArgs } from '../parse'
 import { classifyError } from '../runner'
+import { uncreatableReason } from './files'
 import { VERSION } from '../version'
 
 export interface GenerateDeps {
@@ -71,6 +72,11 @@ export async function runGenerate(
   const outState = deps.pathState(outDir)
   if (outState === 'file')
     throw new CliError('OUT_DIR_MISSING', `--out is a file, not a folder: ${outDir}`)
+  if (outState === 'missing') {
+    const why = uncreatableReason(outDir, deps.pathState)
+    if (why)
+      throw new CliError('OUT_DIR_MISSING', `Could not create the output folder ${outDir}: ${why}`)
+  }
 
   const { models } = deps.scan()
   if (!models.length)
@@ -180,7 +186,16 @@ export async function runGenerate(
     return summary(EXIT.OK)
   }
 
-  if (outState === 'missing') deps.mkdirp(outDir)
+  if (outState === 'missing') {
+    try {
+      deps.mkdirp(outDir)
+    } catch (e) {
+      throw new CliError(
+        'OUT_DIR_MISSING',
+        `Could not create the output folder ${outDir}: ${(e as Error).message}`
+      )
+    }
+  }
   const startedAt = new Map<number, number>()
   let current = 0
   const start = (i: number): void => {
