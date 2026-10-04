@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { infoRows, previewRows, wipeStep } from '../src/renderer/src/components/inspector/infoModel'
+import {
+  genInfoRows,
+  infoRows,
+  previewRows,
+  wipeStep
+} from '../src/renderer/src/components/inspector/infoModel'
 import type { QueueItem } from '../src/renderer/src/state'
 
 const base: QueueItem = {
@@ -63,5 +68,23 @@ describe('wipeStep', () => {
     expect(wipeStep('Home', 40)).toBe(0)
     expect(wipeStep('End', 40)).toBe(100)
     expect(wipeStep('a', 40)).toBeNull()
+  })
+})
+
+describe('genInfoRows', () => {
+  it('shows model, size, seed and a revealable path', () => {
+    expect(
+      genInfoRows('C:/g/a.png', { model: 'flux1-dev', width: 1024, height: 768, seed: -1 })
+    ).toEqual([
+      { k: 'model', v: 'flux1-dev' },
+      { k: 'size', v: '1024 × 768' },
+      { k: 'seed', v: 'random' },
+      { k: 'path', v: 'C:/g/a.png', reveal: 'C:/g/a.png' }
+    ])
+  })
+  it('still shows the path for an image from an earlier session', () => {
+    expect(genInfoRows('C:/g/b.png', null)).toEqual([
+      { k: 'path', v: 'C:/g/b.png', reveal: 'C:/g/b.png' }
+    ])
   })
 })

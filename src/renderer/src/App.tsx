@@ -34,7 +34,6 @@ import {
   defaultOptionsFor,
   emptyQueue,
   inInput,
-  inOutput,
   groupOf,
   newId,
   parseSession,
@@ -67,49 +66,19 @@ import { groupedRows, nextSort, visibleOrder, type SortState } from './component
 import { estimateBatch, estimateOutputBytes } from '@shared/sizeEstimate'
 import { EmptyState } from './components/queue/EmptyState'
 import { Inspector, type InspTab } from './components/inspector/Inspector'
-import { InfoPane } from './components/inspector/InfoPane'
+import { InfoGrid, InfoPane } from './components/inspector/InfoPane'
+import { genInfoRows } from './components/inspector/infoModel'
 import { PreviewPane } from './components/inspector/PreviewPane'
 import { OptionsPane } from './components/options/OptionsPane'
 import { useOptionSetter } from './components/options/useOptionSetter'
 import type { SizeRow } from './components/ui/OutputSizeList'
 import { groupNoun } from './components/queueGroups'
-import { ToolsGrid } from './components/ToolsGrid'
-import { CompletedView } from './components/CompletedView'
 import { collectCompleted } from './components/completed'
-import { PromptBox } from './components/PromptBox'
+import { CompletedView } from './components/views/CompletedView'
+import { GenerateView } from './components/views/GenerateView'
+import { SettingsView } from './components/views/SettingsView'
+import { ToolsView } from './components/views/ToolsView'
 import type { GenerateOptions } from '@shared/generate'
-
-/** One generated-image thumbnail: click to preview, right-click for the menu. */
-function GenTile({
-  path,
-  aspect,
-  onPreview,
-  onMenu
-}: {
-  path: string
-  aspect: string
-  onPreview: (path: string) => void
-  onMenu: (path: string, x: number, y: number) => void
-}): JSX.Element {
-  return (
-    <button
-      onClick={() => onPreview(path)}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onMenu(path, e.clientX, e.clientY)
-      }}
-      title={path}
-      style={{ aspectRatio: aspect }}
-      className="overflow-hidden rounded-xl border border-black/[.08] bg-white transition hover:border-accent"
-    >
-      <img
-        src={`fsmedia://local/${encodeURIComponent(path)}`}
-        alt=""
-        className="h-full w-full object-cover"
-      />
-    </button>
-  )
-}
 import { ContextMenu, type MenuState } from './components/ContextMenu'
 import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
 
@@ -145,6 +114,13 @@ export default function App(): JSX.Element {
   }>({ running: false, slots: [] })
   const genIdRef = useRef(0)
   const genActiveId = useRef<string | null>(null)
+  // Model, size and seed of each image generated this session, for Info.
+  // State, not a ref: Info reads it during render.
+  const [genMeta, setGenMeta] = useState<
+    Record<string, { model: string; width: number; height: number; seed: number }>
+  >({})
+  // The generated image the inspector's Preview and Info show.
+  const [genFocus, setGenFocus] = useState<string | null>(null)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
@@ -241,6 +217,8 @@ export default function App(): JSX.Element {
   const onToolsGrid = state.tab === 'tools' && !card
   // Completed is a view of results, not a place you do work.
   const onCompleted = state.tab === 'completed'
+  // Every item in every queue, for the output actions the Completed view drives.
+  const allItems = Object.values(state.queues).flatMap((q) => q?.items ?? [])
 
   // Stream job progress/terminal events into state.
   useEffect(() => window.filesmith.onJobEvent((e) => dispatch({ type: 'jobEvent', event: e })), [])
@@ -425,7 +403,9 @@ export default function App(): JSX.Element {
   async function trashOutputs(ids: string[]): Promise<void> {
     const failed: string[] = []
     for (const id of ids) {
-      const it = cur.items.find((x) => x.id === id)
+      // Across every queue: on the Completed tab `cur` is the empty completed
+      // queue, so a lookup there found nothing and Delete silently did nothing.
+      const it = allItems.find((x) => x.id === id)
       const out = it?.outputPath
       if (!out) continue
       const ok = await window.filesmith.trashFile(out)
@@ -442,13 +422,13 @@ export default function App(): JSX.Element {
         return rest
       })
       evictProbe(out)
-      dispatch({ type: 'dismiss', id, column: 'output' })
+      dispatch({ type: 'dismissAny', ids: [id], column: 'output' })
     }
     if (failed.length)
       setConfirm({
         title:
           failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
-        body: `${failed.join(', ')} could not be moved to the Recycle Bin — the file may be open in another app.`,
+        body: `${failed.join(', ')} could not be moved to the Recycle Bin, the file may be open in another app.`,
         confirmLabel: 'OK',
         hideCancel: true,
         onConfirm: () => {}
@@ -515,15 +495,25 @@ export default function App(): JSX.Element {
   // Build the right-click / ⋯ menu for a queue item. Destructive actions apply
   // to the whole selection when the clicked item is part of a multi-selection;
   // otherwise just to that one item.
-  function openMenu(side: 'input' | 'output', item: QueueItem, x: number, y: number): void {
+  function openMenu(
+    side: 'input' | 'output',
+    item: QueueItem,
+    x: number,
+    y: number,
+    targetIds?: string[]
+  ): void {
     const inSel = cur.selected.includes(item.id) && cur.selected.length > 1
-    const visible = side === 'input' ? inInput : inOutput
-    const targets = inSel
-      ? cur.selected.filter((id) => {
-          const it = cur.items.find((x) => x.id === id)
-          return it != null && visible(it)
-        })
-      : [item.id]
+    // The output side is driven by the Completed view, which passes its own
+    // selection; it is not the current queue's.
+    const targets =
+      side === 'output'
+        ? (targetIds ?? [item.id])
+        : inSel
+          ? cur.selected.filter((id) => {
+              const it = cur.items.find((x) => x.id === id)
+              return it != null && inInput(it)
+            })
+          : [item.id]
     const n = targets.length
 
     if (side === 'input') {
@@ -536,7 +526,7 @@ export default function App(): JSX.Element {
         x,
         y,
         items: [
-          { label: 'Open', icon: 'expand', onClick: () => openExternally('input', item) },
+          { label: 'Open', icon: 'eye', onClick: () => openExternally('input', item) },
           {
             label: 'Reveal in Explorer',
             icon: 'folder',
@@ -568,7 +558,7 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Open', icon: 'expand', onClick: () => openExternally('output', item) },
+        { label: 'Open', icon: 'eye', onClick: () => openExternally('output', item) },
         {
           label: 'Reveal in Explorer',
           icon: 'folder',
@@ -656,9 +646,10 @@ export default function App(): JSX.Element {
       : `The largest result will be roughly ${formatBytes(worst)} (about ${formatBytes(total)} in total), and may take a long time.`
   }
 
-  /** Open a generated image in whatever views images on this machine. */
+  /** Show a generated image in the inspector's Preview. */
   function previewGen(path: string): void {
-    window.filesmith.openFile(path)
+    setGenFocus(path)
+    setInspTab('preview')
   }
 
   function openGenMenu(path: string, x: number, y: number): void {
@@ -666,10 +657,10 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Open', icon: 'expand', onClick: () => previewGen(path) },
+        { label: 'Open', icon: 'eye', onClick: () => previewGen(path) },
         {
           label: 'Open in default app',
-          icon: 'upload',
+          icon: 'arrow',
           onClick: () => window.filesmith.openFile(path)
         },
         {
@@ -685,6 +676,7 @@ export default function App(): JSX.Element {
           onClick: () => {
             void window.filesmith.trashFile(path)
             setGenResults((prev) => prev.filter((p) => p !== path))
+            setGenFocus((f) => (f === path ? null : f))
           }
         }
       ]
@@ -717,6 +709,15 @@ export default function App(): JSX.Element {
     })
     const unsubI = window.filesmith.onGenerateImage((p) => {
       if (p.id !== id) return
+      setGenMeta((m) => ({
+        ...m,
+        [p.path]: {
+          model: String(opts.model ?? ''),
+          width: Number(opts.width ?? 1024),
+          height: Number(opts.height ?? 1024),
+          seed: Number(opts.seed ?? -1)
+        }
+      }))
       finished[p.index] = p.path
       setGenRun((r) => ({
         ...r,
@@ -1054,7 +1055,14 @@ export default function App(): JSX.Element {
           : scopeCount
             ? `all ${scopeCount} file${scopeCount === 1 ? '' : 's'}`
             : 'no files'
-  const inspTitle = inspTab === 'options' || !focused ? verbLabel : focused.file.name
+  const inspTitle =
+    tool === 'generate'
+      ? inspTab !== 'options' && genFocus
+        ? baseName(genFocus)
+        : verbLabel
+      : inspTab === 'options' || !focused
+        ? verbLabel
+        : focused.file.name
   const genCount = Number(curOptions.count ?? 1)
   // Name the GROUP, not "files": in a mixed queue "Convert 2 files" hides which two.
   const runLabel =
@@ -1111,89 +1119,41 @@ export default function App(): JSX.Element {
                 entries={completed}
                 thumbs={outThumbs}
                 onOpen={(item) => openExternally('output', item)}
-                onMenu={(item, x, y) => openMenu('output', item, x, y)}
+                onReveal={(p) => window.filesmith.reveal(p)}
+                onMenu={(item, x, y, ids) => openMenu('output', item, x, y, ids)}
+                onDelete={(ids) =>
+                  setConfirm({
+                    title: ids.length === 1 ? 'Delete this file?' : `Delete ${ids.length} files?`,
+                    body: 'They will be moved to the Recycle Bin.',
+                    confirmLabel: 'Delete',
+                    danger: true,
+                    onConfirm: () => void trashOutputs(ids)
+                  })
+                }
+                onClear={(ids) => dispatch({ type: 'dismissAny', ids, column: 'output' })}
               />
+            ) : state.tab === 'settings' ? (
+              <SettingsView rail={rail} />
             ) : onToolsGrid ? (
-              <ToolsGrid onPick={(id) => dispatch({ type: 'setActiveTool', tool: id })} />
+              <ToolsView onPick={(id) => dispatch({ type: 'setActiveTool', tool: id })} />
             ) : tool === 'generate' ? (
-              <>
-                <PromptBox
-                  value={String(curOptions.prompt ?? '')}
-                  onChange={(v) =>
-                    dispatch({ type: 'setOption', group: optGroup, key: 'prompt', value: v })
-                  }
-                />
-                {genRun.running && (
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => {
-                        if (genActiveId.current)
-                          window.filesmith.generateCancel(genActiveId.current)
-                      }}
-                      className="rounded-lg border border-black/[.12] bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-ink transition hover:border-[#e0483d] hover:text-[#e0483d]"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-                {/* Startup indicator only ("Starting ComfyUI…" / "Connecting…").
-                      Once images are sampling, the per-tile bars carry it, so the
-                      redundant "Generating X of Y" line is dropped. */}
-                {genRun.running && genRun.message && !genRun.message.startsWith('Generating') && (
-                  <div className="rounded-xl border border-black/[.06] bg-white/70 px-4 py-3">
-                    <div className="mb-2 text-[13px] font-medium text-ink">{genRun.message}</div>
-                    <div className="h-1 overflow-hidden rounded-full bg-[#ececf2]">
-                      <div className="fs-indet h-full w-1/4 rounded-full bg-accent" />
-                    </div>
-                  </div>
-                )}
-                {(genRun.running || genResults.length > 0) && (
-                  <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
-                    {/* This run's tiles first (each fills as it finishes)… */}
-                    {genRun.running &&
-                      genRun.slots.map((slot, i) =>
-                        slot.path ? (
-                          <GenTile
-                            key={`slot-${i}`}
-                            path={slot.path}
-                            aspect={genAspect}
-                            onPreview={previewGen}
-                            onMenu={openGenMenu}
-                          />
-                        ) : (
-                          <div
-                            key={`slot-${i}`}
-                            style={{ aspectRatio: genAspect }}
-                            className="relative overflow-hidden rounded-xl border border-black/[.08] bg-[#eeeef4]"
-                          >
-                            <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-[#eeeef4] to-[#e0e0ec]" />
-                            <div className="absolute inset-x-3 bottom-3">
-                              <div className="mb-1 text-center text-[11px] font-semibold text-dim">
-                                {slot.pct > 0 ? `${slot.pct}%` : 'Generating…'}
-                              </div>
-                              <div className="h-1.5 overflow-hidden rounded-full bg-white/70">
-                                <div
-                                  className="h-full rounded-full bg-accent transition-[width] duration-300"
-                                  style={{ width: `${slot.pct}%` }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      )}
-                    {/* …then everything generated earlier stays visible. */}
-                    {genResults.map((path) => (
-                      <GenTile
-                        key={path}
-                        path={path}
-                        aspect={genAspect}
-                        onPreview={previewGen}
-                        onMenu={openGenMenu}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
+              <GenerateView
+                prompt={String(curOptions.prompt ?? '')}
+                onPrompt={(v) => onSet('prompt', v)}
+                running={genRun.running}
+                slots={genRun.slots}
+                results={genResults}
+                aspect={genAspect}
+                canRun={runCount > 0}
+                focused={genFocus}
+                onRun={() => void run()}
+                onCancel={() => {
+                  if (genActiveId.current) window.filesmith.generateCancel(genActiveId.current)
+                }}
+                onFocus={previewGen}
+                onOpen={(p) => window.filesmith.openFile(p)}
+                onMenu={openGenMenu}
+              />
             ) : (
               <>
                 <QueueToolbar
@@ -1280,6 +1240,29 @@ export default function App(): JSX.Element {
                   estimate={batchEstimate}
                   set={onSet}
                 />
+              ) : tool === 'generate' ? (
+                genFocus ? (
+                  inspTab === 'preview' ? (
+                    <div className="wipe">
+                      <img
+                        className="wimg"
+                        src={`fsmedia://local/${encodeURIComponent(genFocus)}`}
+                        alt=""
+                      />
+                      <span className="tag l">
+                        {extOfPath(genFocus).replace(/^\./, '').toLowerCase() || 'png'}
+                      </span>
+                    </div>
+                  ) : (
+                    <InfoGrid rows={genInfoRows(genFocus, genMeta[genFocus] ?? null)} />
+                  )
+                ) : (
+                  <EmptyState
+                    icon={inspTab === 'preview' ? 'eye' : 'info'}
+                    title="Nothing selected"
+                    line="Select an image to see it here"
+                  />
+                )
               ) : focused ? (
                 inspTab === 'preview' ? (
                   <PreviewPane

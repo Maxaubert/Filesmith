@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type JSX } from 'react'
-import { Icon, type IconName } from './Icon'
+import type { IconName } from '@shared/icons'
+import { Icon } from './icons/Icon'
 
 export type MenuItem =
   | { sep: true }
@@ -13,7 +14,7 @@ export interface MenuState {
 
 /**
  * A floating context menu anchored at (x, y). Measures itself, then flips
- * horizontally/vertically so it never spills off-screen — so the same call
+ * horizontally/vertically so it never spills off-screen, so the same call
  * works for a cursor position (right-click) or a button corner (the ⋯).
  */
 export function ContextMenu({
@@ -68,32 +69,23 @@ export function ContextMenu({
       role="menu"
       onMouseDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
-      className="ctx-pop fixed z-50 min-w-[196px] rounded-[13px] border border-black/[.08] bg-white/90 p-[5px] shadow-[0_10px_40px_rgba(20,20,40,.18)] backdrop-blur-xl"
+      className="ctx-pop menu"
       style={{ left: menu.x, top: menu.y, visibility: 'hidden' }}
     >
       {menu.items.map((item, i) =>
         item.sep ? (
-          <div key={i} className="mx-1.5 my-[5px] h-px bg-black/[.07]" />
+          <div key={i} className="menu-sep" role="separator" />
         ) : (
           <button
             key={i}
             role="menuitem"
+            className={`menu-item${item.danger ? ' danger' : ''}`}
             onClick={() => {
               item.onClick()
               onClose()
             }}
-            className={`group flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-[13px] transition ${
-              item.danger
-                ? 'text-[#d1362b] hover:bg-[#d1362b] hover:text-white'
-                : 'text-ink hover:bg-accent hover:text-white'
-            }`}
           >
-            <Icon
-              name={item.icon}
-              className={`h-4 w-4 shrink-0 transition group-hover:text-white ${
-                item.danger ? 'text-[#d1362b]' : 'text-muted'
-              }`}
-            />
+            <Icon name={item.icon} />
             {item.label}
           </button>
         )

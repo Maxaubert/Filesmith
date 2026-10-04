@@ -218,3 +218,16 @@ describe('clear finished', () => {
     expect(q.items.some((i) => i.isResult && i.outputPath === 'C:/x/a.webp')).toBe(true)
   })
 })
+
+describe('dismissAny', () => {
+  it('hides a result in its own queue while another tab is open', () => {
+    let s = reducer(start, { type: 'addItems', files: [img('a.png')], key: CONVERT })
+    const id = s.queues[CONVERT]!.items[0].id
+    s = reducer(s, { type: 'jobEvent', event: { id, status: 'done', outputPath: 'C:/x/a.webp' } })
+    const result = s.queues[CONVERT]!.items.find((i) => i.isResult)!
+    s = reducer(s, { type: 'setTab', tab: 'completed' })
+    s = reducer(s, { type: 'dismissAny', ids: [result.id], column: 'output' })
+    expect(s.queues[CONVERT]!.items.some((i) => i.id === result.id)).toBe(false)
+    expect(s.queues[CONVERT]!.items.some((i) => i.id === id)).toBe(true) // the source stays
+  })
+})

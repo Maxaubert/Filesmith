@@ -172,6 +172,7 @@ export type Action =
   | { type: 'addSources'; items: QueueItem[]; key: QueueKey }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'dismiss'; id: string; column: 'input' | 'output' }
+  | { type: 'dismissAny'; ids: string[]; column: 'input' | 'output' }
   | { type: 'markQueued'; ids: string[]; options?: JobOptions }
   | { type: 'jobEvent'; event: JobEvent }
   | { type: 'select'; id: string; mode: SelectMode; order?: string[] }
@@ -586,6 +587,30 @@ export function reducer(state: AppState, action: Action): AppState {
           anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
         }
       })
+    case 'dismissAny': {
+      // Like 'dismiss', but across every queue: the Completed view acts on
+      // results that live in other tabs' queues.
+      const ids = new Set(action.ids)
+      const queues = { ...state.queues }
+      for (const [k, q] of Object.entries(queues) as [QueueKey, QueueState][]) {
+        if (!q.items.some((i) => ids.has(i.id))) continue
+        const items = q.items.map((i) =>
+          ids.has(i.id)
+            ? action.column === 'input'
+              ? { ...i, hiddenInput: true }
+              : { ...i, hiddenOutput: true }
+            : i
+        )
+        const kept = items.filter((i) => inInput(i) || inOutput(i))
+        const selectable = new Set(kept.filter(inInput).map((i) => i.id))
+        queues[k] = {
+          items: kept,
+          selected: q.selected.filter((s) => selectable.has(s)),
+          anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
+        }
+      }
+      return { ...state, queues }
+    }
     case 'markQueued':
       return mapQueue(state, (q) => ({
         ...q,

@@ -61,6 +61,21 @@ export function infoRows(item: QueueItem, dims: Dims, target: string | null): In
   return rows
 }
 
+/** Info rows for a generated image; `meta` is null for one from an earlier session. */
+export function genInfoRows(
+  path: string,
+  meta: { model: string; width: number; height: number; seed: number } | null
+): InfoRow[] {
+  const rows: InfoRow[] = []
+  if (meta) {
+    rows.push({ k: 'model', v: meta.model })
+    rows.push({ k: 'size', v: `${meta.width} × ${meta.height}` })
+    rows.push({ k: 'seed', v: meta.seed < 0 ? 'random' : String(meta.seed) })
+  }
+  rows.push({ k: 'path', v: path, reveal: path })
+  return rows
+}
+
 export function wipeStep(key: string, pct: number): number | null {
   const clamp = (n: number): number => Math.max(0, Math.min(100, n))
   if (key === 'ArrowLeft') return clamp(pct - 5)
