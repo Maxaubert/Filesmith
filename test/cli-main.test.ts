@@ -64,6 +64,26 @@ function harness(
       pathState,
       mkdirp: () => {},
       outSize: () => undefined
+    },
+    // Never dispatched here; test/cli-setup.test.ts covers setup.
+    setup: {
+      cuda: async () => ({ ok: true }),
+      pidInstalled: () => false,
+      installPid: async () => {},
+      comfyReady: () => false,
+      installComfyEngine: async () => {},
+      setComfy: () => {},
+      scanComfy: async () => [],
+      generationModels: () => [],
+      rembgReady: () => false,
+      setupRembg: async () => {},
+      downloadCompanions: async () => {},
+      ncnnModels: () => [],
+      userNcnnDir: () => dir,
+      pathState,
+      removeTool: async () => '',
+      freeBytes: () => null,
+      userData: () => dir
     }
   }
   return {

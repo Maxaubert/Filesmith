@@ -2,6 +2,7 @@ import type { CommandSpec } from './catalog'
 import { findCommand } from './catalog'
 import { runFileCommand, type FileCommandDeps } from './commands/files'
 import { runGenerate, type GenerateDeps } from './commands/generate'
+import { runSetup, type SetupDeps } from './commands/setup'
 import { JsonReporter, type Reporter } from './events'
 import { CliError, EXIT, UsageError } from './exit'
 import { renderGroupHelp, renderHelp, renderRootHelp, usageLine } from './help'
@@ -14,6 +15,7 @@ export interface CliDeps {
   clock: () => number
   files: FileCommandDeps
   generate: GenerateDeps
+  setup: SetupDeps
 }
 
 async function dispatch(
@@ -26,6 +28,8 @@ async function dispatch(
   switch (cmd.id) {
     case 'generate':
       return runGenerate(args, io, reporter, deps.generate, deps.clock)
+    case 'setup':
+      return runSetup(args, io.cwd, reporter, deps.setup, io.signal, deps.clock)
     default:
       return runFileCommand(args, io, reporter, deps.files, deps.clock)
   }
