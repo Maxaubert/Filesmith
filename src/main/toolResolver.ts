@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
+import { resourcePath } from './env'
 import { findUv, findUvAsync, uvOnPathCached } from './uv'
 
 // Core CLI tools bundled in resources/bin (packed by electron-builder into
@@ -26,9 +26,7 @@ function programFilesRoots(): string[] {
 }
 
 function bundledDir(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'bin')
-    : join(app.getAppPath(), 'resources', 'bin')
+  return resourcePath('bin')
 }
 
 /**
@@ -73,9 +71,7 @@ export function configureBundledMagickEnv(): void {
  * until the headless conversion finishes; `soffice.exe` can return early.
  */
 export function resolveSoffice(): string {
-  const loRoot = app.isPackaged
-    ? join(process.resourcesPath, 'libreoffice')
-    : join(app.getAppPath(), 'resources', 'libreoffice')
+  const loRoot = resourcePath('libreoffice')
   const names = process.platform === 'win32' ? ['soffice.com', 'soffice.exe'] : ['soffice']
   for (const n of names) {
     const p = join(loRoot, 'program', n)
@@ -98,9 +94,7 @@ export function resolveSoffice(): string {
  * itself. Prefer the bundled copy, then a Program Files install, then PATH.
  */
 export function resolveGhostscript(): string {
-  const gsRoot = app.isPackaged
-    ? join(process.resourcesPath, 'ghostscript')
-    : join(app.getAppPath(), 'resources', 'ghostscript')
+  const gsRoot = resourcePath('ghostscript')
   const exe = process.platform === 'win32' ? 'gswin64c.exe' : 'gs'
   const bundled = join(gsRoot, 'bin', exe)
   if (existsSync(bundled)) return bundled
@@ -155,9 +149,7 @@ export function resolveRar(): string | null {
  * models via the -m flag pointing at the sibling folder.
  */
 export function realesrganDir(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'realesrgan')
-    : join(app.getAppPath(), 'resources', 'realesrgan')
+  return resourcePath('realesrgan')
 }
 
 export function resolveRealesrgan(): string {

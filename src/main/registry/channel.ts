@@ -1,7 +1,7 @@
 import { createPublicKey, verify } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
+import { engineEnv, userDataPath } from '../env'
 import type { RegistryFile } from '@shared/registry'
 import { ensureUserLayers, layerDir, reloadRegistry } from './load'
 
@@ -57,11 +57,7 @@ export function channelEnabled(): boolean {
 }
 
 function stampPath(): string | null {
-  try {
-    return join(app.getPath('userData'), 'registry', 'channel', '.last-check')
-  } catch {
-    return null
-  }
+  return userDataPath('registry', 'channel', '.last-check')
 }
 
 function dueForCheck(): boolean {
@@ -127,8 +123,7 @@ export async function refreshChannel(force = false): Promise<{
   if (!dir) return { updated: false, reason: 'no writable data folder' }
 
   try {
-    const { net } = await import('electron')
-    const res = await net.fetch(CHANNEL_URL, { signal: AbortSignal.timeout(15_000) })
+    const res = await engineEnv().fetch(CHANNEL_URL, { signal: AbortSignal.timeout(15_000) })
     stampChecked()
     if (!res.ok) return { updated: false, reason: `channel returned ${res.status}` }
     const pack = (await res.json()) as SignedPack

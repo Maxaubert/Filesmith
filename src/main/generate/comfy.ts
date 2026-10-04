@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'child_process'
 import { createServer } from 'net'
 import { existsSync, writeFileSync } from 'fs'
 import { dirname, join, resolve } from 'path'
-import { app } from 'electron'
+import { userDataPath } from '../env'
 import { findComfyLaunchPython, findComfyMainPy } from '../comfy/pythonEnv'
 import { comfyModelsBases } from '../comfy/discover'
 import { readComfyStore } from '../comfy/store'
@@ -105,7 +105,7 @@ function writeExtraModelPaths(): string | null {
     for (const s of subs) yaml += `    ${s}: ${s}\n`
     i += 1
   }
-  const file = join(app.getPath('userData'), 'comfy-extra-model-paths.yaml')
+  const file = userDataPath('comfy-extra-model-paths.yaml')
   writeFileSync(file, yaml)
   return file
 }

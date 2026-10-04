@@ -1,7 +1,7 @@
-import { app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { reserveOutPath } from '../output'
+import { engineEnv } from '../env'
 import type { GenerateOptions } from '@shared/generate'
 import { GEN_MAX_COUNT } from '@shared/generate'
 import { buildWorkflow } from './workflow'
@@ -116,7 +116,7 @@ export async function generateImages(
 
       const imgs = await waitForImages(baseUrl, promptId, signal, () => sawProgress)
       const bytes = await fetchImage(baseUrl, imgs[0])
-      const base = join(app.getPath('downloads'), `${slug(opts.prompt)}.png`)
+      const base = join(engineEnv().downloadsDir, `${slug(opts.prompt)}.png`)
       const out = reserveOutPath(base, '.png', 'generated')
       writeFileSync(out, bytes)
       onProgress(i, 100)

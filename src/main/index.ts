@@ -1,43 +1,30 @@
-import { app, nativeTheme, protocol, screen, shell, BrowserWindow } from 'electron'
+import { app, nativeTheme, net, protocol, screen, shell, BrowserWindow } from 'electron'
 import { join, extname } from 'path'
-import { createReadStream, readdirSync, rmSync, statSync } from 'fs'
-import { tmpdir } from 'os'
+import { createReadStream, statSync } from 'fs'
 import { Readable } from 'stream'
 import { registerGlobalIpc, cancelActiveGenerations } from './ipc'
-import { configureBundledMagickEnv } from './toolResolver'
 import { pidSidecar } from './pid/sidecar'
 import { spandrelSidecar } from './comfy/sidecar'
 import { stopComfyServer } from './generate'
-import { ensureUserLayers } from './registry/load'
 import { scheduleChannelRefresh } from './registry/channel'
 import { initialWindowSize, MIN_WINDOW } from './windowSize'
+import { setEngineEnv } from './env'
+import { bootEngine } from './boot'
 
 // Test hook (spec M4): e2e points userData at a temp folder to seed a session.
 // Read only when set, so a normal launch is unaffected.
 const userDataOverride = process.env['FILESMITH_USER_DATA']
 if (userDataOverride) app.setPath('userData', userDataOverride)
 
-// Remove temp dirs orphaned by a previous HARD crash (normal runs delete their
-// own in a finally). Guarded by age so a concurrent second instance's in-use
-// temp dir (recently touched) is never swept out from under an active job.
-// Best-effort; never throws, never blocks startup.
-function sweepStaleTempDirs(): void {
-  try {
-    const dir = tmpdir()
-    const cutoff = Date.now() - 60 * 60 * 1000 // 1 hour
-    for (const name of readdirSync(dir)) {
-      if (!name.startsWith('filesmith-')) continue
-      const p = join(dir, name)
-      try {
-        if (statSync(p).mtimeMs < cutoff) rmSync(p, { recursive: true, force: true })
-      } catch {
-        /* in use or already gone — leave it */
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-}
+// The engine's view of its host (spec M1). Read after the e2e userData override
+// so tests that seed a session still get their temp folder.
+setEngineEnv({
+  userData: app.getPath('userData'),
+  resourcesDir: app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources'),
+  downloadsDir: app.getPath('downloads'),
+  fetch: (url, init) => net.fetch(url, init),
+  host: 'app'
+})
 
 // A private scheme the renderer uses to load local media (generated-image
 // thumbnails) without a file:// origin
@@ -202,13 +189,8 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.whenReady().then(() => {
-    sweepStaleTempDirs()
-    // The bundled magick needs MAGICK_CODER_MODULE_PATH before the first spawn.
-    configureBundledMagickEnv()
-
-    // Create the writable registry layers so a user can drop a model file in
-    // without having to guess (or create) the path first.
-    ensureUserLayers()
+    // Magick env, stale temp sweep, registry user layers (shared with the CLI).
+    bootEngine()
     // Background, non-blocking, at most once a day, silent-fail-to-cache: the
     // lever that fixes a dead model URL for every install without a release.
     scheduleChannelRefresh()

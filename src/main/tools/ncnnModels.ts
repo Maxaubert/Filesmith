@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
+import { userDataPath } from '../env'
 import { realesrganDir } from '../toolResolver'
 
 /**
@@ -20,7 +20,7 @@ import { realesrganDir } from '../toolResolver'
 
 /** Where a user can add their own ncnn upscalers. */
 export function userNcnnDir(): string {
-  return join(app.getPath('userData'), 'models', 'realesrgan')
+  return userDataPath('models', 'realesrgan')
 }
 
 export function ensureUserNcnnDir(): void {
