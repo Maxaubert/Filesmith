@@ -1,0 +1,241 @@
+/* Controls the mockup does not draw, in its language (spec 2.5 and 2.7). */
+
+/* disabled: fg-disabled text, line border, no hover change */
+.sbtn:disabled,
+.vs-sel:disabled,
+.ibtn:disabled,
+.row-act:disabled,
+.chip[aria-disabled='true'] {
+  color: var(--fg-disabled);
+  border-color: var(--line);
+  background: transparent;
+}
+.sbtn:disabled svg,
+.vs-sel:disabled svg {
+  color: var(--fg-disabled);
+}
+.primary:disabled {
+  background: var(--selected);
+  color: var(--fg-disabled);
+}
+
+/* select popup */
+.vs-selwrap {
+  position: relative;
+  width: 100%;
+}
+.vs-selwrap.half {
+  width: 168px;
+}
+.vs-row .vs-selwrap {
+  flex: 1;
+  width: auto;
+}
+.vs-sel .ph {
+  color: var(--fg3);
+}
+.vs-pop {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: 100%;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--bg-0);
+  border: 1px solid var(--line-strong);
+  border-top: 0;
+}
+.vs-pop li[role='option'] {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  font: 13px var(--mono);
+  color: var(--fg2);
+  cursor: pointer;
+}
+.vs-pop li .val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vs-pop li.act {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.vs-pop li.cur {
+  color: var(--fg1);
+  font-weight: 600;
+}
+.vs-pop li.dis {
+  color: var(--fg-disabled);
+  cursor: default;
+}
+.vs-pop-gh {
+  padding: 10px 8px 4px;
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.09em;
+  color: var(--fg3);
+}
+
+/* group header that collapses (Generate > ADVANCED) */
+.vs-ghb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+.vs-ghb:hover {
+  color: var(--fg1);
+}
+.vs-d.warn {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  color: var(--fg2);
+}
+.vs-d.warn svg {
+  margin-top: 2px;
+}
+
+/* chip grid: square outlined cells, the selected one inverted */
+.chips {
+  display: grid;
+  border-top: 1px solid var(--line-strong);
+  border-left: 1px solid var(--line-strong);
+}
+.chip {
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font: 13px/1 var(--mono);
+  color: var(--fg2);
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  transition:
+    background-color 0.1s,
+    color 0.1s;
+}
+.chip:hover:not([aria-disabled='true']) {
+  background: var(--hover);
+  color: var(--fg1);
+}
+.chip:active:not([aria-disabled='true']) {
+  background: var(--track);
+}
+.chip.on {
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+  font-weight: 600;
+}
+.chip.on:hover {
+  background: var(--inv-hover);
+}
+.chip:focus-visible {
+  outline-offset: -3px;
+  position: relative;
+  z-index: 1;
+}
+
+/* range: 2px track, fg1 fill, square 10px thumb */
+.rng-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rng output {
+  min-width: 52px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--fg1);
+}
+.rng input[type='range'] {
+  flex: 1;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+.rng input[type='range']::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(to right, var(--fg1) var(--fill), var(--track) var(--fill));
+}
+.rng input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -4px;
+  background: var(--fg1);
+  border: 0;
+}
+.rng input[type='range']:hover::-webkit-slider-thumb {
+  background: var(--inv-hover);
+}
+.rng input[type='range']:focus-visible {
+  outline-offset: 2px;
+}
+.rng-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--fg3);
+  margin-top: 2px;
+}
+
+/* progress: determinate fill or an indeterminate sweep */
+.mini.wide {
+  width: 100%;
+}
+.mini.ind i {
+  width: 30%;
+  animation: fs-sweep 1.2s linear infinite;
+}
+@keyframes fs-sweep {
+  from {
+    left: -30%;
+  }
+  to {
+    left: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mini.ind i {
+    animation: none;
+    left: 0;
+  }
+  .chip {
+    transition: none;
+  }
+}
+
+/* output size list */
+.sizes {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--fg2);
+}
+.sizes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+.sizes .nm {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg3);
+}
