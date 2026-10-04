@@ -1,4 +1,5 @@
 import type { FileKind, ToolId } from './types'
+import type { IconName } from './icons'
 import { routeConvert } from './convert'
 
 // The app's navigation model: pick what you want DONE, then drop files. The
@@ -23,7 +24,7 @@ export interface Tab {
   /** One line under the title, and on the empty state. */
   desc: string
   color: string
-  icon: string
+  icon: IconName
   /** Kinds this verb can act on. Empty means the tab takes no dropped input. */
   kinds: FileKind[]
   tool: ToolId
@@ -83,7 +84,7 @@ export const TABS: Tab[] = [
     label: 'Generate',
     desc: 'Create an image from a text prompt',
     color: '#d6409f',
-    icon: 'image',
+    icon: 'generate',
     kinds: [],
     tool: 'generate'
   },
@@ -110,7 +111,7 @@ export const COMPLETED_TAB: Tab = {
   label: 'Completed',
   desc: 'Everything Filesmith has produced',
   color: '#22b364',
-  icon: 'check',
+  icon: 'completed',
   kinds: [],
   tool: 'convert'
 }
@@ -133,7 +134,7 @@ export interface ToolCard {
   /** Section heading in the Tools grid. */
   group: string
   color: string
-  icon: string
+  icon: IconName
   tool: ToolId
   opKey: string
   kinds: FileKind[]
