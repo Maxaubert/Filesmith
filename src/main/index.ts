@@ -1,4 +1,4 @@
-import { app, protocol, shell, BrowserWindow } from 'electron'
+import { app, nativeTheme, protocol, screen, shell, BrowserWindow } from 'electron'
 import { join, extname } from 'path'
 import { createReadStream, readdirSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
@@ -10,6 +10,12 @@ import { spandrelSidecar } from './comfy/sidecar'
 import { stopComfyServer } from './generate'
 import { ensureUserLayers } from './registry/load'
 import { scheduleChannelRefresh } from './registry/channel'
+import { initialWindowSize, MIN_WINDOW } from './windowSize'
+
+// Test hook (spec M4): e2e points userData at a temp folder to seed a session.
+// Read only when set, so a normal launch is unaffected.
+const userDataOverride = process.env['FILESMITH_USER_DATA']
+if (userDataOverride) app.setPath('userData', userDataOverride)
 
 // Remove temp dirs orphaned by a previous HARD crash (normal runs delete their
 // own in a finally). Guarded by age so a concurrent second instance's in-use
@@ -132,15 +138,18 @@ function serveMedia(request: Request): Response {
 }
 
 function createWindow(): void {
+  // Dark only: native scrollbars, dialogs and the pre-paint fill follow the app.
+  nativeTheme.themeSource = 'dark'
+  const size = initialWindowSize(screen.getPrimaryDisplay().workAreaSize)
   const mainWindow = new BrowserWindow({
-    width: 1160,
-    height: 760,
-    minWidth: 900,
-    minHeight: 580,
+    width: size.width,
+    height: size.height,
+    minWidth: MIN_WINDOW.width,
+    minHeight: MIN_WINDOW.height,
     show: false,
-    // Frameless: the app draws its own top strip + window controls (RCMM-style).
+    // Frameless: the renderer draws the 32px title bar and window controls.
     frame: false,
-    backgroundColor: '#f4f4f6',
+    backgroundColor: '#0a0a0a',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false

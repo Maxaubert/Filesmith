@@ -165,6 +165,14 @@ export function registerGlobalIpc(): JobQueue {
     })
     return r.canceled ? [] : r.filePaths.map(fileInfoFromPath).filter(isSupported)
   })
+  // Output folder for OUTPUT > Location. Additive: no existing channel changes.
+  ipcMain.handle('files:pick-folder', async (e) => {
+    const r = await openDialog(e, {
+      title: 'Choose output folder',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
+  })
   // Video DISPLAY dimensions (rotation-aware) for the compress scale preview.
   ipcMain.handle('video:dimensions', (_e, p: string) => probeDimensions(p))
   // Images go through ImageMagick instead: ffprobe rejects very large ones and
