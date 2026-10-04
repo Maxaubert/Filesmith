@@ -7,10 +7,15 @@ import { tmpdir } from 'os'
 // would actually need a running Electron throws, which is the correct signal
 // that a unit test is reaching too far.
 
+// One userData root per test process: vitest runs files in parallel workers,
+// and a shared root let registry-hardening's user fragment leak into
+// registry.test.ts's "loads with no warnings" check (an intermittent failure).
+const userDataRoot = join(tmpdir(), `filesmith-test-userdata-${process.pid}`)
+
 export const app = {
   isPackaged: false,
   getAppPath: (): string => process.cwd(),
-  getPath: (name: string): string => join(tmpdir(), 'filesmith-test-userdata', name)
+  getPath: (name: string): string => join(userDataRoot, name)
 }
 
 export const nativeImage = {
