@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-// Kept apart from OptionsPanel so that file keeps exporting only components
+// Kept apart from the options components so those files export only components
 // (React Fast Refresh requires that), matching usePidStatus.
 
 /**

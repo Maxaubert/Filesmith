@@ -100,3 +100,33 @@
 .empty .sbtn {
   align-self: center;
 }
+
+/* Remove BG custom colour: a 28px swatch button (user data, spec 4.2) */
+.swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  padding-right: 10px;
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  align-self: flex-start;
+  font-size: 13px;
+}
+.swatch:hover {
+  border-color: var(--fg3);
+}
+.swatch:focus-within {
+  outline: 1px solid var(--focus);
+  outline-offset: 1px;
+}
+.swatch .sw {
+  width: 26px;
+  height: 26px;
+  border-right: 1px solid var(--line-strong);
+}
+.vs-set > .vs-selwrap + .vs-selwrap,
+.vs-set > .vs-selwrap + .sbtn,
+.vs-set > .rng + .sizes {
+  margin-top: 6px;
+}

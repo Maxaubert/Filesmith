@@ -64,8 +64,13 @@ import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
 import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
 import { groupedRows, nextSort, visibleOrder, type SortState } from './components/queue/tableSort'
-import { estimateOutputBytes } from '@shared/sizeEstimate'
-import { OperationTitle } from './components/OperationTitle'
+import { estimateBatch, estimateOutputBytes } from '@shared/sizeEstimate'
+import { EmptyState } from './components/queue/EmptyState'
+import { Inspector, type InspTab } from './components/inspector/Inspector'
+import { OptionsPane } from './components/options/OptionsPane'
+import { useOptionSetter } from './components/options/useOptionSetter'
+import type { SizeRow } from './components/ui/OutputSizeList'
+import { groupNoun } from './components/queueGroups'
 import { ToolsGrid } from './components/ToolsGrid'
 import { CompletedView } from './components/CompletedView'
 import { collectCompleted } from './components/completed'
@@ -103,7 +108,6 @@ function GenTile({
     </button>
   )
 }
-import { OptionsPanel, type VideoOutputRow } from './components/OptionsPanel'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
 import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
 
@@ -165,6 +169,8 @@ export default function App(): JSX.Element {
   const [batches, setBatches] = useState<Record<string, string[]>>({})
   // Per-workspace column sort; null is insertion order (spec 4.2).
   const [sorts, setSorts] = useState<Record<string, SortState | null>>({})
+  // Inspector tab: per-session view state, not persisted (spec 3.4).
+  const [inspTab, setInspTab] = useState<InspTab>('options')
 
   useEffect(() => {
     let alive = true
@@ -308,6 +314,7 @@ export default function App(): JSX.Element {
   const optKey = optionsKey(state.tab, state.activeTool, optGroup)
   const curOptions =
     state.options[optKey] ?? defaultOptionsFor(state.tab, state.activeTool, optGroup)
+  const onSet = useOptionSetter(dispatch, optGroup)
   // On Convert the engine depends on the TARGET as well as the source: a .cbz
   // to .cb7 is archive/repack, a .pdf to .cbz is archive/from-pdf, and a .png
   // to .webp is the plain convert tool.
@@ -888,7 +895,7 @@ export default function App(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [probePaths.join('|')])
   const compressScale = Number(curOptions.scale ?? 100)
-  const videoOutputs: VideoOutputRow[] = compressVideoPaths.map((p) => {
+  const videoOutputs: SizeRow[] = compressVideoPaths.map((p) => {
     const d = vDims[p]
     const name = baseName(p)
     if (!d) return { path: p, name, from: '…', to: '…' }
@@ -902,7 +909,7 @@ export default function App(): JSX.Element {
   const resizeOpts = curOptions
   const numOrNull = (v: unknown): number | null =>
     v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v)
-  const resizeOutputs: VideoOutputRow[] =
+  const resizeOutputs: SizeRow[] =
     tool === 'resize' && String(resizeOpts.mode ?? 'percent') === 'dimensions'
       ? probePaths.map((p) => {
           const d = vDims[p]
@@ -921,7 +928,7 @@ export default function App(): JSX.Element {
       : []
 
   const upscaleFactor = Number(curOptions.upscaleFactor ?? 4)
-  const upscaleOutputs: VideoOutputRow[] =
+  const upscaleOutputs: SizeRow[] =
     tool === 'upscale'
       ? probePaths.map((p) => {
           const d = vDims[p]
@@ -936,8 +943,10 @@ export default function App(): JSX.Element {
 
   // Per-row size estimates for running rows (spec 4.3), from the options each
   // row actually runs with and the done rows of the same group and options.
-  function estimateFor(it: QueueItem): number | null {
-    const opts = it.runOptions ?? curOptions
+  function estimateFor(
+    it: QueueItem,
+    opts: JobOptions = it.runOptions ?? curOptions
+  ): number | null {
     const t = toolFor(it, opts)
     const d = vDims[it.file.path]
     let pixelRatio: number | null = null
@@ -968,6 +977,13 @@ export default function App(): JSX.Element {
   const estimates: Record<string, number | null> = {}
   for (const i of cur.items)
     if (inInput(i) && i.status === 'running') estimates[i.id] = estimateFor(i)
+  // The batch card under the options speaks for the CURRENT options (spec 4.5).
+  const batchEstimate =
+    tool === 'generate' || runList.length === 0
+      ? null
+      : estimateBatch(
+          runList.map((i) => ({ size: i.file.size, estimate: estimateFor(i, curOptions) }))
+        )
 
   // Toolbar flags. Retry acts on the failed rows of one group only.
   const inputs = cur.items.filter(inInput)
@@ -1005,6 +1021,35 @@ export default function App(): JSX.Element {
   )
   const showInspector = !onToolsGrid && !onCompleted && state.tab !== 'settings'
 
+  // Inspector head and Run label (spec 3.4, 4.1).
+  const focused = cur.items.find(
+    (i) => i.id === (cur.anchor && cur.selected.includes(cur.anchor) ? cur.anchor : cur.selected[0])
+  )
+  const scopeCount = scopeItems.length
+  const inspSub =
+    tool === 'generate'
+      ? ''
+      : inspTab !== 'options'
+        ? focused
+          ? 'selected'
+          : ''
+        : cur.selected.length
+          ? `${cur.selected.length} selected`
+          : scopeCount
+            ? `all ${scopeCount} file${scopeCount === 1 ? '' : 's'}`
+            : 'no files'
+  const inspTitle = inspTab === 'options' || !focused ? verbLabel : focused.file.name
+  const genCount = Number(curOptions.count ?? 1)
+  // Name the GROUP, not "files": in a mixed queue "Convert 2 files" hides which two.
+  const runLabel =
+    tool === 'generate'
+      ? genCount > 1
+        ? `Generate ${genCount} images`
+        : 'Generate'
+      : runCount > 0
+        ? `${verbLabel} ${groupNoun(optGroup, runCount)}`
+        : verbLabel
+
   return (
     // The whole window accepts drops (spec 4.9).
     <div
@@ -1037,28 +1082,14 @@ export default function App(): JSX.Element {
           completedCount={completed.length}
           collapsed={sidebar.collapsed}
           onToggle={sidebar.toggle}
-          onSelect={(t) => dispatch({ type: 'setTab', tab: t })}
+          onSelect={(t) => {
+            setInspTab('options')
+            dispatch({ type: 'setTab', tab: t })
+          }}
         />
 
         <>
           <main className={`center${dragging ? ' dropping' : ''}`} aria-label="Workspace">
-            {/* The old heading stays on the views Task 15 has not rebuilt yet;
-                the queue's toolbar and table own the 32px / 1fr grid rows. */}
-            {(onCompleted || onToolsGrid || tool === 'generate') && (
-              <OperationTitle
-                title={card ? card.label : tab.label}
-                desc={card ? card.desc : tab.desc}
-                color={card ? card.color : tab.color}
-                fileCount={
-                  onCompleted
-                    ? completed.length
-                    : onToolsGrid
-                      ? 0
-                      : cur.items.filter(inInput).length
-                }
-                onBack={card ? () => dispatch({ type: 'setActiveTool', tool: null }) : undefined}
-              />
-            )}
             {onCompleted ? (
               <CompletedView
                 entries={completed}
@@ -1207,25 +1238,40 @@ export default function App(): JSX.Element {
           </main>
 
           {showInspector && (
-            <OptionsPanel
-              tab={state.tab}
-              tool={tool}
-              label={card ? card.label : tab.label}
-              options={curOptions}
-              activeKind={activeKind}
-              activeGroup={scopeGroup}
-              optGroup={optGroup}
-              runKind={runKind}
-              fallbackKind={fallbackKind}
-              videoOutputs={videoOutputs}
-              upscaleOutputs={upscaleOutputs}
-              resizeOutputs={resizeOutputs}
-              sourceExt={sourceExt}
-              srcExts={srcExts}
-              runCount={runCount}
-              onSet={(k, v) => dispatch({ type: 'setOption', group: optGroup, key: k, value: v })}
+            <Inspector
+              tab={inspTab}
+              onTab={setInspTab}
+              title={inspTitle}
+              sub={inspSub}
+              runLabel={runLabel}
+              runDisabled={runCount === 0}
               onRun={() => void run()}
-            />
+            >
+              {inspTab === 'options' ? (
+                <OptionsPane
+                  tab={state.tab}
+                  tool={tool}
+                  options={curOptions}
+                  kind={
+                    tool === 'compress' ? (runKind ?? fallbackKind) : (activeKind ?? fallbackKind)
+                  }
+                  srcExts={srcExts}
+                  sourceExt={sourceExt}
+                  runCount={runCount}
+                  videoOutputs={videoOutputs}
+                  resizeOutputs={resizeOutputs}
+                  upscaleOutputs={upscaleOutputs}
+                  estimate={batchEstimate}
+                  set={onSet}
+                />
+              ) : (
+                <EmptyState
+                  icon={inspTab === 'preview' ? 'eye' : 'info'}
+                  title="Nothing selected"
+                  line="Select a file in the table to see it here"
+                />
+              )}
+            </Inspector>
           )}
         </>
       </div>
