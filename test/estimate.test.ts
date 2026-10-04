@@ -59,3 +59,18 @@ describe('estimateProgress', () => {
     vi.useRealTimers()
   })
 })
+
+describe('estimateProgress remaining seconds', () => {
+  it('counts down from the expected duration and goes null once overdue', () => {
+    vi.useFakeTimers()
+    const etas: (number | null)[] = []
+    const t = estimateProgress(2, (_p, eta) => etas.push(eta))
+    expect(etas[0]).toBe(2) // 2 - 0.2 = 1.8, rounded up
+    vi.advanceTimersByTime(1000) // elapsed 1.2s
+    expect(etas[etas.length - 1]).toBe(1)
+    vi.advanceTimersByTime(2000) // elapsed 3.2s, past the estimate
+    expect(etas[etas.length - 1]).toBeNull()
+    t.stop()
+    vi.useRealTimers()
+  })
+})

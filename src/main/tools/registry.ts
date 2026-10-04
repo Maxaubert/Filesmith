@@ -115,7 +115,9 @@ async function runToOutput(
   // If the tool reports no real progress (no onStderr parser) but the caller
   // gave an expected duration, drive an estimated bar so the % always moves.
   const est =
-    !onStderr && estimateSec ? estimateProgress(estimateSec, (p) => ctx.onProgress(p)) : null
+    !onStderr && estimateSec
+      ? estimateProgress(estimateSec, (p, eta) => ctx.onProgress(p, undefined, eta))
+      : null
   try {
     const { code, stderr } = await run(tool, argsFor(toolOut), { signal: ctx.signal, onStderr })
     // magick prints "no encode delegate for this image format" as a WARNING and
@@ -439,7 +441,9 @@ const pdfTool: ToolModule = {
       // expanded too. Render into a neutral temp dir then, and move the pages.
       const renderDir = dir.includes('%') ? mkdtempSync(join(tmpdir(), 'filesmith-pages-')) : dir
       ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)
-      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p) => ctx.onProgress(p))
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p, eta) =>
+        ctx.onProgress(p, undefined, eta)
+      )
       try {
         const { code, stderr } = await run(mutool, buildPdfImagesArgs(file.path, renderDir, dpi), {
           signal: ctx.signal
@@ -592,7 +596,9 @@ const compressTool: ToolModule = {
       // Declared outside try so the catch can clean the placeholder; reserved
       // INSIDE try so a throw there still hits the finally that removes tmp.
       let output: string | undefined
-      const est = estimateProgress(estimateSecForBytes(file.size, 0.08), (p) => ctx.onProgress(p))
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.08), (p, eta) =>
+        ctx.onProgress(p, undefined, eta)
+      )
       try {
         output = reserveOutPath(file.path, file.ext, 'compressed')
         const { code, stderr } = await run(
@@ -723,9 +729,9 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
     est?.stop()
     est = estimateProgress(
       expectedSec,
-      (p) => {
+      (p, eta) => {
         lastPct = p
-        ctx.onProgress(p)
+        ctx.onProgress(p, undefined, eta)
       },
       { startPct: lastPct }
     )
@@ -987,7 +993,7 @@ const removebgTool: ToolModule = {
       // The first run of a model pays a download; every run pays a load. Say so,
       // because a silent multi-second wait reads as a hang.
       ctx.onProgress(undefined, 'Loading model…')
-      est = estimateProgress(6, (p) => ctx.onProgress(p))
+      est = estimateProgress(6, (p, eta) => ctx.onProgress(p, undefined, eta))
       const { code, stderr } = await run(
         rembg.cmd,
         [...rembg.prefix, ...buildRembgArgs(src, output, options)],
@@ -1304,8 +1310,8 @@ const archiveTool: ToolModule = {
       // never expand a `%` inherited from the source file's name.
       const temp = mkdtempSync(join(tmpdir(), 'filesmith-arc-'))
       const output = reserveOutPath(file.path, targetExt, 'converted')
-      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p) =>
-        ctx.onProgress(Math.min(p, 90))
+      const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p, eta) =>
+        ctx.onProgress(Math.min(p, 90), undefined, eta)
       )
       try {
         ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)

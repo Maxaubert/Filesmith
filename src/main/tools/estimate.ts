@@ -15,10 +15,11 @@ export interface EstimateTicker {
  * that eases from 0 toward `ceiling` (default 95, never reached) — reaching ~95%
  * of the ceiling at `expectedSec`, then creeping the rest. `startPct` lets a
  * restart continue from where a previous ticker left off instead of snapping back.
+ * `etaSec` is the rounded-up seconds left of `expectedSec`, or null once overdue.
  */
 export function estimateProgress(
   expectedSec: number,
-  onPct: (pct: number) => void,
+  onPct: (pct: number, etaSec: number | null) => void,
   opts: { ceiling?: number; startPct?: number } = {}
 ): EstimateTicker {
   const ceiling = opts.ceiling ?? 95
@@ -30,7 +31,10 @@ export function estimateProgress(
   const tick = (): void => {
     elapsed += intervalMs / 1000
     const pct = startPct + (ceiling - startPct) * (1 - Math.exp(-elapsed / tau))
-    onPct(Math.min(ceiling, pct))
+    // The same expected duration that shapes the curve doubles as an ETA, so
+    // image, PDF and rembg rows can show 62%(4s) like ffmpeg rows do.
+    const left = expectedSec - elapsed
+    onPct(Math.min(ceiling, pct), left > 0 ? Math.ceil(left) : null)
   }
   tick() // emit an initial value immediately so the bar goes determinate at once
   let timer: ReturnType<typeof setInterval> | null = setInterval(tick, intervalMs)
