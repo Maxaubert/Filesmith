@@ -52,12 +52,7 @@ export function Sidebar({
       </div>
       <div className="nav">
         {verbs.map((id) => item(tabById(id), counts[id]))}
-        {showTools && (
-          <>
-            <div className="nav-sep" role="separator" />
-            {item(tabById('tools'), counts.tools)}
-          </>
-        )}
+        {showTools && item(tabById('tools'), counts.tools)}
       </div>
       <div className="spacer" />
       <div className="nav bottom">

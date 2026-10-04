@@ -15,7 +15,7 @@
   color: var(--fg-disabled);
 }
 .primary:disabled {
-  background: var(--selected);
+  background: var(--bg-1);
   color: var(--fg-disabled);
 }
 

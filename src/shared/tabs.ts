@@ -85,7 +85,7 @@ export const TABS: Tab[] = [
     // A grid, not a workspace, until a card is picked. `tool` is unused for the
     // grid itself; each card names its own.
     id: 'tools',
-    label: 'Tools',
+    label: 'PDF Tools',
     desc: 'One-off jobs, grouped by what they act on',
     icon: 'tools',
     kinds: [],

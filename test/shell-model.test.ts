@@ -22,10 +22,10 @@ describe('breadcrumb', () => {
   })
   it('makes tools a Back to Tools button inside a card', () => {
     expect(crumbsFor('tools', toolCardById('pdf-merge')!, 'doc')).toEqual([
-      { label: 'tools', action: 'tools', ariaLabel: 'Back to Tools' },
+      { label: 'pdf tools', action: 'tools', ariaLabel: 'Back to Tools' },
       { label: 'merge' }
     ])
-    expect(crumbsFor('tools', null, null)).toEqual([{ label: 'tools' }])
+    expect(crumbsFor('tools', null, null)).toEqual([{ label: 'pdf tools' }])
   })
   it('has a single segment for generate, completed and settings', () => {
     for (const t of ['generate', 'completed', 'settings'] as TabId[])

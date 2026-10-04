@@ -1015,7 +1015,7 @@ export default function App(): JSX.Element {
 
   // Everything produced, across every workspace, for the Completed tab.
   const completed = collectCompleted(state.queues, (key) => {
-    if (key.startsWith('tools:')) return toolCardById(key.slice(6))?.label ?? 'Tools'
+    if (key.startsWith('tools:')) return toolCardById(key.slice(6))?.label ?? 'PDF Tools'
     return tabById(key as TabId).label
   })
 

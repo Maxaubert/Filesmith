@@ -18,10 +18,10 @@ const EXPECTED: Record<string, string> = {
   fg2: '#b4b4b4',
   fg3: '#8c8c8c',
   'fg-disabled': '#5c5c5c',
-  'inv-bg': '#ededed',
-  'inv-fg': '#0a0a0a',
-  'inv-hover': '#ffffff',
-  'inv-active': '#bdbdbd',
+  'inv-bg': '#2a2a2a',
+  'inv-fg': '#ededed',
+  'inv-hover': '#3a3a3a',
+  'inv-active': '#202020',
   focus: '#ededed'
 }
 

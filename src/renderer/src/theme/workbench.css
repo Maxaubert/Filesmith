@@ -171,11 +171,6 @@
   color: var(--fg3);
   transition: opacity 0.12s;
 }
-.nav-sep {
-  height: 1px;
-  background: var(--line);
-  margin: 6px 0;
-}
 .side .spacer {
   flex: 1;
 }
