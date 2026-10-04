@@ -123,7 +123,7 @@ export function GenerateSettings({
         <Setting title="Style">
           <ChipGrid
             label="Style"
-            cols={3}
+            cols={2}
             value={String(options.style ?? 'none')}
             chips={GEN_STYLES.map((s) => ({ value: s.id, label: s.label.toLowerCase() }))}
             onChange={(v) => set('style', v)}

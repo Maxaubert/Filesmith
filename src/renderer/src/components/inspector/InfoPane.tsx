@@ -10,7 +10,11 @@ export function InfoGrid({ rows }: { rows: InfoRow[] }): JSX.Element {
       {rows.map((r) => (
         <div key={r.k}>
           <dt>{r.k}</dt>
-          <dd className={r.selectable || r.reveal ? 'select-text' : undefined}>
+          <dd
+            className={
+              r.reveal ? 'select-text dd-reveal' : r.selectable ? 'select-text' : undefined
+            }
+          >
             <span>{r.v}</span>
             {r.reveal && (
               <SmallButton

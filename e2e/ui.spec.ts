@@ -76,4 +76,5 @@ test('an empty workspace offers Add files and a disabled Run', async () => {
   ).toBeVisible()
   await expect(page.getByTestId('run')).toBeDisabled()
   await expect(page.getByText('no files', { exact: true })).toBeVisible()
+  await expect(page.getByRole('row', { name: 'Totals' })).toHaveCount(0)
 })

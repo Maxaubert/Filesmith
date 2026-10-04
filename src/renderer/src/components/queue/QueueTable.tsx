@@ -177,7 +177,7 @@ export function QueueTable({
           ))
         )}
       </div>
-      <TotalsRow totals={totals} />
+      {totals.files > 0 && <TotalsRow totals={totals} />}
     </section>
   )
 }

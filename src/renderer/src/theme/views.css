@@ -181,6 +181,17 @@
   white-space: nowrap;
   align-self: flex-start;
 }
+/* a path with a Show button: the path takes the full value width, the
+   button sits on its own line below, left-aligned */
+.dgrid dd.dd-reveal {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.dgrid dd.dd-reveal > span {
+  flex: none;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
 
 /* view header row (Tools, Completed, Settings): 32px, title like .ihead */
 .vhead {
