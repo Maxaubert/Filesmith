@@ -2,6 +2,7 @@ import { cpus } from 'os'
 import { statSync } from 'fs'
 import type { JobEvent, JobRequest, ToolId } from '@shared/types'
 import { fileInfoFromPath } from './fileInfo'
+import { resolveOutDir } from './output'
 import { getTool } from './tools/registry'
 import { ToolMissingError } from './run'
 import { toolMissingMessage } from './toolResolver'
@@ -88,8 +89,10 @@ export class JobQueue {
     this.emit({ id: req.id, status: 'running' })
     try {
       const file = fileInfoFromPath(req.input)
+      const outDir = resolveOutDir(req.options.outDir)
       const output = await tool.run(file, req.options, {
         signal: ctrl.signal,
+        outDir,
         onProgress: (percent, message, etaSec) =>
           this.emit({
             id: req.id,
