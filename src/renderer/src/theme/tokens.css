@@ -1,0 +1,30 @@
+/* Filesmith design tokens (spec 2.1). Dark only, strictly monochrome: every
+   colour has r = g = b. A future theme redefines these and nothing else. */
+:root {
+  --bg-0: #0a0a0a;
+  --bg-1: #0f0f0f;
+  --hover: #1a1a1a;
+  --selected: #202020;
+  --field: #141414;
+  --track: #2a2a2a;
+  --line: #262626;
+  --line-strong: #3a3a3a;
+  --fg1: #ededed;
+  --fg2: #b4b4b4;
+  --fg3: #8c8c8c;
+  --fg-disabled: #5c5c5c;
+  --inv-bg: #ededed;
+  --inv-fg: #0a0a0a;
+  --inv-hover: #ffffff;
+  --inv-active: #bdbdbd;
+  --focus: #ededed;
+  --backdrop: rgba(0, 0, 0, 0.6);
+
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', Consolas, monospace;
+
+  --sbw: 208px;
+  --sbw-c: 48px;
+  --cols: 40px 1fr 64px 88px 184px 232px;
+  color-scheme: dark;
+}
