@@ -22,6 +22,9 @@ Mockup rounds live in `docs/mockups/terminal*/` (each has an `index.html` galler
 - Result column: the arrow sits on the size/result split. Done = actual result, running = grey `~estimate`,
   queued/failed = empty. The batch estimate shows in the right panel before you press Convert.
 - Post-build feedback (2026-10-04): Add files is grey (not white); no white left bars on selected rows or the
-  active sidebar item; the active item's count is a plain number, not an inverted box.
+  active sidebar item; the active item's count is a plain number, not an inverted box. Add files has no fill,
+  like the other toolbar buttons. No white fills anywhere: selected segments, chips, checkboxes and the primary
+  button use grey `#2a2a2a` with light text (the `--inv-*` tokens). The Tools tab is "PDF Tools", with no
+  divider line above it.
 - Wind is a reference, not a template. Avoid its signatures: the floating progress+button pill, the icon-tile
   header band, and big rounded cards of right-aligned setting rows.
