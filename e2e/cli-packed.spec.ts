@@ -102,7 +102,8 @@ test('Ctrl+C in a console cancels cleanly: exit 130, no ffmpeg, no partial outpu
   ])
   const result = join(work, 'result.json')
   const before = ffmpegPids()
-  // Start-Process gives the helper a console of its own (minimized). It joins
+  // Start-Process gives the helper a console of its own, hidden so the run never
+  // shows a window or takes focus (console input/output work the same). It joins
   // -ArgumentList with spaces, so every value carries its own quotes.
   const q = (s: string): string => `'"${s}"'`
   const helperArgs = [
@@ -125,9 +126,9 @@ test('Ctrl+C in a console cancels cleanly: exit 130, no ffmpeg, no partial outpu
     [
       '-NoProfile',
       '-Command',
-      `Start-Process powershell.exe -Wait -WindowStyle Minimized -ArgumentList @(${helperArgs})`
+      `Start-Process powershell.exe -Wait -WindowStyle Hidden -ArgumentList @(${helperArgs})`
     ],
-    { encoding: 'utf-8', timeout: 170_000 }
+    { encoding: 'utf-8', timeout: 170_000, windowsHide: true }
   )
   expect(r.status, r.stderr).toBe(0)
   const out = JSON.parse(readFileSync(result, 'utf-8').replace(/^\uFEFF/, '')) as {

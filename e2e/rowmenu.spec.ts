@@ -1,9 +1,9 @@
-import { _electron, type ElectronApplication, type Page } from 'playwright'
+import { type ElectronApplication, type Page } from 'playwright'
 import { test, expect } from '@playwright/test'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { MAIN, ROOT } from './helpers'
+import { MAIN, launchApp } from './helpers'
 
 // The files table's right-click menu and the one-file inspector panes, on a
 // seeded session. Nothing here deletes a file: Delete is only opened and
@@ -39,10 +39,7 @@ test.beforeAll(async () => {
     queues: { convert: { items } }
   }
   writeFileSync(join(userData, 'session.json'), JSON.stringify(session))
-  app = await _electron.launch({
-    args: [ROOT],
-    env: { ...process.env, FILESMITH_USER_DATA: userData }
-  })
+  app = await launchApp({ FILESMITH_USER_DATA: userData })
   page = await app.firstWindow()
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900))
   await expect(row('alpha')).toBeVisible()

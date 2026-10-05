@@ -16,6 +16,10 @@ import { bootEngine } from './boot'
 const userDataOverride = process.env['FILESMITH_USER_DATA']
 if (userDataOverride) app.setPath('userData', userDataOverride)
 
+// Test hook: e2e runs the window hidden so a test run never shows a window or
+// steals focus. It still paints (screenshots work) and is never shown/focused.
+const e2eHidden = process.env['FILESMITH_E2E_HIDDEN'] === '1'
+
 // The engine's view of its host (spec M1). Read after the e2e userData override
 // so tests that seed a session still get their temp folder.
 setEngineEnv({
@@ -137,13 +141,15 @@ function createWindow(): void {
     // Frameless: the renderer draws the 32px title bar and window controls.
     frame: false,
     backgroundColor: '#0a0a0a',
+    ...(e2eHidden ? { paintWhenInitiallyHidden: true, skipTaskbar: true } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      ...(e2eHidden ? { backgroundThrottling: false } : {})
     }
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow.show())
+  if (!e2eHidden) mainWindow.on('ready-to-show', () => mainWindow.show())
 
   // Open external links in the OS browser, never in-app.
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -182,7 +188,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', () => {
     const win = BrowserWindow.getAllWindows()[0]
-    if (win) {
+    if (win && !e2eHidden) {
       if (win.isMinimized()) win.restore()
       win.focus()
     }

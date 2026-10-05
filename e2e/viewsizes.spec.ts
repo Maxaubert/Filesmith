@@ -1,10 +1,10 @@
-import { _electron, type ElectronApplication, type Page } from 'playwright'
+import { type ElectronApplication, type Page } from 'playwright'
 import { test, expect } from '@playwright/test'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { execFileSync } from 'child_process'
-import { FFMPEG, MAGICK, MAIN, ROOT, magickEnv } from './helpers'
+import { FFMPEG, MAGICK, MAIN, magickEnv, launchApp } from './helpers'
 
 // View sizes (spec docs/superpowers/specs/2026-10-05-view-sizes-design.md) on a
 // seeded session: four images and a video, so there are two group headers.
@@ -44,10 +44,7 @@ test.beforeAll(async () => {
     queues: { convert: { items } }
   }
   writeFileSync(join(userData, 'session.json'), JSON.stringify(session))
-  app = await _electron.launch({
-    args: [ROOT],
-    env: { ...process.env, FILESMITH_USER_DATA: userData }
-  })
+  app = await launchApp({ FILESMITH_USER_DATA: userData })
   page = await app.firstWindow()
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900))
   await expect(row('alpha')).toBeVisible()

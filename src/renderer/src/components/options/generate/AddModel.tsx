@@ -11,10 +11,13 @@ import { Setting } from '../../ui/Setting'
  */
 export function AddModel({
   onAdded,
-  comfyFolder
+  comfyFolder,
+  empty = false
 }: {
   onAdded: () => void
   comfyFolder?: string | null
+  /** No image model at all: lead with the one next step (the ComfyUI folder). */
+  empty?: boolean
 }): JSX.Element {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const pickComfy = (): void => {
@@ -41,6 +44,42 @@ export function AddModel({
       onAdded()
     })
   }
+  const folderLabel = comfyFolder ? 'Change ComfyUI folder' : 'Choose ComfyUI folder'
+  const status =
+    msg &&
+    (msg.ok ? (
+      <div className="vs-d">{msg.text}</div>
+    ) : (
+      <div className="vs-d warn" role="alert">
+        <Icon name="warning" size={12} />
+        {msg.text}
+      </div>
+    ))
+  if (empty)
+    return (
+      <Setting
+        title="No image model yet"
+        desc={
+          comfyFolder ? (
+            <>
+              No image models in <code>{comfyFolder}</code>. Add one there, or add a model.
+            </>
+          ) : (
+            'Filesmith generates with the models in your ComfyUI folder.'
+          )
+        }
+      >
+        <div className="vs-row">
+          <SmallButton icon="folder" onClick={pickComfy} title={comfyFolder ?? undefined}>
+            {folderLabel}
+          </SmallButton>
+          <SmallButton icon="addfile" onClick={importOne}>
+            Add a model
+          </SmallButton>
+        </div>
+        {status}
+      </Setting>
+    )
   return (
     <Setting
       title="Your models"
@@ -59,17 +98,9 @@ export function AddModel({
         </SmallButton>
       </div>
       <SmallButton icon="folder" onClick={pickComfy} title={comfyFolder ?? undefined}>
-        Change ComfyUI folder
+        {folderLabel}
       </SmallButton>
-      {msg &&
-        (msg.ok ? (
-          <div className="vs-d">{msg.text}</div>
-        ) : (
-          <div className="vs-d warn" role="alert">
-            <Icon name="warning" size={12} />
-            {msg.text}
-          </div>
-        ))}
+      {status}
     </Setting>
   )
 }

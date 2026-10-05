@@ -1,4 +1,4 @@
-import type { Page } from 'playwright'
+import { _electron, type ElectronApplication, type Page } from 'playwright'
 import { join, resolve } from 'path'
 import type { JobEvent } from '../src/shared/types'
 
@@ -17,6 +17,18 @@ export const magickEnv = {
   ...process.env,
   MAGICK_CODER_MODULE_PATH: join(BIN, 'modules', 'coders'),
   MAGICK_CONFIGURE_PATH: BIN
+}
+
+/** Launch the built app for a spec. Every spec goes through here so the window
+ * stays hidden (FILESMITH_E2E_HIDDEN): it paints for screenshots but is never
+ * shown or focused, so a test run never steals focus from the desktop. */
+export function launchApp(
+  env: Record<string, string | undefined> = {}
+): Promise<ElectronApplication> {
+  return _electron.launch({
+    args: [ROOT],
+    env: { ...process.env, ...env, FILESMITH_E2E_HIDDEN: '1' } as Record<string, string>
+  })
 }
 
 /** Run one job through the real preload bridge; resolve on its terminal event. */

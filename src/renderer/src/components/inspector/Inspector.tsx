@@ -13,6 +13,7 @@ export function Inspector({
   sub,
   runLabel,
   runDisabled,
+  runHint = null,
   onRun,
   stopping = false,
   onStop,
@@ -24,6 +25,8 @@ export function Inspector({
   sub: string
   runLabel: string
   runDisabled: boolean
+  /** Why Run is off, when the reason is not obvious (Generate with no model). */
+  runHint?: string | null
   onRun: () => void
   /** While work runs, Run becomes Stop (owner, 2026-10-04). */
   stopping?: boolean
@@ -55,6 +58,11 @@ export function Inspector({
         </div>
         {children}
       </div>
+      {runHint && !stopping && (
+        <div className="ihint" role="status">
+          {runHint}
+        </div>
+      )}
       <div className="ifoot">
         {stopping ? (
           <PrimaryButton data-testid="stop" className="stop" icon="stop" onClick={onStop}>

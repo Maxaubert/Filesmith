@@ -54,7 +54,7 @@ export function ToolStatus(): JSX.Element {
         desc={note ?? (comfy === undefined ? 'Checking' : comfy ? <code>{comfy}</code> : 'Not set')}
       >
         <SmallButton icon="folder" onClick={() => void changeComfy()}>
-          Change folder
+          {comfy ? 'Change folder' : 'Choose folder'}
         </SmallButton>
       </Setting>
       <Setting title="Upscale models" desc="Drop your own Real-ESRGAN models into this folder.">

@@ -713,6 +713,15 @@
 }
 
 /* footer */
+/* Why Run is off (Generate with no model): one quiet line above it. The grid
+   gives it an implicit auto row, so the footer keeps its height. */
+.ihint {
+  border-top: 1px solid var(--line);
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--fg2);
+  text-align: center;
+}
 .ifoot {
   border-top: 1px solid var(--line);
   display: flex;

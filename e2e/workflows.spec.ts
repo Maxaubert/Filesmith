@@ -1,4 +1,4 @@
-import { _electron, type ElectronApplication, type Page } from 'playwright'
+import { type ElectronApplication, type Page } from 'playwright'
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'child_process'
 import {
@@ -12,7 +12,17 @@ import {
 } from 'fs'
 import { tmpdir } from 'os'
 import { basename, join } from 'path'
-import { FFMPEG, FFPROBE, MAGICK, MAIN, MUTOOL, ROOT, SEVENZIP, magickEnv, runJob } from './helpers'
+import {
+  FFMPEG,
+  FFPROBE,
+  MAGICK,
+  MAIN,
+  MUTOOL,
+  SEVENZIP,
+  magickEnv,
+  runJob,
+  launchApp
+} from './helpers'
 
 // The full workflow matrix, run against the REAL built app: every operation of
 // every category, through the actual preload bridge -> IPC -> queue -> engine
@@ -157,7 +167,7 @@ test.beforeAll(async () => {
   // makes app.getAppPath() resolve to out/main, which silently hides every
   // resources/ tree and lets resolveTool fall back to PATH binaries — the
   // suite would then test the machine's tools, not the bundled ones.
-  app = await _electron.launch({ args: [ROOT] })
+  app = await launchApp()
   page = await app.firstWindow()
 })
 
