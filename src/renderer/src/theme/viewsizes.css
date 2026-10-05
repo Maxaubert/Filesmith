@@ -258,20 +258,6 @@
   transform: translate(-50%, -50%);
   color: var(--fg3);
 }
-.thumb.big .play {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 28%;
-  height: 28%;
-  max-width: 40px;
-  max-height: 40px;
-  transform: translate(-50%, -50%);
-  color: var(--fg1);
-}
-.thumb.big .play path {
-  fill: currentColor;
-}
 .thumb .kt {
   position: absolute;
   right: 0;

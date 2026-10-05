@@ -4,8 +4,8 @@ import { Icon } from '../icons/Icon'
 import { kindIcon } from './cardModel'
 
 /** A row thumbnail. Small (Details, Tiles): the image or the kind's letters.
- * Big (icon grids): the image or the kind's glyph, the kind tag, and a play
- * glyph on videos (spec 5). */
+ * Big (icon grids): the image or the kind's glyph, and the kind tag. No play
+ * glyph: nothing in the grid plays a video, so it would promise an action. */
 export function Thumb({
   src,
   kind,
@@ -28,7 +28,6 @@ export function Thumb({
   return (
     <span className="thumb big" aria-hidden="true">
       {src ? <img src={src} alt="" /> : <Icon name={kindIcon(fileKind)} className="ph" />}
-      {src && fileKind === 'video' && <Icon name="play" className="play" />}
       <span className="kt">{kind}</span>
     </span>
   )

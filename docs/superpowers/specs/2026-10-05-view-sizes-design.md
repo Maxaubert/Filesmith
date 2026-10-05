@@ -122,7 +122,7 @@ screen (revised 2026-10-05: the owner's 4K screen at 225% made the old fixed 256
 
 Without a thumbnail, cards show the kind's glyph (image, video, audio, pdf, doc, archive) centred in a
 `--line-strong` frame. Cards at Medium and up show the kind tag (`PNG`) at the bottom right of the thumb;
-video thumbs get a centred play glyph.
+no play glyph on videos, since nothing in the grid plays them (owner, 2026-10-05).
 
 ## 6. Changes by file
 
