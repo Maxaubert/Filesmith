@@ -1,0 +1,615 @@
+<!doctype html>
+<!--
+  Concept 04 "Explorer style": view sizes named like Windows File Explorer.
+  Details (today's table) / Tiles (two-line cards, 48px thumb) / Medium icons / Large icons / Extra large icons.
+  The current size shows in a compact "View" menu button at the right end of the files toolbar; its menu lists
+  the sizes with Ctrl+Shift+1..5 and the Ctrl+wheel hint. Ctrl+wheel over the files view steps sizes
+  (wheel up = bigger, like Explorer), Ctrl+= / Ctrl+- step, Ctrl+0 resets to Details.
+  Open with #size=0..4 to land on a size. Shell copied from terminal-v5/10-s2-vscode-grouped with the
+  post-build owner changes (no status bar, grey selected fills, PDF Tools, plain counts).
+  Strict monochrome (r=g=b), IBM Plex Sans + IBM Plex Mono, square corners.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Filesmith View Sizes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0a0a0a; --bg-1:#0f0f0f; --hover:#1a1a1a; --selected:#202020; --field:#141414; --track:#2a2a2a;
+  --line:#262626; --line-strong:#3a3a3a;
+  --fg1:#ededed; --fg2:#b4b4b4; --fg3:#8c8c8c; --fg-disabled:#5c5c5c;
+  --inv-bg:#2a2a2a; --inv-fg:#ededed; --inv-hover:#3a3a3a; --inv-active:#202020; --focus:#ededed;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",Consolas,monospace;
+  --sbw:208px;
+  --cols:40px 1fr 64px 88px 184px 232px;
+}
+*,*::before,*::after{box-sizing:border-box;border-radius:0}
+html,body{background:var(--bg-0)}
+body{margin:0;width:1440px;height:900px;overflow:hidden;color:var(--fg1);font:13px/1.4 var(--sans);
+  -webkit-font-smoothing:antialiased;display:grid;grid-template-rows:32px 1fr}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:square;stroke-linejoin:miter}
+svg.i *{vector-effect:non-scaling-stroke}
+svg.i12{width:12px;height:12px}
+:focus-visible{outline:1px solid var(--focus);outline-offset:-1px}
+
+/* ---------- title bar ---------- */
+.titlebar{background:var(--bg-0);border-bottom:1px solid var(--line);display:flex;align-items:center;padding-left:14px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;line-height:1}
+.tsep{width:1px;align-self:stretch;background:var(--line);margin:0 12px}
+.crumb{display:flex;align-items:center;gap:6px;color:var(--fg3);font:12px/1 var(--mono)}
+.crumb a{color:var(--fg3);text-decoration:none;padding:4px 2px}
+.crumb b{color:var(--fg1);font-weight:500}
+.winctl{margin-left:auto;display:flex;align-self:stretch}
+.winctl button{width:46px;display:grid;place-items:center;color:var(--fg2);border-left:1px solid var(--line)}
+.winctl button:hover{background:var(--hover);color:var(--fg1)}
+.winctl svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1}
+
+/* ---------- workbench ---------- */
+.wb{display:grid;grid-template-columns:auto 1fr 340px;min-height:0}
+.side{width:var(--sbw);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.side-head{height:32px;display:flex;align-items:center;border-bottom:1px solid var(--line);flex:none}
+.side-head .lbl{padding-left:16px;font:11px/1 var(--mono);color:var(--fg3)}
+.toggle{margin-left:auto;width:47px;height:31px;display:grid;place-items:center;color:var(--fg2)}
+.toggle:hover{background:var(--hover);color:var(--fg1)}
+.nav{display:flex;flex-direction:column;padding:6px 0}
+.item{height:36px;display:flex;align-items:center;gap:12px;padding:0 14px 0 15px;color:var(--fg2);white-space:nowrap;text-align:left;width:100%}
+.item:hover{background:var(--hover);color:var(--fg1)}
+.item.on{color:var(--fg1);font-weight:600;background:var(--selected)}
+.item .lab{flex:1}
+.item .n{font:500 11px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg3)}
+.side .spacer{flex:1}
+.nav.bottom{border-top:1px solid var(--line)}
+
+/* ---------- center ---------- */
+.center{position:relative;display:grid;grid-template-rows:32px 1fr;min-width:0;min-height:0}
+.toolbar{display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
+.tbtn{display:inline-flex;align-items:center;gap:8px;padding:0 14px;color:var(--fg1);line-height:1;border-right:1px solid var(--line)}
+.tbtn.add{font-weight:600}
+.tbtn:hover{background:var(--hover)}
+.tbtn:active{background:var(--selected)}
+.tb-right{margin-left:auto;display:flex;align-items:stretch}
+.count{display:flex;align-items:center;font:12px var(--mono);color:var(--fg3);padding:0 14px}
+
+/* View menu button */
+.viewbtn{position:relative;display:inline-flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-left:1px solid var(--line);
+  color:var(--fg2);font-size:12px;line-height:1;transition:background-color .2s,color .2s}
+.viewbtn .vl{color:var(--fg1);min-width:96px;text-align:left}
+.viewbtn .k{color:var(--fg3)}
+.viewbtn:hover,.viewbtn[aria-expanded="true"]{background:var(--hover);color:var(--fg1)}
+.viewbtn:active{background:var(--selected)}
+.viewbtn.flash{background:var(--inv-bg);color:var(--fg1);transition:none}
+
+.menu{position:absolute;z-index:50;min-width:272px;padding:4px 0;background:var(--bg-0);border:1px solid var(--line-strong);display:none}
+.menu.open{display:block}
+.menu-item{width:100%;height:28px;display:flex;white-space:nowrap;align-items:center;gap:10px;padding:0 12px;font-size:12px;color:var(--fg2);text-align:left}
+.menu-item .ml{flex:1}
+.menu-item .sc{font:11px var(--mono);color:var(--fg3)}
+.menu-item .tick{width:12px;height:12px;visibility:hidden}
+.menu-item[aria-checked="true"]{color:var(--fg1);font-weight:600}
+.menu-item[aria-checked="true"] .tick{visibility:visible}
+.menu-item:hover,.menu-item:focus-visible{background:var(--hover);color:var(--fg1);outline:none}
+.menu-sep{height:1px;margin:4px 0;background:var(--line)}
+.menu-hint{display:flex;align-items:center;gap:10px;height:28px;padding:0 12px;font-size:12px;color:var(--fg3)}
+.menu-hint .sc{margin-left:auto;font:11px var(--mono)}
+.kbd{font:11px var(--mono);color:var(--fg2);border:1px solid var(--line-strong);padding:1px 4px}
+
+/* ---------- queue ---------- */
+.qtable{min-height:0;display:flex;flex-direction:column}
+.cols{display:grid;grid-template-columns:var(--cols);align-items:center}
+.thead{height:28px;border-bottom:1px solid var(--line-strong);flex:none}
+.th{height:28px;display:flex;align-items:center;gap:4px;padding:0 10px;font:500 11px/1 var(--mono);color:var(--fg3);border-right:1px solid var(--line);user-select:none;cursor:pointer}
+.th:last-child{border-right:0}
+.th:hover{background:var(--hover);color:var(--fg1)}
+.th .chev{opacity:0}
+.th.sorted{color:var(--fg1)}
+.th.sorted .chev{opacity:1}
+.th.num{justify-content:flex-end}
+.th.ck{justify-content:center;padding:0}
+.qbody{flex:1;min-height:0;overflow:auto;view-transition-name:qlist}
+.qbody::-webkit-scrollbar{width:10px}
+.qbody::-webkit-scrollbar-thumb{background:var(--line-strong)}
+
+/* group header */
+.grp{width:100%;height:28px;display:flex;align-items:center;gap:10px;padding:0 10px 0 16px;font:600 11px/1 var(--mono);
+  letter-spacing:.09em;color:var(--fg3);border-bottom:1px solid var(--line)}
+.grp::after{content:"";flex:1;height:1px;background:var(--line)}
+.grp .n{font-weight:500;letter-spacing:0}
+.grp:hover{color:var(--fg1);background:var(--hover)}
+
+/* details rows */
+.tr{position:relative;height:32px;border-bottom:1px solid var(--line);cursor:default}
+.tr:hover{background:var(--hover)}
+.tr.sel{background:var(--selected)}
+.td{padding:0 10px;display:flex;align-items:center;gap:10px;min-width:0;white-space:nowrap}
+.td.num{justify-content:flex-end}
+.td.ck{justify-content:center;padding:0}
+.box{width:14px;height:14px;border:1px solid var(--fg3);display:grid;place-items:center;flex:none;cursor:pointer;color:var(--inv-fg);background:var(--bg-0)}
+.box svg{width:10px;height:10px;stroke-width:2}
+.box.on{background:var(--inv-bg);border-color:var(--fg3)}
+.box.mixed{border-color:var(--fg2)}
+.box.mixed::before{content:"";width:8px;height:2px;background:var(--fg1)}
+.box:hover{border-color:var(--fg1)}
+.name{font:13px var(--mono);color:var(--fg1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.th-thumb{width:18px;height:18px;border:1px solid var(--line-strong);flex:none;background-size:cover}
+.meta{font:12px var(--mono);color:var(--fg3)}
+.size{font:12px var(--mono);font-variant-numeric:tabular-nums;color:var(--fg2)}
+.tr:hover .meta,.tr.sel .meta{color:var(--fg2)}
+.res{display:flex;align-items:center;gap:8px;font:12px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.res .arr{color:var(--fg3)}
+.res b{font-weight:600;color:var(--fg1)}
+.res .pct{color:var(--fg3)}
+.res .est{color:var(--fg2)}
+.td.rc{position:relative;overflow:visible}
+.res .arr.split{position:absolute;left:0;top:50%;transform:translate(calc(-50% - .5px),-50%);box-sizing:content-box;padding:2px 1px;background:var(--bg-0)}
+.tr:hover .res .arr.split{background:var(--hover)}
+.tr.sel .res .arr.split{background:var(--selected)}
+.st{display:flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap;min-width:0}
+.st.done{color:var(--fg2)}
+.st.run{color:var(--fg1)}
+.st.q{color:var(--fg3)}
+.st.fail{color:var(--inv-fg);background:var(--inv-bg);font-weight:600;height:22px;padding:0 8px 0 6px;gap:6px}
+.st.fail .why{overflow:hidden;text-overflow:ellipsis}
+.prog{font:12px var(--mono);font-variant-numeric:tabular-nums}
+.prog b{font-weight:600;color:var(--fg1)}
+.prog .eta{color:var(--fg3)}
+.row-act{margin-left:auto;width:24px;height:24px;display:grid;place-items:center;color:var(--fg1);border:1px solid var(--line-strong);flex:none}
+.row-act:hover{border-color:var(--fg2);background:var(--hover)}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.tile{position:relative;display:grid;grid-template-columns:22px 48px 1fr;align-items:center;column-gap:10px;height:64px;padding:0 12px 0 8px;background:var(--bg-0);cursor:default;min-width:0;border-bottom:1px solid var(--line)}
+.tile:nth-child(odd){border-right:1px solid var(--line)}
+.tile:hover{background:var(--hover)}
+.tile.sel{background:var(--selected)}
+.tile .box{justify-self:center}
+.tile .thumb{width:48px;height:48px}
+.tile .lines{display:flex;flex-direction:column;gap:5px;min-width:0}
+.tile .l1{display:flex;align-items:baseline;gap:10px;min-width:0}
+.tile .l1 .meta{margin-left:auto;flex:none}
+.tile .l2{display:flex;align-items:center;gap:12px;min-width:0;height:22px}
+.tile .l2 .res{gap:6px}
+.tile .l2 .st{margin-left:auto}
+.tile .l2 .st.fail{margin-left:0}
+
+/* icon grids */
+.icons{display:grid;grid-template-columns:repeat(auto-fill,var(--cw));gap:8px;padding:10px 12px 14px}
+.card{position:relative;display:flex;flex-direction:column;gap:6px;padding:8px;cursor:default;min-width:0}
+.card:hover{background:var(--hover)}
+.card.sel{background:var(--selected)}
+.card .thumb{width:100%;aspect-ratio:1}
+.card .box{position:absolute;left:13px;top:13px;z-index:1;opacity:0;transition:opacity .1s}
+.card:hover .box,.card.sel .box,.icons.any .box{opacity:1}
+.card .cname{font:12px/1.35 var(--mono);color:var(--fg1);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.card .cst{margin-top:auto;display:flex;align-items:center;gap:6px;font:12px var(--mono);font-variant-numeric:tabular-nums;color:var(--fg2);height:20px;min-width:0;white-space:nowrap}
+.card .cst svg{flex:none}
+.card .cst .pct{color:var(--fg3)}
+.card .cst b{font-weight:600;color:var(--fg1)}
+.card .cst.q{color:var(--fg3)}
+.card .cst.fail{color:var(--inv-fg);background:var(--inv-bg);font-weight:600;padding:0 6px 0 4px;align-self:flex-start;max-width:100%}
+.card .cst.fail span{overflow:hidden;text-overflow:ellipsis}
+.card .cst .xtra{color:var(--fg3);margin-left:auto}
+.icons.s2{--cw:132px}
+.icons.s3{--cw:196px}
+.icons.s4{--cw:274px}
+.icons.s4 .card .cname,.icons.s3 .card .cname{font-size:13px}
+
+/* thumbnail placeholder */
+.thumb{position:relative;border:1px solid var(--line-strong);flex:none;overflow:hidden;background-size:cover}
+.thumb .kt{position:absolute;right:0;bottom:0;padding:2px 5px;background:var(--bg-0);font:10px/1.2 var(--mono);color:var(--fg2);letter-spacing:.02em}
+.tile .thumb .kt{display:none}
+.thumb .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--fg1);width:28%;height:28%;max-width:40px;max-height:40px;min-width:14px;min-height:14px}
+.thumb.doc{background:#1c1c1c}
+.thumb .page{position:absolute;left:22%;right:22%;top:12%;bottom:12%;background:#d6d6d6;padding:10% 10%}
+.thumb .page i{display:block;height:5%;margin-bottom:6%;background:#7a7a7a}
+.thumb .page i:nth-child(1){width:55%;height:8%;background:#3a3a3a}
+.thumb .page i:nth-child(3){width:80%}
+.thumb .page i:nth-child(5){width:62%}
+
+/* totals */
+.totals{flex:none;height:30px;border-top:1px solid var(--line-strong);font:12px var(--mono);color:var(--fg2)}
+.totals b{font-weight:600;color:var(--fg1)}
+.totals.flat{display:flex;align-items:center;gap:22px;padding:0 16px}
+.totals.flat .res{gap:8px}
+
+/* view transition: quick crossfade of the list only */
+::view-transition-group(qlist){animation-duration:150ms;animation-timing-function:cubic-bezier(.2,.7,.2,1)}
+::view-transition-old(qlist){animation:150ms cubic-bezier(.2,.7,.2,1) both vt-out}
+::view-transition-new(qlist){animation:150ms cubic-bezier(.2,.7,.2,1) both vt-in}
+@keyframes vt-out{to{opacity:0;transform:scale(.985)}}
+@keyframes vt-in{from{opacity:0;transform:scale(1.015)}}
+::view-transition-old(root),::view-transition-new(root){animation:none}
+.qbody.fade{animation:qfade 150ms cubic-bezier(.2,.7,.2,1)}
+@keyframes qfade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){
+  ::view-transition-group(qlist),::view-transition-old(qlist),::view-transition-new(qlist){animation:none}
+  .qbody.fade{animation:none}
+  .viewbtn,.card .box{transition:none}
+}
+
+/* ---------- inspector ---------- */
+.insp{border-left:1px solid var(--line);display:grid;grid-template-rows:32px 1fr auto;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tab{position:relative;display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--fg3);font-size:12px;line-height:1}
+.tab:hover{color:var(--fg1);background:var(--hover)}
+.tab.on{color:var(--fg1);font-weight:600}
+.tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--fg1)}
+.ibody{min-height:0;overflow:auto}
+.ihead{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.ihead b{font-weight:600;font-size:14px}
+.ihead span{font:12px var(--mono);color:var(--fg3)}
+.vs{padding:0 0 12px}
+.vs-gh{display:flex;align-items:center;gap:10px;padding:14px 16px 4px;font:600 11px/1 var(--mono);letter-spacing:.09em;color:var(--fg3)}
+.vs-gh::after{content:"";flex:1;height:1px;background:var(--line)}
+.vs-set{display:flex;flex-direction:column;gap:3px;padding:7px 16px 9px}
+.vs-t{font:500 13px/1.3 var(--sans)}
+.vs-d{font:12px/1.4 var(--sans);color:var(--fg3);margin-bottom:5px}
+.vs-sel{display:flex;align-items:center;width:100%;height:28px;padding:0 6px 0 8px;background:var(--field);border:1px solid var(--line-strong);font:13px var(--mono);text-align:left}
+.vs-sel .val{flex:1}
+.vs-sel svg{color:var(--fg2)}
+.vs-sel.half{width:168px}
+.vs-row{display:flex;gap:6px}
+.vs-row .vs-sel{flex:1;width:auto}
+.sbtn{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 10px 0 8px;font:12px/1 var(--sans);border:1px solid var(--line-strong);flex:none}
+.sbtn svg{color:var(--fg2)}
+.seg{display:flex;width:100%;height:28px;border:1px solid var(--line-strong)}
+.seg button{flex:1 1 0;display:grid;place-items:center;font:13px/1 var(--mono);color:var(--fg2);border-left:1px solid var(--line-strong)}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--inv-bg);color:var(--inv-fg);font-weight:600}
+.vs-est{margin:14px 16px 0;border:1px solid var(--line-strong);padding:12px 14px 13px;display:grid;gap:9px}
+.vs-est .eh{display:flex;justify-content:space-between;font:11px/1 var(--mono);color:var(--fg3);letter-spacing:.04em}
+.vs-est .ev{display:flex;align-items:baseline;gap:10px;font:13px var(--mono);font-variant-numeric:tabular-nums}
+.vs-est .ev .from{color:var(--fg2)}
+.vs-est .ev svg{color:var(--fg3);align-self:center}
+.vs-est .ev b{font-size:16px;font-weight:600}
+.vs-est .ev .pct{margin-left:auto;color:var(--fg2)}
+.ifoot{border-top:1px solid var(--line);display:flex;height:48px}
+.primary{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--inv-bg);color:var(--inv-fg);font-weight:600}
+.primary:hover{background:var(--inv-hover)}
+.primary.stop{background:#c42b1c;color:#ffffff}
+.primary.stop:hover{background:#d13b2c}
+.primary.stop:active{background:#a8251a}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-convert" viewBox="0 0 16 16"><path d="M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13"/></symbol>
+    <symbol id="i-compress" viewBox="0 0 16 16"><path d="M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11"/></symbol>
+    <symbol id="i-resize" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10"/></symbol>
+    <symbol id="i-upscale" viewBox="0 0 16 16"><rect x="2.5" y="8.5" width="5" height="5"/><path d="M9 2.5h4.5V7M13.5 2.5L8.5 7.5"/></symbol>
+    <symbol id="i-removebg" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5"/></symbol>
+    <symbol id="i-generate" viewBox="0 0 16 16"><path d="M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></symbol>
+    <symbol id="i-completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8.25l1.75 1.75L10.75 6.5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 16 16"><path d="M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6"/><circle cx="9" cy="5" r="1.5"/><circle cx="6" cy="11" r="1.5"/></symbol>
+    <symbol id="i-addfile" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3M8 7v5M5.5 9.5h5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z"/></symbol><symbol id="i-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></symbol>
+    <symbol id="i-playfill" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z" fill="currentColor"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 16 16"><path d="M3 3v3h3M3.3 6A5 5 0 1 1 3 9.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5v.5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M10 5l3 3-3 3"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11"/><path d="M6 2.5v11M10.5 6.5L9 8l1.5 1.5"/></symbol>
+    <symbol id="i-anvil" viewBox="0 0 16 16"><path d="M1.5 4.5h10c0 2 1.5 3 3 3v1h-5l-1 2h2v2h-6v-2h2l-1-2c-2.5 0-4-1.5-4-4z"/></symbol>
+    <symbol id="i-mouse" viewBox="0 0 16 16"><rect x="4.5" y="1.5" width="7" height="13"/><path d="M8 4v2.5"/></symbol>
+    <!-- view size glyphs -->
+    <symbol id="v-0" viewBox="0 0 16 16"><path d="M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h11"/></symbol>
+    <symbol id="v-1" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4" height="4"/><rect x="2.5" y="9.5" width="4" height="4"/><path d="M8.5 3.5h5M8.5 5.5h3M8.5 10.5h5M8.5 12.5h3"/></symbol>
+    <symbol id="v-2" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="3" height="3"/><rect x="6.5" y="2.5" width="3" height="3"/><rect x="10.5" y="2.5" width="3" height="3"/><rect x="2.5" y="6.5" width="3" height="3"/><rect x="6.5" y="6.5" width="3" height="3"/><rect x="10.5" y="6.5" width="3" height="3"/><rect x="2.5" y="10.5" width="3" height="3"/><rect x="6.5" y="10.5" width="3" height="3"/><rect x="10.5" y="10.5" width="3" height="3"/></symbol>
+    <symbol id="v-3" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></symbol>
+    <symbol id="v-4" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="8"/><path d="M2.5 13.5h7"/></symbol>
+  </defs>
+</svg>
+
+<header class="titlebar">
+  <div class="brand"><svg class="i"><use href="#i-anvil"/></svg><span>Filesmith</span></div>
+  <span class="tsep"></span>
+  <nav class="crumb" aria-label="Location"><a href="#">convert</a><span>/</span><b>images</b></nav>
+  <div class="winctl">
+    <button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+    <button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+    <button aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </div>
+</header>
+
+<div class="wb">
+  <nav class="side" aria-label="Operations">
+    <div class="side-head"><span class="lbl">operations</span>
+      <button class="toggle" aria-label="Collapse sidebar"><svg class="i"><use href="#i-sidebar"/></svg></button></div>
+    <div class="nav">
+      <button class="item on" aria-current="page"><svg class="i"><use href="#i-convert"/></svg><span class="lab">Convert</span><span class="n">9</span></button>
+      <button class="item"><svg class="i"><use href="#i-compress"/></svg><span class="lab">Compress</span></button>
+      <button class="item"><svg class="i"><use href="#i-resize"/></svg><span class="lab">Resize</span></button>
+      <button class="item"><svg class="i"><use href="#i-upscale"/></svg><span class="lab">Upscale</span></button>
+      <button class="item"><svg class="i"><use href="#i-removebg"/></svg><span class="lab">Remove BG</span></button>
+      <button class="item"><svg class="i"><use href="#i-generate"/></svg><span class="lab">Generate</span></button>
+      <button class="item"><svg class="i"><use href="#i-tools"/></svg><span class="lab">PDF Tools</span></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="nav bottom">
+      <button class="item"><svg class="i"><use href="#i-completed"/></svg><span class="lab">Completed</span></button>
+      <button class="item"><svg class="i"><use href="#i-settings"/></svg><span class="lab">Settings</span></button>
+    </div>
+  </nav>
+
+  <main class="center">
+    <div class="toolbar">
+      <button class="tbtn add"><svg class="i"><use href="#i-addfile"/></svg>Add files</button>
+      <div class="tb-right">
+        <span class="count">9 files, 1 selected</span>
+        <button class="viewbtn" id="viewBtn" aria-haspopup="menu" aria-expanded="false" title="View (Ctrl+wheel to resize)">
+          <svg class="i" id="viewIcon"><use href="#v-0"/></svg><span class="vl" id="viewLabel">Details</span><svg class="i i12 k"><use href="#i-chev-d"/></svg>
+        </button>
+      </div>
+    </div>
+    <section class="qtable" id="qtable" role="grid" aria-label="Files" aria-multiselectable="true">
+      <div class="thead cols" id="thead" role="row">
+        <div class="th ck"><span class="box mixed" role="checkbox" aria-checked="mixed" aria-label="Select all in this group"></span></div>
+        <div class="th sorted">name<svg class="i i12 chev"><use href="#i-chev-d"/></svg></div>
+        <div class="th">kind<svg class="i i12 chev"><use href="#i-chev-d"/></svg></div>
+        <div class="th num">size<svg class="i i12 chev"><use href="#i-chev-d"/></svg></div>
+        <div class="th">result<svg class="i i12 chev"><use href="#i-chev-d"/></svg></div>
+        <div class="th">status<svg class="i i12 chev"><use href="#i-chev-d"/></svg></div>
+      </div>
+      <div class="qbody" id="qbody" role="rowgroup"></div>
+      <div id="totals"></div>
+    </section>
+    <div class="menu" id="viewMenu" role="menu" aria-label="View"></div>
+    <div class="sr" aria-live="polite" id="live"></div>
+  </main>
+
+  <aside class="insp" aria-label="Inspector">
+    <div class="tabs" role="tablist">
+      <button class="tab on" role="tab" aria-selected="true"><svg class="i"><use href="#i-settings"/></svg>Options</button>
+      <button class="tab" role="tab" aria-selected="false"><svg class="i"><use href="#i-eye"/></svg>Preview</button>
+      <button class="tab" role="tab" aria-selected="false"><svg class="i"><use href="#i-info"/></svg>Info</button>
+    </div>
+    <div class="ibody">
+      <div class="ihead"><b>Convert</b><span>1 selected</span></div>
+      <div class="vs">
+        <div class="vs-gh">FORMAT</div>
+        <div class="vs-set"><div class="vs-t">Format</div><div class="vs-d">The format the selected files are converted to.</div>
+          <button class="vs-sel"><span class="val">webp</span><svg class="i"><use href="#i-chev-d"/></svg></button></div>
+        <div class="vs-set"><div class="vs-t">Quality</div><div class="vs-d">Smaller files, or closer to the original.</div>
+          <div class="seg"><button>smaller</button><button class="on">balanced</button><button>best</button></div></div>
+        <div class="vs-gh">OUTPUT</div>
+        <div class="vs-set"><div class="vs-t">Location</div><div class="vs-d">Files are written next to each source.</div>
+          <div class="vs-row"><button class="vs-sel"><span class="val">next to source</span><svg class="i"><use href="#i-chev-d"/></svg></button>
+          <button class="sbtn"><svg class="i"><use href="#i-folder"/></svg>Choose folder</button></div></div>
+        <div class="vs-gh">FILES</div>
+        <div class="vs-set"><div class="vs-t">If file exists</div><div class="vs-d">Existing files are never overwritten.</div>
+          <button class="vs-sel half"><span class="val">add (2)</span><svg class="i"><use href="#i-chev-d"/></svg></button></div>
+        <div class="vs-est"><div class="eh"><span>estimate</span><span>1 file</span></div>
+          <div class="ev"><span class="from">2.1 MB</span><svg class="i i12"><use href="#i-arrow"/></svg><b>~486 KB</b><span class="pct">-77%</span></div></div>
+      </div>
+    </div>
+    <div class="ifoot"><button class="primary stop"><svg class="i"><use href="#i-stop"/></svg>Stop</button></div>
+  </aside>
+</div>
+
+<script>
+(function(){
+  /* ---------- data ---------- */
+  var T = {
+    heic:'radial-gradient(circle at 30% 35%,#9a9a9a 0 18%,transparent 19%),linear-gradient(160deg,#6a6a6a,#2a2a2a 60%,#1a1a1a)',
+    prod:'linear-gradient(90deg,transparent 40%,#b8b8b8 40% 60%,transparent 60%) center/100% 70% no-repeat,radial-gradient(ellipse at 50% 30%,#4a4a4a,#161616)',
+    shot:'linear-gradient(#8a8a8a 0 12%,transparent 12%) 0 0/100% 100% no-repeat,linear-gradient(90deg,#4a4a4a 0 26%,#262626 26%)',
+    hero:'linear-gradient(180deg,#7a7a7a,#3a3a3a 55%,#202020 55%,#161616)',
+    scan:'repeating-linear-gradient(0deg,#5a5a5a 0 1px,#2a2a2a 1px 4px)',
+    logo:'radial-gradient(circle at 50% 50%,#d0d0d0 0 26%,#1c1c1c 27%)',
+    beach:'linear-gradient(180deg,#9c9c9c 0%,#6e6e6e 42%,#4a4a4a 42% 58%,#c2c2c2 58% 62%,#7e7e7e 62%,#5c5c5c 100%)',
+    clip:'linear-gradient(#0a0a0a 0 18%,transparent 18% 82%,#0a0a0a 82%),radial-gradient(ellipse at 70% 40%,#8c8c8c,#3a3a3a 50%,#151515)'
+  };
+  var groups = [
+    {label:'Images', items:[
+      {n:'IMG_4821.HEIC',k:'HEIC',sz:'3.2 MB',st:'done',r:'640 KB',p:'-80%',t:T.heic},
+      {n:'product-shot.jpg',k:'JPG',sz:'2.1 MB',st:'done',r:'486 KB',p:'-77%',t:T.prod,sel:true},
+      {n:'screenshot-2026-10-03.png',k:'PNG',sz:'1.8 MB',st:'run',r:'~410 KB',p:'-77%',pg:'62%',eta:'(4s)',t:T.shot},
+      {n:'hero-banner@2x.png',k:'PNG',sz:'4.6 MB',st:'q',t:T.hero},
+      {n:'scan_0091.tiff',k:'TIFF',sz:'22.4 MB',st:'fail',why:'Unsupported compression',t:T.scan},
+      {n:'logo-final.bmp',k:'BMP',sz:'1.1 MB',st:'q',t:T.logo},
+      {n:'beach-panorama.png',k:'PNG',sz:'9.3 MB',st:'done',r:'1.2 MB',p:'-87%',t:T.beach}
+    ]},
+    {label:'Video', items:[
+      {n:'holiday-clip.mov',k:'MOV',sz:'148 MB',st:'done',r:'31 MB',p:'-79%',t:T.clip,video:'0:42'}
+    ]},
+    {label:'Documents', items:[
+      {n:'invoice-2026-09.pdf',k:'PDF',sz:'1.4 MB',st:'q',doc:true}
+    ]}
+  ];
+  var SIZES = [
+    {name:'Details', key:'1'},
+    {name:'Tiles', key:'2'},
+    {name:'Medium icons', key:'3'},
+    {name:'Large icons', key:'4'},
+    {name:'Extra large icons', key:'5'}
+  ];
+  var DEFAULT = 0, size = DEFAULT;
+
+  function ic(id,cls){return '<svg class="i'+(cls?' '+cls:'')+'"><use href="#'+id+'"/></svg>'}
+  function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+  function box(f){return '<span class="box'+(f.sel?' on':'')+'" role="checkbox" aria-checked="'+(!!f.sel)+'" aria-label="Select '+esc(f.n)+'">'+(f.sel?ic('i-check'):'')+'</span>'}
+  function thumb(f,big){
+    if(f.doc) return '<span class="thumb doc"><span class="page"><i></i><i></i><i></i><i></i><i></i></span>'+(big?'<span class="kt">'+f.k+'</span>':'')+'</span>';
+    var inner = f.video&&big ? ic('i-playfill','play') : '';
+    var kt = big ? '<span class="kt">'+(f.video?f.k+' '+f.video:f.k)+'</span>' : '';
+    return '<span class="thumb" style="background:'+f.t+'">'+inner+kt+'</span>';
+  }
+  function thSmall(f){
+    if(f.doc) return '<span class="th-thumb" style="background:linear-gradient(90deg,#1c1c1c 20%,#d6d6d6 20% 80%,#1c1c1c 80%)"></span>';
+    return '<span class="th-thumb" style="background:'+f.t+'"></span>';
+  }
+  function status(f){
+    if(f.st==='done') return '<span class="st done">'+ic('i-check')+'Done</span>';
+    if(f.st==='run') return '<span class="st run">'+ic('i-sync')+'<span class="prog"><b>'+f.pg+'</b><span class="eta">'+f.eta+'</span></span></span>';
+    if(f.st==='q') return '<span class="st q">'+ic('i-clock')+'Queued</span>';
+    return '<span class="st fail">'+ic('i-warning')+'<span class="why">'+f.why+'</span></span>';
+  }
+  function result(f,split){
+    if(f.st==='done') return '<span class="res">'+ic('i-arrow','i12 arr'+(split?' split':''))+'<b>'+f.r+'</b><span class="pct">'+f.p+'</span></span>';
+    if(f.st==='run') return '<span class="res">'+ic('i-arrow','i12 arr'+(split?' split':''))+'<span class="est">'+f.r+'</span><span class="pct">'+f.p+'</span></span>';
+    return '';
+  }
+  function grp(g){return '<button class="grp" title="Select all '+g.label.toLowerCase()+'">'+g.label.toUpperCase()+'<span class="n">'+g.items.length+'</span></button>'}
+
+  /* compact status for icon grids: glyph + 62%(4s) or done size */
+  function cst(f,s){
+    if(f.st==='done') return '<div class="cst">'+ic('i-check','i12')+'<b>'+f.r+'</b>'+(s>=3?'<span class="pct">'+f.p+'</span>':'')+(s>=4?'<span class="xtra">'+f.sz+'</span>':'')+'</div>';
+    if(f.st==='run') return '<div class="cst">'+ic('i-sync','i12')+'<span class="prog"><b>'+f.pg+'</b><span class="eta">'+f.eta+'</span></span>'+(s>=3?'<span class="xtra">'+f.r+'</span>':'')+'</div>';
+    if(f.st==='q') return '<div class="cst q">'+ic('i-clock','i12')+'Queued'+(s>=3?'<span class="xtra">'+f.sz+'</span>':'')+'</div>';
+    return '<div class="cst fail" title="'+f.why+'">'+ic('i-warning','i12')+'<span>'+(s>=3?f.why:'Failed')+'</span></div>';
+  }
+
+  function render(){
+    var h='', body=document.getElementById('qbody');
+    var multi = groups.length>1;
+    groups.forEach(function(g){
+      if(multi) h+=grp(g);
+      if(size===0){
+        g.items.forEach(function(f){
+          var act = f.st==='fail' ? '<button class="row-act" title="Retry">'+ic('i-retry')+'</button>' : '';
+          h+='<div class="tr cols'+(f.sel?' sel':'')+'" role="row" tabindex="0">'+
+             '<div class="td ck">'+box(f)+'</div>'+
+             '<div class="td">'+thSmall(f)+'<span class="name">'+esc(f.n)+'</span></div>'+
+             '<div class="td meta">'+f.k+'</div>'+
+             '<div class="td num"><span class="size">'+f.sz+'</span></div>'+
+             '<div class="td rc">'+result(f,true)+'</div>'+
+             '<div class="td">'+status(f)+act+'</div></div>';
+        });
+      } else if(size===1){
+        h+='<div class="tiles">';
+        g.items.forEach(function(f){
+          var l2 = f.st==='fail' ? status(f)
+            : '<span class="size">'+f.sz+'</span>'+(f.st==='q'?'':result(f,false))+status(f);
+          h+='<div class="tile'+(f.sel?' sel':'')+'" role="row" tabindex="0">'+box(f)+thumb(f,false)+
+             '<div class="lines"><div class="l1"><span class="name">'+esc(f.n)+'</span><span class="meta">'+f.k+'</span></div>'+
+             '<div class="l2">'+l2+'</div></div></div>';
+        });
+        h+='</div>';
+      } else {
+        h+='<div class="icons s'+size+'">';
+        g.items.forEach(function(f){
+          h+='<div class="card'+(f.sel?' sel':'')+'" role="row" tabindex="0" title="'+esc(f.n)+'">'+box(f)+thumb(f,true)+
+             '<div class="cname">'+esc(f.n)+'</div>'+cst(f,size)+'</div>';
+        });
+        h+='</div>';
+      }
+    });
+    body.innerHTML=h;
+    document.getElementById('thead').style.display = size===0 ? '' : 'none';
+    var tot = document.getElementById('totals');
+    if(size===0){
+      tot.className='totals cols';
+      tot.innerHTML='<div class="td"></div><div class="td">9 files</div><div class="td"></div><div class="td num">194 MB</div>'+
+        '<div class="td"><span class="res"><span style="color:var(--fg2)">163 MB</span>'+ic('i-arrow','i12 arr')+'<b>33 MB</b><span class="pct">so far</span></span></div>'+
+        '<div class="td"><b>4 of 9 done</b></div>';
+    } else {
+      tot.className='totals flat';
+      tot.innerHTML='<span>9 files, 194 MB</span><span class="res"><span>163 MB</span>'+ic('i-arrow','i12 arr')+'<b>33 MB</b><span class="pct">so far</span></span><b>4 of 9 done</b>';
+    }
+    document.getElementById('viewLabel').textContent = SIZES[size].name;
+    document.querySelector('#viewIcon use').setAttribute('href','#v-'+size);
+    document.documentElement.dataset.size = size;
+    buildMenu();
+  }
+
+  /* ---------- View menu ---------- */
+  var btn=document.getElementById('viewBtn'), menu=document.getElementById('viewMenu');
+  function buildMenu(){
+    var h='';
+    SIZES.forEach(function(s,i){
+      h+='<button class="menu-item" role="menuitemradio" aria-checked="'+(i===size)+'" data-s="'+i+'">'+ic('i-check','i12 tick')+ic('v-'+i)+
+         '<span class="ml">'+s.name+'</span><span class="sc">Ctrl+Shift+'+s.key+'</span></button>';
+    });
+    h+='<div class="menu-sep"></div>'+
+       '<button class="menu-item" role="menuitem" data-s="'+DEFAULT+'"><span class="tick"></span>'+ic('i-retry')+'<span class="ml">Reset to Details</span><span class="sc">Ctrl+0</span></button>'+
+       '<div class="menu-sep"></div>'+
+       '<div class="menu-hint">'+ic('i-mouse')+'<span>Ctrl + wheel over the list</span></div>'+
+       '<div class="menu-hint" style="padding-left:38px"><span>Bigger, smaller</span><span class="sc">Ctrl+= / Ctrl+-</span></div>';
+    menu.innerHTML=h;
+  }
+  function openMenu(){
+    var r=btn.getBoundingClientRect(), c=document.querySelector('.center').getBoundingClientRect();
+    menu.classList.add('open');
+    menu.style.top=(r.bottom-c.top)+'px';
+    menu.style.left=(r.right-c.left-menu.offsetWidth)+'px';
+    btn.setAttribute('aria-expanded','true');
+    var cur=menu.querySelector('[aria-checked="true"]'); if(cur) cur.focus();
+  }
+  function closeMenu(){menu.classList.remove('open');btn.setAttribute('aria-expanded','false')}
+  btn.addEventListener('click',function(e){e.stopPropagation();menu.classList.contains('open')?closeMenu():openMenu()});
+  menu.addEventListener('click',function(e){var b=e.target.closest('[data-s]');if(!b)return;e.stopPropagation();setSize(+b.dataset.s,true);closeMenu();btn.focus()});
+  document.addEventListener('click',function(e){if(!menu.contains(e.target))closeMenu()});
+  menu.addEventListener('keydown',function(e){
+    var items=[].slice.call(menu.querySelectorAll('.menu-item')),i=items.indexOf(document.activeElement);
+    if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus()}
+    else if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus()}
+    else if(e.key==='Escape'){closeMenu();btn.focus()}
+  });
+
+  /* ---------- size changes ---------- */
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var flashT;
+  function setSize(n,animate){
+    n=Math.max(0,Math.min(SIZES.length-1,n));
+    if(n===size) return false;
+    size=n;
+    try{history.replaceState(null,'','#size='+n)}catch(_){}
+    document.getElementById('live').textContent='View: '+SIZES[n].name;
+    var anim = animate && !reduce.matches;
+    if(anim && document.startViewTransition){ document.startViewTransition(render); }
+    else { render(); if(anim){var b=document.getElementById('qbody');b.classList.remove('fade');void b.offsetWidth;b.classList.add('fade')} }
+    if(menu.classList.contains('open')) buildMenu();
+    btn.classList.add('flash'); clearTimeout(flashT); flashT=setTimeout(function(){btn.classList.remove('flash')},450);
+    return true;
+  }
+  window.__view={get size(){return size}, count:SIZES.length, set:function(n){setSize(n,false)}};
+
+  /* Ctrl+wheel over the files view: one step per notch, trackpad deltas accumulate */
+  var acc=0, last=0;
+  /* listen on document and hit-test by rect: during a view transition the pseudo-element
+     overlay is the event target, so a notch mid-transition would otherwise be lost */
+  document.addEventListener('wheel',function(e){
+    if(!e.ctrlKey) return;
+    var r=document.getElementById('qtable').getBoundingClientRect();
+    if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) return;
+    e.preventDefault();
+    acc += e.deltaY;
+    var now=performance.now();
+    if(Math.abs(acc)>=40 && now-last>90){
+      setSize(size + (acc<0 ? 1 : -1), true);   /* wheel up = bigger, like Explorer */
+      acc=0; last=now;
+    }
+  },{passive:false});
+
+  document.addEventListener('keydown',function(e){
+    if(!e.ctrlKey||e.altKey) return;
+    if(e.shiftKey && /^Digit[1-5]$/.test(e.code)){e.preventDefault();setSize(+e.code.slice(5)-1,true);return}
+    if(e.shiftKey) return;
+    if(e.key==='='||e.key==='+'){e.preventDefault();setSize(size+1,true)}
+    else if(e.key==='-'){e.preventDefault();setSize(size-1,true)}
+    else if(e.key==='0'){e.preventDefault();setSize(DEFAULT,true)}
+  });
+
+  function fromHash(){var m=/size=(\d)/.exec(location.hash);if(m){size=Math.max(0,Math.min(SIZES.length-1,+m[1]))}}
+  window.addEventListener('hashchange',function(){fromHash();render()});
+  fromHash(); render();
+  if(/menu/.test(location.hash)) setTimeout(openMenu,0);
+})();
+</script>
+</body>
+</html>
