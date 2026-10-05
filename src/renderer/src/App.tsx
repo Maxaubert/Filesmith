@@ -54,6 +54,8 @@ import { shortcutFor } from './components/shell/shortcuts'
 import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/selectAll'
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
+import { useViewSize } from './components/queue/useViewSize'
+import { viewKeyFor } from './components/queue/viewSize'
 import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
 import {
   deleteConfirm,
@@ -144,6 +146,8 @@ export default function App(): JSX.Element {
   const hydrated = useRef(false)
   const sidebar = useSidebar()
   const rail = useRailPrefs()
+  // Files view size (spec 3): one per app, persisted like the sidebar.
+  const view = useViewSize()
   // Ids of the last run per workspace, for "Converting 3 of 6" (spec 6.4).
   // Per-workspace column sort; null is insertion order (spec 4.2).
   const [sorts, setSorts] = useState<Record<string, SortState | null>>({})
@@ -360,6 +364,9 @@ export default function App(): JSX.Element {
   const sort = sorts[qKey] ?? null
   const groups = groupedRows(cur.items, sort)
   const order = visibleOrder(groups)
+  // The queue (files) view is on screen: not Completed, Settings, the Tools
+  // grid or Generate. View-size keys only act here.
+  const filesView = !onCompleted && state.tab !== 'settings' && !onToolsGrid && tool !== 'generate'
 
   function onItemClick(id: string, e: MouseEvent): void {
     // The one-group rule lives in the reducer, which MOVES the selection to a
@@ -859,19 +866,28 @@ export default function App(): JSX.Element {
   // so the window listener reads the latest ones through a ref, refreshed after
   // every render like `latest` above (assigning it during render breaks the
   // react-hooks/refs rule).
-  const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle })
+  const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle, filesView, view })
   useEffect(() => {
-    actions.current = { run, browse, runCount, toggle: sidebar.toggle }
+    actions.current = { run, browse, runCount, toggle: sidebar.toggle, filesView, view }
   })
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      const s = shortcutFor(e)
-      if (!s) return
-      e.preventDefault()
       const a = actions.current
-      if (s === 'toggleSidebar') a.toggle()
-      else if (s === 'addFiles') void a.browse()
-      else if (s === 'run' && a.runCount > 0) void a.run()
+      const s = shortcutFor(e)
+      if (s) {
+        e.preventDefault()
+        if (s === 'toggleSidebar') a.toggle()
+        else if (s === 'addFiles') void a.browse()
+        else if (s === 'run' && a.runCount > 0) void a.run()
+        return
+      }
+      // View sizes (spec 2). preventDefault also keeps Electron's default menu
+      // zoom accelerators (Ctrl+= / Ctrl+- / Ctrl+0) from zooming the page.
+      const v = a.filesView ? viewKeyFor(e) : null
+      if (!v) return
+      e.preventDefault()
+      if (v.kind === 'step') a.view.step(v.delta)
+      else a.view.setSize(v.size, { flash: true })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -1175,7 +1191,10 @@ export default function App(): JSX.Element {
                   files={inputs.length}
                   selected={cur.selected.length}
                   dropping={dragging}
+                  size={view.size}
+                  flash={view.flash}
                   onAdd={() => void browse()}
+                  onView={(s) => view.setSize(s)}
                 />
                 <QueueTable
                   groups={groups}

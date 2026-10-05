@@ -45,7 +45,13 @@ export const ICON_NAMES = [
   'tocbz',
   'edit',
   'grip',
-  'dots'
+  'dots',
+  'view-details',
+  'view-tiles',
+  'view-medium',
+  'view-large',
+  'view-xl',
+  'mouse'
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]

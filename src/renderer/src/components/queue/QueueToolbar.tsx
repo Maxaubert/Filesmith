@@ -1,18 +1,26 @@
 import type { JSX } from 'react'
 import { AddFilesButton } from '../ui/Button'
+import { ViewMenu } from './ViewMenu'
+import type { ViewSize } from './viewSize'
 
-/** Add files and the count. Row actions (remove, delete, clear finished) live in
- * the right-click menu on the rows themselves. */
+/** Add files, the count and the View menu. Row actions (remove, delete, clear
+ * finished) live in the right-click menu on the rows themselves. */
 export function QueueToolbar({
   files,
   selected,
   dropping,
-  onAdd
+  size,
+  flash,
+  onAdd,
+  onView
 }: {
   files: number
   selected: number
   dropping: boolean
+  size: ViewSize
+  flash: boolean
   onAdd: () => void
+  onView: (s: ViewSize) => void
 }): JSX.Element {
   const count = dropping
     ? 'Drop to add'
@@ -24,6 +32,7 @@ export function QueueToolbar({
         <span className="count" aria-live="polite">
           {count}
         </span>
+        <ViewMenu size={size} flash={flash} onPick={onView} />
       </div>
     </div>
   )
