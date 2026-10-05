@@ -88,6 +88,7 @@
   overflow: hidden;
 }
 .chead .lbl {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -118,6 +119,9 @@
 }
 .chead .note {
   align-self: center;
+  /* A token shrink factor: the folder gives way first, without leaking a
+     fraction of a pixel to the note (which would show its ellipsis). */
+  flex: 0 0.0001 auto;
   min-width: 0;
   padding: 0 12px;
   font-size: 12px;
@@ -204,7 +208,9 @@
 }
 .ln {
   padding: 0 16px;
-  white-space: pre;
+  /* Long lines wrap inside the panel instead of running off its edge. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   min-height: 19px;
   display: flex;
   align-items: center;
@@ -236,7 +242,33 @@
   color: var(--fg1);
   font-weight: 500;
 }
+/* The echo line: the folder gives way first (clipped at its start, as on the
+   prompt), a long command wraps, and the status never leaves the panel. */
+.ln.cmd {
+  align-items: flex-start;
+}
+.ln.cmd .pr {
+  flex: 0 4 auto;
+  min-width: 0;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+.ln.cmd .fx {
+  flex: none;
+  white-space: pre;
+}
+.ln.cmd .tx {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .cmd .dec {
+  flex: none;
+  white-space: pre;
   margin-left: auto;
   display: inline-flex;
   align-items: center;
@@ -281,6 +313,7 @@
   gap: 6px;
 }
 .prog .bar {
+  flex: none;
   width: 120px;
   height: 2px;
   background: var(--track);
@@ -453,11 +486,12 @@
   }
 }
 
-/* A long folder stays on one line, cut at the end (not in the mockup, whose path is short). */
+/* A long folder stays on one line, cut at the end (not in the mockup, whose path is short).
+   It gives way before the head note, down to 120px, so the note reads in full as in the mockup. */
 .cwd {
-  min-width: 0;
+  min-width: 120px;
   max-width: 45%;
-  flex: none;
+  flex: 0 1000 auto;
   white-space: nowrap;
 }
 .cwd .p {

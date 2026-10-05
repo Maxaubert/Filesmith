@@ -458,9 +458,9 @@ export function ConsolePanel(p: {
           ) : (
             <>
               <span className="pr" title={cwd}>
-                <bdi>{`${cwd}> `}</bdi>
+                <bdi>{`${cwd}>`}</bdi>
               </span>
-              <span className="fx">filesmith </span>
+              <span className="fx">{' filesmith '}</span>
               <input
                 ref={pin}
                 className="pin"
@@ -479,17 +479,18 @@ export function ConsolePanel(p: {
                 onKeyDown={onPromptKey}
                 onBlur={() => setTimeout(() => setComp(null), 120)}
               />
-              <span className="keys">
-                <span>
-                  <kbd>Tab</kbd>complete
-                </span>
-                <span>
-                  <kbd>Up</kbd>
-                  <kbd>Down</kbd>history
-                </span>
-              </span>
             </>
           )}
+          {/* Shown while a run is busy too, as in the mockup's running state. */}
+          <span className="keys">
+            <span>
+              <kbd>Tab</kbd>complete
+            </span>
+            <span>
+              <kbd>Up</kbd>
+              <kbd>Down</kbd>history
+            </span>
+          </span>
         </div>
       </div>
       {comp && pr && (

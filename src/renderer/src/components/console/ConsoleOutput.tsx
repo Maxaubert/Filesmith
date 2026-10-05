@@ -25,8 +25,10 @@ export function ConsoleOutput({
         ) : (
           <div key={b.id} className="blk">
             <div className="ln cmd">
-              <span className="pr">{`${b.cwd}> `}</span>
-              <span className="fx">filesmith </span>
+              <span className="pr" title={b.cwd}>
+                <bdi>{`${b.cwd}>`}</bdi>
+              </span>
+              <span className="fx">{' filesmith '}</span>
               <span className="tx">{b.line}</span>
               <span className={`dec${b.code ? ' bad' : ''}`}>
                 {b.status === 'refused'

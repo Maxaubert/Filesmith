@@ -179,6 +179,16 @@ test('Stop cancels a running convert with exit 130', async () => {
   await type('convert b*.png --to avif --quality best')
   const stop = panel().getByRole('button', { name: /^Stop/ })
   await expect(stop).toBeVisible()
+  // The running footer keeps its key hints and the head note reads in full (mockup 01 running).
+  await expect(panel().locator('.pline .keys')).toBeVisible()
+  const note = panel().locator('.chead .note')
+  const fits = await note.evaluate((el) => {
+    const r = document.createRange()
+    r.selectNodeContents(el)
+    const pad = parseFloat(getComputedStyle(el).paddingLeft) * 2
+    return r.getBoundingClientRect().width <= el.getBoundingClientRect().width - pad + 0.01
+  })
+  expect(fits).toBe(true)
   await stop.click()
   await expect(panel().getByText('exit 130', { exact: false })).toBeVisible({ timeout: 15_000 })
   await expect(stop).toBeHidden()
@@ -198,6 +208,21 @@ test('a long folder never pushes the prompt out of the panel', async () => {
   const box = (await panel().boundingBox())!
   expect(pin.width).toBeGreaterThanOrEqual(160)
   expect(pin.x + pin.width).toBeLessThanOrEqual(box.x + box.width)
+
+  // The echo line of a run from that folder keeps its exit status inside the panel
+  // (the path may pass MAX_PATH for the tools, so any exit code will do).
+  const long = `${'a-long-image-name-'.repeat(4)}.png`
+  copyFileSync(join(work, 'a.png'), join(deep, long))
+  await type(`convert ${long} --to webp --quality balanced`)
+  const echo = panel().locator('.ln.cmd').last()
+  await expect(echo.locator('.dec')).toContainText(/exit \d/, { timeout: 30_000 })
+  const dec = (await echo.locator('.dec').boundingBox())!
+  const body = (await panel().locator('.cbody').boundingBox())!
+  expect(dec.width).toBeGreaterThan(40)
+  expect(dec.x + dec.width).toBeLessThanOrEqual(body.x + body.width)
+  // The command wraps rather than leaving the line.
+  const tx = (await echo.locator('.tx').boundingBox())!
+  expect(tx.x + tx.width).toBeLessThanOrEqual(dec.x)
   await type(`cd ${work}`)
 })
 
