@@ -373,4 +373,36 @@ describe('main', () => {
       ['summary', 130]
     ])
   })
+
+  it('with io.events: human text on stdout and NDJSON events on the channel', async () => {
+    writeFileSync(join(dir, 'a.png'), 'x')
+    let ev = ''
+    const h = harness(
+      ['convert', 'a.png', '--to', 'webp'],
+      {},
+      { events: { write: (s) => (ev += s) } }
+    )
+    expect(await h.run()).toBe(0)
+    expect(h.out()).toMatch(/^ok\s+/m)
+    expect(h.out()).not.toContain('"event"')
+    const lines = ev
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { event: string; output?: string })
+    expect(lines.map((l) => l.event)).toEqual(['run', 'start', 'done', 'summary'])
+    expect(lines[2].output).toBe(join(dir, 'out.webp'))
+  })
+
+  it('with io.events and --json: events only on stdout, the channel stays empty', async () => {
+    writeFileSync(join(dir, 'a.png'), 'x')
+    let ev = ''
+    const h = harness(
+      ['convert', 'a.png', '--to', 'webp', '--json'],
+      {},
+      { events: { write: (s) => (ev += s) } }
+    )
+    expect(await h.run()).toBe(0)
+    expect(h.events().map((e) => e.event)).toEqual(['run', 'start', 'done', 'summary'])
+    expect(ev).toBe('')
+  })
 })

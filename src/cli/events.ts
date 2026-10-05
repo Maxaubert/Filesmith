@@ -128,3 +128,26 @@ export class JsonReporter implements Reporter {
     return false
   }
 }
+
+/** Human output for the reader plus events for a program (the in-app console). */
+export class TeeReporter implements Reporter {
+  constructor(
+    private readonly a: Reporter,
+    private readonly b: Reporter
+  ) {}
+
+  emit(e: EventBody): void {
+    this.a.emit(e)
+    this.b.emit(e)
+  }
+
+  text(s: string): void {
+    this.a.text(s)
+    this.b.text(s)
+  }
+
+  close(): void {
+    this.a.close()
+    this.b.close()
+  }
+}

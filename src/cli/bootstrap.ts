@@ -53,11 +53,54 @@ const interrupt = (): void => {
 }
 process.on('SIGINT', interrupt)
 process.on('SIGBREAK', interrupt)
+// The in-app console (spec 9.2, 9.3) forks this file with an IPC channel and
+// no console window: Stop arrives as an 'interrupt' message, and a vanished
+// app (closed channel) cancels the run like Ctrl+C.
+let finished = false
+const ipc = typeof process.send === 'function'
+if (ipc) {
+  process.on('message', (m) => {
+    if (m === 'interrupt') interrupt()
+  })
+  process.on('disconnect', () => {
+    if (!finished) interrupt()
+  })
+}
+// Events go out one IPC message per NDJSON line. Sends are asynchronous, so
+// the channel is closed only once every send has been flushed: closing it
+// earlier can drop the last `done` / `summary` events.
+let pendingSends = 0
+let afterSends: (() => void) | null = null
+const events: Out | undefined = ipc
+  ? {
+      write: (s) => {
+        if (!process.connected || !process.send) return
+        pendingSends += 1
+        process.send(s, undefined, {}, () => {
+          pendingSends -= 1
+          if (pendingSends === 0) afterSends?.()
+        })
+      }
+    }
+  : undefined
+function closeChannel(): void {
+  finished = true
+  const close = (): void => {
+    if (process.connected) process.disconnect?.()
+  }
+  if (pendingSends === 0) close()
+  else afterSends = close
+}
 // Under Electron's Node mode (the installed shims) the handlers above never
 // run on Windows; read Ctrl+C from the console in raw mode instead. Plain Node
 // (npm run cli, the tests) keeps the signal path. See consoleCtrlC.ts.
+// A forked console child (IPC channel) never touches a console: Ctrl+C
+// arrives as the 'interrupt' message, and if the app itself was started from
+// a terminal, opening CONIN$ in raw mode would steal that terminal's keyboard.
 const keyboard: ConsoleWatch | null =
-  process.platform === 'win32' && process.versions.electron ? watchConsoleCtrlC(interrupt) : null
+  process.platform === 'win32' && process.versions.electron && !ipc
+    ? watchConsoleCtrlC(interrupt)
+    : null
 process.on('exit', () => keyboard?.stop())
 // What Ctrl+C cannot cover there (Ctrl+Break, closing the window, a hard
 // kill) ends the process at once; a detached watchdog then kills the tools
@@ -133,7 +176,8 @@ main(
     env: process.env,
     cwd: process.cwd(),
     readStdin,
-    signal: ctrl.signal
+    signal: ctrl.signal,
+    events
   },
   defaultDeps()
 )
@@ -147,6 +191,7 @@ main(
     process.exitCode = 1
   })
   .finally(() => {
+    closeChannel()
     keyboard?.stop()
     watchdog?.close()
     stopEverything()

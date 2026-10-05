@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { JsonReporter, type EventBody } from '../src/cli/events'
+import { JsonReporter, TeeReporter, type EventBody } from '../src/cli/events'
 
 function collect(): {
   out: { write: (s: string) => void }
@@ -76,5 +76,28 @@ describe('JsonReporter', () => {
     const c = collect()
     new JsonReporter(c.out).text('hello')
     expect(c.lines()).toEqual([])
+  })
+})
+
+describe('TeeReporter', () => {
+  it('passes every call to both reporters', () => {
+    const calls: string[] = []
+    const r = (n: string) => ({
+      emit: (e: { event: string }) => calls.push(`${n}:emit:${e.event}`),
+      text: (s: string) => calls.push(`${n}:text:${s}`),
+      close: () => calls.push(`${n}:close`)
+    })
+    const t = new TeeReporter(r('a'), r('b'))
+    t.emit({ event: 'version', version: '1' })
+    t.text('x')
+    t.close()
+    expect(calls).toEqual([
+      'a:emit:version',
+      'b:emit:version',
+      'a:text:x',
+      'b:text:x',
+      'a:close',
+      'b:close'
+    ])
   })
 })
