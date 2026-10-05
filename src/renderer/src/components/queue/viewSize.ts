@@ -4,25 +4,23 @@ import type { KeyLike } from './tableKeys'
 // Explorer. Kept out of the .tsx files so Vitest and Fast Refresh both work.
 
 export type ViewSize = 'details' | 'details-l' | 'tiles' | 'medium' | 'large' | 'xl'
-export type ViewIcon =
-  'view-details' | 'view-details-l' | 'view-tiles' | 'view-medium' | 'view-large' | 'view-xl'
-
 export interface ViewSizeDef {
   id: ViewSize
   label: string
-  icon: ViewIcon
-  /** Ctrl+Shift+<digit> jumps to this size. */
-  digit: number
 }
 
+/** All six, in wheel order: Ctrl+wheel and Ctrl+= / Ctrl+- step through these. */
 export const VIEW_SIZES: readonly ViewSizeDef[] = [
-  { id: 'details', label: 'Details', icon: 'view-details', digit: 1 },
-  { id: 'details-l', label: 'Large details', icon: 'view-details-l', digit: 2 },
-  { id: 'tiles', label: 'Tiles', icon: 'view-tiles', digit: 3 },
-  { id: 'medium', label: 'Medium icons', icon: 'view-medium', digit: 4 },
-  { id: 'large', label: 'Large icons', icon: 'view-large', digit: 5 },
-  { id: 'xl', label: 'Extra large icons', icon: 'view-xl', digit: 6 }
+  { id: 'details', label: 'Details' },
+  { id: 'details-l', label: 'Large details' },
+  { id: 'tiles', label: 'Tiles' },
+  { id: 'medium', label: 'Medium icons' },
+  { id: 'large', label: 'Large icons' },
+  { id: 'xl', label: 'Extra large icons' }
 ]
+
+/** The View menu offers only these three; the others are reached by Ctrl+wheel. */
+export const MENU_SIZES: readonly ViewSize[] = ['details', 'tiles', 'xl']
 
 /** The two table sizes: head, columns, column-aligned totals. */
 export function isListSize(s: ViewSize): boolean {
@@ -48,20 +46,13 @@ export function parseViewSize(v: unknown): ViewSize {
 }
 
 export type ViewKey = { kind: 'step'; delta: 1 | -1 } | { kind: 'set'; size: ViewSize }
-export interface ViewKeyLike extends KeyLike {
-  code: string
-}
 
-/** Ctrl+= / Ctrl++ bigger, Ctrl+- smaller, Ctrl+0 Details, Ctrl+Shift+1..6 a size.
- * Digits match on `code`, so Shift+1 = `!` on Nordic layouts still works. */
-export function viewKeyFor(e: ViewKeyLike): ViewKey | null {
+/** Ctrl+= / Ctrl++ (also Ctrl+Shift+=) bigger, Ctrl+- smaller, Ctrl+0 Details.
+ * There are no per-size shortcuts: the menu and Ctrl+wheel pick a size. */
+export function viewKeyFor(e: KeyLike): ViewKey | null {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return null
-  if (e.shiftKey) {
-    const m = /^Digit([1-9])$/.exec(e.code)
-    const def = m ? VIEW_SIZES[Number(m[1]) - 1] : undefined
-    if (def) return { kind: 'set', size: def.id }
-    return e.key === '+' ? { kind: 'step', delta: 1 } : null
-  }
+  // Shifted, only + counts (Ctrl+Shift+= on US); Nordic Shift+0 makes '=', not a zoom key.
+  if (e.shiftKey) return e.key === '+' ? { kind: 'step', delta: 1 } : null
   if (e.key === '=' || e.key === '+') return { kind: 'step', delta: 1 }
   if (e.key === '-') return { kind: 'step', delta: -1 }
   if (e.key === '0') return { kind: 'set', size: DEFAULT_VIEW }
