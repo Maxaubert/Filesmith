@@ -46,19 +46,12 @@ import {
 import { engineFor, tabAccepts, tabById, toolCardById, type TabId } from '@shared/tabs'
 import { TitleBar } from './components/shell/TitleBar'
 import { Sidebar } from './components/shell/Sidebar'
-import { StatusBar } from './components/shell/StatusBar'
 import { crumbsFor } from './components/shell/crumbs'
 import { useSidebar } from './components/shell/useSidebar'
 import { useRailPrefs } from './components/shell/useRailPrefs'
 import { sidebarVerbs } from './components/shell/railPrefs'
-import { statusSummary } from './components/shell/statusModel'
 import { shortcutFor } from './components/shell/shortcuts'
-import {
-  activeGroupFor,
-  headerCheck,
-  oneGroupIds,
-  toggleAllIds
-} from './components/queue/selectAll'
+import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/selectAll'
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
 import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
@@ -152,7 +145,6 @@ export default function App(): JSX.Element {
   const sidebar = useSidebar()
   const rail = useRailPrefs()
   // Ids of the last run per workspace, for "Converting 3 of 6" (spec 6.4).
-  const [batches, setBatches] = useState<Record<string, string[]>>({})
   // Per-workspace column sort; null is insertion order (spec 4.2).
   const [sorts, setSorts] = useState<Record<string, SortState | null>>({})
   // Inspector tab: per-session view state, not persisted (spec 3.4).
@@ -473,7 +465,6 @@ export default function App(): JSX.Element {
    * with (spec 4.3). A merge row retries with the same input list, because
    * run() stores `mergeInputs` in its `runOptions`. */
   function retry(ids: string[]): void {
-    const started: string[] = []
     for (const id of ids) {
       const it = cur.items.find((i) => i.id === id)
       if (!it || (it.status !== 'failed' && it.status !== 'canceled')) continue
@@ -485,9 +476,7 @@ export default function App(): JSX.Element {
         input: it.file.path,
         options: opts
       })
-      started.push(id)
     }
-    if (started.length) setBatches((b) => ({ ...b, [qKey]: started }))
   }
 
   function onRowAction(id: string, kind: RowActionKind): void {
@@ -819,7 +808,6 @@ export default function App(): JSX.Element {
         anchorId = src.id
       }
       dispatch({ type: 'markQueued', ids: [anchorId], options: { ...opts, mergeInputs: paths } })
-      setBatches((b) => ({ ...b, [qKey]: [anchorId] }))
       void window.filesmith.runJob({
         id: anchorId,
         tool: 'pdf',
@@ -849,7 +837,6 @@ export default function App(): JSX.Element {
     if (newSources.length) dispatch({ type: 'addSources', items: newSources, key: qKey })
     if (!targets.length) return
     dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), options: opts })
-    setBatches((b) => ({ ...b, [qKey]: targets.map((t) => t.id) }))
     for (const t of targets) {
       void window.filesmith.runJob({ id: t.id, tool, input: t.path, options: opts })
     }
@@ -1065,14 +1052,6 @@ export default function App(): JSX.Element {
 
   const crumbs = crumbsFor(state.tab, card ?? null, activeGroup)
   const verbLabel = card ? card.label : tab.label
-  const summary = statusSummary(
-    onToolsGrid || onCompleted || state.tab === 'settings' ? [] : cur.items,
-    batches[qKey] ?? null,
-    verbLabel,
-    genRun.running && genRun.message && !genRun.message.startsWith('Generating')
-      ? genRun.message
-      : null
-  )
   const showInspector = !onToolsGrid && !onCompleted && state.tab !== 'settings'
 
   // Inspector head and Run label (spec 3.4, 4.1).
@@ -1328,18 +1307,6 @@ export default function App(): JSX.Element {
           )}
         </>
       </div>
-      <StatusBar
-        summary={summary}
-        onFailedClick={() =>
-          dispatch({
-            type: 'selectIds',
-            ids: oneGroupIds(
-              cur.items,
-              cur.items.filter((i) => i.status === 'failed').map((i) => i.id)
-            )
-          })
-        }
-      />
       <ContextMenu menu={menu} onClose={closeMenu} />
       <ConfirmDialog state={confirm} onClose={closeConfirm} />
     </div>
