@@ -11,3 +11,6 @@ patches
 
 # Design and plan documents: their code blocks are partial snippets, not code.
 docs/superpowers
+
+# Git worktrees of other branches (each formats and lints itself).
+.claude/worktrees

@@ -1,4 +1,5 @@
-import { _electron, type ElectronApplication, type Page } from 'playwright'
+import { type ElectronApplication, type Page } from 'playwright'
+import { launchApp } from './helpers'
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'child_process'
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'fs'
@@ -38,7 +39,7 @@ test.beforeAll(async () => {
   // makes app.getAppPath() resolve to out/main, which silently hides every
   // resources/ tree and lets resolveTool fall back to PATH binaries — the
   // suite would then test the machine's tools, not the bundled ones.
-  app = await _electron.launch({ args: [ROOT] })
+  app = await launchApp()
   page = await app.firstWindow()
 })
 

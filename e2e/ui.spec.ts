@@ -1,9 +1,9 @@
-import { _electron, type ElectronApplication, type Locator, type Page } from 'playwright'
+import { type ElectronApplication, type Locator, type Page } from 'playwright'
 import { test, expect } from '@playwright/test'
 import { existsSync, mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { MAIN, ROOT } from './helpers'
+import { MAIN, launchApp } from './helpers'
 
 // UI behaviour the unit suite cannot reach: the sidebar, the inspector tabs and
 // the empty workspace. A private userData keeps the user's real session and
@@ -15,10 +15,7 @@ let userData: string
 test.beforeAll(async () => {
   test.skip(!existsSync(MAIN), 'run `npm run build` first')
   userData = mkdtempSync(join(tmpdir(), 'filesmith-ui-'))
-  app = await _electron.launch({
-    args: [ROOT],
-    env: { ...process.env, FILESMITH_USER_DATA: userData }
-  })
+  app = await launchApp({ FILESMITH_USER_DATA: userData })
   page = await app.firstWindow()
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900))
 })

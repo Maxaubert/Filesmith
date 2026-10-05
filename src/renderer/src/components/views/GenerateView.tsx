@@ -1,5 +1,4 @@
 import type { JSX } from 'react'
-import { Icon } from '../icons/Icon'
 import { EmptyState } from '../queue/EmptyState'
 import { ProgressBar } from '../ui/ProgressBar'
 
@@ -12,10 +11,8 @@ export function GenerateView({
   slots,
   results,
   aspect,
-  canRun,
+  blocked,
   focused,
-  onRun,
-  onCancel,
   onFocus,
   onOpen,
   onMenu
@@ -26,10 +23,9 @@ export function GenerateView({
   slots: { pct: number; path?: string }[]
   results: string[]
   aspect: string
-  canRun: boolean
+  /** Why Generate cannot run yet (no model), shown in the empty state. */
+  blocked: string | null
   focused: string | null
-  onRun: () => void
-  onCancel: () => void
   onFocus: (path: string) => void
   onOpen: (path: string) => void
   onMenu: (path: string, x: number, y: number) => void
@@ -53,25 +49,9 @@ export function GenerateView({
   )
   return (
     <>
-      <div className="toolbar" role="toolbar" aria-label="Generate actions">
-        <button
-          type="button"
-          className="tbtn add"
-          disabled={!canRun}
-          onClick={onRun}
-          title="Generate (Ctrl+Enter)"
-        >
-          <Icon name="play" />
-          Generate
-        </button>
-        {running && (
-          <button type="button" className="tbtn" onClick={onCancel}>
-            <Icon name="close" />
-            Cancel
-          </button>
-        )}
-      </div>
-      <div className="vbody scroll-thin">
+      {/* No toolbar row: the prompt sits flush under the title bar, and Run and
+          Stop live in the inspector footer only (owner, 2026-10-05). */}
+      <div className="vbody full scroll-thin">
         <textarea
           className="prompt"
           aria-label="Prompt"
@@ -99,8 +79,14 @@ export function GenerateView({
         ) : (
           <EmptyState
             icon="generate"
-            title="Nothing generated yet"
-            line="Write a prompt, then press Generate"
+            title={blocked ? 'No image model yet' : 'Nothing generated yet'}
+            line={
+              blocked
+                ? blocked.startsWith('Choose')
+                  ? 'Choose your ComfyUI folder in Options, then write a prompt'
+                  : 'Add an image model in Options, then write a prompt'
+                : 'Write a prompt, then press Generate'
+            }
           />
         )}
       </div>

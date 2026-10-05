@@ -1,10 +1,10 @@
-import { _electron, type ElectronApplication, type Page } from 'playwright'
+import { type ElectronApplication, type Page } from 'playwright'
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { MAGICK, MAIN, ROOT, magickEnv } from './helpers'
+import { MAGICK, MAIN, ROOT, magickEnv, launchApp } from './helpers'
 
 // Screenshots for the owner's side-by-side with the signed-off mockup. No pixel
 // assertions (spec 7.3): the shots are evidence, not a gate.
@@ -93,10 +93,7 @@ test.beforeAll(async () => {
     }
   }
   writeFileSync(join(userData, 'session.json'), JSON.stringify(session))
-  app = await _electron.launch({
-    args: [ROOT],
-    env: { ...process.env, FILESMITH_USER_DATA: userData }
-  })
+  app = await launchApp({ FILESMITH_USER_DATA: userData })
   page = await app.firstWindow()
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900))
   await expect(
