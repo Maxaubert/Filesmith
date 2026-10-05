@@ -27,7 +27,16 @@ const TARGETS = [
   'src/renderer/src/theme/viewsizes.css',
   'e2e/viewsizes.spec.ts',
   'docs/superpowers/specs/2026-10-05-view-sizes-design.md',
-  'docs/superpowers/plans/2026-10-05-view-sizes.md'
+  'docs/superpowers/plans/2026-10-05-view-sizes.md',
+  'src/shared/console.ts',
+  'src/shared/consoleLine.ts',
+  'src/shared/consoleComplete.ts',
+  'src/main/console',
+  'src/renderer/src/components/console',
+  'src/renderer/src/theme/console.css',
+  'e2e/console.spec.ts',
+  'docs/superpowers/specs/2026-10-06-console-design.md',
+  'docs/superpowers/plans/2026-10-06-console.md'
 ]
 
 function files(p: string): string[] {

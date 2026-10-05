@@ -63,10 +63,12 @@ src/
     (planned) jobQueue.ts      batch queue: spawn, stream progress, cancel
     (planned) output.ts        collision-safe output naming (ported from RCMM Get-UniqueOutPath)
     (planned) ipc.ts           renderer <-> engine wiring
+    console/        in-app console: catalog, CLI runner (fork, staged cancel), cd, Open in terminal
   preload/     contextBridge — the typed `window.filesmith` API
   renderer/    React UI: shell/ (title bar, sidebar, status bar), queue/ (files table),
                inspector/ (Options, Preview, Info), options/ (one settings file per verb),
                views/ (Generate, Tools, Completed, Settings), ui/ (primitives), icons/, theme/ (tokens, CSS)
+               console/ (bottom panel: output model, history, completion list)
   shared/      types.ts — Job, ToolId, FileKind, Options, progress events
                tabs.ts  — the VERB-first navigation model (rail tabs + Tools cards)
   cli/         the filesmith command line: parse, plan, run, report

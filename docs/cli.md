@@ -159,6 +159,30 @@ fields that do not apply are left out, never `null` (except `pct`).
 Schema v1 is additive-only: new events, fields and codes may appear; renaming or removing one bumps `v`.
 The source of this table is `resources/skill/filesmith/reference.md` (Events section).
 
+## In-app console
+
+The app has a console panel at the bottom of the files view (spec
+`docs/superpowers/specs/2026-10-06-console-design.md`). Open or close it with Ctrl+` (anywhere in the
+app) or the **Console** button in the files toolbar.
+
+- Type commands without the prefix: `convert *.heic --to webp`, `doctor`, `formats`. The line is split
+  into plain arguments and handed to the CLI; nothing runs through a shell, so `&`, `|` and `>` are
+  just text. Anything that is not a filesmith command is refused, in the panel and again in the main
+  process.
+- Built-ins: `cd <folder>` (the folder commands run in; the last one is remembered, else Downloads),
+  `clear` (or Ctrl+L), `help`, `history` (the last 100 commands; Up and Down recall them). Tab
+  completes commands, flags, values and file names.
+- One command at a time. Console runs do not join the app's queue, and the queue keeps working while
+  one runs. Outputs use the same never-overwrite naming as the CLI; a finished run offers **Show in File
+  Explorer**.
+- **Stop** or Ctrl+C cancels a run: the current file is stopped, part files are removed and the run
+  ends with exit 130. A second Stop ends it at once (the process tree is killed after 5 s at most).
+- **Open in terminal** opens Windows Terminal (else PowerShell) in the console's folder with `filesmith`
+  on PATH, for anything the console does not run.
+- Plumbing: each command forks `out/main/cli.js` with `ELECTRON_RUN_AS_NODE`. When `CliIO.events` is
+  set, the CLI tees its NDJSON events to it; under a fork they travel over the IPC channel. The parent
+  cancels with the `'interrupt'` IPC message (twice for a hard stop), never with a console Ctrl+C.
+
 ## AI tools
 
 Jobs never download anything. `filesmith setup <tool>` is the only command that does, with byte progress,
