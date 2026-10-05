@@ -10,7 +10,16 @@ export default tseslint.config(
     // build/installer is the NSIS setup kit (ported from Prism): CommonJS
     // generator scripts + committed media that follow that kit's conventions,
     // not the app toolchain's.
-    ignores: ['out', 'dist', 'node_modules', 'resources', '.harness', 'build/installer', 'patches']
+    ignores: [
+      'out',
+      'dist',
+      'node_modules',
+      'resources',
+      '.harness',
+      'build/installer',
+      'patches',
+      '.claude/worktrees'
+    ]
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

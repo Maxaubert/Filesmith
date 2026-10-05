@@ -79,35 +79,44 @@ export function GenerateSettings({
   ]
   const needsFiles = Boolean(selected && !selected.runnable && selected.missing?.length)
   const unrunnable = selected && !selected.runnable && !needsFiles ? selected : null
+  // Scan answered with nothing: one calm block with the next step, instead of
+  // a "not found" warning, an empty Model row and a "Change" for no folder.
+  const noModel = Boolean(status && !models.length)
   return (
     <>
-      {status && !status.available && <LocateComfy onLocated={refresh} />}
-      <SettingGroup title="MODEL">
-        <Setting
-          title="Model"
-          desc={
-            !models.length
-              ? 'No image models found in your ComfyUI models folder.'
-              : (unrunnable?.reason ?? undefined)
-          }
-        >
-          {models.length > 0 && (
-            <ModelSelect models={models} value={model} onChange={(v) => set('model', v)} />
-          )}
-          {/* An unrecognised model is not a forbidden one: send it through a
+      {status && !status.available && !noModel && <LocateComfy onLocated={refresh} />}
+      {noModel ? (
+        <SettingGroup title="MODEL">
+          <AddModel onAdded={refresh} comfyFolder={status?.comfyFolder} empty />
+        </SettingGroup>
+      ) : (
+        <SettingGroup title="MODEL">
+          <Setting
+            title="Model"
+            desc={
+              !models.length
+                ? 'No image models found in your ComfyUI models folder.'
+                : (unrunnable?.reason ?? undefined)
+            }
+          >
+            {models.length > 0 && (
+              <ModelSelect models={models} value={model} onChange={(v) => set('model', v)} />
+            )}
+            {/* An unrecognised model is not a forbidden one: send it through a
               generic graph and let ComfyUI give its own verdict. */}
-          {unrunnable?.reason && unrunnable.tryAnyway && (
-            <SmallButton
-              icon={tryAnyway ? 'close' : 'play'}
-              onClick={() => set('tryAnyway', tryAnyway ? 0 : 1)}
-            >
-              {tryAnyway ? 'Will try anyway, click to cancel' : 'Try anyway'}
-            </SmallButton>
-          )}
-        </Setting>
-        {selected && needsFiles && <CompanionDownload model={selected} onDone={refresh} />}
-        <AddModel onAdded={refresh} comfyFolder={status?.comfyFolder} />
-      </SettingGroup>
+            {unrunnable?.reason && unrunnable.tryAnyway && (
+              <SmallButton
+                icon={tryAnyway ? 'close' : 'play'}
+                onClick={() => set('tryAnyway', tryAnyway ? 0 : 1)}
+              >
+                {tryAnyway ? 'Will try anyway, click to cancel' : 'Try anyway'}
+              </SmallButton>
+            )}
+          </Setting>
+          {selected && needsFiles && <CompanionDownload model={selected} onDone={refresh} />}
+          <AddModel onAdded={refresh} comfyFolder={status?.comfyFolder} />
+        </SettingGroup>
+      )}
       <SettingGroup title="PROMPT">
         {/* Negative prompt only affects arches that use real CFG (SDXL). At cfg 1
             the negative branch is inert, so it is hidden there. */}

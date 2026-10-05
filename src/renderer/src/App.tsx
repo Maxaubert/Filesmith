@@ -85,6 +85,8 @@ import { SettingsView } from './components/views/SettingsView'
 import { ToolsView } from './components/views/ToolsView'
 import type { GenerateOptions } from '@shared/generate'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
+import { useGenerateStatus } from './components/options/hooks/useGenerateStatus'
+import { genBlockReason } from './components/options/generate/genReady'
 import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
 
 const extOfPath = (p: string): string => {
@@ -119,6 +121,8 @@ export default function App(): JSX.Element {
   }>({ running: false, slots: [] })
   const genIdRef = useRef(0)
   const genActiveId = useRef<string | null>(null)
+  // Model availability, shared with the inspector (one scan, one refresh).
+  const { status: genStatus } = useGenerateStatus()
   // Model, size and seed of each image generated this session, for Info.
   // State, not a ref: Info reads it during render.
   const [genMeta, setGenMeta] = useState<
@@ -883,9 +887,12 @@ export default function App(): JSX.Element {
   const isMerge = tool === 'pdf' && String(curOptions.op) === 'merge'
   const promptFilled = String(curOptions.prompt ?? '').trim().length > 0
   const genAspect = `${Number(curOptions.width ?? 1024)} / ${Number(curOptions.height ?? 1024)}`
+  // No model yet (fresh install, no ComfyUI folder): Generate stays off and
+  // says why, instead of failing after the user writes a prompt.
+  const genBlocked = tool === 'generate' ? genBlockReason(genStatus) : null
   const runCount =
     tool === 'generate'
-      ? promptFilled && !genRun.running
+      ? promptFilled && !genRun.running && !genBlocked
         ? 1
         : 0
       : isMerge && runList.length < 2
@@ -1207,12 +1214,8 @@ export default function App(): JSX.Element {
                 slots={genRun.slots}
                 results={genResults}
                 aspect={genAspect}
-                canRun={runCount > 0}
+                blocked={genBlocked}
                 focused={genFocus}
-                onRun={() => void run()}
-                onCancel={() => {
-                  if (genActiveId.current) window.filesmith.generateCancel(genActiveId.current)
-                }}
                 onFocus={previewGen}
                 onOpen={(p) => window.filesmith.openFile(p)}
                 onMenu={openGenMenu}
@@ -1278,6 +1281,7 @@ export default function App(): JSX.Element {
               sub={inspSub}
               runLabel={runLabel}
               runDisabled={runCount === 0}
+              runHint={genBlocked}
               onRun={() => void run()}
               stopping={tool === 'generate' ? genRun.running : inFlight.length > 0}
               onStop={() => {

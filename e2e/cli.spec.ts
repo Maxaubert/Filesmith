@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test'
-import { _electron } from 'playwright'
 import { execFileSync, spawn, spawnSync } from 'child_process'
 import { createHash } from 'crypto'
 import {
@@ -14,7 +13,7 @@ import {
 } from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
-import { FFMPEG, MAGICK, MUTOOL, ROOT, magickEnv } from './helpers'
+import { FFMPEG, MAGICK, MUTOOL, ROOT, magickEnv, launchApp } from './helpers'
 
 // The CLI as a real process (spec 8.2): `node out/main/cli.js` against the
 // repo's bundled tools, with an isolated userData. Run `npm run build` first.
@@ -306,10 +305,7 @@ test('a CLI killed outright leaves no partial output and no ffmpeg (watchdog)', 
 
 test('works while the app is open, and its jobs never reach the app', async () => {
   const ud = join(work, '.ud')
-  const app = await _electron.launch({
-    args: [ROOT],
-    env: { ...process.env, FILESMITH_USER_DATA: ud }
-  })
+  const app = await launchApp({ FILESMITH_USER_DATA: ud })
   try {
     const page = await app.firstWindow()
     image('cliprobe.png')
