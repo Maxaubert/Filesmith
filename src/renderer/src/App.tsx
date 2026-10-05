@@ -50,7 +50,10 @@ import { crumbsFor } from './components/shell/crumbs'
 import { useSidebar } from './components/shell/useSidebar'
 import { useRailPrefs } from './components/shell/useRailPrefs'
 import { sidebarVerbs } from './components/shell/railPrefs'
-import { shortcutFor } from './components/shell/shortcuts'
+import { inConsole, isTextEntryTarget, shortcutFor } from './components/shell/shortcuts'
+import { ConsolePanel } from './components/console/ConsolePanel'
+import { useConsolePanel } from './components/console/useConsolePanel'
+import { dirOf } from './components/console/consoleFolders'
 import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/selectAll'
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
@@ -154,6 +157,9 @@ export default function App(): JSX.Element {
   // launch, pruning anything whose file was deleted since; then save on change.
   const hydrated = useRef(false)
   const sidebar = useSidebar()
+  // The console panel (spec 3): open state, height, history, folder.
+  const con = useConsolePanel()
+  const [conBusy, setConBusy] = useState<number | null | undefined>(undefined)
   const rail = useRailPrefs()
   // Files view size (spec 3): one per app, persisted like the sidebar.
   const view = useViewSize()
@@ -903,18 +909,37 @@ export default function App(): JSX.Element {
   // so the window listener reads the latest ones through a ref, refreshed after
   // every render like `latest` above (assigning it during render breaks the
   // react-hooks/refs rule).
-  const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle, filesView, view })
+  const actions = useRef({
+    run,
+    browse,
+    runCount,
+    toggle: sidebar.toggle,
+    toggleConsole: con.toggle,
+    filesView,
+    view
+  })
   useEffect(() => {
-    actions.current = { run, browse, runCount, toggle: sidebar.toggle, filesView, view }
+    actions.current = {
+      run,
+      browse,
+      runCount,
+      toggle: sidebar.toggle,
+      toggleConsole: con.toggle,
+      filesView,
+      view
+    }
   })
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const a = actions.current
       const s = shortcutFor(e)
       if (s) {
+        if (s === 'toggleConsole' && document.querySelector('dialog[open]')) return
+        if (s === 'run' && inConsole(document.activeElement)) return
         e.preventDefault()
         if (s === 'toggleSidebar') a.toggle()
         else if (s === 'addFiles') void a.browse()
+        else if (s === 'toggleConsole') a.toggleConsole()
         else if (s === 'run' && a.runCount > 0) void a.run()
         return
       }
@@ -925,6 +950,8 @@ export default function App(): JSX.Element {
       const v = a.filesView && !modal ? viewKeyFor(e) : null
       if (!v) return
       e.preventDefault()
+      // Typing in the console prompt (or any text field): no size change.
+      if (isTextEntryTarget(document.activeElement)) return
       if (v.kind === 'step') a.view.step(v.delta)
       else a.view.setSize(v.size, { flash: true })
     }
@@ -1183,7 +1210,11 @@ export default function App(): JSX.Element {
         />
 
         <>
-          <main className={`center${dragging ? ' dropping' : ''}`} aria-label="Workspace">
+          <main
+            className={`center${dragging ? ' dropping' : ''}${con.open ? ' con-open' : ''}`}
+            style={{ ['--ch' as string]: `${con.height}px` }}
+            aria-label="Workspace"
+          >
             {onCompleted ? (
               <CompletedView
                 entries={completed}
@@ -1230,6 +1261,9 @@ export default function App(): JSX.Element {
                   flash={view.flash}
                   onAdd={() => void browse()}
                   onView={(s) => view.setSize(s)}
+                  consoleOpen={con.open}
+                  consoleLive={conBusy == null ? null : `${Math.round(conBusy)}%`}
+                  onConsole={con.toggle}
                 />
                 <QueueTable
                   groups={groups}
@@ -1271,6 +1305,20 @@ export default function App(): JSX.Element {
                 />
               </>
             )}
+            <ConsolePanel
+              open={con.open}
+              height={con.height}
+              onHeight={con.setHeight}
+              onClose={() => con.setOpen(false)}
+              cwd={con.cwd}
+              onCwd={con.setCwd}
+              recent={con.recent}
+              history={con.history}
+              onHistory={con.addHistory}
+              queueDirs={[...new Set(inputs.map((i) => dirOf(i.file.path)))]}
+              onMenu={setMenu}
+              onBusy={setConBusy}
+            />
           </main>
 
           {showInspector && (

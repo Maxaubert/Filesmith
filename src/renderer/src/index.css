@@ -5,6 +5,7 @@
 @import './theme/controls.css';
 @import './theme/views.css';
 @import './theme/viewsizes.css';
+@import './theme/console.css';
 
 /* Mirror the tokens into Tailwind so utilities (bg-bg-0, text-fg2,
    border-line) resolve to the variables; a future theme redefines only the

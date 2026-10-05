@@ -6,7 +6,12 @@ import {
   normalizeOrder,
   sidebarVerbs
 } from '../src/renderer/src/components/shell/railPrefs'
-import { shortcutFor } from '../src/renderer/src/components/shell/shortcuts'
+import {
+  type FocusTarget,
+  inConsole,
+  isTextEntryTarget,
+  shortcutFor
+} from '../src/renderer/src/components/shell/shortcuts'
 import type { KeyLike } from '../src/renderer/src/components/queue/tableKeys'
 import { TABS, toolCardById, type TabId } from '@shared/tabs'
 
@@ -87,5 +92,35 @@ describe('global shortcuts', () => {
   it('ignores plain keys and Alt combinations', () => {
     expect(shortcutFor(k('b'))).toBeNull()
     expect(shortcutFor(k('b', { ctrlKey: true, altKey: true }))).toBeNull()
+  })
+  it('maps Ctrl+` by key code, on any layout', () => {
+    expect(shortcutFor({ ...k('`', { ctrlKey: true }), code: 'Backquote' })).toBe('toggleConsole')
+    expect(shortcutFor({ ...k('Dead', { ctrlKey: true }), code: 'Backquote' })).toBe(
+      'toggleConsole'
+    )
+    expect(shortcutFor({ ...k('`'), code: 'Backquote' })).toBeNull()
+  })
+  it('knows when focus is inside the console', () => {
+    expect(inConsole(null)).toBe(false)
+    expect(
+      inConsole({
+        closest: (s: string) => (s === '.console' ? {} : null)
+      } as unknown as FocusTarget)
+    ).toBe(true)
+  })
+  it('knows when focus is in a text entry (view-size keys must not fire there)', () => {
+    const el = (tagName: string, extra: Record<string, unknown> = {}): FocusTarget =>
+      ({ tagName, isContentEditable: false, ...extra }) as unknown as FocusTarget
+    expect(isTextEntryTarget(null)).toBe(false)
+    expect(isTextEntryTarget(el('INPUT', { type: 'text' }))).toBe(true)
+    expect(isTextEntryTarget(el('INPUT', { type: '' }))).toBe(true)
+    expect(isTextEntryTarget(el('INPUT', { type: 'search' }))).toBe(true)
+    expect(isTextEntryTarget(el('INPUT', { type: 'number' }))).toBe(true)
+    expect(isTextEntryTarget(el('TEXTAREA'))).toBe(true)
+    expect(isTextEntryTarget(el('DIV', { isContentEditable: true }))).toBe(true)
+    expect(isTextEntryTarget(el('INPUT', { type: 'checkbox' }))).toBe(false)
+    expect(isTextEntryTarget(el('INPUT', { type: 'range' }))).toBe(false)
+    expect(isTextEntryTarget(el('BUTTON'))).toBe(false)
+    expect(isTextEntryTarget(el('DIV'))).toBe(false)
   })
 })
