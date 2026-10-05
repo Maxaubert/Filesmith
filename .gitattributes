@@ -1,0 +1,6 @@
+# The sh shim must keep LF or Git Bash fails with "$'\r': command not found".
+resources/cli/filesmith text eol=lf
+resources/cli/*.cmd text eol=crlf
+resources/cli/*.ps1 text eol=crlf
+# Skill files (Task 17): their frontmatter is matched with LF in tests.
+resources/skill/** text eol=lf

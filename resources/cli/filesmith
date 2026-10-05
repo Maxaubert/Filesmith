@@ -1,0 +1,8 @@
+#!/bin/sh
+# Filesmith command line for Git Bash, MSYS and Claude Code's Bash tool, which
+# do not run .cmd files by bare name (spec 7.1). Same command as filesmith.cmd.
+dir=$(dirname "$0")
+here=$(cd "$dir" && (pwd -W 2>/dev/null || pwd))
+export ELECTRON_RUN_AS_NODE=1
+export NODE_USE_ENV_PROXY=1
+exec "$here/../../Filesmith.exe" --use-system-ca "$here/../app.asar/out/main/cli.js" "$@"

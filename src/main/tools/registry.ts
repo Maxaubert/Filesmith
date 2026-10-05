@@ -26,11 +26,14 @@ import {
 } from '../toolResolver'
 import { run, ToolMissingError, type RunResult } from '../run'
 import { estimateProgress, estimateSecForBytes } from './estimate'
-import { reserveOutPath, uniqueOutDir } from '../output'
+import { reserveOutput, reserveOutputDir, type DirOutput, type FileOutput } from '../atomicOutput'
 import { ffmpegProgress, probeDuration, probeImageDimensions } from '../probe'
 import { buildUpscaleArgs, needsPreConvert, upscaleProgress } from './upscale'
 import { resolveNcnnModel } from './ncnnModels'
-import { buildCompositeArgs, buildRembgArgs, rembgPhase } from './removebg'
+import { bgModelOf, buildCompositeArgs, buildRembgArgs, rembgPhase } from './removebg'
+import { notReadyMessage } from './readiness'
+import { rembgModelPresent } from '../rembg/paths'
+import { setupRembg } from '../rembg/setup'
 import { pidSidecar } from '../pid/sidecar'
 import { pidInstalled } from '../pid/paths'
 import { spandrelSidecar } from '../comfy/sidecar'
@@ -83,35 +86,36 @@ import {
 } from './pdf'
 
 /**
- * Run a CLI tool that writes to an already-reserved `output` path, and clean up
- * on any failure or cancel. `output` was reserved as an empty placeholder (see
- * reserveOutPath), so success requires the tool to have actually written bytes
- * — a 0-byte result means the tool failed or (for ImageMagick) split a
- * multi-frame source into `output-0.ext`, `output-1.ext` and left the
- * placeholder empty. `requireNonEmpty` is false only for text extraction, where
+ * Run a CLI tool that writes one output file, atomically. The tool writes the
+ * reservation's part file (see atomicOutput), which is renamed onto the
+ * reserved name only on success; any failure or cancel discards it, so a
+ * half-written file never appears under the final name. Success requires the
+ * tool to have actually written bytes: a 0-byte result means the tool failed
+ * or (for ImageMagick) split a multi-frame source into `output-0.ext`,
+ * `output-1.ext`. `requireNonEmpty` is false only for text extraction, where
  * an empty result is legitimate (a PDF with no text layer).
  *
  * `argsFor` builds the tool's argv for the path the tool should write, which is
- * NOT always the reserved path: magick, mutool draw and Ghostscript
- * printf-expand `%` sequences in the output path they are handed
- * (InterpretImageFilename / fz_format_output_path / -sOutputFile), so
- * `100%off (resized).png` silently writes over the unrelated `1000ff
- * (resized).png` and exits 0. When the reserved name contains a `%`, the tool
- * writes to a %-free temp file instead and the bytes are copied onto the
- * reserved name — the same shape the Caesium and LibreOffice branches use.
+ * NOT always the part path: magick, mutool draw and Ghostscript printf-expand
+ * `%` sequences in the output path they are handed (InterpretImageFilename /
+ * fz_format_output_path / -sOutputFile), so `100%off (resized).png` silently
+ * writes over the unrelated `1000ff (resized).png` and exits 0. When the name
+ * contains a `%`, the tool writes to a %-free temp file instead and the bytes
+ * are copied onto the part, the same shape the Caesium and LibreOffice
+ * branches use.
  */
 async function runToOutput(
   tool: string,
   argsFor: (out: string) => string[],
-  output: string,
+  output: FileOutput,
   ctx: ToolContext,
   label: string,
   requireNonEmpty = true,
   onStderr?: (chunk: string) => void,
   estimateSec?: number
 ): Promise<string> {
-  const tmp = output.includes('%') ? mkdtempSync(join(tmpdir(), 'filesmith-out-')) : null
-  const toolOut = tmp ? join(tmp, 'out' + extname(output)) : output
+  const tmp = output.part.includes('%') ? mkdtempSync(join(tmpdir(), 'filesmith-out-')) : null
+  const toolOut = tmp ? join(tmp, 'out' + extname(output.part)) : output.part
   // If the tool reports no real progress (no onStderr parser) but the caller
   // gave an expected duration, drive an estimated bar so the % always moves.
   const est =
@@ -136,22 +140,35 @@ async function runToOutput(
             : describeToolError(stderr, label, code)
       )
     }
-    if (tmp) copyFileSync(toolOut, output)
-    return output
+    if (tmp) copyFileSync(toolOut, output.part)
+    return output.commit()
   } catch (e) {
-    // Remove the placeholder / partial so a failed or canceled job never leaves
-    // a half-written (or 0-byte) output next to the source.
-    try {
-      if (existsSync(output)) rmSync(output, { force: true })
-    } catch {
-      /* best effort */
-    }
+    // Remove the part and the placeholder so a failed or canceled job never
+    // leaves a half-written (or 0-byte) output next to the source.
+    output.discard()
     // A binary that never started is a broken install, not a bad input file:
     // say so instead of surfacing Node's raw `spawn gswin64c ENOENT`.
     throw e instanceof ToolMissingError ? new Error(toolMissingMessage(e.tool), { cause: e }) : e
   } finally {
     est?.stop()
     if (tmp) rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+/** Run `work` against a reservation's part (file or folder), commit on
+ * success, discard on any failure or cancel. For the branches that fill a
+ * folder or produce their file elsewhere and copy it over (Caesium,
+ * LibreOffice, the AI tools, archives, the PDF folder tools). */
+async function withOutput(
+  output: FileOutput | DirOutput,
+  work: (part: string) => Promise<void> | void
+): Promise<string> {
+  try {
+    await work(output.part)
+    return output.commit()
+  } catch (e) {
+    output.discard()
+    throw e
   }
 }
 
@@ -203,7 +220,7 @@ const convertTool: ToolModule = {
 
     // PDF -> plain text extracts reliably via mutool, no LibreOffice required.
     if (file.kind === 'pdf' && isSameFormat(targetExt, '.txt')) {
-      const output = reserveOutPath(file.path, '.txt', 'converted', ctx.outDir)
+      const output = reserveOutput(file.path, '.txt', 'converted', ctx.outDir)
       return runToOutput(
         resolveTool('mutool'),
         (out) => buildPdfTextArgs(file.path, out),
@@ -251,34 +268,26 @@ const convertTool: ToolModule = {
             last || `LibreOffice couldn't convert to ${targetExt.replace('.', '').toUpperCase()}`
           )
         }
-        const output = reserveOutPath(file.path, targetExt, 'converted', ctx.outDir)
-        try {
-          if (isSameFormat(targetExt, '.txt')) {
-            // Drop the UTF-8 BOM the encoded-Text filter prepends.
-            let buf = readFileSync(produced)
-            if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf)
-              buf = buf.subarray(3)
-            writeFileSync(output, buf)
-          } else {
-            copyFileSync(produced, output)
+        return await withOutput(
+          reserveOutput(file.path, targetExt, 'converted', ctx.outDir),
+          (part) => {
+            if (isSameFormat(targetExt, '.txt')) {
+              // Drop the UTF-8 BOM the encoded-Text filter prepends.
+              let buf = readFileSync(produced)
+              if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf)
+                buf = buf.subarray(3)
+              writeFileSync(part, buf)
+            } else {
+              copyFileSync(produced, part)
+            }
           }
-          return output
-        } catch (e) {
-          // Remove the reserved placeholder if the copy/write fails, or it's
-          // orphaned as a 0-byte file next to the source.
-          try {
-            if (existsSync(output)) rmSync(output, { force: true })
-          } catch {
-            /* best effort */
-          }
-          throw e
-        }
+        )
       } finally {
         rmSync(tmp, { recursive: true, force: true })
       }
     }
 
-    const output = reserveOutPath(file.path, targetExt, 'converted', ctx.outDir)
+    const output = reserveOutput(file.path, targetExt, 'converted', ctx.outDir)
     if (kindTool === 'ffmpeg') {
       // Real progress for media transcodes (they can run for a long time).
       const duration = await probeDuration(file.path)
@@ -324,7 +333,7 @@ const pdfTool: ToolModule = {
     if (op === 'merge') {
       const inputs = Array.isArray(options.mergeInputs) ? options.mergeInputs : [file.path]
       if (inputs.length < 2) throw new Error('Select at least two PDFs to merge')
-      const output = reserveOutPath(file.path, '.pdf', 'merged', ctx.outDir)
+      const output = reserveOutput(file.path, '.pdf', 'merged', ctx.outDir)
       ctx.onProgress(undefined, `Merging ${inputs.length} PDFs…`)
       return runToOutput(
         mutool,
@@ -342,7 +351,7 @@ const pdfTool: ToolModule = {
     if (op === 'split-range') {
       const pages = normalizePageRange(String(options.range ?? ''))
       if (!pages) throw new Error('Enter pages to keep, e.g. 1-3,5')
-      const output = reserveOutPath(file.path, '.pdf', 'pages', ctx.outDir)
+      const output = reserveOutput(file.path, '.pdf', 'pages', ctx.outDir)
       ctx.onProgress(undefined, `Extracting pages ${pages}…`)
       return runToOutput(
         mutool,
@@ -363,29 +372,24 @@ const pdfTool: ToolModule = {
       if (count < 1)
         throw new Error(info.stderr.trim().split('\n').pop()?.trim() || 'Could not read the PDF')
       const base = basename(file.path, extname(file.path))
-      const dir = uniqueOutDir(ctx.outDir ?? dirname(file.path), base + ' (split)')
-      mkdirSync(dir, { recursive: true })
       const width = String(count).length
-      try {
-        for (let n = 1; n <= count; n++) {
-          if (ctx.signal.aborted) throw new Error('Canceled')
-          ctx.onProgress(Math.round(((n - 1) / count) * 100), `Splitting page ${n}/${count}…`)
-          const out = join(dir, `${base}-${String(n).padStart(width, '0')}.pdf`)
-          const { code, stderr } = await run(mutool, buildPdfPagesArgs(file.path, out, String(n)), {
-            signal: ctx.signal
-          })
-          if (code !== 0)
-            throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+      return withOutput(
+        reserveOutputDir(ctx.outDir ?? dirname(file.path), base + ' (split)'),
+        async (dir) => {
+          for (let n = 1; n <= count; n++) {
+            if (ctx.signal.aborted) throw new Error('Canceled')
+            ctx.onProgress(Math.round(((n - 1) / count) * 100), `Splitting page ${n}/${count}…`)
+            const out = join(dir, `${base}-${String(n).padStart(width, '0')}.pdf`)
+            const { code, stderr } = await run(
+              mutool,
+              buildPdfPagesArgs(file.path, out, String(n)),
+              { signal: ctx.signal }
+            )
+            if (code !== 0)
+              throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+          }
         }
-        return dir
-      } catch (e) {
-        try {
-          rmSync(dir, { recursive: true, force: true })
-        } catch {
-          /* best effort */
-        }
-        throw e
-      }
+      )
     }
 
     // Extract images: dump embedded image resources into a new folder. mutool
@@ -393,83 +397,73 @@ const pdfTool: ToolModule = {
     // emits font-* files, which we drop so the folder is images-only.
     if (op === 'extract-images') {
       const base = basename(file.path, extname(file.path))
-      const dir = uniqueOutDir(ctx.outDir ?? dirname(file.path), base + ' (images)')
-      mkdirSync(dir, { recursive: true })
       ctx.onProgress(undefined, 'Extracting images…')
-      const { code, stderr } = await run(mutool, buildPdfExtractArgs(file.path), {
-        signal: ctx.signal,
-        cwd: dir
-      })
-      const cleanup = (): void => {
-        try {
-          rmSync(dir, { recursive: true, force: true })
-        } catch {
-          /* best effort */
-        }
-      }
-      if (code !== 0) {
-        cleanup()
-        throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
-      }
-      let images = 0
-      for (const f of readdirSync(dir)) {
-        if (/^image-/i.test(f)) images++
-        else {
-          try {
-            rmSync(join(dir, f), { force: true })
-          } catch {
-            /* best effort */
+      return withOutput(
+        reserveOutputDir(ctx.outDir ?? dirname(file.path), base + ' (images)'),
+        async (dir) => {
+          const { code, stderr } = await run(mutool, buildPdfExtractArgs(file.path), {
+            signal: ctx.signal,
+            cwd: dir
+          })
+          if (code !== 0)
+            throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+          let images = 0
+          for (const f of readdirSync(dir)) {
+            if (/^image-/i.test(f)) images++
+            else {
+              try {
+                rmSync(join(dir, f), { force: true })
+              } catch {
+                /* best effort */
+              }
+            }
           }
+          if (images === 0) throw new Error('No embedded images found in this PDF')
         }
-      }
-      if (images === 0) {
-        cleanup()
-        throw new Error('No embedded images found in this PDF')
-      }
-      return dir
+      )
     }
 
     if (op === 'pages-to-images') {
       const dpi = Math.max(36, Math.min(600, Number(options.dpi ?? 150)))
-      const dir = uniqueOutDir(
+      const output = reserveOutputDir(
         ctx.outDir ?? dirname(file.path),
         basename(file.path, extname(file.path)) + ' (pages)'
       )
-      mkdirSync(dir, { recursive: true })
       // mutool draw's -o is a printf pattern (the `page-%d.png` is the point),
       // so a `%` in the folder name — inherited from the source name — would be
       // expanded too. Render into a neutral temp dir then, and move the pages.
-      const renderDir = dir.includes('%') ? mkdtempSync(join(tmpdir(), 'filesmith-pages-')) : dir
       ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)
       const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p, eta) =>
         ctx.onProgress(p, undefined, eta)
       )
       try {
-        const { code, stderr } = await run(mutool, buildPdfImagesArgs(file.path, renderDir, dpi), {
-          signal: ctx.signal
-        })
-        if (code !== 0)
-          throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
-        if (renderDir !== dir)
-          for (const f of readdirSync(renderDir)) copyFileSync(join(renderDir, f), join(dir, f))
-        return dir
-      } catch (e) {
         // Never leave a partial folder behind (a corrupt page 138 of 400 would
         // otherwise strand 137 PNGs, and the next run makes "name (pages) (2)").
-        try {
-          rmSync(dir, { recursive: true, force: true })
-        } catch {
-          /* best effort */
-        }
-        throw e
+        return await withOutput(output, async (dir) => {
+          const renderDir = dir.includes('%')
+            ? mkdtempSync(join(tmpdir(), 'filesmith-pages-'))
+            : dir
+          try {
+            const { code, stderr } = await run(
+              mutool,
+              buildPdfImagesArgs(file.path, renderDir, dpi),
+              { signal: ctx.signal }
+            )
+            if (code !== 0)
+              throw new Error(stderr.trim().split('\n').pop()?.trim() || `mutool exited ${code}`)
+            if (renderDir !== dir)
+              for (const f of readdirSync(renderDir)) copyFileSync(join(renderDir, f), join(dir, f))
+          } finally {
+            if (renderDir !== dir) rmSync(renderDir, { recursive: true, force: true })
+          }
+        })
       } finally {
         est.stop()
-        if (renderDir !== dir) rmSync(renderDir, { recursive: true, force: true })
       }
     }
 
     // extract-text
-    const output = reserveOutPath(file.path, '.txt', 'text', ctx.outDir)
+    const output = reserveOutput(file.path, '.txt', 'text', ctx.outDir)
     ctx.onProgress(undefined, 'Extracting text…')
     return runToOutput(
       mutool,
@@ -489,7 +483,7 @@ const resizeTool: ToolModule = {
     const spec = buildResizeSpec(options)
     if (!isValidResizeSpec(spec))
       throw new Error('Enter a width, height, or percentage to resize by')
-    const output = reserveOutPath(file.path, file.ext, 'resized', ctx.outDir)
+    const output = reserveOutput(file.path, file.ext, 'resized', ctx.outDir)
     ctx.onProgress(undefined, `Resizing ${spec}…`)
     const animated = normalizeExt(file.ext) === '.gif'
     return runToOutput(
@@ -515,7 +509,7 @@ const compressTool: ToolModule = {
     if (file.kind === 'pdf') {
       const level = String(options.pdfLevel ?? 'balanced') as PdfLevel
       const gray = Boolean(options.pdfGray)
-      const output = reserveOutPath(file.path, '.pdf', 'compressed', ctx.outDir)
+      const output = reserveOutput(file.path, '.pdf', 'compressed', ctx.outDir)
       if (level === 'lossless') {
         ctx.onProgress(undefined, 'Compressing PDF (lossless)…')
         return runToOutput(
@@ -547,7 +541,7 @@ const compressTool: ToolModule = {
     if (file.kind === 'video') {
       const codec = String(options.videoCodec ?? 'h264') as VideoCodec
       const scale = Number(options.scale ?? 100)
-      const output = reserveOutPath(file.path, '.mp4', 'compressed', ctx.outDir)
+      const output = reserveOutput(file.path, '.mp4', 'compressed', ctx.outDir)
       // Real progress: ffmpeg's `time=` against the source duration. Long
       // re-encodes (a full movie) otherwise look stuck on an indeterminate bar.
       const duration = await probeDuration(file.path)
@@ -570,7 +564,7 @@ const compressTool: ToolModule = {
     if (file.kind === 'audio') {
       const codec = String(options.audioCodec ?? 'keep') as AudioCodec
       const bitrate = Number(options.audioBitrate ?? 192)
-      const output = reserveOutPath(
+      const output = reserveOutput(
         file.path,
         audioOutputExt(codec, file.ext),
         'compressed',
@@ -598,32 +592,29 @@ const compressTool: ToolModule = {
 
     if (imageFormat === 'keep' && CAESIUM_EXTS.includes(normalizeExt(file.ext))) {
       const tmp = mkdtempSync(join(tmpdir(), 'filesmith-'))
-      // Declared outside try so the catch can clean the placeholder; reserved
-      // INSIDE try so a throw there still hits the finally that removes tmp.
-      let output: string | undefined
       const est = estimateProgress(estimateSecForBytes(file.size, 0.08), (p, eta) =>
         ctx.onProgress(p, undefined, eta)
       )
       try {
-        output = reserveOutPath(file.path, file.ext, 'compressed', ctx.outDir)
-        const { code, stderr } = await run(
-          resolveTool('caesiumclt'),
-          buildCompressArgs(file.path, tmp, quality),
-          { signal: ctx.signal }
+        // Reserved INSIDE try so a throw there still hits the finally that
+        // removes tmp.
+        return await withOutput(
+          reserveOutput(file.path, file.ext, 'compressed', ctx.outDir),
+          async (part) => {
+            const { code, stderr } = await run(
+              resolveTool('caesiumclt'),
+              buildCompressArgs(file.path, tmp, quality),
+              { signal: ctx.signal }
+            )
+            const produced = join(tmp, basename(file.path))
+            if (code !== 0 || !existsSync(produced)) {
+              throw new Error(
+                stderr.trim().split('\n').pop()?.trim() || `caesiumclt exited ${code}`
+              )
+            }
+            copyFileSync(produced, part)
+          }
         )
-        const produced = join(tmp, basename(file.path))
-        if (code !== 0 || !existsSync(produced)) {
-          throw new Error(stderr.trim().split('\n').pop()?.trim() || `caesiumclt exited ${code}`)
-        }
-        copyFileSync(produced, output)
-        return output
-      } catch (e) {
-        try {
-          if (output && existsSync(output)) rmSync(output, { force: true })
-        } catch {
-          /* best effort */
-        }
-        throw e
       } finally {
         est.stop()
         rmSync(tmp, { recursive: true, force: true })
@@ -633,7 +624,7 @@ const compressTool: ToolModule = {
     // Convert to webp/avif, or re-encode a non-Caesium source format in place —
     // both via ImageMagick, output extension chosen by the target format.
     const outExt = imageFormat === 'keep' ? file.ext : `.${imageFormat}`
-    const output = reserveOutPath(file.path, outExt, 'compressed', ctx.outDir)
+    const output = reserveOutput(file.path, outExt, 'compressed', ctx.outDir)
     return runToOutput(
       resolveTool('magick'),
       (out) => buildMagickCompressArgs(file.path, out, quality),
@@ -720,10 +711,9 @@ async function restoreAlpha(
  * pid:status check (not this error) is what drives the one-click download prompt.
  */
 async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext): Promise<string> {
-  if (!pidInstalled('flux'))
-    throw new Error('PiD is not installed. Pick PiD in the options panel and click Download first.')
+  if (!pidInstalled('flux')) throw new Error(notReadyMessage('pid'))
   const tmp = mkdtempSync(join(tmpdir(), 'filesmith-pid-'))
-  let output: string | undefined
+  let output: FileOutput | undefined
   // PiD reports phases, not a percentage, so drive an estimated bar whose pace
   // matches the phase: the slow first-run model load, then sampling (cold first
   // run compiles kernels; warm is ~1s). `lastPct` carries the % across phase
@@ -751,7 +741,7 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
       })
       if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
     }
-    output = reserveOutPath(file.path, '.png', 'upscaled', ctx.outDir)
+    output = reserveOutput(file.path, '.png', 'upscaled', ctx.outDir)
     ctx.onProgress(undefined, 'Starting PiD…')
     // The sidecar writes to a temp target, copied onto the reserved name only
     // on success: a cancelled python run keeps going and writes its target
@@ -784,14 +774,10 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
     // Diffusion output is RGB; carry the source's transparency across like the
     // Real-ESRGAN path does, so a transparent PNG doesn't come back opaque.
     await restoreAlpha(file.path, out, ctx, tmp)
-    copyFileSync(out, output)
-    return output
+    copyFileSync(out, output.part)
+    return output.commit()
   } catch (e) {
-    try {
-      if (output && existsSync(output)) rmSync(output, { force: true })
-    } catch {
-      /* best effort */
-    }
+    output?.discard() // never throws
     throw e
   } finally {
     stopEst()
@@ -820,7 +806,7 @@ async function upscaleWithComfy(
   if (!model)
     throw new Error('That imported model is no longer available. Rescan your ComfyUI folder.')
   const tmp = mkdtempSync(join(tmpdir(), 'filesmith-comfy-'))
-  let output: string | undefined
+  let output: FileOutput | undefined
   try {
     let src = file.path
     if (needsPreConvert(file.ext)) {
@@ -830,7 +816,7 @@ async function upscaleWithComfy(
       })
       if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
     }
-    output = reserveOutPath(file.path, '.png', 'upscaled', ctx.outDir)
+    output = reserveOutput(file.path, '.png', 'upscaled', ctx.outDir)
     const label = background
       ? `Upscaling with ${model.name} (background)…`
       : `Upscaling with ${model.name}…`
@@ -851,14 +837,10 @@ async function upscaleWithComfy(
     if (!existsSync(out) || statSync(out).size === 0)
       throw new Error('The upscaler produced no output')
     await restoreAlpha(file.path, out, ctx, tmp)
-    copyFileSync(out, output)
-    return output
+    copyFileSync(out, output.part)
+    return output.commit()
   } catch (e) {
-    try {
-      if (output && existsSync(output)) rmSync(output, { force: true })
-    } catch {
-      /* best effort */
-    }
+    output?.discard() // never throws
     throw e
   } finally {
     try {
@@ -896,7 +878,7 @@ const upscaleTool: ToolModule = {
     // No size ceiling: an absurdly large upscale is the user's call to make, and
     // the UI warns them with an estimated output size before it gets here.
     const tmp = mkdtempSync(join(tmpdir(), 'filesmith-up-'))
-    let output: string | undefined
+    let output: FileOutput | undefined
     try {
       // Real-ESRGAN reads png/jpg/webp; anything else goes through magick first.
       let src = file.path
@@ -917,7 +899,7 @@ const upscaleTool: ToolModule = {
         throw new Error(
           'No AI upscale models are installed. Reinstall Filesmith, or add a Real-ESRGAN .param/.bin pair to your models folder.'
         )
-      output = reserveOutPath(file.path, '.png', 'upscaled', ctx.outDir)
+      output = reserveOutput(file.path, '.png', 'upscaled', ctx.outDir)
       const label = background
         ? `Upscaling ${factor}× (${ncnn.label}, background)…`
         : `Upscaling ${factor}× (${ncnn.label})…`
@@ -925,7 +907,11 @@ const upscaleTool: ToolModule = {
       // Background: a small tile caps peak VRAM so other GPU apps keep their
       // memory (ncnn can't be duty-cycled, so this is the lever we have).
       const args = [
-        ...buildUpscaleArgs(src, output, { model: ncnn.name, factor, tile: background ? 128 : 0 }),
+        ...buildUpscaleArgs(src, output.part, {
+          model: ncnn.name,
+          factor,
+          tile: background ? 128 : 0
+        }),
         '-m',
         ncnn.dir
       ]
@@ -933,7 +919,7 @@ const upscaleTool: ToolModule = {
         signal: ctx.signal,
         onStderr: upscaleProgress((pct) => ctx.onProgress(pct, label))
       })
-      if (code !== 0 || !existsSync(output) || statSync(output).size === 0) {
+      if (code !== 0 || !existsSync(output.part) || statSync(output.part).size === 0) {
         // The usual cause is no usable Vulkan device.
         const msg = describeToolError(stderr, 'realesrgan', code)
         throw new Error(
@@ -942,14 +928,10 @@ const upscaleTool: ToolModule = {
             : msg
         )
       }
-      await restoreAlpha(file.path, output, ctx, tmp)
-      return output
+      await restoreAlpha(file.path, output.part, ctx, tmp)
+      return output.commit()
     } catch (e) {
-      try {
-        if (output && existsSync(output)) rmSync(output, { force: true })
-      } catch {
-        /* best effort */
-      }
+      output?.discard() // never throws
       throw e
     } finally {
       rmSync(tmp, { recursive: true, force: true })
@@ -969,15 +951,22 @@ const upscaleTool: ToolModule = {
 const removebgTool: ToolModule = {
   async run(file, options, ctx) {
     if (file.kind !== 'image') throw new Error(`Can't remove the background of ${file.kind} files`)
-    const rembg = resolveRembg()
-    if (!rembg) {
-      throw new Error(
-        'Background removal needs uv (which installs the AI model on first use). Install it with: winget install astral-sh.uv, then restart Filesmith.'
-      )
+    const model = bgModelOf(options)
+    let rembg = resolveRembg()
+    if (!rembg || !rembgModelPresent(model)) {
+      // The CLI never downloads from a job (spec M5); the app sets up inline,
+      // where its first removebg job used to download invisibly.
+      if (ctx.allowDownload === false) throw new Error(notReadyMessage('removebg'))
+      ctx.onProgress(undefined, 'Setting up background removal (one time)...')
+      await setupRembg(model, (step, pct) => ctx.onProgress(pct ?? undefined, step), {
+        signal: ctx.signal
+      })
+      rembg = resolveRembg()
+      if (!rembg) throw new Error('Background removal could not be set up.')
     }
 
     const tmp = mkdtempSync(join(tmpdir(), 'filesmith-bg-'))
-    let output: string | undefined
+    let output: FileOutput | undefined
     // rembg emits phase labels but no percentage; drive an estimated bar under
     // them (model inference is a few seconds; the phase text keeps the label).
     let est: ReturnType<typeof estimateProgress> | null = null
@@ -994,20 +983,21 @@ const removebgTool: ToolModule = {
           throw new Error(describeToolError(stderr, 'magick', code))
       }
 
-      output = reserveOutPath(file.path, '.png', 'no-bg', ctx.outDir)
+      output = reserveOutput(file.path, '.png', 'no-bg', ctx.outDir)
       // The first run of a model pays a download; every run pays a load. Say so,
       // because a silent multi-second wait reads as a hang.
       ctx.onProgress(undefined, 'Loading model…')
       est = estimateProgress(6, (p, eta) => ctx.onProgress(p, undefined, eta))
       const { code, stderr } = await run(
         rembg.cmd,
-        [...rembg.prefix, ...buildRembgArgs(src, output, options)],
+        [...rembg.prefix, ...buildRembgArgs(src, output.part, options)],
         {
           signal: ctx.signal,
+          env: rembg.env,
           onStderr: rembgPhase((message) => ctx.onProgress(undefined, message))
         }
       )
-      if (code !== 0 || !existsSync(output) || statSync(output).size === 0) {
+      if (code !== 0 || !existsSync(output.part) || statSync(output.part).size === 0) {
         throw new Error(describeRembgError(stderr, code))
       }
 
@@ -1018,25 +1008,21 @@ const removebgTool: ToolModule = {
       if (options.bgFill === 'image' && bgImage) {
         if (!existsSync(bgImage)) throw new Error('The chosen background image no longer exists.')
         ctx.onProgress(undefined, 'Adding background…')
-        const dims = await probeImageDimensions(output)
+        const dims = await probeImageDimensions(output.part)
         if (!dims) throw new Error('Could not read the cutout to size the background.')
         const merged = join(tmp, 'composited.png')
         const { code: cc, stderr: cerr } = await run(
           resolveTool('magick'),
-          buildCompositeArgs(bgImage, output, merged, dims.width, dims.height),
+          buildCompositeArgs(bgImage, output.part, merged, dims.width, dims.height),
           { signal: ctx.signal }
         )
         if (cc !== 0 || !existsSync(merged) || statSync(merged).size === 0)
           throw new Error(describeToolError(cerr, 'magick', cc))
-        copyFileSync(merged, output)
+        copyFileSync(merged, output.part)
       }
-      return output
+      return output.commit()
     } catch (e) {
-      try {
-        if (output && existsSync(output)) rmSync(output, { force: true })
-      } catch {
-        /* best effort */
-      }
+      output?.discard() // never throws
       throw e
     } finally {
       est?.stop()
@@ -1102,12 +1088,11 @@ async function extractToTemp(input: string, ctx: ToolContext): Promise<string> {
  * format. Both are run with cwd set to `dir` so nothing is nested under a
  * wrapper folder, which comic readers show as an empty book.
  *
- * The archive is built in its own temp dir and then copied onto `output`.
- * reserveOutPath leaves a 0-byte placeholder to hold the name, and `7z a` /
- * `rar a` are ADD commands: handed an existing empty file they try to update it
- * and die with "Incorrect function" / "Bad archive". Building elsewhere also
- * keeps a half-written archive from ever appearing at the final path, and keeps
- * the archive out of the very directory being packed.
+ * The archive is built in its own temp dir and then copied onto `output` (the
+ * reservation's part file). `7z a` / `rar a` are ADD commands: handed an
+ * existing file they try to update it and die with "Incorrect function" / "Bad
+ * archive". Building elsewhere also keeps the archive out of the very directory
+ * being packed.
  */
 async function packDir(
   dir: string,
@@ -1170,33 +1155,30 @@ const archiveTool: ToolModule = {
   async run(file, options, ctx) {
     const op = String(options.op ?? 'repack')
 
-    // Unpack into a new folder next to the source.
+    // Unpack into a new folder next to the source. Never strand a
+    // half-extracted folder: the next run would make "name (extracted) (2)"
+    // and leave the broken one behind forever.
     if (op === 'extract') {
-      const dir = uniqueOutDir(
-        ctx.outDir ?? dirname(file.path),
-        basename(file.path, extname(file.path)) + ' (extracted)'
-      )
-      mkdirSync(dir, { recursive: true })
       ctx.onProgress(undefined, 'Extracting…')
       try {
-        const res = await run(resolveSevenZip(), buildExtractArgs(file.path, dir), {
-          signal: ctx.signal,
-          onStderr: (c) => {
-            const p = parse7zProgress(c)
-            if (p !== undefined) ctx.onProgress(p, 'Extracting…')
+        return await withOutput(
+          reserveOutputDir(
+            ctx.outDir ?? dirname(file.path),
+            basename(file.path, extname(file.path)) + ' (extracted)'
+          ),
+          async (dir) => {
+            const res = await run(resolveSevenZip(), buildExtractArgs(file.path, dir), {
+              signal: ctx.signal,
+              onStderr: (c) => {
+                const p = parse7zProgress(c)
+                if (p !== undefined) ctx.onProgress(p, 'Extracting…')
+              }
+            })
+            if (res.code !== 0)
+              throw new Error(describeArchiveError(res, 'Could not read this archive'))
           }
-        })
-        if (res.code !== 0)
-          throw new Error(describeArchiveError(res, 'Could not read this archive'))
-        return dir
+        )
       } catch (e) {
-        // Never strand a half-extracted folder: the next run would make
-        // "name (extracted) (2)" and leave the broken one behind forever.
-        try {
-          rmSync(dir, { recursive: true, force: true })
-        } catch {
-          /* best effort */
-        }
         throw e instanceof ToolMissingError
           ? new Error(toolMissingMessage(e.tool), { cause: e })
           : e
@@ -1209,19 +1191,11 @@ const archiveTool: ToolModule = {
       assertRarTarget(targetExt)
       const store = options.store !== false
       const temp = await extractToTemp(file.path, ctx)
-      const output = reserveOutPath(file.path, targetExt, 'converted', ctx.outDir)
       try {
-        await packDir(temp, output, targetExt, store, ctx)
-        if (!existsSync(output) || statSync(output).size === 0)
-          throw new Error('The archive tool reported success but wrote no output')
-        return output
-      } catch (e) {
-        try {
-          rmSync(output, { force: true })
-        } catch {
-          /* best effort */
-        }
-        throw e
+        return await withOutput(
+          reserveOutput(file.path, targetExt, 'converted', ctx.outDir),
+          (part) => packDir(temp, part, targetExt, store, ctx)
+        )
       } finally {
         rmSync(temp, { recursive: true, force: true })
       }
@@ -1248,25 +1222,25 @@ const archiveTool: ToolModule = {
           return p
         })
 
-        const output = reserveOutPath(file.path, '.pdf', 'converted', ctx.outDir)
+        const output = reserveOutput(file.path, '.pdf', 'converted', ctx.outDir)
         const magick = resolveTool('magick')
         // Windows caps a command line at 32767 characters and a long comic
         // blows past it, so build part PDFs and let mutool merge join them.
         const batches = batchImages(pages, 30000)
+        if (batches.length === 1) {
+          return await runToOutput(
+            magick,
+            (out) => [...batches[0], out],
+            output,
+            ctx,
+            'ImageMagick',
+            true,
+            undefined,
+            estimateSecForBytes(file.size, 0.2)
+          )
+        }
+        const parts: string[] = []
         try {
-          if (batches.length === 1) {
-            return await runToOutput(
-              magick,
-              (out) => [...batches[0], out],
-              output,
-              ctx,
-              'ImageMagick',
-              true,
-              undefined,
-              estimateSecForBytes(file.size, 0.2)
-            )
-          }
-          const parts: string[] = []
           for (const [i, b] of batches.entries()) {
             if (ctx.signal.aborted) throw new Error('Canceled')
             ctx.onProgress(
@@ -1279,22 +1253,18 @@ const archiveTool: ToolModule = {
               throw new Error(describeToolError(res.stderr, 'ImageMagick', res.code))
             parts.push(part)
           }
-          ctx.onProgress(95, 'Joining pages…')
-          return await runToOutput(
-            resolveTool('mutool'),
-            (out) => buildPdfMergeArgs(parts, out),
-            output,
-            ctx,
-            'mutool'
-          )
         } catch (e) {
-          try {
-            rmSync(output, { force: true })
-          } catch {
-            /* best effort */
-          }
+          output.discard()
           throw e
         }
+        ctx.onProgress(95, 'Joining pages…')
+        return await runToOutput(
+          resolveTool('mutool'),
+          (out) => buildPdfMergeArgs(parts, out),
+          output,
+          ctx,
+          'mutool'
+        )
       } finally {
         rmSync(temp, { recursive: true, force: true })
       }
@@ -1314,48 +1284,45 @@ const archiveTool: ToolModule = {
       // Always a neutral temp dir, so mutool draw's printf `-o` pattern can
       // never expand a `%` inherited from the source file's name.
       const temp = mkdtempSync(join(tmpdir(), 'filesmith-arc-'))
-      const output = reserveOutPath(file.path, targetExt, 'converted', ctx.outDir)
       const est = estimateProgress(estimateSecForBytes(file.size, 0.15), (p, eta) =>
         ctx.onProgress(Math.min(p, 90), undefined, eta)
       )
       try {
-        ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)
-        // Zero-padded, because a reader sorts entries by name: page-10 must not
-        // come before page-2.
-        const draw = await run(
-          resolveTool('mutool'),
-          buildPdfImagesArgs(file.path, temp, dpi, 'page-%04d.png'),
-          { signal: ctx.signal }
+        return await withOutput(
+          reserveOutput(file.path, targetExt, 'converted', ctx.outDir),
+          async (part) => {
+            ctx.onProgress(undefined, `Rendering pages @ ${dpi} DPI…`)
+            // Zero-padded, because a reader sorts entries by name: page-10 must
+            // not come before page-2.
+            const draw = await run(
+              resolveTool('mutool'),
+              buildPdfImagesArgs(file.path, temp, dpi, 'page-%04d.png'),
+              { signal: ctx.signal }
+            )
+            if (draw.code !== 0)
+              throw new Error(describeToolError(draw.stderr, 'mutool', draw.code))
+            if (readdirSync(temp).length === 0) throw new Error('This PDF has no pages to render')
+
+            if (pageFormat === 'jpg') {
+              // mutool draw has no JPEG writer, so convert the rendered PNGs in
+              // one mogrify pass. A 200-page PNG comic runs to hundreds of MB.
+              est.stop()
+              ctx.onProgress(60, 'Compressing pages…')
+              const mog = await run(
+                resolveTool('magick'),
+                ['mogrify', '-format', 'jpg', '-quality', String(quality), '*.png'],
+                { signal: ctx.signal, cwd: temp }
+              )
+              if (mog.code !== 0)
+                throw new Error(describeToolError(mog.stderr, 'ImageMagick', mog.code))
+              for (const f of readdirSync(temp))
+                if (f.toLowerCase().endsWith('.png')) rmSync(join(temp, f), { force: true })
+            }
+
+            await packDir(temp, part, targetExt, true, ctx)
+          }
         )
-        if (draw.code !== 0) throw new Error(describeToolError(draw.stderr, 'mutool', draw.code))
-        if (readdirSync(temp).length === 0) throw new Error('This PDF has no pages to render')
-
-        if (pageFormat === 'jpg') {
-          // mutool draw has no JPEG writer, so convert the rendered PNGs in one
-          // mogrify pass. A 200-page PNG comic runs to hundreds of megabytes.
-          est.stop()
-          ctx.onProgress(60, 'Compressing pages…')
-          const mog = await run(
-            resolveTool('magick'),
-            ['mogrify', '-format', 'jpg', '-quality', String(quality), '*.png'],
-            { signal: ctx.signal, cwd: temp }
-          )
-          if (mog.code !== 0)
-            throw new Error(describeToolError(mog.stderr, 'ImageMagick', mog.code))
-          for (const f of readdirSync(temp))
-            if (f.toLowerCase().endsWith('.png')) rmSync(join(temp, f), { force: true })
-        }
-
-        await packDir(temp, output, targetExt, true, ctx)
-        if (!existsSync(output) || statSync(output).size === 0)
-          throw new Error('The archive tool reported success but wrote no output')
-        return output
       } catch (e) {
-        try {
-          rmSync(output, { force: true })
-        } catch {
-          /* best effort */
-        }
         throw e instanceof ToolMissingError
           ? new Error(toolMissingMessage(e.tool), { cause: e })
           : e

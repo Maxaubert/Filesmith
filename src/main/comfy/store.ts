@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import { app } from 'electron'
+import { existsSync, readFileSync } from 'fs'
+import { userDataPath } from '../env'
+import { writeFileAtomic } from '../atomicWrite'
 import type { ComfyModel } from '@shared/comfy'
 
 // Remembered ComfyUI import: the folder the user picked and the last scan. Models
@@ -18,7 +18,7 @@ export interface ComfyStore {
 }
 
 function storePath(): string {
-  return join(app.getPath('userData'), 'comfy-upscalers.json')
+  return userDataPath('comfy-upscalers.json')
 }
 
 export function readComfyStore(): ComfyStore | null {
@@ -34,7 +34,7 @@ export function readComfyStore(): ComfyStore | null {
 }
 
 export function writeComfyStore(store: ComfyStore): void {
-  writeFileSync(storePath(), JSON.stringify(store, null, 2))
+  writeFileAtomic(storePath(), JSON.stringify(store, null, 2))
 }
 
 /** Update only the given fields, preserving the rest. The whole-object writes

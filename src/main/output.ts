@@ -5,37 +5,59 @@ import { basename, dirname, extname, join } from 'path'
 // Get-UniqueOutDir logic hardened in RCMM's rcmm-convert.ps1: NEVER overwrite
 // the user's source or an existing unrelated file. This is a hard rule.
 
+/** Candidate names in collision order: `name.ext`, `name (tag).ext`,
+ * `name (tag 2).ext`, ... One generator for the real reservation and the
+ * dry-run prediction, so the two cannot drift. */
+function* fileCandidates(dir: string, name: string, ext: string, tag: string): Generator<string> {
+  const e = ext.startsWith('.') ? ext : '.' + ext
+  yield join(dir, name + e)
+  yield join(dir, `${name} (${tag})${e}`)
+  for (let n = 2; ; n++) yield join(dir, `${name} (${tag} ${n})${e}`)
+}
+
+/** Folder names in collision order: `base`, `base (2)`, `base (3)`, ... */
+export function* dirCandidates(dir: string, base: string): Generator<string> {
+  yield join(dir, base)
+  for (let n = 2; ; n++) yield join(dir, `${base} (${n})`)
+}
+
 /**
- * A collision-free file path (`name.ext` -> `name (tag).ext` ->
- * `name (tag 2).ext` -> ...) that ATOMICALLY claims the chosen name by creating
- * an empty placeholder (openSync 'wx' — exclusive create). Two jobs running
+ * A collision-free file path that ATOMICALLY claims the chosen name by creating
+ * an empty placeholder (openSync 'wx', exclusive create). Two jobs running
  * concurrently can otherwise pick the same free name before either has written
- * it (a batch of differently-named sources converting to one target format all
- * land on `name.ext`); the exclusive create makes the second job skip to the
- * next candidate. The tool that runs next overwrites the placeholder (ffmpeg
- * `-y`, magick, mutool, copyFileSync all overwrite). Callers MUST remove the
- * placeholder if the tool then fails — see the direct-write cleanup in registry.
+ * it; the exclusive create makes the second job skip to the next candidate. The
+ * tool that runs next overwrites the placeholder. Callers MUST remove the
+ * placeholder if the tool then fails (see the direct-write cleanup in registry).
  */
 export function reserveFileInDir(dir: string, name: string, ext: string, tag: string): string {
-  const e = ext.startsWith('.') ? ext : '.' + ext
-  let cand = join(dir, name + e)
-  let tagged = false
-  let n = 2
-  for (;;) {
+  for (const cand of fileCandidates(dir, name, ext, tag)) {
     try {
       closeSync(openSync(cand, 'wx'))
       return cand
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
-      if (!tagged) {
-        cand = join(dir, `${name} (${tag})${e}`)
-        tagged = true
-      } else {
-        cand = join(dir, `${name} (${tag} ${n})${e}`)
-        n++
-      }
     }
   }
+  throw new Error('unreachable')
+}
+
+/** The name reserveFileInDir WOULD pick, without creating anything (dry run).
+ * `claimed` holds lower-cased paths predicted earlier in the same run, so two
+ * sources that land on one name are predicted as the real run will name them.
+ * A prediction: another process may take a name before the real run. */
+export function planFileInDir(
+  dir: string,
+  name: string,
+  ext: string,
+  tag: string,
+  claimed: Set<string> = new Set()
+): string {
+  for (const cand of fileCandidates(dir, name, ext, tag)) {
+    if (existsSync(cand) || claimed.has(cand.toLowerCase())) continue
+    claimed.add(cand.toLowerCase())
+    return cand
+  }
+  throw new Error('unreachable')
 }
 
 /** Atomically-reserved output with a new extension: next to the source, or in
@@ -62,11 +84,16 @@ export function resolveOutDir(value: unknown): string | undefined {
 
 /** Collision-free directory: `base` -> `base (2)` -> `base (3)` ... */
 export function uniqueOutDir(dir: string, base: string): string {
-  let cand = join(dir, base)
-  let n = 2
-  while (existsSync(cand)) {
-    cand = join(dir, `${base} (${n})`)
-    n++
+  for (const cand of dirCandidates(dir, base)) if (!existsSync(cand)) return cand
+  throw new Error('unreachable')
+}
+
+/** The folder uniqueOutDir WOULD pick, honouring earlier claims in the run. */
+export function planOutDir(dir: string, base: string, claimed: Set<string> = new Set()): string {
+  for (const cand of dirCandidates(dir, base)) {
+    if (existsSync(cand) || claimed.has(cand.toLowerCase())) continue
+    claimed.add(cand.toLowerCase())
+    return cand
   }
-  return cand
+  throw new Error('unreachable')
 }

@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
+import { engineEnv } from '../env'
 import type { RegistryEntry, RegistryFile } from '@shared/registry'
 import { REGISTRY_SCHEMA_VERSION, mergeRegistryChecked } from '@shared/registry'
 
@@ -30,30 +30,12 @@ export interface RegistryLoadResult {
   warnings: string[]
 }
 
-/**
- * Electron's paths, or null outside an Electron runtime. Resolving this at call
- * time (rather than assuming `app` exists) is what lets the registry — the piece
- * that decides which models exist — be unit-tested against the SHIPPED pack.
- * The audit's M12 was precisely that the machine-dependent resolution code had
- * zero coverage because it could not be loaded outside the app.
- */
-function electronPath(kind: 'resources' | 'userData'): string | null {
-  try {
-    if (kind === 'userData') return app.getPath('userData')
-    return app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources')
-  } catch {
-    return null
-  }
-}
-
 function builtinDir(): string {
-  const root = electronPath('resources') ?? join(process.cwd(), 'resources')
-  return join(root, 'registry')
+  return join(engineEnv().resourcesDir, 'registry')
 }
 
 function userRegistryRoot(): string | null {
-  const ud = electronPath('userData')
-  return ud ? join(ud, 'registry') : null
+  return join(engineEnv().userData, 'registry')
 }
 
 export function layerDir(layer: Layer): string | null {

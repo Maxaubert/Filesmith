@@ -11,7 +11,7 @@ import {
 import { dirname } from 'path'
 import { Readable, Transform } from 'stream'
 import { pipeline } from 'stream/promises'
-import { net } from 'electron'
+import { engineEnv } from '../env'
 
 // Atomic HTTP download: stream to `<dest>.part`, verify the transfer completed
 // against Content-Length and (when declared) its sha256, then rename into place.
@@ -21,22 +21,11 @@ import { net } from 'electron'
 
 const STALL_MS = 60_000
 
-/**
- * Electron's `net.fetch` when we're in the app, Node's global `fetch` otherwise
- * (tests). This matters for real users, not tidiness: the Node global is undici,
- * which ignores the system proxy and validates TLS against Node's own bundled CA
- * list rather than the Windows certificate store. On a corporate machine behind a
- * TLS-inspecting gateway the install could never succeed — while the `uv pip
- * install` phases, being subprocesses, honoured the proxy and worked. `net.fetch`
- * uses Chromium's stack: system proxy, Windows trust store.
- */
+/** The host's fetch: Electron's net.fetch in the app (system proxy, Windows
+ * trust store); Node's fetch in the CLI, whose shims add --use-system-ca and
+ * NODE_USE_ENV_PROXY=1 for the same two reasons (spec 4.6). */
 function httpFetch(url: string, init: RequestInit): Promise<Response> {
-  try {
-    if (net?.fetch) return net.fetch(url, init)
-  } catch {
-    /* not in an Electron runtime */
-  }
-  return fetch(url, init)
+  return engineEnv().fetch(url, init)
 }
 
 /**
@@ -80,6 +69,8 @@ export interface DownloadOptions {
   /** Expected sha256, verified WHILE STREAMING. A mismatch discards the .part. */
   sha256?: string
   signal?: AbortSignal
+  /** Bytes so far and the expected total (0 when unknown), for ETA. */
+  onBytes?: (got: number, total: number) => void
 }
 
 /** What a completed download turned out to be. */
@@ -208,6 +199,7 @@ async function downloadOne(
         hash.update(chunk)
         arm()
         if (total && opts.onPct) opts.onPct(Math.min(99, Math.round((got / total) * 100)))
+        opts.onBytes?.(got, total)
         cb(null, chunk)
       }
     })

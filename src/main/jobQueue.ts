@@ -28,7 +28,8 @@ export class JobQueue {
 
   constructor(
     private emit: Emit,
-    concurrency?: number
+    concurrency?: number,
+    private readonly opts: { allowDownload?: boolean } = {}
   ) {
     this.concurrency = concurrency ?? Math.max(1, Math.min(4, cpus().length - 1))
   }
@@ -93,6 +94,7 @@ export class JobQueue {
       const output = await tool.run(file, req.options, {
         signal: ctrl.signal,
         outDir,
+        allowDownload: this.opts.allowDownload ?? true,
         onProgress: (percent, message, etaSec) =>
           this.emit({
             id: req.id,

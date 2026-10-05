@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
-import { dirname, join } from 'path'
-import { app } from 'electron'
+import { existsSync, readFileSync } from 'fs'
+import { userDataPath } from '../env'
+import { writeFileAtomic } from '../atomicWrite'
 
 /**
  * A record of what every downloaded artifact actually hashed to.
@@ -29,17 +29,13 @@ export interface IntegrityRecord {
 
 type Ledger = Record<string, IntegrityRecord>
 
-function ledgerPath(): string | null {
-  try {
-    return join(app.getPath('userData'), 'integrity.json')
-  } catch {
-    return null // outside an Electron runtime (tests)
-  }
+function ledgerPath(): string {
+  return userDataPath('integrity.json')
 }
 
 function read(): Ledger {
   const p = ledgerPath()
-  if (!p || !existsSync(p)) return {}
+  if (!existsSync(p)) return {}
   try {
     const data = JSON.parse(readFileSync(p, 'utf-8')) as Ledger
     return data && typeof data === 'object' ? data : {}
@@ -49,17 +45,10 @@ function read(): Ledger {
 }
 
 function write(l: Ledger): void {
-  const p = ledgerPath()
-  if (!p) return
   try {
-    mkdirSync(dirname(p), { recursive: true })
-    // Write + rename so a crash mid-write can't leave a truncated ledger that
-    // would then be read as "no history" for every artifact.
-    const tmp = `${p}.part`
-    writeFileSync(tmp, JSON.stringify(l, null, 2))
-    renameSync(tmp, p)
+    writeFileAtomic(ledgerPath(), JSON.stringify(l, null, 2))
   } catch {
-    /* best effort — a read-only profile still downloads, just without history */
+    /* best effort: a read-only profile still downloads, just without history */
   }
 }
 

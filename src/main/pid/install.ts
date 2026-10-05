@@ -14,10 +14,21 @@ import { run } from '../run'
 import { cudaTierSupport, detectNvidia } from './gpu'
 import { downloadFile } from '../net/download'
 import { expectedHash, recordHash } from '../net/integrity'
-import { resolveUv } from '../toolResolver'
 import { findComfyPidWeights } from '../comfy/discover'
 import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from './paths'
 import { registryEntry } from '../registry/load'
+import { ensureUv, winTar, type InstallOpts, type InstallProgress } from '../uvInstall'
+import { withFileLock } from '../locks'
+
+export type { InstallOpts, InstallProgress } from '../uvInstall'
+
+/** The running install's cancel signal and byte reporter. Module scope is safe:
+ * withInstallLock admits one install per process. */
+let active: InstallOpts = {}
+
+function runI(cmd: string, args: string[], opts: { cwd?: string } = {}): ReturnType<typeof run> {
+  return run(cmd, args, { ...opts, signal: active.signal })
+}
 
 // The one-click PiD install. Everything the Advanced tier needs is public and
 // ungated, so this runs unattended: vendor the nv-tlabs/PiD source, build a
@@ -50,30 +61,6 @@ const HF_BASE = 'https://huggingface.co/nvidia/PiD/resolve/main'
 // interruption mid-extract/mid-relax is never seen as a finished repo.
 const REPO_MARKER = '.filesmith-repo-ready'
 
-// PiD's pyproject requires a recent uv. We can't rely on the user having one (a
-// one-click install must work on a bare machine), and a stale system uv — e.g.
-// an old winget 0.11.15 — is worse than none: it's found first but can't satisfy
-// the version floor. So bootstrap a known-good uv into the PiD dir when the
-// resolved one is missing or too old.
-const UV_VERSION = '0.11.30'
-const UV_MIN = [0, 11, 28] as const
-const UV_ZIP = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-pc-windows-msvc.zip`
-
-export interface InstallProgress {
-  (step: string, pct: number | null): void
-}
-
-/**
- * Windows' bundled bsdtar (System32\tar.exe, Win10 1809+). Used for zip
- * extraction because, unlike PowerShell's Expand-Archive, it handles long
- * (>260-char) paths — the vendored PiD tree is deep. Called by its full path so
- * a GNU `tar` earlier on PATH (e.g. Git's) can't intercept it: GNU tar treats a
- * `C:\...` destination as a remote host and fails.
- */
-function winTar(): string {
-  return join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
-}
-
 /**
  * Download a URL to `dest`. Delegates to net/download.ts rather than keeping a
  * private copy: the fork here was missing ALL THREE of that file's guards — no
@@ -92,7 +79,13 @@ async function download(
   // vendored source and the multi-GB weights used to be the ONLY fetches that
   // bypassed the integrity ledger entirely - accepted on a size floor, never
   // recorded, so a re-download could silently differ from what was installed.
-  const result = await downloadFile(url, dest, { onPct, minBytes, sha256: expectedHash(url) })
+  const result = await downloadFile(url, dest, {
+    onPct,
+    minBytes,
+    sha256: expectedHash(url),
+    signal: active.signal,
+    onBytes: active.onBytes
+  })
   recordHash(result.url, result.sha256, result.bytes)
 }
 
@@ -117,6 +110,7 @@ function markerSays(path: string, want: string): boolean {
 }
 
 async function ensureRepo(onProgress: InstallProgress): Promise<void> {
+  active.signal?.throwIfAborted()
   if (markerSays(join(pidRepoDir(), REPO_MARKER), PID_REPO_REF)) return
   onProgress('Downloading PiD source', null)
   const tmpDir = mkdtempSync(join(pidRoot(), 'src-'))
@@ -130,7 +124,7 @@ async function ensureRepo(onProgress: InstallProgress): Promise<void> {
   const extractTo = join(tmpDir, 'extract')
   rmSync(extractTo, { recursive: true, force: true })
   mkdirSync(extractTo, { recursive: true })
-  const ex = await run(winTar(), ['-xf', tmpZip, '-C', extractTo])
+  const ex = await runI(winTar(), ['-xf', tmpZip, '-C', extractTo])
   if (ex.code !== 0) throw new Error(`PiD source extract failed: ${ex.stderr.slice(-400)}`)
 
   const inner = join(extractTo, `PiD-${PID_REPO_REF}`)
@@ -156,68 +150,25 @@ async function ensureRepo(onProgress: InstallProgress): Promise<void> {
   writeFileSync(join(pidRepoDir(), REPO_MARKER), PID_REPO_REF)
 }
 
-/** True when `uv --version` reports a version at or above UV_MIN. */
-async function uvVersionOk(uv: string): Promise<boolean> {
-  try {
-    const { code, stdout } = await run(uv, ['--version'])
-    if (code !== 0) return false
-    const m = /uv (\d+)\.(\d+)\.(\d+)/.exec(stdout)
-    if (!m) return false
-    const v = [Number(m[1]), Number(m[2]), Number(m[3])] as const
-    for (let i = 0; i < 3; i += 1) {
-      if (v[i] > UV_MIN[i]) return true
-      if (v[i] < UV_MIN[i]) return false
-    }
-    return true // exactly the floor
-  } catch {
-    return false
-  }
-}
-
-/**
- * A uv new enough to install PiD. Prefers an already-installed, new-enough uv;
- * otherwise downloads a pinned standalone uv into `<pidRoot>/uv` so the install
- * works on a machine with no uv (or only a stale one).
- */
-async function ensureUv(onProgress: InstallProgress): Promise<string> {
-  const found = resolveUv()
-  if (found && (await uvVersionOk(found))) return found
-
-  const uvDir = join(pidRoot(), 'uv')
-  const uvExe = join(uvDir, 'uv.exe')
-  if (existsSync(uvExe) && (await uvVersionOk(uvExe))) return uvExe
-
-  onProgress('Downloading uv', null)
-  const uvTmp = mkdtempSync(join(pidRoot(), 'uv-'))
-  const zip = join(uvTmp, 'uv.zip')
-  await download(UV_ZIP, zip, (p) => onProgress('Downloading uv', p))
-  rmSync(uvDir, { recursive: true, force: true })
-  mkdirSync(uvDir, { recursive: true })
-  const ex = await run(winTar(), ['-xf', zip, '-C', uvDir])
-  if (ex.code !== 0) throw new Error(`uv extract failed: ${ex.stderr.slice(-400)}`)
-  rmSync(uvTmp, { recursive: true, force: true })
-  if (!existsSync(uvExe)) throw new Error('uv bootstrap failed (no uv.exe after extract)')
-  return uvExe
-}
-
 /** Build the torch(cu128)+diffusers venv inside the repo. */
 async function ensureEnv(onProgress: InstallProgress): Promise<void> {
+  active.signal?.throwIfAborted()
   // The marker is written ONLY after every package install succeeds. Gating on
   // it (rather than on python.exe, which `uv venv` creates up front, before the
   // ~3GB torch install) means an interrupted install is never mistaken for a
   // finished env — a re-run rebuilds it instead of skipping to a torch-less venv.
   const marker = pidEnvMarker()
   if (existsSync(marker)) return
-  const uv = await ensureUv(onProgress)
+  const uv = await ensureUv(onProgress, active)
   const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')
 
   onProgress('Creating Python environment', null)
-  const venvRes = await run(uv, ['venv', '--python', '3.12'], { cwd: pidRepoDir() })
+  const venvRes = await runI(uv, ['venv', '--python', '3.12'], { cwd: pidRepoDir() })
   if (venvRes.code !== 0) throw new Error(`venv creation failed: ${venvRes.stderr.slice(-400)}`)
 
   // torch first, from the CUDA 12.8 index (Blackwell-compatible), then the rest.
   onProgress('Installing PyTorch (CUDA), ~3 GB', null)
-  const torchRes = await run(
+  const torchRes = await runI(
     uv,
     [
       'pip',
@@ -234,7 +185,7 @@ async function ensureEnv(onProgress: InstallProgress): Promise<void> {
   if (torchRes.code !== 0) throw new Error(`PyTorch install failed: ${torchRes.stderr.slice(-400)}`)
 
   onProgress('Installing PiD dependencies', null)
-  const depRes = await run(uv, ['pip', 'install', '--python', python, '-e', '.'], {
+  const depRes = await runI(uv, ['pip', 'install', '--python', python, '-e', '.'], {
     cwd: pidRepoDir()
   })
   if (depRes.code !== 0)
@@ -245,6 +196,7 @@ async function ensureEnv(onProgress: InstallProgress): Promise<void> {
 
 /** Pull the nvidia/PiD weights for a backbone (checkpoint + VAE). */
 async function ensureWeights(backbone: string, onProgress: InstallProgress): Promise<void> {
+  active.signal?.throwIfAborted()
   const bb = PID_BACKBONES[backbone]
   if (!bb) throw new Error(`Unknown PiD backbone: ${backbone}`)
 
@@ -288,6 +240,17 @@ async function ensureWeights(backbone: string, onProgress: InstallProgress): Pro
       )
     }
   }
+}
+
+/** The PiD weight files and the URL each was downloaded from (doctor --verify). */
+export function pidWeightFiles(backbone: string): { path: string; url: string }[] {
+  const bb = PID_BACKBONES[backbone]
+  if (!bb) return []
+  const ckpt = `${bb.checkpointDir}/model_ema_bf16.pth`
+  return [
+    { path: join(pidRepoDir(), ckpt), url: `${HF_BASE}/${ckpt}` },
+    { path: join(pidRepoDir(), bb.vaeFile), url: `${HF_BASE}/${bb.vaeFile}` }
+  ]
 }
 
 /**
@@ -358,9 +321,31 @@ export function removePidInstall(): { ok: boolean; error?: string } {
   }
 }
 
-/** Full one-click PiD install (idempotent, interruption-safe). */
-export async function installPid(backbone: string, onProgress: InstallProgress): Promise<void> {
-  return withInstallLock(() => installPidInner(backbone, onProgress))
+/** Full one-click PiD install (idempotent, interruption-safe, one per machine). */
+export async function installPid(
+  backbone: string,
+  onProgress: InstallProgress,
+  opts: InstallOpts = {}
+): Promise<void> {
+  return withInstallLock(() =>
+    withFileLock(
+      'pid-env',
+      'the AI upscaler engine',
+      async () => {
+        active = opts
+        try {
+          await installPidInner(backbone, onProgress)
+        } finally {
+          active = {}
+        }
+      },
+      {
+        signal: opts.signal,
+        onWait: (h) =>
+          onProgress(`Waiting for another Filesmith (${h?.host ?? 'process'}) to finish`, null)
+      }
+    )
+  )
 }
 
 /** Refuse the multi-GB download when this GPU can't run the result. The
@@ -386,6 +371,7 @@ async function installPidInner(backbone: string, onProgress: InstallProgress): P
 /** Add `spandrel` to the shared torch venv (self-heals an env built before this
  * feature existed). Fast when already present. */
 async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
+  active.signal?.throwIfAborted()
   // Compare the RECORDED spec, not mere existence. The marker used to be empty,
   // so whatever spandrel resolved on setup day was frozen forever — and a model
   // with a newer architecture then reported "could not be read" with no way in
@@ -398,13 +384,13 @@ async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
   const spec =
     (entry && entry.provenance.source !== 'user' && entry.engineSpec) || 'spandrel>=0.4.1'
   if (markerSays(spandrelMarker(), spec)) return
-  const uv = await ensureUv(onProgress)
+  const uv = await ensureUv(onProgress, active)
   const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')
 
   onProgress('Installing spandrel', null)
   // spandrel is the loader; Pillow/numpy the image IO. All are small and are
   // usually already present from the PiD deps, so this is quick when so.
-  const res = await run(
+  const res = await runI(
     uv,
     ['pip', 'install', '--python', python, '--upgrade', spec, 'pillow', 'numpy'],
     { cwd: pidRepoDir() }
@@ -417,17 +403,36 @@ async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
  * Install just what ComfyUI-imported upscalers need: the shared torch venv plus
  * spandrel. No PiD weights (~3 GB) — the env alone runs ESRGAN-family models.
  */
-export async function installComfyEngine(onProgress: InstallProgress): Promise<void> {
-  // Shares the lock with installPid: both run ensureRepo/ensureEnv, write the
+export async function installComfyEngine(
+  onProgress: InstallProgress,
+  opts: InstallOpts = {}
+): Promise<void> {
+  // Shares both locks with installPid: both run ensureRepo/ensureEnv, write the
   // same temp paths and rmSync the same repo dir.
-  return withInstallLock(async () => {
-    await assertCudaCapable()
-    mkdirSync(pidRoot(), { recursive: true })
-    const space = checkDiskSpace(ENV_APPROX_BYTES)
-    if (!space.ok) throw new Error(space.reason)
-    await ensureRepo(onProgress)
-    await ensureEnv(onProgress)
-    await ensureSpandrel(onProgress)
-    onProgress('Ready', 100)
-  })
+  return withInstallLock(() =>
+    withFileLock(
+      'pid-env',
+      'the AI upscaler engine',
+      async () => {
+        active = opts
+        try {
+          await assertCudaCapable()
+          mkdirSync(pidRoot(), { recursive: true })
+          const space = checkDiskSpace(ENV_APPROX_BYTES)
+          if (!space.ok) throw new Error(space.reason)
+          await ensureRepo(onProgress)
+          await ensureEnv(onProgress)
+          await ensureSpandrel(onProgress)
+          onProgress('Ready', 100)
+        } finally {
+          active = {}
+        }
+      },
+      {
+        signal: opts.signal,
+        onWait: (h) =>
+          onProgress(`Waiting for another Filesmith (${h?.host ?? 'process'}) to finish`, null)
+      }
+    )
+  )
 }

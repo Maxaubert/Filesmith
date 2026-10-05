@@ -1,7 +1,6 @@
-import { app } from 'electron'
 import { writeFileSync } from 'fs'
-import { join } from 'path'
-import { reserveOutPath } from '../output'
+import { reserveOutputInDir } from '../atomicOutput'
+import { engineEnv } from '../env'
 import type { GenerateOptions } from '@shared/generate'
 import { GEN_MAX_COUNT } from '@shared/generate'
 import { buildWorkflow } from './workflow'
@@ -28,7 +27,7 @@ export {
 let clientCounter = 0
 
 /** A filename-safe slug from the start of the prompt. */
-function slug(prompt: string): string {
+export function slug(prompt: string): string {
   const s = prompt
     .trim()
     .toLowerCase()
@@ -36,6 +35,11 @@ function slug(prompt: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
   return s || 'image'
+}
+
+/** Where generated images go: the caller's folder, else Downloads (the app). */
+export function generatedOutputDir(opts: GenerateOptions): string {
+  return opts.outDir ?? engineEnv().downloadsDir
 }
 
 /**
@@ -116,9 +120,21 @@ export async function generateImages(
 
       const imgs = await waitForImages(baseUrl, promptId, signal, () => sawProgress)
       const bytes = await fetchImage(baseUrl, imgs[0])
-      const base = join(app.getPath('downloads'), `${slug(opts.prompt)}.png`)
-      const out = reserveOutPath(base, '.png', 'generated')
-      writeFileSync(out, bytes)
+      // Written to a part file and renamed into place, like every tool output.
+      const reserved = reserveOutputInDir(
+        generatedOutputDir(opts),
+        slug(opts.prompt),
+        '.png',
+        'generated'
+      )
+      let out: string
+      try {
+        writeFileSync(reserved.part, bytes)
+        out = reserved.commit()
+      } catch (e) {
+        reserved.discard()
+        throw e
+      }
       onProgress(i, 100)
       onImage(i, out)
     }

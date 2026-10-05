@@ -1,6 +1,6 @@
 import { join } from 'path'
 import { existsSync } from 'fs'
-import { app } from 'electron'
+import { resourcePath, userDataPath } from '../env'
 
 // Where the PiD Advanced tier lives on disk. Unlike the bundled CLI tools, PiD
 // is a large (~6GB) torch+weights install fetched on first use, so it lives
@@ -17,7 +17,7 @@ import { app } from 'electron'
 // process CWD, which is the repo dir, so a single CWD has to see both.
 
 export function pidRoot(): string {
-  return join(app.getPath('userData'), 'pid')
+  return userDataPath('pid')
 }
 export function pidRepoDir(): string {
   return join(pidRoot(), 'repo')
@@ -45,18 +45,14 @@ export function pidEnvMarker(): string {
 
 /** The server script shipped with the app (copied into the repo at install). */
 export function pidServerScript(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'pid', 'pid_server.py')
-    : join(app.getAppPath(), 'resources', 'pid', 'pid_server.py')
+  return resourcePath('pid', 'pid_server.py')
 }
 
 /** The spandrel upscale sidecar shipped with the app. Runs in the SAME torch
  * venv as PiD (spandrel is added to it), so ComfyUI-imported models cost no
  * second multi-GB install. */
 export function spandrelServerScript(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'spandrel', 'spandrel_server.py')
-    : join(app.getAppPath(), 'resources', 'spandrel', 'spandrel_server.py')
+  return resourcePath('spandrel', 'spandrel_server.py')
 }
 
 /** Marker written after `spandrel` is installed into the shared venv. */

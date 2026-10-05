@@ -67,7 +67,10 @@ src/
                views/ (Generate, Tools, Completed, Settings), ui/ (primitives), icons/, theme/ (tokens, CSS)
   shared/      types.ts — Job, ToolId, FileKind, Options, progress events
                tabs.ts  — the VERB-first navigation model (rail tabs + Tools cards)
+  cli/         the filesmith command line: parse, plan, run, report
 resources/bin/ bundled CLI binaries (gitignored; fetched by scripts, packed by electron-builder)
+resources/cli/ PATH shims + path.ps1
+resources/skill/ Claude Code skill
 ```
 
 ## Build, test, run
@@ -80,6 +83,8 @@ resources/bin/ bundled CLI binaries (gitignored; fetched by scripts, packed by e
 - `npm run package` — electron-vite build + electron-builder NSIS installer to `dist/`.
 - `npm run test:e2e` — Playwright end-to-end (launches the built app via `_electron`; run
   `npm run build` first). Covers the preload/IPC/engine chain unit tests can't reach.
+- `npm run cli -- <args>` runs the command line from `out/main/cli.js` (build first). Reference:
+  `docs/cli.md`. The engine never imports `electron`; it reads paths from `src/main/env.ts`.
 - Releases: push to main runs `.github/workflows/release.yml` (gates, then requires a NEW
   `package.json` version, builds with `fetch-binaries --pinned`, publishes `v<version>`). Bump the
   version in the PR. Tool versions + SHA-256 live in `scripts/pinned-tools.mjs`; PRs touching

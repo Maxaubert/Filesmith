@@ -4,6 +4,7 @@ import { Icon } from '../icons/Icon'
 import { moveItem } from '../shell/railPrefs'
 import { Checkbox } from '../ui/Checkbox'
 import { SettingGroup } from '../ui/Setting'
+import { ClaudeSkill } from './ClaudeSkill'
 import { ToolStatus } from './ToolStatus'
 
 type Rail = {
@@ -105,6 +106,9 @@ export function SettingsView({ rail }: { rail: Rail }): JSX.Element {
         </SettingGroup>
         <SettingGroup title="TOOLS">
           <ToolStatus />
+        </SettingGroup>
+        <SettingGroup title="CLAUDE">
+          <ClaudeSkill />
         </SettingGroup>
       </section>
     </>

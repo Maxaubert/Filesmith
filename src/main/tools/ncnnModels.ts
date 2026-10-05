@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
+import { userDataPath } from '../env'
 import { realesrganDir } from '../toolResolver'
 
 /**
@@ -20,7 +20,7 @@ import { realesrganDir } from '../toolResolver'
 
 /** Where a user can add their own ncnn upscalers. */
 export function userNcnnDir(): string {
-  return join(app.getPath('userData'), 'models', 'realesrgan')
+  return userDataPath('models', 'realesrgan')
 }
 
 export function ensureUserNcnnDir(): void {
@@ -84,17 +84,17 @@ function scanDir(dir: string, user: boolean): NcnnModel[] {
 /** Every usable ncnn upscaler: bundled first, then the user's own. */
 export function listNcnnModels(): NcnnModel[] {
   const dirs: [string, boolean][] = []
-  // Both paths come from Electron, which isn't present in unit tests; a missing
-  // runtime yields an empty list rather than throwing out of a scan.
+  // Both paths come from the engine env, which unit tests may leave unset; an
+  // unconfigured env yields an empty list rather than throwing out of a scan.
   try {
     dirs.push([join(realesrganDir(), 'models'), false])
   } catch {
-    /* no Electron */
+    /* engine env not configured */
   }
   try {
     dirs.push([userNcnnDir(), true])
   } catch {
-    /* no Electron */
+    /* engine env not configured */
   }
   const found = dirs.flatMap(([d, user]) => scanDir(d, user))
   const seen = new Set<string>()

@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { run } from './run'
 import { pidRoot } from './pid/paths'
+import { userDataPath } from './env'
 
 /**
  * Finding uv, in one place.
@@ -36,13 +37,14 @@ function wingetCandidates(): string[] {
 /** Every place a uv might be, best-first. */
 export function uvCandidates(): string[] {
   const out: string[] = []
-  // The one WE downloaded — checked first, because if it exists it is the one we
-  // know satisfies PiD's version floor. pidRoot() needs Electron, so a missing
-  // runtime (tests) simply skips this candidate rather than throwing.
+  // The ones WE downloaded (PiD's older location, then the shared one), checked
+  // first, because if they exist they are known to satisfy PiD's version floor.
+  // An unconfigured engine env simply skips them rather than throwing.
   try {
     out.push(join(pidRoot(), 'uv', 'uv' + EXE))
+    out.push(join(userDataPath(), 'uv', 'uv' + EXE))
   } catch {
-    /* no Electron */
+    /* engine env not configured */
   }
   out.push(...wingetCandidates())
   if (process.env.USERPROFILE) out.push(join(process.env.USERPROFILE, '.local', 'bin', 'uv' + EXE))

@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { homedir } from 'os'
 import type { FileInfo, FileKind, JobEvent, JobRequest } from '@shared/types'
 import { imageFilters, pickerFilters } from './pickerFilters'
 import { JobQueue } from './jobQueue'
@@ -33,7 +34,9 @@ import {
 } from './registry/load'
 import { importRegistryJson } from './registry/userLayer'
 import type { GenerateOptions } from '@shared/generate'
-import type { ComfyStatus, PidStatus } from '@shared/ipc'
+import type { ComfyStatus, PidStatus, SkillInstallResult, SkillStatus } from '@shared/ipc'
+import { installSkill, skillCommand, skillStatus } from './skill'
+import { engineEnv } from './env'
 
 // Only files Filesmith can actually act on. Everything else (exe, zip, docs, …)
 // is hidden from the picker and dropped from drag-and-drop.
@@ -128,6 +131,21 @@ export function registerGlobalIpc(): JobQueue {
     return true
   })
   ipcMain.handle('removebg:status', () => removebgStatus())
+  // --- Claude Code skill (spec 6.3, M10). Same function as `filesmith skill install`.
+  ipcMain.handle('skill:status', (): SkillStatus => skillStatus(homedir(), app.getVersion()))
+  ipcMain.handle('skill:install', async (): Promise<SkillInstallResult> => {
+    try {
+      const r = await installSkill({
+        home: homedir(),
+        version: app.getVersion(),
+        command: skillCommand(app.isPackaged, engineEnv().resourcesDir),
+        trash: (p) => shell.trashItem(p)
+      })
+      return { ok: true, path: r.path, updated: r.updated, previousVersion: r.previousVersion }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
   // Only WRITING rar/cbr needs WinRAR (it cannot be bundled). Reading one uses
   // the bundled 7-Zip, so this gates the target chips and nothing else.
   ipcMain.handle('archive:status', () => ({ rar: resolveRar() !== null }))

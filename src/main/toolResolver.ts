@@ -1,7 +1,9 @@
 import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
-import { findUv, findUvAsync, uvOnPathCached } from './uv'
+import { resourcePath } from './env'
+import { BG_DEFAULTS } from '@shared/removebg'
+import { findUv } from './uv'
+import { installedRembgExe, rembgEnv, rembgModelPresent } from './rembg/paths'
 
 // Core CLI tools bundled in resources/bin (packed by electron-builder into
 // process.resourcesPath/bin in production; the repo's resources/bin in dev).
@@ -26,9 +28,7 @@ function programFilesRoots(): string[] {
 }
 
 function bundledDir(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'bin')
-    : join(app.getAppPath(), 'resources', 'bin')
+  return resourcePath('bin')
 }
 
 /**
@@ -73,9 +73,7 @@ export function configureBundledMagickEnv(): void {
  * until the headless conversion finishes; `soffice.exe` can return early.
  */
 export function resolveSoffice(): string {
-  const loRoot = app.isPackaged
-    ? join(process.resourcesPath, 'libreoffice')
-    : join(app.getAppPath(), 'resources', 'libreoffice')
+  const loRoot = resourcePath('libreoffice')
   const names = process.platform === 'win32' ? ['soffice.com', 'soffice.exe'] : ['soffice']
   for (const n of names) {
     const p = join(loRoot, 'program', n)
@@ -98,9 +96,7 @@ export function resolveSoffice(): string {
  * itself. Prefer the bundled copy, then a Program Files install, then PATH.
  */
 export function resolveGhostscript(): string {
-  const gsRoot = app.isPackaged
-    ? join(process.resourcesPath, 'ghostscript')
-    : join(app.getAppPath(), 'resources', 'ghostscript')
+  const gsRoot = resourcePath('ghostscript')
   const exe = process.platform === 'win32' ? 'gswin64c.exe' : 'gs'
   const bundled = join(gsRoot, 'bin', exe)
   if (existsSync(bundled)) return bundled
@@ -155,9 +151,7 @@ export function resolveRar(): string | null {
  * models via the -m flag pointing at the sibling folder.
  */
 export function realesrganDir(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'realesrgan')
-    : join(app.getAppPath(), 'resources', 'realesrgan')
+  return resourcePath('realesrgan')
 }
 
 export function resolveRealesrgan(): string {
@@ -167,70 +161,35 @@ export function resolveRealesrgan(): string {
   return exe.replace('.exe', '') // fall back to PATH
 }
 
-/**
- * How to invoke rembg (the Remove Background engine). rembg is Python, so unlike
- * every other tool here it can't be a bundled exe; it runs through uv, which
- * fetches a private Python + rembg on first use.
- *
- * The exact invocation is load-bearing and was arrived at by measurement, not
- * documentation:
- *  - The version MUST be pinned. Unpinned `uv tool run rembg` resolves a
- *    pymatting that needs numba 0.53.1, which refuses to build on Python 3.13+
- *    ("Cannot install on Python version 3.13.13") — the plain command fails
- *    outright on a current machine.
- *  - `--python 3.11` for the same reason: uv otherwise picks the system Python.
- *  - The `cpu` extra is required. `rembg[cli]` alone installs no onnxruntime and
- *    exits with "No onnxruntime backend found" at run time.
- * Cold start (downloading 84 packages) took ~39s; afterwards uv serves it from
- * cache. A locally installed `rembg` is preferred when present since it skips
- * that entirely.
- */
-// A RANGE, not an exact pin. `==2.0.75` froze the session catalogue at that
-// release forever, so a newly-published matting model was unreachable even
-// though rembg itself supported it. The floor keeps the numba/Python-3.13
-// resolution fix that made the exact pin necessary in the first place; the
-// ceiling keeps a major release from changing the CLI under us.
-const REMBG_SPEC = 'rembg[cli,cpu]>=2.0.75,<3'
-
 export interface RembgCommand {
   cmd: string
   /** Prefix args before rembg's own arguments. */
   prefix: string[]
-}
-
-/** Where an already-installed rembg tool lives (a returning user's cache). */
-function rembgInstalledPath(): string {
-  return join(process.env.APPDATA ?? '', 'uv', 'tools', 'rembg', 'Scripts', 'rembg' + EXE)
+  /** U2NET_HOME pinned to the shared model folder. */
+  env: NodeJS.ProcessEnv
 }
 
 export interface RembgStatus {
-  /** rembg + its model are already installed — no download on next run. */
+  /** rembg AND its default model are installed: the next run downloads nothing. */
   ready: boolean
-  /** uv is present, so a first-use install/download can proceed. */
+  /** A first-use setup can proceed. Always true now: setupRembg bootstraps a
+   * pinned uv itself (uvInstall.ts), so the Settings and Remove BG panels'
+   * "needs uv" branch no longer applies and the renderer stays untouched. */
   uvAvailable: boolean
 }
 
-/** Proactive Remove-Background availability, so the panel can DISCLOSE the AI
- * model + one-time download (and the uv requirement) before the user commits
- * files — rather than failing mid-run. Async so the PATH probe counts: a uv
- * installed via scoop/choco/cargo lives only on PATH, and the fixed-path
- * lookup reported uvAvailable:false for those users. */
 export async function removebgStatus(): Promise<RembgStatus> {
-  return { ready: existsSync(rembgInstalledPath()), uvAvailable: (await findUvAsync()) != null }
+  return {
+    ready: installedRembgExe() != null && rembgModelPresent(BG_DEFAULTS.bgModel),
+    uvAvailable: true
+  }
 }
 
+/** The installed rembg (spec M6), or null. Never `uv tool run`: that installs
+ * packages and a model on first use, invisibly. setupRembg installs it. */
 export function resolveRembg(): RembgCommand | null {
-  // (a) an existing uv tool install (what a returning user will have)
-  const installed = rembgInstalledPath()
-  if (existsSync(installed)) return { cmd: installed, prefix: [] }
-
-  // (b) uv itself, which fetches Python + rembg on demand. A PATH-only uv
-  // (scoop/choco/cargo) is used by bare name when the async status probe has
-  // already confirmed one answers — resolveRembg stays synchronous.
-  const uv = resolveUv() ?? (uvOnPathCached() ? 'uv' : null)
-  if (uv)
-    return { cmd: uv, prefix: ['tool', 'run', '--python', '3.11', '--from', REMBG_SPEC, 'rembg'] }
-  return null
+  const exe = installedRembgExe()
+  return exe ? { cmd: exe, prefix: [], env: rembgEnv() } : null
 }
 
 /**

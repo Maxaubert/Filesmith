@@ -5,6 +5,9 @@ export interface ToolContext {
   signal: AbortSignal
   /** Folder chosen under OUTPUT > Location; undefined means next to the source. */
   outDir?: string
+  /** False in the CLI: a tool that would download a model or runtime must fail
+   * with a "Run: filesmith setup <tool>" message instead (spec M5). */
+  allowDownload?: boolean
   /** `etaSec` is seconds remaining, when the tool can estimate it. */
   onProgress: (percent: number | undefined, message?: string, etaSec?: number | null) => void
 }

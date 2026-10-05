@@ -42,6 +42,18 @@ extraResources:
   - from: resources/spandrel
     to: spandrel
     filter: ['**/*']
+  # The command line's shims and PATH editor (spec 7.1). Only this folder goes on
+  # PATH. The shims run Filesmith.exe with ELECTRON_RUN_AS_NODE, so the
+  # runAsNode Electron fuse must stay enabled: never add electronFuses.runAsNode
+  # false (the release smoke test fails if it is).
+  - from: resources/cli
+    to: cli
+    filter: ['**/*']
+  # The Claude Code skill, copied out by `filesmith skill install` and the
+  # Settings button (spec 6). Never installed silently.
+  - from: resources/skill
+    to: skill
+    filter: ['**/*']
 win:
   target:
     - nsis
