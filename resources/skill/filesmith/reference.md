@@ -73,7 +73,7 @@ Every line: `v` (1), `event`, `ts` (ISO time). Paths are absolute, sizes in byte
 - `plan`: `id`, `input` (array for merge), `inSize`, `op`, `output`, `outputKind`, `ready`, `code`, `message`, `hint`
 - `start`: `id`, `input`, `inSize`, `op`
 - `progress`: `id`, `pct` (or null), `etaSec`, `message`
-- `done` (files): `id`, `input`, `output`, `outputKind`, `inSize`, `outSize` or `files`, `ms`, `seed` (generate with a fixed seed)
+- `done` (files): `id`, `input`, `output`, `outputKind`, `inSize`, `outSize` or `files`, `ms`, `seed` (generate; the chosen seed when `--seed` is omitted, so an image can be repeated)
 - `done` (setup): `tool`, `path`, `alreadyDone`; (skill): `path`, `updated`, `previousVersion`
 - `skipped`: `id`, `input`, `code`, `message`
 - `error`: `id`, `input` (both absent for run-level errors), `code`, `message`, `hint`

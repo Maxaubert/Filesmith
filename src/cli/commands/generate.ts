@@ -130,7 +130,10 @@ export async function runGenerate(
     steps: flags.steps ?? info.steps,
     cfg: flags.cfg ?? info.cfg,
     guidance: flags.guidance ?? info.guidance,
-    seed: flags.seed,
+    // Spec 3.6: done carries the seed, so a random one is picked here (same
+    // range as the engine's) rather than per image deep in the workflow. Each
+    // image then uses seed + i, exactly as with an explicit --seed.
+    seed: flags.seed >= 0 || args.dryRun ? flags.seed : Math.floor(Math.random() * 1_000_000_000),
     tryAnyway: flags.tryAnyway,
     outDir
   }

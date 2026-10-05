@@ -95,6 +95,19 @@ describe('generate', () => {
     expect(s.calls.at(-1)).toBe('stop')
   })
 
+  it('without --seed a random seed is chosen once; done reports seed + i per image', async () => {
+    const s = setup(['generate', 'x', '--count', '2', '--json'])
+    expect(await s.run()).toBe(0)
+    const seed = (s.calls[0] as { seed: number }).seed
+    expect(Number.isInteger(seed) && seed >= 0).toBe(true)
+    const done = s.events.filter((e) => e.event === 'done') as { seed?: number }[]
+    expect(done.map((d) => d.seed)).toEqual([seed, seed + 1])
+    const fixed = setup(['generate', 'x', '--count', '2', '--seed', '42', '--json'])
+    await fixed.run()
+    const fixedDone = fixed.events.filter((e) => e.event === 'done') as { seed?: number }[]
+    expect(fixedDone.map((d) => d.seed)).toEqual([42, 43])
+  })
+
   it('a dry run predicts one output per image and does not generate', async () => {
     const s = setup(['generate', 'A Red Kettle!', '--count', '2', '--dry-run'], {
       generate: async () => {
