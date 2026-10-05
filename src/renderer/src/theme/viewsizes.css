@@ -90,6 +90,19 @@
   }
 }
 
+/* Large details: the Details table with 44px rows, a 32px thumb and 14px names */
+.qtable[data-size='details-l'] .tr {
+  height: 44px;
+}
+.qtable[data-size='details-l'] .tr .thumb {
+  width: 32px;
+  height: 32px;
+  font-size: 10px;
+}
+.qtable[data-size='details-l'] .tr .name {
+  font-size: 14px;
+}
+
 /* Tiles: two columns of 64px two-line tiles, 48px thumb */
 .tiles {
   display: grid;
@@ -234,6 +247,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  image-rendering: auto;
 }
 .thumb.big .ph {
   position: absolute;

@@ -118,8 +118,11 @@ export function registerGlobalIpc(): JobQueue {
 
   // Real thumbnails for the queue: OS shell first, then a tool-based fallback
   // (magick / ffmpeg) so videos, icons, and exotic image formats also render.
-  ipcMain.handle('thumbnail', (_e, path: string, size = 128, kind: FileKind = 'other') =>
-    makeThumbnail(path, size, kind)
+  // 'cover' asks for the short side to reach `size` (square cards crop).
+  ipcMain.handle(
+    'thumbnail',
+    (_e, path: string, size = 128, kind: FileKind = 'other', fit: unknown = 'contain') =>
+      makeThumbnail(path, size, kind, fit === 'cover' ? 'cover' : 'contain')
   )
 
   ipcMain.handle('job:run', (_e, req: JobRequest) => {

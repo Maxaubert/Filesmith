@@ -21,7 +21,8 @@ import type { RowProps } from './rowProps'
 import type { CheckState } from './selectAll'
 import { tableKey } from './tableKeys'
 import { visibleOrder, type RowGroup, type SortKey, type SortState } from './tableSort'
-import { thumbPx, wheelDelta, wheelStep, WHEEL_IDLE, type ViewSize } from './viewSize'
+import { bestThumb, type ThumbCache } from './thumbSize'
+import { isListSize, wheelDelta, wheelStep, WHEEL_IDLE, type ViewSize } from './viewSize'
 
 const HEADS: { key: SortKey; label: string; num?: boolean }[] = [
   { key: 'name', label: 'name' },
@@ -41,6 +42,7 @@ export function QueueTable({
   estimates,
   size,
   thumbs,
+  thumbPx,
   onSort,
   onToggleAll,
   onSelectAll,
@@ -63,8 +65,10 @@ export function QueueTable({
   check: CheckState
   estimates: Record<string, number | null>
   size: ViewSize
-  /** 256px thumbnails by source path, for the two largest sizes. */
-  thumbs: Record<string, string | null>
+  /** Thumbnails above 128px by `${path}@${px}`, for the bigger sizes. */
+  thumbs: ThumbCache
+  /** The thumbnail resolution this size wants on this screen. */
+  thumbPx: number
   onSort: (k: SortKey) => void
   onToggleAll: () => void
   onSelectAll: () => void
@@ -128,9 +132,11 @@ export function QueueTable({
     row?.scrollIntoView({ block: 'nearest' })
   }, [size, tabStop])
 
-  /** Columns of the rendered grid: 1 for Details, 2 for Tiles, auto-fill for icons. */
+  const list = isListSize(size)
+
+  /** Columns of the rendered grid: 1 for the Details sizes, 2 for Tiles, auto-fill for icons. */
   function columns(): number {
-    if (size === 'details') return 1
+    if (list) return 1
     const grid = body.current?.querySelector<HTMLElement>('.tiles, .icons')
     if (!grid) return 1
     return getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length || 1
@@ -182,12 +188,13 @@ export function QueueTable({
     }
   }
 
-  const big = thumbPx(size) > 128
+  // The best thumbnail on hand: the wanted bucket or a bigger cached one, else
+  // a smaller one, else the 128px item.thumb until a bigger one arrives.
   const thumbOf = (item: QueueItem): string | null =>
-    (big ? thumbs[item.file.path] : undefined) ?? item.thumb
+    (thumbPx > 128 ? bestThumb(thumbs, item.file.path, thumbPx) : undefined) ?? item.thumb
 
   function renderGroup(g: RowGroup): JSX.Element | JSX.Element[] {
-    if (size === 'details')
+    if (list)
       return g.items.map((item) => (
         <QueueRow key={item.id} {...rowProps(item)} onAction={(k) => onAction(item.id, k)} />
       ))
@@ -217,7 +224,7 @@ export function QueueTable({
       aria-label="Files"
       aria-multiselectable="true"
     >
-      {size === 'details' && (
+      {list && (
         <div className="thead cols" role="row">
           <div className="th ck" role="columnheader">
             <Checkbox
@@ -282,7 +289,7 @@ export function QueueTable({
           ))
         )}
       </div>
-      {totals.files > 0 && <TotalsRow totals={totals} flat={size !== 'details'} />}
+      {totals.files > 0 && <TotalsRow totals={totals} flat={!list} />}
     </section>
   )
 }

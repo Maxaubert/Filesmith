@@ -55,7 +55,9 @@ import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/se
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
 import { useViewSize } from './components/queue/useViewSize'
-import { thumbPx, viewKeyFor } from './components/queue/viewSize'
+import { viewKeyFor } from './components/queue/viewSize'
+import { needsThumb, thumbKey, thumbPxFor } from './components/queue/thumbSize'
+import { useDevicePixelRatio } from './components/queue/useDevicePixelRatio'
 import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
 import {
   deleteConfirm,
@@ -125,7 +127,7 @@ export default function App(): JSX.Element {
   // The generated image the inspector's Preview and Info show.
   const [genFocus, setGenFocus] = useState<string | null>(null)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
-  // 256px thumbnails for Large / Extra large icons, by source path (spec 5).
+  // Thumbnails above 128px for the bigger sizes, by `${path}@${px}` (spec 5).
   const [bigThumbs, setBigThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
@@ -151,6 +153,9 @@ export default function App(): JSX.Element {
   const rail = useRailPrefs()
   // Files view size (spec 3): one per app, persisted like the sidebar.
   const view = useViewSize()
+  // Device pixels per CSS pixel, so thumbnails stay sharp on a 4K screen at 225%.
+  const dpr = useDevicePixelRatio()
+  const thumbPx = thumbPxFor(view.size, dpr)
   // Ids of the last run per workspace, for "Converting 3 of 6" (spec 6.4).
   // Per-workspace column sort; null is insertion order (spec 4.2).
   const [sorts, setSorts] = useState<Record<string, SortState | null>>({})
@@ -274,21 +279,23 @@ export default function App(): JSX.Element {
     }
   }, [state.queues])
 
-  // Large / Extra large icons want 256px thumbnails (spec 5). Asked lazily, once
-  // per path, only for the current queue while such a size is shown; the 128px
-  // one stays on screen until it arrives, and a failure keeps it.
+  // Sizes whose thumb is wider than 128 device px want a bigger thumbnail
+  // (spec 5). Asked lazily, once per path and bucket, only for the current
+  // queue while such a size is shown; whatever is best so far stays on screen
+  // until it arrives, and a failure keeps it. A bigger cached one covers a
+  // smaller bucket, so stepping back down asks for nothing.
   useEffect(() => {
-    const px = thumbPx(view.size)
-    if (px <= 128) return
     for (const item of cur.items) {
       const p = item.file.path
-      if (!inInput(item) || bigRequested.current.has(p)) continue
-      bigRequested.current.add(p)
-      void window.filesmith.thumbnail(p, px, item.file.kind).then((t) => {
-        if (t) setBigThumbs((m) => ({ ...m, [p]: t }))
+      const key = thumbKey(p, thumbPx)
+      if (!inInput(item) || bigRequested.current.has(key) || !needsThumb(bigThumbs, p, thumbPx))
+        continue
+      bigRequested.current.add(key)
+      void window.filesmith.thumbnail(p, thumbPx, item.file.kind, 'cover').then((t) => {
+        if (t) setBigThumbs((m) => ({ ...m, [key]: t }))
       })
     }
-  }, [view.size, cur.items])
+  }, [thumbPx, cur.items, bigThumbs])
 
   // --- Selection-derived state (current tool's queue) --------------------------
   // Operations key off each item's EFFECTIVE file (a result's output file), so
@@ -1227,6 +1234,7 @@ export default function App(): JSX.Element {
                   estimates={estimates}
                   size={view.size}
                   thumbs={bigThumbs}
+                  thumbPx={thumbPx}
                   onSort={(k) => setSorts((s) => ({ ...s, [qKey]: nextSort(sort, k) }))}
                   onToggleAll={() =>
                     dispatch({ type: 'selectIds', ids: toggleAllIds(cur.items, cur.selected) })
