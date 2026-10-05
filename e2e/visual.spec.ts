@@ -170,3 +170,28 @@ test('capture the redesign next to the mockup', async () => {
     await page.screenshot({ path: join(SHOTS, file) })
   }
 })
+
+test('capture each view size next to the view-zoom mockup', async () => {
+  const VZ = join(ROOT, 'docs', 'mockups', 'view-zoom', 'shots')
+  await page
+    .getByRole('navigation', { name: 'Operations' })
+    .getByRole('button', { name: 'Convert' })
+    .click()
+  await page.getByRole('row', { name: /beach-panorama/ }).click()
+  for (let n = 1; n <= 6; n++) {
+    await page.keyboard.press(`Control+Shift+Digit${n}`)
+    await expect(page.getByRole('grid', { name: 'Files' })).toHaveAttribute(
+      'data-size',
+      ['details', 'details-l', 'tiles', 'medium', 'large', 'xl'][n - 1]
+    )
+    // Let the fade, the flash and any bigger thumbnails settle.
+    await page.waitForTimeout(800)
+    await page.screenshot({ path: join(VZ, `impl-size${n - 1}.png`) })
+  }
+  await page.keyboard.press('Control+Shift+Digit3')
+  await page.getByRole('button', { name: /^View: / }).click()
+  await expect(page.getByRole('menu', { name: 'View' })).toBeVisible()
+  await page.screenshot({ path: join(VZ, 'impl-menu.png') })
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+0')
+})

@@ -54,6 +54,10 @@ import { shortcutFor } from './components/shell/shortcuts'
 import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/selectAll'
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
+import { useViewSize } from './components/queue/useViewSize'
+import { viewKeyFor } from './components/queue/viewSize'
+import { needsThumb, thumbKey, thumbPxFor } from './components/queue/thumbSize'
+import { useDevicePixelRatio } from './components/queue/useDevicePixelRatio'
 import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
 import {
   deleteConfirm,
@@ -123,11 +127,14 @@ export default function App(): JSX.Element {
   // The generated image the inspector's Preview and Info show.
   const [genFocus, setGenFocus] = useState<string | null>(null)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
+  // Thumbnails above 128px for the bigger sizes, by `${path}@${px}` (spec 5).
+  const [bigThumbs, setBigThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
   // list updates to it when the queue changes.
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
+  const bigRequested = useRef<Set<string>>(new Set())
   // Cached video dimensions (via ffprobe) for the compress resolution preview.
   const [vDims, setVDims] = useState<Record<string, { width: number; height: number } | null>>({})
   const vDimsRequested = useRef<Set<string>>(new Set())
@@ -144,6 +151,11 @@ export default function App(): JSX.Element {
   const hydrated = useRef(false)
   const sidebar = useSidebar()
   const rail = useRailPrefs()
+  // Files view size (spec 3): one per app, persisted like the sidebar.
+  const view = useViewSize()
+  // Device pixels per CSS pixel, so thumbnails stay sharp on a 4K screen at 225%.
+  const dpr = useDevicePixelRatio()
+  const thumbPx = thumbPxFor(view.size, dpr)
   // Ids of the last run per workspace, for "Converting 3 of 6" (spec 6.4).
   // Per-workspace column sort; null is insertion order (spec 4.2).
   const [sorts, setSorts] = useState<Record<string, SortState | null>>({})
@@ -267,6 +279,24 @@ export default function App(): JSX.Element {
     }
   }, [state.queues])
 
+  // Sizes whose thumb is wider than 128 device px want a bigger thumbnail
+  // (spec 5). Asked lazily, once per path and bucket, only for the current
+  // queue while such a size is shown; whatever is best so far stays on screen
+  // until it arrives, and a failure keeps it. A bigger cached one covers a
+  // smaller bucket, so stepping back down asks for nothing.
+  useEffect(() => {
+    for (const item of cur.items) {
+      const p = item.file.path
+      const key = thumbKey(p, thumbPx)
+      if (!inInput(item) || bigRequested.current.has(key) || !needsThumb(bigThumbs, p, thumbPx))
+        continue
+      bigRequested.current.add(key)
+      void window.filesmith.thumbnail(p, thumbPx, item.file.kind, 'cover').then((t) => {
+        if (t) setBigThumbs((m) => ({ ...m, [key]: t }))
+      })
+    }
+  }, [thumbPx, cur.items, bigThumbs])
+
   // --- Selection-derived state (current tool's queue) --------------------------
   // Operations key off each item's EFFECTIVE file (a result's output file), so
   // selecting an output and running uses the output's type.
@@ -360,6 +390,9 @@ export default function App(): JSX.Element {
   const sort = sorts[qKey] ?? null
   const groups = groupedRows(cur.items, sort)
   const order = visibleOrder(groups)
+  // The queue (files) view is on screen: not Completed, Settings, the Tools
+  // grid or Generate. View-size keys only act here.
+  const filesView = !onCompleted && state.tab !== 'settings' && !onToolsGrid && tool !== 'generate'
 
   function onItemClick(id: string, e: MouseEvent): void {
     // The one-group rule lives in the reducer, which MOVES the selection to a
@@ -863,19 +896,30 @@ export default function App(): JSX.Element {
   // so the window listener reads the latest ones through a ref, refreshed after
   // every render like `latest` above (assigning it during render breaks the
   // react-hooks/refs rule).
-  const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle })
+  const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle, filesView, view })
   useEffect(() => {
-    actions.current = { run, browse, runCount, toggle: sidebar.toggle }
+    actions.current = { run, browse, runCount, toggle: sidebar.toggle, filesView, view }
   })
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      const s = shortcutFor(e)
-      if (!s) return
-      e.preventDefault()
       const a = actions.current
-      if (s === 'toggleSidebar') a.toggle()
-      else if (s === 'addFiles') void a.browse()
-      else if (s === 'run' && a.runCount > 0) void a.run()
+      const s = shortcutFor(e)
+      if (s) {
+        e.preventDefault()
+        if (s === 'toggleSidebar') a.toggle()
+        else if (s === 'addFiles') void a.browse()
+        else if (s === 'run' && a.runCount > 0) void a.run()
+        return
+      }
+      // View sizes (spec 2). preventDefault also keeps Electron's default menu
+      // zoom accelerators (Ctrl+= / Ctrl+- / Ctrl+0) from zooming the page.
+      // Not behind a modal: a size change under an open confirm dialog is invisible.
+      const modal = document.querySelector('dialog[open]')
+      const v = a.filesView && !modal ? viewKeyFor(e) : null
+      if (!v) return
+      e.preventDefault()
+      if (v.kind === 'step') a.view.step(v.delta)
+      else a.view.setSize(v.size, { flash: true })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -1179,7 +1223,10 @@ export default function App(): JSX.Element {
                   files={inputs.length}
                   selected={cur.selected.length}
                   dropping={dragging}
+                  size={view.size}
+                  flash={view.flash}
                   onAdd={() => void browse()}
+                  onView={(s) => view.setSize(s)}
                 />
                 <QueueTable
                   groups={groups}
@@ -1189,6 +1236,9 @@ export default function App(): JSX.Element {
                   sort={sort}
                   check={headerCheck(cur.items, cur.selected)}
                   estimates={estimates}
+                  size={view.size}
+                  thumbs={bigThumbs}
+                  thumbPx={thumbPx}
                   onSort={(k) => setSorts((s) => ({ ...s, [qKey]: nextSort(sort, k) }))}
                   onToggleAll={() =>
                     dispatch({ type: 'selectIds', ids: toggleAllIds(cur.items, cur.selected) })
@@ -1214,6 +1264,7 @@ export default function App(): JSX.Element {
                     })
                   }
                   onAdd={() => void browse()}
+                  onWheelStep={(d) => view.step(d)}
                 />
               </>
             )}

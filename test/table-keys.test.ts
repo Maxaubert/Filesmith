@@ -32,4 +32,10 @@ describe('tableKey', () => {
     expect(tableKey(k('a'))).toBeNull()
     expect(tableKey(k('ArrowUp', { altKey: true }))).toBeNull()
   })
+  it('maps Left/Right for the grid sizes, Shift extends', () => {
+    expect(tableKey(k('ArrowLeft'))).toBe('left')
+    expect(tableKey(k('ArrowRight'))).toBe('right')
+    expect(tableKey(k('ArrowLeft', { shiftKey: true }))).toBe('extendLeft')
+    expect(tableKey(k('ArrowRight', { shiftKey: true }))).toBe('extendRight')
+  })
 })

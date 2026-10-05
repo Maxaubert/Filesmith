@@ -39,6 +39,10 @@ describe('icon registry', () => {
     ]
     for (const n of mockup) expect(ICON_NAMES as readonly string[]).toContain(n)
   })
+  it('draws the view-size glyphs and the mouse hint', () => {
+    for (const n of ['view-details', 'view-tiles', 'view-medium', 'view-large', 'view-xl', 'mouse'])
+      expect(ICON_NAMES as readonly string[]).toContain(n)
+  })
   it('stays inside the 16px grid', () => {
     for (const [name, prims] of Object.entries(ICON_SHAPES))
       for (const p of prims)

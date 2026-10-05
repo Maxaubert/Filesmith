@@ -20,45 +20,113 @@ import { magickFrame } from './tools/convert'
  *       audio → ffmpeg-extracted embedded cover art
  * Files with no visual (e.g. art-less audio) return null and the UI shows the
  * file's extension badge instead.
+ *
+ * `fit` 'cover' is for square cards that crop (object-fit: cover): the SHORT
+ * side must reach `size`, else a 3:2 photo or a 16:9 video comes out soft.
+ * 'contain' (the default) fits the long side, as the preview pane wants.
  */
+export type ThumbFit = 'contain' | 'cover'
+
 export async function makeThumbnail(
   path: string,
   size: number,
-  kind: FileKind
+  kind: FileKind,
+  fit: ThumbFit = 'contain'
 ): Promise<string | null> {
   // The WHOLE pipeline runs under the limiter: osThumbnail was previously
   // uncapped, so dropping hundreds of files fired hundreds of concurrent
   // shell-thumbnail requests in one pass.
   return withLimit(async () => {
     const os = await osThumbnail(path, size)
-    if (os) return os
-    if (kind === 'image') return magickThumbnail(path, size)
-    if (kind === 'video') return videoFrame(path, size)
-    if (kind === 'audio') return audioCover(path, size)
-    return null
+    if (os && !osTooSmall(os, size, kind, fit)) return os.url
+    const tool = await toolThumbnail(path, size, kind, fit)
+    // A tool result only wins when it really is bigger (a small source gives
+    // the same size either way); a failed tool keeps the OS one.
+    if (!os) return tool?.url ?? null
+    return tool && side(tool, fit) > side(os, fit) ? tool.url : os.url
   })
 }
 
-async function osThumbnail(path: string, size: number): Promise<string | null> {
+export interface Dims {
+  width: number
+  height: number
+}
+interface Thumb extends Dims {
+  url: string
+}
+
+/** The side that has to reach the request: the long one to contain, the short one to cover. */
+const side = (d: Dims, fit: ThumbFit): number =>
+  fit === 'cover' ? Math.min(d.width, d.height) : Math.max(d.width, d.height)
+
+/**
+ * Whether an OS shell thumbnail is too small for the request, so the tool path
+ * should try: the Windows provider often caps at 256px whatever is asked, and
+ * always fits the long side. Only requests above the 128px every item gets,
+ * and kinds a bundled tool can render, qualify, so the common small request
+ * stays as cheap as before. Within 2px counts as a hit (rounding); `source`,
+ * when known, caps the expectation, since a thumbnail never upscales.
+ */
+export function osTooSmall(
+  os: Dims,
+  requested: number,
+  kind: FileKind,
+  fit: ThumbFit = 'contain',
+  source?: Dims
+): boolean {
+  if (requested <= 128) return false
+  if (kind !== 'image' && kind !== 'video' && kind !== 'audio') return false
+  const want = source ? Math.min(requested, side(source, fit)) : requested
+  return side(os, fit) < want - 2
+}
+
+async function osThumbnail(path: string, size: number): Promise<Thumb | null> {
   try {
     const img = await nativeImage.createThumbnailFromPath(path, { width: size, height: size })
-    return img.isEmpty() ? null : img.toDataURL()
+    if (img.isEmpty()) return null
+    return { url: img.toDataURL(), ...img.getSize() }
   } catch {
     return null
   }
 }
 
-// Fit within size×size without upscaling or distorting; the UI crops via
-// object-cover, so a non-square result is fine.
-const scale = (size: number): string => `scale=${size}:${size}:force_original_aspect_ratio=decrease`
+async function toolThumbnail(
+  path: string,
+  size: number,
+  kind: FileKind,
+  fit: ThumbFit
+): Promise<Thumb | null> {
+  const url =
+    kind === 'image'
+      ? await magickThumbnail(path, size, fit)
+      : kind === 'video'
+        ? await videoFrame(path, size, fit)
+        : kind === 'audio'
+          ? await audioCover(path, size, fit)
+          : null
+  if (!url) return null
+  return { url, ...nativeImage.createFromDataURL(url).getSize() }
+}
+
+/** ffmpeg scale to `size` without ever upscaling or distorting: contain fits
+ * the long side, cover the short one (the UI crops). The quotes keep the
+ * commas inside min() from splitting the filtergraph. */
+export const scale = (size: number, fit: ThumbFit = 'contain'): string =>
+  `scale='min(${size},iw)':'min(${size},ih)':force_original_aspect_ratio=${
+    fit === 'cover' ? 'increase' : 'decrease'
+  }`
+
+/** ImageMagick geometry: `^` fills (cover), `>` only ever shrinks. */
+export const magickGeometry = (size: number, fit: ThumbFit = 'contain'): string =>
+  `${size}x${size}${fit === 'cover' ? '^' : ''}>`
 
 /** ImageMagick can decode formats the shell can't; [0] takes the first frame/page. */
-function magickThumbnail(path: string, size: number): Promise<string | null> {
-  return toolPng('magick', [magickFrame(path), '-thumbnail', `${size}x${size}`])
+function magickThumbnail(path: string, size: number, fit: ThumbFit): Promise<string | null> {
+  return toolPng('magick', [magickFrame(path), '-thumbnail', magickGeometry(size, fit)])
 }
 
 /** A representative video frame: seek ~1s to skip black lead-in, else frame 0. */
-async function videoFrame(path: string, size: number): Promise<string | null> {
+async function videoFrame(path: string, size: number, fit: ThumbFit): Promise<string | null> {
   const at = (seek: string[]): string[] => [
     '-y',
     '-loglevel',
@@ -69,13 +137,13 @@ async function videoFrame(path: string, size: number): Promise<string | null> {
     '-frames:v',
     '1',
     '-vf',
-    scale(size)
+    scale(size, fit)
   ]
   return (await toolPng('ffmpeg', at(['-ss', '1']))) ?? toolPng('ffmpeg', at([]))
 }
 
 /** Embedded cover art (an attached picture stream), if the audio file has one. */
-function audioCover(path: string, size: number): Promise<string | null> {
+function audioCover(path: string, size: number, fit: ThumbFit): Promise<string | null> {
   return toolPng('ffmpeg', [
     '-y',
     '-loglevel',
@@ -87,7 +155,7 @@ function audioCover(path: string, size: number): Promise<string | null> {
     '-frames:v',
     '1',
     '-vf',
-    scale(size)
+    scale(size, fit)
   ])
 }
 

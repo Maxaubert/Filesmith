@@ -27,6 +27,8 @@ options panel can only describe one target set. See `src/shared/tabs.ts`.
 **Signed-off redesign (2026-10-04):** `docs/mockups/terminal-v5/10-s2-vscode-grouped.html`, dark-only,
 strict monochrome. Rules and feedback trail: `docs/design/redesign-direction.md`.
 
+**View sizes (2026-10-05):** `docs/mockups/view-zoom/04-explorer-style.html`; spec `docs/superpowers/specs/2026-10-05-view-sizes-design.md`.
+
 **The look is designed collaboratively with the owner. Make NO visual assumptions.**
 Before building or restyling any UI, present mockups (self-contained browser HTML, like the
 RCMM Show/Hide exploration), offer options, and iterate to explicit sign-off. This covers

@@ -26,8 +26,13 @@ const api = {
   classify: (paths: string[]): Promise<FileInfo[]> => ipcRenderer.invoke('files:classify', paths),
   /** Resolve the absolute path of a dropped File (Electron removed File.path). */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
-  thumbnail: (path: string, size?: number, kind?: FileKind): Promise<string | null> =>
-    ipcRenderer.invoke('thumbnail', path, size, kind),
+  /** `fit` 'cover': the short side reaches `size`, for square cards that crop. */
+  thumbnail: (
+    path: string,
+    size?: number,
+    kind?: FileKind,
+    fit?: 'contain' | 'cover'
+  ): Promise<string | null> => ipcRenderer.invoke('thumbnail', path, size, kind, fit),
   reveal: (path: string): void => ipcRenderer.send('reveal', path),
   /** Open a file in its OS-default app. */
   openFile: (path: string): void => ipcRenderer.send('file:open', path),

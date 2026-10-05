@@ -3,6 +3,49 @@ import { Icon } from '../icons/Icon'
 import { RowAction } from '../ui/Button'
 import type { RowActionKind, RowActionView, StatusView } from './rowModel'
 
+/** The status glyph and text (62%(4s), Done, the failed pill...). */
+export function StatusBadge({ status }: { status: StatusView }): JSX.Element | null {
+  if (status.kind === 'failed')
+    return (
+      <span className="st fail" title={status.title}>
+        <Icon name="warning" />
+        {status.text}
+      </span>
+    )
+  if (status.kind === 'running')
+    return (
+      <span className="st run">
+        <Icon name="sync" />
+        <span className="prog">
+          <b>{status.pct}</b>
+          <span className="eta">{status.eta}</span>
+        </span>
+      </span>
+    )
+  if (status.kind === 'done')
+    return (
+      <span className="st done">
+        <Icon name="check" />
+        Done
+      </span>
+    )
+  if (status.kind === 'queued')
+    return (
+      <span className="st q">
+        <Icon name="clock" />
+        Queued
+      </span>
+    )
+  if (status.kind === 'canceled')
+    return (
+      <span className="st canceled">
+        <Icon name="close" />
+        Canceled
+      </span>
+    )
+  return null
+}
+
 export function StatusCell({
   status,
   action,
@@ -14,35 +57,7 @@ export function StatusCell({
 }): JSX.Element {
   return (
     <div className="td" role="gridcell">
-      {status.kind === 'failed' ? (
-        <span className="st fail" title={status.title}>
-          <Icon name="warning" />
-          {status.text}
-        </span>
-      ) : status.kind === 'running' ? (
-        <span className="st run">
-          <Icon name="sync" />
-          <span className="prog">
-            <b>{status.pct}</b>
-            <span className="eta">{status.eta}</span>
-          </span>
-        </span>
-      ) : status.kind === 'done' ? (
-        <span className="st done">
-          <Icon name="check" />
-          Done
-        </span>
-      ) : status.kind === 'queued' ? (
-        <span className="st q">
-          <Icon name="clock" />
-          Queued
-        </span>
-      ) : status.kind === 'canceled' ? (
-        <span className="st canceled">
-          <Icon name="close" />
-          Canceled
-        </span>
-      ) : null}
+      <StatusBadge status={status} />
       <RowAction
         icon={action.icon}
         label={action.label}
