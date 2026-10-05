@@ -9,6 +9,7 @@ import type { Out } from './events'
 import { defaultDeps } from './deps'
 import { CliError } from './exit'
 import { main } from './main'
+import { sanitizeText } from './sanitize'
 
 // The process entry (spec 4.1): the only file that touches `process`. Runs as
 // plain Node under ELECTRON_RUN_AS_NODE, so src/main/index.ts (and with it the
@@ -104,7 +105,9 @@ main(
     process.exitCode = stdoutClosed ? 130 : code
   })
   .catch((e: unknown) => {
-    process.stderr.write(`${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`)
+    process.stderr.write(
+      `${sanitizeText(e instanceof Error ? (e.stack ?? e.message) : String(e))}\n`
+    )
     process.exitCode = 1
   })
   .finally(() => {

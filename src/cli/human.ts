@@ -1,6 +1,7 @@
 import { formatBytes } from '@shared/compress'
 import { baseName } from '@shared/fileKind'
 import type { EventBody, Out, Reporter } from './events'
+import { sanitizeField as f, sanitizeText } from './sanitize'
 
 type Label = 'ok' | 'skip' | 'fail' | 'stop' | 'plan'
 const COLOR: Partial<Record<Label, string>> = { ok: '\x1b[32m', skip: '\x1b[33m', fail: '\x1b[31m' }
@@ -22,8 +23,9 @@ export function resultLine(label: Label, left: string, right: string, color: boo
   const tag = label.padEnd(8)
   const c = color ? COLOR[label] : undefined
   // A name longer than the column still gets a two-space gap before the sizes.
-  const cell = left.length < 34 ? left.padEnd(34) + ' ' : left + '  '
-  return `${c ? `${c}${tag}${RESET}` : tag}${cell}${right}`.trimEnd() + '\n'
+  const name = f(left)
+  const cell = name.length < 34 ? name.padEnd(34) + ' ' : name + '  '
+  return `${c ? `${c}${tag}${RESET}` : tag}${cell}${f(right)}`.trimEnd() + '\n'
 }
 
 export function summaryLine(
@@ -98,7 +100,7 @@ export class HumanReporter implements Reporter {
           this.out(resultLine('plan', left, `${e.op}${e.message ? `  ${e.message}` : ''}`, color))
         else {
           this.out(resultLine('fail', nameOf(e.input), `would fail: ${e.message ?? ''}`, color))
-          if (e.hint) this.out(`        hint: ${e.hint}\n`)
+          if (e.hint) this.out(`        hint: ${f(e.hint)}\n`)
         }
         return
       }
@@ -109,7 +111,7 @@ export class HumanReporter implements Reporter {
         if (!this.opts.stderrTTY) return
         const pct = e.pct == null ? 'working' : `${Math.round(e.pct)}%`
         const eta = e.etaSec != null ? ` (${fmtEta(e.etaSec)})` : ''
-        this.redraw(`[${e.id}/${this.total}] ${this.names.get(e.id) ?? ''} ${pct}${eta}`)
+        this.redraw(`[${f(e.id)}/${this.total}] ${f(this.names.get(e.id) ?? '')} ${pct}${eta}`)
         return
       }
       case 'done': {
@@ -147,14 +149,14 @@ export class HumanReporter implements Reporter {
       case 'error':
         if (e.id || e.input) {
           this.out(resultLine('fail', e.input ? baseName(e.input) : `#${e.id}`, e.message, color))
-          if (e.hint) this.out(`        hint: ${e.hint}\n`)
+          if (e.hint) this.out(`        hint: ${f(e.hint)}\n`)
         } else {
-          this.err(`filesmith: ${e.message}\n`)
-          if (e.hint) this.err(`  hint: ${e.hint}\n`)
+          this.err(`filesmith: ${f(e.message)}\n`)
+          if (e.hint) this.err(`  hint: ${f(e.hint)}\n`)
         }
         return
       case 'warning':
-        this.err(`warn: ${e.message}\n`)
+        this.err(`warn: ${f(e.message)}\n`)
         return
       case 'canceled':
         this.out(resultLine('stop', baseName(e.input), '', color))
@@ -172,24 +174,25 @@ export class HumanReporter implements Reporter {
           this.out(summaryLine(e, this.dryRun))
         return
       case 'version':
-        this.out(`${e.version}\n`)
+        this.out(`${f(e.version)}\n`)
         return
       case 'check':
         if (e.status === 'warn') this.warns += 1
-        this.out(`  ${e.status.padEnd(6)}${e.id.padEnd(18)}${e.detail}\n`)
-        if (e.fix && e.status !== 'ok') this.out(`        fix: ${e.fix}\n`)
+        this.out(`  ${e.status.padEnd(6)}${f(e.id).padEnd(18)}${f(e.detail)}\n`)
+        if (e.fix && e.status !== 'ok') this.out(`        fix: ${f(e.fix)}\n`)
         return
       case 'step': {
         const pct = e.pct == null ? '' : ` ${Math.round(e.pct)}%`
         const eta = e.etaSec != null ? ` (${fmtEta(e.etaSec)})` : ''
-        if (e.detail) this.out(`  - ${e.step}: ${e.detail}\n`)
-        else if (this.opts.stderrTTY) this.redraw(`${e.step}${pct}${eta}`)
-        else if (e.step !== this.lastStep) this.err(`${e.step}\n`)
+        const step = f(e.step)
+        if (e.detail) this.out(`  - ${step}: ${f(e.detail)}\n`)
+        else if (this.opts.stderrTTY) this.redraw(`${step}${pct}${eta}`)
+        else if (e.step !== this.lastStep) this.err(`${step}\n`)
         this.lastStep = e.step
         return
       }
       case 'heartbeat':
-        if (this.opts.stderrTTY) this.redraw(`${e.step} (${fmtEta(e.elapsedSec)})`)
+        if (this.opts.stderrTTY) this.redraw(`${f(e.step)} (${fmtEta(e.elapsedSec)})`)
         return
       case 'formats':
         return
@@ -197,7 +200,7 @@ export class HumanReporter implements Reporter {
   }
 
   text(s: string): void {
-    this.out(s)
+    this.out(sanitizeText(s))
   }
 
   close(): void {

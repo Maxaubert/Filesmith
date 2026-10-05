@@ -10,6 +10,7 @@ import { JsonReporter, type Reporter } from './events'
 import { CliError, EXIT, UsageError } from './exit'
 import { renderGroupHelp, renderHelp, renderRootHelp, usageLine } from './help'
 import { HumanReporter } from './human'
+import { sanitizeText } from './sanitize'
 import type { CliIO } from './io'
 import { detectJson, parseArgv, type ParsedArgs } from './parse'
 import { VERSION } from './version'
@@ -82,7 +83,7 @@ function failure(e: unknown, io: CliIO, reporter: Reporter, json: boolean): numb
     code: 'INTERNAL',
     message: e instanceof Error ? e.message : String(e)
   })
-  io.stderr.write(`${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`)
+  io.stderr.write(`${sanitizeText(e instanceof Error ? (e.stack ?? e.message) : String(e))}\n`)
   if (json) emptySummary(reporter, EXIT.FAILED)
   return EXIT.FAILED
 }

@@ -346,6 +346,19 @@ describe('main', () => {
     ])
   })
 
+  it('an internal crash in human mode prints its message and stack without escapes', async () => {
+    writeFileSync(join(dir, 'a.png'), 'x')
+    const h = harness(['upscale', 'a.png'], {
+      resolveUpscaleModel: () => {
+        throw new Error('boom \x1b[2J\x1b]8;;http://e\x1b\\x\u009b1A\rgone')
+      }
+    })
+    expect(await h.run()).toBe(1)
+    expect(h.err()).toContain('boom �[2J')
+    // eslint-disable-next-line no-control-regex
+    expect(h.err()).not.toMatch(/[\u001b\u009b\r]/)
+  })
+
   it('a cancel while reading stdin exits 130 with a summary', async () => {
     const h = harness(
       ['resize', '-', '--json'],
