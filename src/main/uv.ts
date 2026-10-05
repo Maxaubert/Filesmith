@@ -44,7 +44,7 @@ export function uvCandidates(): string[] {
     out.push(join(pidRoot(), 'uv', 'uv' + EXE))
     out.push(join(userDataPath(), 'uv', 'uv' + EXE))
   } catch {
-    /* no Electron */
+    /* engine env not configured */
   }
   out.push(...wingetCandidates())
   if (process.env.USERPROFILE) out.push(join(process.env.USERPROFILE, '.local', 'bin', 'uv' + EXE))

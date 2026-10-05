@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HumanReporter, fmtEta, pctChange, summaryLine } from '../src/cli/human'
+import { HumanReporter, fmtEta, pctChange, resultLine, summaryLine } from '../src/cli/human'
 
 function sink(): { out: { write: (s: string) => void }; text: () => string } {
   let buf = ''
@@ -16,6 +16,15 @@ describe('formatters', () => {
     expect(fmtEta(4.4)).toBe('4s')
     expect(fmtEta(125)).toBe('2m05s')
   })
+  it('resultLine keeps a two-space gap after a name longer than the column', () => {
+    const long = 'photo one.png -> photo one (converted).webp'
+    expect(resultLine('ok', long, '1.9 KB', false)).toBe(`ok      ${long}  1.9 KB
+`)
+    expect(resultLine('ok', 'a.png -> a.webp', '1 KB', false)).toBe(
+      `ok      ${'a.png -> a.webp'.padEnd(34)} 1 KB
+`
+    )
+  })
   it('summaryLine', () => {
     expect(summaryLine({ ok: 1, failed: 1, skipped: 1, canceled: 0, ms: 4200 }, false)).toBe(
       '3 files: 1 ok, 1 skipped, 1 failed (4.2 s)\n'
@@ -27,6 +36,26 @@ describe('formatters', () => {
 })
 
 describe('HumanReporter', () => {
+  it('counts a folder output as 1 file or N files', () => {
+    for (const [files, word] of [
+      [1, '1 file'],
+      [3, '3 files']
+    ] as const) {
+      const o = sink()
+      const r = new HumanReporter(o.out, sink().out, { color: false, stderrTTY: false })
+      r.emit({
+        event: 'done',
+        id: '1',
+        input: 'C:\\x\\a.pdf',
+        output: 'C:\\x\\a (pages)',
+        outputKind: 'dir',
+        files,
+        inSize: 10,
+        ms: 1
+      })
+      expect(o.text().trimEnd().endsWith(word)).toBe(true)
+    }
+  })
   it('prints result lines and the summary on stdout, warnings on stderr, no colour', () => {
     const o = sink()
     const e = sink()
@@ -140,6 +169,38 @@ describe('HumanReporter', () => {
 })
 
 describe('HumanReporter summaries per command', () => {
+  it('doctor counts its warnings in the closing line', () => {
+    const o = sink()
+    const r = new HumanReporter(o.out, sink().out, { color: false, stderrTTY: false })
+    r.emit({
+      event: 'run',
+      command: 'doctor',
+      version: '0.6.0',
+      dryRun: false,
+      inputs: 0,
+      options: {}
+    })
+    r.emit({
+      event: 'check',
+      id: 'skill',
+      group: 'environment',
+      status: 'warn',
+      detail: 'Claude skill not installed',
+      fix: 'filesmith skill install'
+    })
+    r.emit({
+      event: 'summary',
+      ok: 0,
+      failed: 0,
+      skipped: 0,
+      canceled: 0,
+      inBytes: 0,
+      outBytes: 0,
+      ms: 1,
+      exitCode: 0
+    })
+    expect(o.text().endsWith('No problems found, 1 warning.\n')).toBe(true)
+  })
   it('doctor says whether anything failed; setup prints no file summary', () => {
     const o = sink()
     const r = new HumanReporter(o.out, sink().out, { color: false, stderrTTY: false })

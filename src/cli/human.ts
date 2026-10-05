@@ -21,7 +21,9 @@ export function fmtEta(sec: number): string {
 export function resultLine(label: Label, left: string, right: string, color: boolean): string {
   const tag = label.padEnd(8)
   const c = color ? COLOR[label] : undefined
-  return `${c ? `${c}${tag}${RESET}` : tag}${left.padEnd(34)} ${right}`.trimEnd() + '\n'
+  // A name longer than the column still gets a two-space gap before the sizes.
+  const cell = left.length < 34 ? left.padEnd(34) + ' ' : left + '  '
+  return `${c ? `${c}${tag}${RESET}` : tag}${cell}${right}`.trimEnd() + '\n'
 }
 
 export function summaryLine(
@@ -49,6 +51,8 @@ export class HumanReporter implements Reporter {
   private progressShown = false
   private lastStep = ''
   private command = ''
+  /** doctor: `warn` checks are not failures, but the closing line counts them. */
+  private warns = 0
 
   constructor(
     private readonly stdout: Out,
@@ -84,6 +88,7 @@ export class HumanReporter implements Reporter {
         this.dryRun = e.dryRun
         this.command = e.command
         this.total = e.inputs
+        this.warns = 0
         return
       case 'plan': {
         const left = e.output
@@ -126,8 +131,10 @@ export class HumanReporter implements Reporter {
         }
         const left = `${baseName(e.input)} -> ${baseName(e.output)}${e.outputKind === 'dir' ? '\\' : ''}`
         let right = ''
-        if (e.outputKind === 'dir') right = `${e.files ?? 0} files`
-        else if (e.outSize != null) {
+        if (e.outputKind === 'dir') {
+          const n = e.files ?? 0
+          right = `${n} ${n === 1 ? 'file' : 'files'}`
+        } else if (e.outSize != null) {
           const change = pctChange(e.inSize, e.outSize)
           right = `${formatBytes(e.inSize)} -> ${formatBytes(e.outSize)}${change ? `  (${change})` : ''}`
         }
@@ -157,7 +164,9 @@ export class HumanReporter implements Reporter {
           this.out(
             e.failed
               ? `${e.failed} ${e.failed === 1 ? 'check' : 'checks'} failed.\n`
-              : 'No problems found.\n'
+              : this.warns
+                ? `No problems found, ${this.warns} ${this.warns === 1 ? 'warning' : 'warnings'}.\n`
+                : 'No problems found.\n'
           )
         else if (!this.command.startsWith('setup') && !this.command.startsWith('skill'))
           this.out(summaryLine(e, this.dryRun))
@@ -166,6 +175,7 @@ export class HumanReporter implements Reporter {
         this.out(`${e.version}\n`)
         return
       case 'check':
+        if (e.status === 'warn') this.warns += 1
         this.out(`  ${e.status.padEnd(6)}${e.id.padEnd(18)}${e.detail}\n`)
         if (e.fix && e.status !== 'ok') this.out(`        fix: ${e.fix}\n`)
         return
