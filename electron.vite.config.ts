@@ -21,7 +21,9 @@ export default defineConfig({
           index: resolve(__dirname, 'src/main/index.ts'),
           // The command line (spec 4.1). Runs as plain Node under
           // ELECTRON_RUN_AS_NODE, so nothing it reaches may import electron.
-          cli: resolve(__dirname, 'src/cli/bootstrap.ts')
+          cli: resolve(__dirname, 'src/cli/bootstrap.ts'),
+          // Cleans up after a CLI that was killed outright (src/cli/watchdog.ts).
+          cliWatchdog: resolve(__dirname, 'src/cli/watchdog.ts')
         }
       }
     }

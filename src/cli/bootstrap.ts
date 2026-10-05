@@ -1,9 +1,14 @@
 import { homedir } from 'os'
+import { join } from 'path'
 import { setEngineEnv } from '../main/env'
 import { bootEngine } from '../main/boot'
 import { pidSidecar } from '../main/pid/sidecar'
 import { spandrelSidecar } from '../main/comfy/sidecar'
 import { stopComfyServer } from '../main/generate'
+import { killAllToolsSync } from '../main/run'
+import { discardAllOutputs } from '../main/atomicOutput'
+import { watchConsoleCtrlC, type ConsoleWatch } from './consoleCtrlC'
+import { armWatchdog } from './watchdogClient'
 import { cliEngineEnv } from './env'
 import type { Out } from './events'
 import { defaultDeps } from './deps'
@@ -36,11 +41,36 @@ const ctrl = new AbortController()
 let interrupts = 0
 const interrupt = (): void => {
   interrupts += 1
-  if (interrupts > 1) process.exit(130) // a second Ctrl+C leaves at once
+  if (interrupts > 1) {
+    // A second Ctrl+C leaves at once. Kill the tools first so the exit hook
+    // can remove this run's part files and placeholders (atomicOutput).
+    killAllToolsSync()
+    discardAllOutputs()
+    keyboard?.stop()
+    process.exit(130)
+  }
   ctrl.abort()
 }
 process.on('SIGINT', interrupt)
 process.on('SIGBREAK', interrupt)
+// Under Electron's Node mode (the installed shims) the handlers above never
+// run on Windows; read Ctrl+C from the console in raw mode instead. Plain Node
+// (npm run cli, the tests) keeps the signal path. See consoleCtrlC.ts.
+const keyboard: ConsoleWatch | null =
+  process.platform === 'win32' && process.versions.electron ? watchConsoleCtrlC(interrupt) : null
+process.on('exit', () => keyboard?.stop())
+// What Ctrl+C cannot cover there (Ctrl+Break, closing the window, a hard
+// kill) ends the process at once; a detached watchdog then kills the tools
+// it left and removes its unfinished outputs. See watchdogCore.ts.
+const watchdog =
+  process.platform === 'win32' &&
+  (process.versions.electron || process.env.FILESMITH_WATCHDOG === '1')
+    ? armWatchdog({
+        execPath: process.execPath,
+        script: join(__dirname, 'cliWatchdog.js'),
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+      })
+    : null
 
 // `filesmith ... --json | head -1`: the reader went away. Treat it as Ctrl+C:
 // cancel the jobs, stop writing, exit 130, no stack trace.
@@ -56,7 +86,11 @@ const stderr: Out = { write: (s) => void process.stderr.write(s) }
 // Ctrl+C while `filesmith <verb> -` still waits on an interactive stdin
 // cancels at once instead of needing a second Ctrl+C.
 function readStdin(): Promise<string> {
-  return new Promise((resolve, reject) => {
+  // Names typed at the terminal need normal line input (echo, Enter, Ctrl+Z),
+  // so the raw-mode Ctrl+C watch steps aside while they are read.
+  const typed = process.stdin.isTTY === true
+  if (typed) keyboard?.pause()
+  return new Promise<string>((resolve, reject) => {
     const canceled = (): void => {
       process.stdin.pause()
       reject(new CliError('CANCELED', 'Canceled while reading file names from stdin.'))
@@ -71,6 +105,8 @@ function readStdin(): Promise<string> {
     })
     process.stdin.on('error', reject)
     ctrl.signal.addEventListener('abort', canceled, { once: true })
+  }).finally(() => {
+    if (typed) keyboard?.resume()
   })
 }
 
@@ -111,6 +147,8 @@ main(
     process.exitCode = 1
   })
   .finally(() => {
+    keyboard?.stop()
+    watchdog?.close()
     stopEverything()
     // Leave even if a stray handle (a child's pipe) would keep Node alive.
     setTimeout(() => process.exit(process.exitCode ?? 0), 1500).unref()

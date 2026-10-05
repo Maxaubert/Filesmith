@@ -1,4 +1,4 @@
-import { spawn } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
 
 export interface RunResult {
   code: number
@@ -30,6 +30,45 @@ export class ToolMissingError extends Error {
   }
 }
 
+/** Tool processes started by run() that have not exited yet: pid -> image
+ * file name (`ffmpeg.exe`), so a later kill can check it is still that program. */
+const liveChildren = new Map<number, string>()
+
+/** Told about every tool process run() starts and sees end (the CLI forwards
+ * them to its watchdog, which kills what a hard-killed CLI left running). */
+export interface ChildObserver {
+  started(pid: number, image: string): void
+  ended(pid: number): void
+}
+let childObserver: ChildObserver | null = null
+export function setChildObserver(o: ChildObserver | null): void {
+  childObserver = o
+  if (o) for (const [pid, image] of liveChildren) o.started(pid, image)
+}
+
+function imageOf(cmd: string): string {
+  const name = cmd.split(/[\\/]/).pop() ?? cmd
+  return /\.[a-z0-9]+$/i.test(name) ? name : `${name}.exe`
+}
+
+/**
+ * Kill every tool process run() started and is still running, whole trees,
+ * synchronously. For a process about to exit at once (the CLI's second
+ * Ctrl+C), so no ffmpeg keeps writing, or holding open, a file we remove.
+ */
+export function killAllToolsSync(): void {
+  for (const pid of liveChildren.keys()) {
+    try {
+      if (process.platform === 'win32')
+        spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true })
+      else process.kill(pid, 'SIGKILL')
+    } catch {
+      /* already gone */
+    }
+  }
+  liveChildren.clear()
+}
+
 /**
  * Spawn a CLI tool with an argument array (never a shell string, so paths with
  * spaces/`;`/`&` are safe and there is no injection surface). Resolves with the
@@ -43,6 +82,15 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
       cwd: opts.cwd,
       env: opts.env
     })
+
+    const pid = child.pid
+    if (pid) {
+      liveChildren.set(pid, imageOf(cmd))
+      childObserver?.started(pid, imageOf(cmd))
+    }
+    const gone = (): void => {
+      if (pid && liveChildren.delete(pid)) childObserver?.ended(pid)
+    }
 
     // Abort kills the whole PROCESS TREE, not just the direct child. spawn's
     // own `signal` option maps to TerminateProcess on win32, which leaves
@@ -75,6 +123,7 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
       opts.onStderr?.(s)
     })
     child.on('error', (e) => {
+      gone()
       opts.signal?.removeEventListener('abort', onAbort)
       // ENOENT/EACCES here mean the image itself is missing or unrunnable, not
       // that the conversion failed.
@@ -82,6 +131,7 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
       reject(code === 'ENOENT' || code === 'EACCES' ? new ToolMissingError(cmd, e) : e)
     })
     child.on('close', (code) => {
+      gone()
       opts.signal?.removeEventListener('abort', onAbort)
       if (aborted) {
         // Match the AbortError shape spawn's `signal` option used to produce,

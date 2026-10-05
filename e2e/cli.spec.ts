@@ -9,11 +9,12 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync
 } from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
-import { MAGICK, MUTOOL, ROOT, magickEnv } from './helpers'
+import { FFMPEG, MAGICK, MUTOOL, ROOT, magickEnv } from './helpers'
 
 // The CLI as a real process (spec 8.2): `node out/main/cli.js` against the
 // repo's bundled tools, with an isolated userData. Run `npm run build` first.
@@ -243,6 +244,64 @@ test('a closed stdout cancels the run and exits 130 without a stack trace', asyn
     await new Promise((r) => setTimeout(r, 250))
   }
   expect(orphans).toEqual([])
+})
+
+function ffmpegPids(): Set<string> {
+  const out = execFileSync('tasklist', ['/FI', 'IMAGENAME eq ffmpeg.exe', '/FO', 'CSV', '/NH'], {
+    encoding: 'utf-8'
+  })
+  return new Set(
+    out
+      .split(/\r?\n/)
+      .filter((l) => l.startsWith('"ffmpeg.exe"'))
+      .map((l) => l.split('","')[1])
+  )
+}
+
+// Ctrl+Break, closing the console window or a hard kill end the CLI at once,
+// before any JavaScript runs. Atomic outputs keep the final name clean; the
+// watchdog (src/cli/watchdog.ts, armed under the Electron runtime) then stops
+// the ffmpeg the dead CLI left running and removes the part file and the
+// empty placeholder.
+test('a CLI killed outright leaves no partial output and no ffmpeg (watchdog)', async () => {
+  const video = join(work, 'long video.mp4')
+  execFileSync(FFMPEG, [
+    '-v',
+    'error',
+    '-f',
+    'lavfi',
+    '-i',
+    'testsrc2=size=1920x1080:rate=30:duration=40',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'ultrafast',
+    video
+  ])
+  const before = ffmpegPids()
+  const child = spawn(ELECTRON, [CLI, 'compress', video, '--codec', 'h265', '--json'], {
+    cwd: work,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', FILESMITH_USER_DATA: join(work, '.ud') }
+  })
+  child.stdout.resume()
+  child.stderr.resume()
+  const part = join(work, 'long video (compressed).filesmith-part.mp4')
+  for (let i = 0; i < 300 && !(existsSync(part) && statSync(part).size > 0); i++)
+    await new Promise((r) => setTimeout(r, 100))
+  expect(statSync(part).size).toBeGreaterThan(0)
+  expect(existsSync(join(work, 'long video (compressed).mp4'))).toBe(true) // the placeholder
+  // TerminateProcess on the CLI alone: its ffmpeg child keeps running.
+  execFileSync('taskkill', ['/PID', String(child.pid), '/F'])
+  let left: string[] = []
+  let orphans: string[] = []
+  for (let i = 0; i < 60; i++) {
+    left = readdirSync(work).filter((f) => f !== '.ud')
+    orphans = [...ffmpegPids()].filter((pid) => !before.has(pid))
+    if (left.length === 1 && !orphans.length) break
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  expect(orphans).toEqual([])
+  expect(left).toEqual(['long video.mp4'])
 })
 
 test('works while the app is open, and its jobs never reach the app', async () => {
