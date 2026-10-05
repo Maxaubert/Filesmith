@@ -2,6 +2,7 @@ import type { FileInfo, JobOptions, ToolId } from '@shared/types'
 import { canCompress, familyFormats, isSameFormat, routeConvert } from '@shared/convert'
 import { needsRar } from '@shared/archive'
 import { tabById } from '@shared/tabs'
+import { baseName } from '@shared/fileKind'
 import { planOutput, type PlannedOutput } from '../main/tools/plan'
 import type { Readiness } from '../main/tools/readiness'
 import { CliError, type ErrorCode } from './exit'
@@ -147,16 +148,38 @@ function planOne(
   })
 }
 
-function nothingToRun(id: CommandId, files: FileInfo[], options: JobOptions): string {
+const count = (n: number): string => `${n} ${n === 1 ? 'file' : 'files'}`
+
+/** Up to three base names, then "+N more". */
+function names(jobs: PlannedJob[]): string {
+  const base = jobs.map((j) => baseName(j.input))
+  const shown = base.slice(0, 3).join(', ')
+  return base.length > 3 ? `${shown}, +${base.length - 3} more` : shown
+}
+
+function nothingToRun(
+  id: CommandId,
+  files: FileInfo[],
+  jobs: PlannedJob[],
+  options: JobOptions
+): string {
   if (id !== 'convert') return `Nothing to run: no input is a file filesmith ${id} can take.`
   const target = String(options.format).slice(1)
+  const skipped = jobs.filter((j) => j.state === 'skip')
+  const failed = jobs.filter((j) => j.state === 'error')
+  const parts: string[] = []
+  if (skipped.length) parts.push(`${count(skipped.length)} skipped (already ${target})`)
+  parts.push(`${count(failed.length)} cannot become ${target} (${names(failed)})`)
   const lists = files
     .filter((f) => f.kind !== 'other')
     .map((f) => familyFormats(f.kind, f.ext).map((x) => x.ext.slice(1)))
   const shared = lists.length ? lists.reduce((a, b) => a.filter((x) => b.includes(x))) : []
-  return shared.length
-    ? `No input can be converted to ${target}. Formats these inputs share: ${shared.join(', ')}.`
-    : `No input can be converted to ${target}, and these inputs share no target format.`
+  const tail = shared.length
+    ? ` Formats these inputs share: ${shared.join(', ')}.`
+    : files.length > 1
+      ? ' These inputs share no target format.'
+      : ''
+  return `Nothing to convert: ${parts.join(', ')}.${tail}`
 }
 
 /** Spec 2.7 and 4.4: decide everything before any file is touched. */
@@ -207,7 +230,7 @@ export function planJobs(
     warnings,
     runError:
       jobs.length && !runnable && failing
-        ? new CliError('USAGE', nothingToRun(id, files, o))
+        ? new CliError('USAGE', nothingToRun(id, files, jobs, o))
         : undefined
   }
 }

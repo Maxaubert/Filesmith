@@ -85,7 +85,21 @@ describe('planJobs: convert', () => {
     const r = planJobs('convert', [file('a.mp3'), file('b.wav')], built(CONVERT), env())
     expect(r.runError?.code).toBe('USAGE')
     expect(r.runError?.message).toMatch(
-      /No input can be converted to webp\. Formats these inputs share: .*m4a/
+      /^Nothing to convert: 2 files cannot become webp \(a\.mp3, b\.wav\)\. Formats these inputs share: .*m4a/
+    )
+  })
+
+  it('nothing runnable with a skip: the message counts both and names the failures', () => {
+    const r = planJobs(
+      'convert',
+      [file('a.pdf'), file('photo.png')],
+      built({ ...CONVERT, format: '.png' }),
+      env()
+    )
+    expect(r.jobs.map((j) => j.state)).toEqual(['error', 'skip'])
+    expect(r.runError?.code).toBe('USAGE')
+    expect(r.runError?.message).toMatch(
+      /^Nothing to convert: 1 file skipped \(already png\), 1 file cannot become png \(a\.pdf\)\./
     )
   })
 
