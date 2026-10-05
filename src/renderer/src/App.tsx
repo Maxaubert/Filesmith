@@ -902,7 +902,9 @@ export default function App(): JSX.Element {
       }
       // View sizes (spec 2). preventDefault also keeps Electron's default menu
       // zoom accelerators (Ctrl+= / Ctrl+- / Ctrl+0) from zooming the page.
-      const v = a.filesView ? viewKeyFor(e) : null
+      // Not behind a modal: a size change under an open confirm dialog is invisible.
+      const modal = document.querySelector('dialog[open]')
+      const v = a.filesView && !modal ? viewKeyFor(e) : null
       if (!v) return
       e.preventDefault()
       if (v.kind === 'step') a.view.step(v.delta)
