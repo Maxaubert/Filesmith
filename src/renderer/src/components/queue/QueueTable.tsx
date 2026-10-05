@@ -75,6 +75,7 @@ export function QueueTable({
     if (e.target !== e.currentTarget) return
     const k = tableKey(e)
     if (!k) return
+    if (k === 'left' || k === 'right' || k === 'extendLeft' || k === 'extendRight') return
     e.preventDefault()
     const i = order.indexOf(id)
     if (k === 'up' || k === 'down') focusRow(order[k === 'up' ? i - 1 : i + 1])

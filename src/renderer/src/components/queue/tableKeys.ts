@@ -1,5 +1,17 @@
 export type TableKey =
-  'up' | 'down' | 'extendUp' | 'extendDown' | 'toggle' | 'selectAll' | 'remove' | 'open' | 'menu'
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | 'extendUp'
+  | 'extendDown'
+  | 'extendLeft'
+  | 'extendRight'
+  | 'toggle'
+  | 'selectAll'
+  | 'remove'
+  | 'open'
+  | 'menu'
 
 export interface KeyLike {
   key: string
@@ -16,6 +28,8 @@ export function tableKey(e: KeyLike): TableKey | null {
   if (mod) return e.key.toLowerCase() === 'a' && !e.shiftKey ? 'selectAll' : null
   if (e.key === 'ArrowUp') return e.shiftKey ? 'extendUp' : 'up'
   if (e.key === 'ArrowDown') return e.shiftKey ? 'extendDown' : 'down'
+  if (e.key === 'ArrowLeft') return e.shiftKey ? 'extendLeft' : 'left'
+  if (e.key === 'ArrowRight') return e.shiftKey ? 'extendRight' : 'right'
   if (e.key === ' ') return 'toggle'
   if (e.key === 'Delete') return 'remove'
   if (e.key === 'Enter') return 'open'
