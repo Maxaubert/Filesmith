@@ -89,3 +89,268 @@
     color: var(--fg2);
   }
 }
+
+/* Tiles: two columns of 64px two-line tiles, 48px thumb */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.tile {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 48px 1fr;
+  align-items: center;
+  column-gap: 10px;
+  height: 64px;
+  padding: 0 12px 0 8px;
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+  cursor: default;
+}
+.tile:nth-child(odd) {
+  border-right: 1px solid var(--line);
+}
+.tile:hover {
+  background: var(--hover);
+}
+.tile.sel {
+  background: var(--selected);
+}
+.tile:focus-visible,
+.card:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.tile .tck {
+  display: grid;
+  place-items: center;
+}
+.tile .thumb {
+  width: 48px;
+  height: 48px;
+}
+.tile .lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.tile .l1 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.tile .l1 .meta {
+  margin-left: auto;
+  flex: none;
+}
+.tile .l2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  height: 22px;
+  white-space: nowrap;
+}
+.tile .l2 .res {
+  gap: 6px;
+}
+.tile .l2 .st {
+  margin-left: auto;
+}
+.tile .l2 .st.fail {
+  margin-left: 0;
+}
+.tile:hover .meta,
+.tile.sel .meta,
+.tile:hover .res .pct,
+.tile.sel .res .pct {
+  color: var(--fg2);
+}
+
+/* Icon grids: Medium 132px, Large 196px, Extra large 274px cards */
+.icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--cw));
+  gap: 8px;
+  padding: 10px 12px 14px;
+}
+.icons.medium {
+  --cw: 132px;
+}
+.icons.large {
+  --cw: 196px;
+}
+.icons.xl {
+  --cw: 274px;
+}
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  min-width: 0;
+  cursor: default;
+}
+.card:hover {
+  background: var(--hover);
+}
+.card.sel {
+  background: var(--selected);
+}
+.card .cck {
+  position: absolute;
+  left: 13px;
+  top: 13px;
+  z-index: 1;
+  display: grid;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.card:hover .cck,
+.card:focus-within .cck,
+.card.sel .cck,
+.icons.any .cck {
+  opacity: 1;
+}
+.card .box {
+  background: var(--bg-0);
+}
+.card .box.on {
+  background: var(--inv-bg);
+}
+.thumb.big {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+.thumb.big img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.thumb.big .ph {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32%;
+  height: 32%;
+  transform: translate(-50%, -50%);
+  color: var(--fg3);
+}
+.thumb.big .play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28%;
+  height: 28%;
+  max-width: 40px;
+  max-height: 40px;
+  transform: translate(-50%, -50%);
+  color: var(--fg1);
+}
+.thumb.big .play path {
+  fill: currentColor;
+}
+.thumb .kt {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 2px 5px;
+  background: var(--bg-0);
+  font: 10px/1.2 var(--mono);
+  color: var(--fg2);
+  letter-spacing: 0.02em;
+}
+.card .cname {
+  font: 12px/1.35 var(--mono);
+  color: var(--fg1);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.icons.large .cname,
+.icons.xl .cname {
+  font-size: 13px;
+}
+.card .cst {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  min-width: 0;
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg2);
+  white-space: nowrap;
+}
+.card .cst svg {
+  flex: none;
+}
+.card .cst b {
+  font-weight: 600;
+  color: var(--fg1);
+}
+.card .cst .pct,
+.card .cst .eta {
+  color: var(--fg3);
+}
+.card .cst .xtra {
+  margin-left: auto;
+  color: var(--fg3);
+}
+.card .cst.queued,
+.card .cst.canceled,
+.card .cst.ready {
+  color: var(--fg3);
+}
+.card .cst.failed {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0 6px 0 4px;
+  color: var(--inv-fg);
+  background: var(--inv-bg);
+  font-weight: 600;
+}
+.card .cst.failed .ct {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* cross-group rows, as .tr.dim in views.css */
+.tile.dim .name,
+.tile.dim .meta,
+.tile.dim .size,
+.card.dim .cname {
+  color: var(--fg3);
+}
+.tile.dim .thumb,
+.card.dim .thumb {
+  opacity: 0.4;
+}
+
+/* totals as one line under the non-Details sizes */
+.totals.flat {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 0 16px;
+}
+.totals.flat .res {
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card .cck {
+    transition: none;
+  }
+}

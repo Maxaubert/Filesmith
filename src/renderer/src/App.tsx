@@ -125,6 +125,9 @@ export default function App(): JSX.Element {
   // The generated image the inspector's Preview and Info show.
   const [genFocus, setGenFocus] = useState<string | null>(null)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
+  // 256px thumbnails for Large / Extra large icons, by source path (spec 5).
+  // Task 6 adds the setter and the effect that fills it.
+  const [bigThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
   // list updates to it when the queue changes.
@@ -1204,6 +1207,8 @@ export default function App(): JSX.Element {
                   sort={sort}
                   check={headerCheck(cur.items, cur.selected)}
                   estimates={estimates}
+                  size={view.size}
+                  thumbs={bigThumbs}
                   onSort={(k) => setSorts((s) => ({ ...s, [qKey]: nextSort(sort, k) }))}
                   onToggleAll={() =>
                     dispatch({ type: 'selectIds', ids: toggleAllIds(cur.items, cur.selected) })
