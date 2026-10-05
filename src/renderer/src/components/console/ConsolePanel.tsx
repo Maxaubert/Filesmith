@@ -457,7 +457,9 @@ export function ConsolePanel(p: {
             </span>
           ) : (
             <>
-              <span className="pr">{`${cwd}> `}</span>
+              <span className="pr" title={cwd}>
+                <bdi>{`${cwd}> `}</bdi>
+              </span>
               <span className="fx">filesmith </span>
               <input
                 ref={pin}

@@ -325,9 +325,23 @@
   color: var(--fg3);
   white-space: pre;
 }
+/* A long folder gives way first, clipped at its start so the folder name and
+   the input stay in view. */
+.pline .pr {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+.pline .fx,
+.pline .keys {
+  flex-shrink: 0;
+}
 .pin {
   flex: 1;
-  min-width: 0;
+  min-width: 160px;
   height: 22px;
   background: transparent;
   border: 0;
