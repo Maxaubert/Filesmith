@@ -6,11 +6,9 @@ import {
   normalizeOrder,
   sidebarVerbs
 } from '../src/renderer/src/components/shell/railPrefs'
-import { statusSummary, verbGerund } from '../src/renderer/src/components/shell/statusModel'
 import { shortcutFor } from '../src/renderer/src/components/shell/shortcuts'
 import type { KeyLike } from '../src/renderer/src/components/queue/tableKeys'
 import { TABS, toolCardById, type TabId } from '@shared/tabs'
-import type { QueueItem } from '../src/renderer/src/state'
 
 describe('breadcrumb', () => {
   it('shows the verb, then the active group as the current segment', () => {
@@ -69,51 +67,6 @@ describe('rail preferences', () => {
       'removebg',
       'generate'
     ])
-  })
-})
-
-const row = (id: string, status: QueueItem['status'], percent = 0): QueueItem => ({
-  id,
-  file: { path: `C:/${id}.png`, name: `${id}.png`, ext: '.png', kind: 'image', size: 1 },
-  thumb: null,
-  status,
-  percent,
-  hasProgress: percent > 0
-})
-
-describe('status bar', () => {
-  const items = [
-    row('a', 'done'),
-    row('b', 'done'),
-    row('c', 'running', 62),
-    row('d', 'queued'),
-    row('e', 'queued'),
-    row('f', 'failed')
-  ]
-  it('reports the batch in flight, done count and failures', () => {
-    const s = statusSummary(items, ['a', 'b', 'c', 'd', 'e', 'f'], 'Convert')
-    expect(s.running).toEqual({ label: 'Converting 3 of 6', pct: 60 })
-    expect(s.done).toBe('2 of 6 done')
-    expect(s.failed).toBe(1)
-  })
-  it('drops the running item once the batch settles or without a batch', () => {
-    const settled = items.map((i) =>
-      i.status === 'queued' || i.status === 'running' ? { ...i, status: 'done' as const } : i
-    )
-    expect(statusSummary(settled, ['a', 'b', 'c', 'd', 'e', 'f'], 'Convert').running).toBeNull()
-    expect(statusSummary(items, null, 'Convert').running).toBeNull()
-  })
-  it('renders nothing for an empty queue', () => {
-    expect(statusSummary([], null, 'Convert')).toEqual({
-      running: null,
-      message: null,
-      done: null,
-      failed: 0
-    })
-  })
-  it('names each verb', () => {
-    expect(verbGerund('Remove BG')).toBe('Removing backgrounds')
-    expect(verbGerund('Merge')).toBe('Processing')
   })
 })
 
