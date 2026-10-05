@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   classifyLine,
+  codeSegments,
   cliVerbs,
   MAX_LINE,
   refusalText,
@@ -128,5 +129,19 @@ describe('classifyLine', () => {
     expect(refusalText({ kind: 'refuse', word: '-', reason: 'stdin' })).toBe(
       'Reading file names from stdin is not available here. Use Open in terminal.'
     )
+  })
+})
+
+describe('codeSegments', () => {
+  it('marks backtick spans as code', () => {
+    expect(codeSegments('`calc` is not a filesmith command.')).toEqual([
+      { text: 'calc', code: true },
+      { text: ' is not a filesmith command.', code: false }
+    ])
+  })
+  it('leaves plain text and an unmatched backtick alone', () => {
+    expect(codeSegments('plain')).toEqual([{ text: 'plain', code: false }])
+    expect(codeSegments('a ` b')).toEqual([{ text: 'a ` b', code: false }])
+    expect(codeSegments('')).toEqual([])
   })
 })

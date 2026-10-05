@@ -93,7 +93,8 @@ export function ConsolePanel(p: {
   // Busy percentage for the toolbar button (spec 3).
   const running = runId ? state.blocks.find((b) => b.id === runId) : undefined
   const pct = running && running.kind === 'cmd' ? (running.progress?.pct ?? null) : undefined
-  useEffect(() => p.onBusy(runId ? pct : undefined), [runId, pct, p])
+  const { onBusy } = p
+  useEffect(() => onBusy(runId ? pct : undefined), [runId, pct, onBusy])
 
   // Follow the output while scrolled to the bottom.
   useEffect(() => {
@@ -191,10 +192,13 @@ export function ConsolePanel(p: {
     window.filesmith.consoleCancel(runId)
   }
 
-  async function openCompletion(): Promise<void> {
+  /** `text` is the prompt's current value; onChange passes the new value
+   *  because the `input` state in this closure is still the old one. A single
+   *  match is inserted on Tab only (`auto`); while typing it stays listed. */
+  async function openCompletion(text = input, auto = true): Promise<void> {
     if (!catalog || !pin.current) return
-    const caret = pin.current.selectionStart ?? input.length
-    const ctx = completionContext(input.slice(0, caret), catalog, BUILTIN_ITEMS)
+    const caret = pin.current.selectionStart ?? text.length
+    const ctx = completionContext(text.slice(0, caret), catalog, BUILTIN_ITEMS)
     if (!ctx) return setComp(null)
     let next: Comp
     if (ctx.kind === 'files') {
@@ -206,13 +210,13 @@ export function ConsolePanel(p: {
       next = { title: `FILES IN ${r.dir.toUpperCase()}`, prefix: ctx.prefix, items, active: 0 }
     } else next = { title: ctx.title, prefix: ctx.prefix, items: ctx.items, active: 0 }
     if (!next.items.length) return setComp(null)
-    if (next.items.length === 1) return insert(next, 0)
+    if (auto && next.items.length === 1) return insert(next, 0, text)
     setComp(next)
   }
 
-  function insert(c: Comp, i: number): void {
-    const caret = pin.current?.selectionStart ?? input.length
-    const r = applyCompletion(input, caret, c.prefix, c.items[i].value)
+  function insert(c: Comp, i: number, text = input): void {
+    const caret = pin.current?.selectionStart ?? text.length
+    const r = applyCompletion(text, caret, c.prefix, c.items[i].value)
     setInput(r.text)
     setComp(null)
     requestAnimationFrame(() => pin.current?.setSelectionRange(r.caret, r.caret))
@@ -468,7 +472,7 @@ export function ConsolePanel(p: {
                 value={input}
                 onChange={(e) => {
                   setInput(e.target.value)
-                  if (comp) void openCompletion()
+                  if (comp) void openCompletion(e.target.value, false)
                 }}
                 onKeyDown={onPromptKey}
                 onBlur={() => setTimeout(() => setComp(null), 120)}

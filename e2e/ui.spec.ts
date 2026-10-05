@@ -76,11 +76,11 @@ test('an empty workspace offers Add files and a disabled Run', async () => {
   await expect(page.getByRole('row', { name: 'Totals' })).toHaveCount(0)
 })
 
-test('the toolbar is Add files and the View menu; row actions live in the right-click menu', async () => {
+test('the toolbar is Add files, Console and the View menu; row actions live in the right-click menu', async () => {
   const bar = page.getByRole('toolbar', { name: 'File actions' })
   const names = await bar
     .getByRole('button')
     .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent?.trim()))
-  expect(names).toEqual(['Add files', 'View: Details'])
+  expect(names).toEqual(['Add files', 'Console' + 'Ctrl+`', 'View: Details'])
   await expect(page.getByTestId('stop')).toHaveCount(0)
 })

@@ -1,5 +1,6 @@
 import type { JSX, MouseEvent } from 'react'
 import { Icon } from '../icons/Icon'
+import { codeSegments } from '@shared/consoleLine'
 import { outputForLine, progressText, type Block } from './consoleModel'
 
 /** The scrollback: notes and command blocks (spec 7). */
@@ -45,7 +46,11 @@ export function ConsoleOutput({
             {b.refusal && (
               <div className="ln refuse">
                 <Icon name="info" />
-                <span>{b.refusal}</span>
+                <span>
+                  {codeSegments(b.refusal).map((s, i) =>
+                    s.code ? <code key={i}>{s.text}</code> : s.text
+                  )}
+                </span>
                 <button type="button" className="sbtn mini" onClick={onTerminal}>
                   <Icon name="external" size={12} />
                   Open in terminal

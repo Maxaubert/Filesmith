@@ -105,3 +105,18 @@ export function refusalText(k: Extract<LineKind, { kind: 'refuse' }>): string {
   if (k.reason === 'too-long') return `The line is longer than ${MAX_LINE} characters.`
   return `\`${k.word}\` is not a filesmith command. This console only runs filesmith; use a terminal for anything else.`
 }
+
+/** Split text on `backtick` spans so the UI can draw them as code. Odd
+ *  indexes are code; an unmatched trailing backtick stays plain text. */
+export function codeSegments(text: string): { text: string; code: boolean }[] {
+  const out: { text: string; code: boolean }[] = []
+  const re = /`([^`]+)`/g
+  let at = 0
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    if (m.index > at) out.push({ text: text.slice(at, m.index), code: false })
+    out.push({ text: m[1], code: true })
+    at = m.index + m[0].length
+  }
+  if (at < text.length) out.push({ text: text.slice(at), code: false })
+  return out
+}
