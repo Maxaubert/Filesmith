@@ -30,7 +30,8 @@ afterAll(() => {
     spawnSync('reg', ['delete', 'HKCU\\Software\\FilesmithTest', '/f'])
 })
 
-describe.skipIf(process.platform !== 'win32')('path.ps1', () => {
+// Each case starts powershell.exe several times; a CI runner needs well over the 5 s default.
+describe.skipIf(process.platform !== 'win32')('path.ps1', { timeout: 60_000 }, () => {
   it('adds once, keeps %VARS% unexpanded and REG_EXPAND_SZ, removes cleanly', () => {
     execFileSync('reg', [
       'add',
