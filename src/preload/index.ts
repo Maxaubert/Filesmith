@@ -4,6 +4,13 @@ import type { ComfyModel } from '@shared/comfy'
 import type { ComfyStatus, PidStatus, SkillInstallResult, SkillStatus } from '@shared/ipc'
 import type { GenerateOptions } from '@shared/generate'
 import type { GenModelScan } from '@shared/genArch'
+import type {
+  ConsoleCatalog,
+  ConsoleCdResult,
+  ConsoleEntry,
+  ConsoleEvent,
+  ConsoleRunResult
+} from '@shared/console'
 
 // The typed bridge the renderer talks to. The renderer never touches Node/fs/
 // child_process directly; every privileged action goes through these channels.
@@ -180,6 +187,27 @@ const api = {
   sessionLoad: (): Promise<unknown> => ipcRenderer.invoke('session:load'),
   sessionSave: (data: unknown): void => ipcRenderer.send('session:save', data),
   filesExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('files:exist', paths),
+
+  // In-app console (spec 9.5): runs filesmith commands in a child CLI process.
+  consoleCatalog: (): Promise<ConsoleCatalog> => ipcRenderer.invoke('console:catalog'),
+  consoleRun: (id: string, line: string, cwd: string): Promise<ConsoleRunResult> =>
+    ipcRenderer.invoke('console:run', id, line, cwd),
+  consoleCancel: (id: string): void => ipcRenderer.send('console:cancel', id),
+  onConsoleEvent: (cb: (e: ConsoleEvent) => void): (() => void) => {
+    const listener = (_: unknown, e: ConsoleEvent): void => cb(e)
+    ipcRenderer.on('console:event', listener)
+    return () => ipcRenderer.removeListener('console:event', listener)
+  },
+  consoleDir: (path: string): Promise<string | null> => ipcRenderer.invoke('console:dir', path),
+  consoleDefaultDir: (): Promise<string> => ipcRenderer.invoke('console:default-dir'),
+  consoleCd: (base: string, arg: string): Promise<ConsoleCdResult> =>
+    ipcRenderer.invoke('console:cd', base, arg),
+  consoleList: (
+    cwd: string,
+    dir: string,
+    name: string
+  ): Promise<{ dir: string; entries: ConsoleEntry[] }> =>
+    ipcRenderer.invoke('console:list', cwd, dir, name),
 
   // window controls (frameless)
   minimize: (): void => ipcRenderer.send('window:minimize'),
