@@ -21,7 +21,7 @@ import type { RowProps } from './rowProps'
 import type { CheckState } from './selectAll'
 import { tableKey } from './tableKeys'
 import { visibleOrder, type RowGroup, type SortKey, type SortState } from './tableSort'
-import { thumbPx, type ViewSize } from './viewSize'
+import { thumbPx, wheelDelta, wheelStep, WHEEL_IDLE, type ViewSize } from './viewSize'
 
 const HEADS: { key: SortKey; label: string; num?: boolean }[] = [
   { key: 'name', label: 'name' },
@@ -52,7 +52,8 @@ export function QueueTable({
   onAction,
   onRemove,
   onSelectGroup,
-  onAdd
+  onAdd,
+  onWheelStep
 }: {
   groups: RowGroup[]
   totals: Totals
@@ -77,6 +78,8 @@ export function QueueTable({
   onRemove: (id: string) => void
   onSelectGroup: (group: string) => void
   onAdd: () => void
+  /** Ctrl+wheel over the files view: +1 bigger, -1 smaller. */
+  onWheelStep: (step: 1 | -1) => void
 }): JSX.Element {
   const section = useRef<HTMLElement>(null)
   const body = useRef<HTMLDivElement>(null)
@@ -84,6 +87,28 @@ export function QueueTable({
   const lists = groups.map((g) => g.items.map((i) => i.id))
   const [focusId, setFocusId] = useState<string | null>(null)
   const tabStop = focusId && order.includes(focusId) ? focusId : (selected[0] ?? order[0] ?? null)
+
+  // Ctrl+wheel over the files view steps the size (spec 2). React's onWheel is
+  // passive, so attach a native listener that may preventDefault. Only this
+  // section listens: Ctrl+wheel over the inspector does nothing special.
+  const wheelCb = useRef(onWheelStep)
+  useEffect(() => {
+    wheelCb.current = onWheelStep
+  })
+  useEffect(() => {
+    const el = section.current
+    if (!el) return
+    let state = WHEEL_IDLE
+    const on = (e: WheelEvent): void => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      const r = wheelStep(state, wheelDelta(e.deltaY, e.deltaMode), e.timeStamp)
+      state = r.state
+      if (r.step !== 0) wheelCb.current(r.step)
+    }
+    el.addEventListener('wheel', on, { passive: false })
+    return () => el.removeEventListener('wheel', on)
+  }, [])
 
   // A size change replaces every row element, so focus would fall to <body>:
   // put it back on the same item and keep that item in view (spec 4).
@@ -93,6 +118,11 @@ export function QueueTable({
     prevSize.current = size
     const el = body.current
     if (!el) return
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      el.animate([{ opacity: 0.25 }, { opacity: 1 }], {
+        duration: 150,
+        easing: 'cubic-bezier(.2,.7,.2,1)'
+      })
     const row = tabStop ? el.querySelector<HTMLElement>(`[data-id="${CSS.escape(tabStop)}"]`) : null
     if (document.activeElement === document.body) row?.focus({ preventScroll: true })
     row?.scrollIntoView({ block: 'nearest' })

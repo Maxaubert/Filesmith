@@ -1234,6 +1234,7 @@ export default function App(): JSX.Element {
                     })
                   }
                   onAdd={() => void browse()}
+                  onWheelStep={(d) => view.step(d)}
                 />
               </>
             )}
