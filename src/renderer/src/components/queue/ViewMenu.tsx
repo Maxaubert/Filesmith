@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import { Icon } from '../icons/Icon'
-import { DEFAULT_VIEW, VIEW_SIZES, viewDef, type ViewSize } from './viewSize'
+import { MENU_SIZES, viewDef, type ViewSize } from './viewSize'
 
-/** The files toolbar's View button and its menu (spec 2). */
+/** The files toolbar's View button and its menu (spec 2). The menu offers three
+ * sizes as plain text; the other three are reached with Ctrl+wheel, and the
+ * button always names the current size, whichever it is. */
 export function ViewMenu({
   size,
   flash,
@@ -26,7 +28,11 @@ export function ViewMenu({
     el.style.top = `${r.bottom}px`
     el.style.left = `${Math.max(8, r.right - el.offsetWidth)}px`
     el.style.visibility = 'visible'
-    el.querySelector<HTMLElement>('[aria-checked="true"]')?.focus()
+    // After Ctrl+wheel the size may be one the menu does not list: focus the first entry.
+    const first =
+      el.querySelector<HTMLElement>('[aria-checked="true"]') ??
+      el.querySelector<HTMLElement>('.menu-item')
+    first?.focus()
   }, [open])
 
   useEffect(() => {
@@ -91,7 +97,6 @@ export function ViewMenu({
         title="View (Ctrl+wheel to resize)"
         onClick={() => setOpen((o) => !o)}
       >
-        <Icon name={def.icon} />
         <span className="vl">{def.label}</span>
         <Icon name="chev-d" size={12} className="k" />
       </button>
@@ -108,42 +113,19 @@ export function ViewMenu({
           onKeyDown={onKey}
           onContextMenu={(e) => e.preventDefault()}
         >
-          {VIEW_SIZES.map((d) => (
+          {MENU_SIZES.map((id) => (
             <button
-              key={d.id}
+              key={id}
               type="button"
               role="menuitemradio"
-              aria-checked={d.id === size}
+              aria-checked={id === size}
               className="menu-item"
-              onClick={() => pick(d.id)}
+              onClick={() => pick(id)}
             >
               <Icon name="check" size={12} className="tick" />
-              <Icon name={d.icon} />
-              <span className="ml">{d.label}</span>
-              <span className="sc">Ctrl+Shift+{d.digit}</span>
+              <span className="ml">{viewDef(id).label}</span>
             </button>
           ))}
-          <div className="menu-sep" role="separator" />
-          <button
-            type="button"
-            role="menuitem"
-            className="menu-item"
-            onClick={() => pick(DEFAULT_VIEW)}
-          >
-            <span className="tick" />
-            <Icon name="retry" />
-            <span className="ml">Reset to Details</span>
-            <span className="sc">Ctrl+0</span>
-          </button>
-          <div className="menu-sep" role="separator" />
-          <div className="menu-hint">
-            <Icon name="mouse" />
-            <span>Ctrl + wheel over the list</span>
-          </div>
-          <div className="menu-hint indent">
-            <span>Bigger, smaller</span>
-            <span className="sc">Ctrl+= / Ctrl+-</span>
-          </div>
         </div>
       )}
     </>

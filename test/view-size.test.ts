@@ -6,21 +6,19 @@ import {
   stepSize,
   VIEW_KEY,
   VIEW_SIZES,
+  MENU_SIZES,
   viewDef,
   viewKeyFor,
   wheelDelta,
   WHEEL_IDLE,
-  wheelStep,
-  type ViewKeyLike
+  wheelStep
 } from '../src/renderer/src/components/queue/viewSize'
+import type { KeyLike } from '../src/renderer/src/components/queue/tableKeys'
 
-const k = (
-  key: string,
-  code: string,
-  o: Partial<Omit<ViewKeyLike, 'key' | 'code'>> = {}
-): ViewKeyLike => ({
+// The second argument (KeyboardEvent.code) documents the physical key; the
+// mapping only reads `key`.
+const k = (key: string, _code: string, o: Partial<Omit<KeyLike, 'key'>> = {}): KeyLike => ({
   key,
-  code,
   ctrlKey: true,
   metaKey: false,
   shiftKey: false,
@@ -29,19 +27,25 @@ const k = (
 })
 
 describe('view sizes', () => {
-  it('lists the six sizes in order with their Ctrl+Shift digit', () => {
-    expect(VIEW_SIZES.map((s) => [s.id, s.label, s.digit])).toEqual([
-      ['details', 'Details', 1],
-      ['details-l', 'Large details', 2],
-      ['tiles', 'Tiles', 3],
-      ['medium', 'Medium icons', 4],
-      ['large', 'Large icons', 5],
-      ['xl', 'Extra large icons', 6]
+  it('lists the six sizes in wheel order', () => {
+    expect(VIEW_SIZES.map((s) => [s.id, s.label])).toEqual([
+      ['details', 'Details'],
+      ['details-l', 'Large details'],
+      ['tiles', 'Tiles'],
+      ['medium', 'Medium icons'],
+      ['large', 'Large icons'],
+      ['xl', 'Extra large icons']
     ])
-    expect(viewDef('details-l').icon).toBe('view-details-l')
+    expect(viewDef('large').label).toBe('Large icons')
     expect(DEFAULT_VIEW).toBe('details')
     expect(VIEW_KEY).toBe('filesmith.viewSize')
-    expect(viewDef('large').icon).toBe('view-large')
+  })
+  it('offers only Details, Tiles and Extra large icons in the menu', () => {
+    expect(MENU_SIZES.map((s) => viewDef(s).label)).toEqual([
+      'Details',
+      'Tiles',
+      'Extra large icons'
+    ])
   })
   it('steps one size and clamps at both ends', () => {
     expect(stepSize('details', 1)).toBe('details-l')
@@ -80,21 +84,14 @@ describe('view keys', () => {
     expect(viewKeyFor(k('0', 'Digit0'))).toEqual({ kind: 'set', size: 'details' })
     expect(viewKeyFor(k('0', 'Numpad0'))).toEqual({ kind: 'set', size: 'details' })
   })
-  it('maps Ctrl+Shift+1..6 by code, whatever character the layout makes', () => {
-    expect(viewKeyFor(k('!', 'Digit1', { shiftKey: true }))).toEqual({
-      kind: 'set',
-      size: 'details'
-    })
-    expect(viewKeyFor(k('@', 'Digit2', { shiftKey: true }))).toEqual({
-      kind: 'set',
-      size: 'details-l'
-    })
-    expect(viewKeyFor(k('$', 'Digit4', { shiftKey: true }))).toEqual({
-      kind: 'set',
-      size: 'medium'
-    })
-    expect(viewKeyFor(k('&', 'Digit6', { shiftKey: true }))).toEqual({ kind: 'set', size: 'xl' })
-    expect(viewKeyFor(k('/', 'Digit7', { shiftKey: true }))).toBeNull()
+  it('has no per-size shortcuts: Ctrl+Shift+digits do nothing', () => {
+    expect(viewKeyFor(k('!', 'Digit1', { shiftKey: true }))).toBeNull()
+    expect(viewKeyFor(k('@', 'Digit2', { shiftKey: true }))).toBeNull()
+    expect(viewKeyFor(k('$', 'Digit4', { shiftKey: true }))).toBeNull()
+    expect(viewKeyFor(k('&', 'Digit6', { shiftKey: true }))).toBeNull()
+    expect(viewKeyFor(k('1', 'Digit1', { shiftKey: true }))).toBeNull()
+    expect(viewKeyFor(k('3', 'Digit3', { shiftKey: true }))).toBeNull()
+    expect(viewKeyFor(k('_', 'Minus', { shiftKey: true }))).toBeNull()
     expect(viewKeyFor(k('=', 'Digit0', { shiftKey: true }))).toBeNull()
   })
   it('works with Cmd, ignores Alt, plain keys and other Ctrl keys', () => {

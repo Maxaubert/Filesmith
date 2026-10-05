@@ -175,8 +175,10 @@ test('capture each view size next to the view-zoom mockup', async () => {
     .getByRole('button', { name: 'Convert' })
     .click()
   await page.getByRole('row', { name: /beach-panorama/ }).click()
+  // No per-size shortcuts: start at Details, then Ctrl+= one size at a time.
+  await page.keyboard.press('Control+0')
   for (let n = 1; n <= 6; n++) {
-    await page.keyboard.press(`Control+Shift+Digit${n}`)
+    if (n > 1) await page.keyboard.press('Control+=')
     await expect(page.getByRole('grid', { name: 'Files' })).toHaveAttribute(
       'data-size',
       ['details', 'details-l', 'tiles', 'medium', 'large', 'xl'][n - 1]
@@ -185,7 +187,7 @@ test('capture each view size next to the view-zoom mockup', async () => {
     await page.waitForTimeout(800)
     await page.screenshot({ path: join(VZ, `impl-size${n - 1}.png`) })
   }
-  await page.keyboard.press('Control+Shift+Digit3')
+  await page.keyboard.press('Control+0')
   await page.getByRole('button', { name: /^View: / }).click()
   await expect(page.getByRole('menu', { name: 'View' })).toBeVisible()
   await page.screenshot({ path: join(VZ, 'impl-menu.png') })

@@ -35,3 +35,5 @@ Mockup rounds live in `docs/mockups/terminal*/` (each has an `index.html` galler
 - View sizes (2026-10-05): the files view has Explorer-style sizes (Details, Tiles, Medium / Large / Extra
   large icons), Ctrl+wheel and a View menu. Chosen: `docs/mockups/view-zoom/04-explorer-style.html`; spec
   `docs/superpowers/specs/2026-10-05-view-sizes-design.md`.
+- View menu (2026-10-05, #41): View menu = 3 sizes (Details, Tiles, Extra large icons), no icons, no
+  shortcuts; the other sizes via Ctrl+wheel.

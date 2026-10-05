@@ -39,17 +39,13 @@
 
 /* its menu (shares .menu / .menu-item / .menu-sep with the context menu) */
 .viewmenu {
-  min-width: 272px;
+  min-width: 200px;
 }
 .viewmenu .menu-item {
   white-space: nowrap;
 }
 .viewmenu .ml {
   flex: 1;
-}
-.viewmenu .sc {
-  font: 11px var(--mono);
-  color: var(--fg3);
 }
 .viewmenu .tick {
   width: 12px;
@@ -63,21 +59,6 @@
 }
 .viewmenu .menu-item[aria-checked='true'] .tick {
   visibility: visible;
-}
-.menu-hint {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 28px;
-  padding: 0 12px;
-  font-size: 12px;
-  color: var(--fg3);
-}
-.menu-hint.indent {
-  padding-left: 38px;
-}
-.menu-hint .sc {
-  margin-left: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

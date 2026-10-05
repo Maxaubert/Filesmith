@@ -35,19 +35,21 @@ Settings are not part of this work.
   scaled by 40. Ctrl+wheel anywhere else (inspector, sidebar) does nothing special; Electron does not zoom the
   page on Ctrl+wheel, and the files view listener is the only one that calls `preventDefault`.
 - **Keyboard**, whenever the files view is shown: `Ctrl+=` / `Ctrl++` (also numpad +, and Ctrl+Shift+= ) =
-  bigger, `Ctrl+-` (also numpad -) = smaller, `Ctrl+0` = reset to Details, `Ctrl+Shift+1..6` jump to a size.
-  Digits are matched on `KeyboardEvent.code` (`Digit1..6`) so Nordic layouts, where Shift+1 is `!`, work.
+  bigger, `Ctrl+-` (also numpad -) = smaller, `Ctrl+0` = reset to Details. There are no per-size
+  shortcuts (Ctrl+Shift+1..6 was dropped on 2026-10-05, issue #41).
   The handler calls `preventDefault`, which also keeps Electron's default menu zoom accelerators
   (zoomIn / zoomOut / resetZoom) from zooming the whole page; e2e asserts the zoom factor stays 1.
-- **View menu button** at the right end of the files toolbar, after the count: view glyph, current label
-  (min-width 96px so the toolbar does not jump), chevron. `aria-haspopup="menu"`, `aria-expanded`,
+- **View menu button** at the right end of the files toolbar, after the count: current label (min-width 96px
+  so the toolbar does not jump) and a chevron, no size glyph. The label names the current size, any of the six
+  (e.g. `Medium icons` after Ctrl+wheel). `aria-haspopup="menu"`, `aria-expanded`,
   `title="View (Ctrl+wheel to resize)"`. It flashes `--inv-bg` for 450ms when the size changes by wheel or key
   (no flash under reduced motion). Its menu (anchored under the button, right-aligned, `.menu` styling,
-  min-width 272px) lists the six sizes as `menuitemradio` with a tick, the size glyph, label and
-  `Ctrl+Shift+N`; a separator; `Reset to Details  Ctrl+0`; a separator; two hint lines
-  (`Ctrl + wheel over the list`, `Bigger, smaller  Ctrl+= / Ctrl+-`). Focus lands on the checked entry; arrows
-  walk the entries, Home/End jump, Enter/Space/click picks and closes, Escape or an outside click closes and
-  focus returns to the button.
+  min-width 200px) offers only three sizes as plain-text `menuitemradio` entries: `Details`, `Tiles`,
+  `Extra large icons`, with a check mark on the current one when it is one of these. No size glyphs, no
+  shortcut text, no Reset row, no hint rows (owner request 2026-10-05, issue #41). Large details, Medium
+  icons and Large icons are reached only by Ctrl+wheel (or Ctrl+= / Ctrl+-). Focus lands on the checked
+  entry, or the first when none is checked; arrows walk the entries, Home/End jump, Enter/Space/click picks
+  and closes, Escape or an outside click closes and focus returns to the button.
 - Clamped at both ends: stepping past Details or Extra large icons does nothing (no flash, no announcement).
 - A polite live region announces `View: <label>` on every change.
 - **Motion:** a 150ms fade of the list body (`opacity .25 -> 1`, `cubic-bezier(.2,.7,.2,1)`) through the Web
@@ -131,7 +133,7 @@ no play glyph on videos, since nothing in the grid plays them (owner, 2026-10-05
 | renderer  | `queue/viewSize.ts` (model, keys, wheel), `queue/gridKeys.ts`, `queue/cardModel.ts` (pure, tested)          |
 | renderer  | `queue/useViewSize.ts` (persisted hook), `queue/ViewMenu.tsx`, `queue/QueueTile.tsx`, `queue/QueueCard.tsx`, `queue/Thumb.tsx` |
 | renderer  | `QueueTable` (size switch, wheel, keyboard grid nav, fade), `QueueToolbar` (menu slot), `TotalsRow` (flat), `StatusCell` / `ResultCell` (extract inline parts), `tableKeys` (Left/Right) |
-| renderer  | `theme/viewsizes.css` (new, imported from `index.css`), 7 new icons (`view-details`, `view-details-l`, `view-tiles`, `view-medium`, `view-large`, `view-xl`, `mouse`) |
+| renderer  | `theme/viewsizes.css` (new, imported from `index.css`), no size icons (the 7 view glyphs were removed with the menu icons, issue #41) |
 | renderer  | `queue/thumbSize.ts` (bucket per size and DPR, cache lookup, pure, tested), `queue/useDevicePixelRatio.ts` |
 | App       | `useViewSize`, keyboard shortcuts, DPR-sized thumbnail requests                                            |
 | main      | `thumbnail.ts`: fall back to magick / ffmpeg when the OS thumbnail is smaller than a big request           |
@@ -144,7 +146,8 @@ no play glyph on videos, since nothing in the grid plays them (owner, 2026-10-05
   accumulation), grid neighbour navigation (columns, short last row, group crossing), card line per state and
   size, `tableKey` Left/Right, icon registry, no em-dash scan of the new files.
 - Playwright (`npm run build` first): Ctrl+wheel over the list changes the size and Ctrl+wheel over the
-  inspector does not; the View menu lists six sizes and picks one; Ctrl+Shift+3 / Ctrl+0 / Ctrl+= / Ctrl+-;
+  inspector does not; the View menu lists three plain sizes and picks one; Ctrl+wheel reaches Medium / Large icons;
+  Ctrl+Shift+digits do nothing; Ctrl+0 / Ctrl+= / Ctrl+-;
   the page zoom factor stays 1; the size survives a reload; selection, Shift+click and right-click work on
   cards; arrow keys move focus in a grid.
 - Gate: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run test:e2e`.

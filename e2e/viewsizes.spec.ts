@@ -71,31 +71,64 @@ async function ctrlWheel(x: number, y: number, dy: number): Promise<void> {
   await page.waitForTimeout(150)
 }
 
-test('the View menu lists the six sizes and picks one', async () => {
+const ORDER = ['details', 'details-l', 'tiles', 'medium', 'large', 'xl']
+/** Reach any size from the keyboard: back to Details, then Ctrl+= per step. */
+async function goTo(size: string): Promise<void> {
+  await page.keyboard.press('Control+0')
+  for (let i = 0; i < ORDER.indexOf(size); i++) await page.keyboard.press('Control+=')
+  await sizeIs(size)
+}
+
+test('the View menu lists three plain sizes and picks one', async () => {
   await sizeIs('details')
   await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Details')
+  // No glyph in front of the label on the button, only the chevron after it.
+  await expect(viewBtn().locator('svg')).toHaveCount(1)
   await viewBtn().click()
   const menu = page.getByRole('menu', { name: 'View' })
   const items = menu.getByRole('menuitemradio')
-  await expect(items).toHaveText([
-    /^Details\s*Ctrl\+Shift\+1/,
-    /Large details\s*Ctrl\+Shift\+2/,
-    /Tiles\s*Ctrl\+Shift\+3/,
-    /Medium icons\s*Ctrl\+Shift\+4/,
-    /Large icons\s*Ctrl\+Shift\+5/,
-    /Extra large icons\s*Ctrl\+Shift\+6/
-  ])
+  await expect(items).toHaveText(['Details', 'Tiles', 'Extra large icons'])
+  // No shortcuts, no Reset row, no hint rows; only the check mark glyph per entry.
+  await expect(menu.getByRole('menuitem')).toHaveCount(0)
+  await expect(menu.getByRole('separator')).toHaveCount(0)
+  await expect(menu).not.toContainText('Ctrl')
+  for (let i = 0; i < 3; i++) await expect(items.nth(i).locator('svg')).toHaveCount(1)
   await expect(items.first()).toHaveAttribute('aria-checked', 'true')
   await expect(items.first()).toBeFocused()
-  await items.nth(4).click()
+  await items.nth(2).click()
   await expect(menu).toHaveCount(0)
-  await sizeIs('large')
-  await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Large icons')
+  await sizeIs('xl')
+  await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Extra large icons')
   // Group headers stay, one per convert group.
   await expect(grid().getByRole('gridcell', { name: /IMAGES/ })).toBeVisible()
   await expect(grid().getByRole('gridcell', { name: /VIDEO/ })).toBeVisible()
+  await viewBtn().click()
+  await items.nth(1).click()
+  await sizeIs('tiles')
   await page.keyboard.press('Control+0')
   await sizeIs('details')
+})
+
+test('Ctrl+wheel reaches the sizes the menu does not list', async () => {
+  const g = (await grid().boundingBox())!
+  for (const s of ['details-l', 'tiles', 'medium']) {
+    await ctrlWheel(g.x + g.width / 2, g.y + g.height / 2, -100)
+    await sizeIs(s)
+  }
+  await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Medium icons')
+  await expect(viewBtn()).toContainText('Medium icons')
+  // The menu has no entry for Medium: nothing is checked, focus lands on the first.
+  await viewBtn().click()
+  const items = page.getByRole('menu', { name: 'View' }).getByRole('menuitemradio')
+  await expect(items).toHaveCount(3)
+  await expect(page.locator('.viewmenu [aria-checked="true"]')).toHaveCount(0)
+  await expect(items.first()).toBeFocused()
+  await page.keyboard.press('Escape')
+  await ctrlWheel(g.x + g.width / 2, g.y + g.height / 2, -100)
+  await sizeIs('large')
+  await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Large icons')
+  expect(await zoom()).toBe(1)
+  await page.keyboard.press('Control+0')
 })
 
 test('Ctrl+wheel over the list steps the size; over the inspector it does nothing', async () => {
@@ -113,17 +146,14 @@ test('Ctrl+wheel over the list steps the size; over the inspector it does nothin
   await page.keyboard.press('Control+0')
 })
 
-test('keyboard shortcuts change the size without zooming the page', async () => {
-  await page.keyboard.press('Control+Shift+Digit2')
+test('Ctrl+= / Ctrl+- / Ctrl+0 step the size without zooming the page', async () => {
+  await page.keyboard.press('Control+=')
   await sizeIs('details-l')
   await page.keyboard.press('Control+=')
   await sizeIs('tiles')
   await page.keyboard.press('Control+-')
   await sizeIs('details-l')
-  await page.keyboard.press('Control+Shift+Digit3')
-  await sizeIs('tiles')
-  await page.keyboard.press('Control+Shift+Digit6')
-  await sizeIs('xl')
+  await goTo('xl')
   await page.keyboard.press('Control+=')
   await sizeIs('xl')
   await page.keyboard.press('Control+0')
@@ -133,17 +163,28 @@ test('keyboard shortcuts change the size without zooming the page', async () => 
   expect(await zoom()).toBe(1)
 })
 
+test('there are no per-size shortcuts', async () => {
+  for (const d of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6']) {
+    await page.keyboard.press(`Control+Shift+${d}`)
+    await sizeIs('details')
+  }
+  await goTo('tiles')
+  await page.keyboard.press('Control+Shift+Digit1')
+  await sizeIs('tiles')
+  await page.keyboard.press('Control+0')
+  expect(await zoom()).toBe(1)
+})
+
 test('a size change keeps focus on the same item', async () => {
   await row('bravo').click()
-  await page.keyboard.press('Control+Shift+Digit4')
-  await sizeIs('medium')
+  await goTo('medium')
   await expect(page.locator('[data-id="v-1"]')).toBeFocused()
   await page.keyboard.press('Control+0')
   await expect(page.locator('[data-id="v-1"]')).toBeFocused()
 })
 
 test('selection, the right-click menu and arrow keys work in an icon grid', async () => {
-  await page.keyboard.press('Control+Shift+Digit4')
+  await goTo('medium')
   await row('alpha').click()
   await row('charlie').click({ modifiers: ['Shift'] })
   for (const n of ['alpha', 'bravo', 'charlie'])
@@ -166,8 +207,7 @@ test('selection, the right-click menu and arrow keys work in an icon grid', asyn
 })
 
 test('the chosen size survives a reload', async () => {
-  await page.keyboard.press('Control+Shift+Digit5')
-  await sizeIs('large')
+  await goTo('large')
   await page.reload()
   await expect(row('alpha')).toBeVisible()
   await sizeIs('large')
@@ -185,8 +225,7 @@ test('Large details is the Details table with taller rows and a bigger thumb', a
     }))
   await sizeIs('details')
   const small = await geom()
-  await page.keyboard.press('Control+Shift+Digit2')
-  await sizeIs('details-l')
+  await goTo('details-l')
   await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Large details')
   const big = await geom()
   expect(small.h).toBe(32)
