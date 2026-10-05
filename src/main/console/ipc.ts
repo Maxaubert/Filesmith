@@ -5,6 +5,7 @@ import { join, win32 } from 'path'
 import type { ConsoleCdResult, ConsoleRunResult } from '@shared/console'
 import { isDir, listEntries, resolveCd } from './dirs'
 import { startCliRun, type RunDeps, type RunHandle } from './runCli'
+import { openTerminal } from './terminal'
 import { catalog, validateRun } from './validate'
 
 const deps: RunDeps = {
@@ -72,6 +73,14 @@ export function registerConsoleIpc(): { stopAll(): void } {
     const full = win32.resolve(String(cwd), String(dir || '.'))
     return { dir: full, entries: isDir(full) ? listEntries(full, String(name)) : [] }
   })
+
+  // The folder is the only input; the programs (wt.exe, powershell.exe) and the
+  // encoded PATH script are fixed by main. spawn without `shell`.
+  ipcMain.handle('console:terminal', (_e, dir: unknown) =>
+    typeof dir === 'string' && isDir(dir)
+      ? openTerminal(dir)
+      : { ok: false, error: 'The console folder does not exist.' }
+  )
 
   return {
     stopAll: () => {
