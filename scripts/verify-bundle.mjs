@@ -13,6 +13,7 @@
 import {
   existsSync,
   readdirSync,
+  readFileSync,
   statSync,
   writeFileSync,
   mkdtempSync,
@@ -26,7 +27,9 @@ import { tmpdir } from 'node:os'
 const args = process.argv.slice(2)
 const mIdx = args.indexOf('--manifest')
 const manifest = mIdx >= 0 ? args[mIdx + 1] : null
-const root = resolve(args.find((a, i) => !a.startsWith('--') && i !== mIdx + 1) ?? 'resources')
+const root = resolve(
+  args.find((a, i) => !a.startsWith('--') && (mIdx < 0 || i !== mIdx + 1)) ?? 'resources'
+)
 const MB = 1024 * 1024
 
 /** [relative path, what breaks without it] */
@@ -54,7 +57,12 @@ const REQUIRED = [
   ['realesrgan/models/realesrgan-x4plus-anime.bin', 'AI upscale anime model'],
   ['pid/pid_server.py', 'PiD upscaler sidecar'],
   ['spandrel/spandrel_server.py', 'spandrel upscaler sidecar'],
-  ['registry/engines.json', 'built-in model registry']
+  ['registry/engines.json', 'built-in model registry'],
+  ['cli/filesmith.cmd', 'filesmith on PATH (cmd, PowerShell)'],
+  ['cli/filesmith', 'filesmith on PATH (Git Bash, Claude Code)'],
+  ['cli/path.ps1', 'the installer PATH edit'],
+  ['skill/filesmith/SKILL.md', 'the Claude Code skill'],
+  ['skill/filesmith/reference.md', 'the Claude Code skill reference']
 ]
 
 const failures = []
@@ -69,6 +77,11 @@ for (const f of ['bin/ffmpeg.exe', 'bin/ffprobe.exe']) {
       `${f} is ${(statSync(p).size / MB).toFixed(0)} MB: the "full" ffmpeg build leaked in`
     )
 }
+
+// Git Bash cannot run the sh shim with CRLF endings ("$'\r': command not found").
+const sh = join(root, 'cli', 'filesmith')
+if (existsSync(sh) && readFileSync(sh, 'utf8').includes('\r'))
+  failures.push('cli/filesmith has CRLF line endings (Git Bash cannot run it)')
 
 /** Run a bundled exe; record a failure if it cannot start or exits non-zero. */
 function smoke(

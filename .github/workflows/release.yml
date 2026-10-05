@@ -39,6 +39,11 @@ on:
       - 'scripts/verify-bundle.mjs'
       - 'electron-builder.yml'
       - 'package.json'
+      - 'src/cli/**'
+      - 'resources/cli/**'
+      - 'resources/skill/**'
+      - 'build/installer.nsh'
+      - 'build/installer/**'
   workflow_dispatch:
 
 concurrency:
@@ -109,6 +114,30 @@ jobs:
       # check what actually got packed.
       - name: Verify bundled tools (packed app)
         run: node scripts/verify-bundle.mjs dist/win-unpacked/resources --manifest dist/packed-manifest.txt
+
+      # The command line in the packed app (spec 7.3): the shim must run the
+      # app's own exe in Node mode, print the package.json version, pass
+      # doctor's core checks and convert one file. This also fails loudly if the
+      # runAsNode Electron fuse is ever turned off.
+      - name: Smoke-test the packed CLI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $shim = 'dist\win-unpacked\resources\cli\filesmith.cmd'
+          $v = (& $shim --version | Out-String).Trim()
+          if ($v -ne '${{ steps.ver.outputs.version }}') { throw "filesmith --version printed '$v'" }
+          $env:FILESMITH_USER_DATA = Join-Path $env:RUNNER_TEMP 'fs-ud'
+          $events = & $shim doctor --json | ForEach-Object { $_ | ConvertFrom-Json }
+          $bad = @($events | Where-Object { $_.event -eq 'check' -and $_.group -eq 'core' -and $_.status -eq 'fail' })
+          if ($bad.Count) { throw "doctor core checks failed: $($bad.id -join ', ')" }
+          $png = Join-Path $env:RUNNER_TEMP 'smoke.png'
+          [IO.File]::WriteAllBytes($png, [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))
+          & $shim convert $png --to webp --json | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw "filesmith convert exited $LASTEXITCODE" }
+          if (-not (Test-Path (Join-Path $env:RUNNER_TEMP 'smoke.webp'))) { throw 'smoke.webp was not written' }
+          "- packed CLI ``$v``: doctor core checks ok, convert ok" >> $env:GITHUB_STEP_SUMMARY
+          $global:LASTEXITCODE = 0
 
       - name: Check installer
         id: exe
