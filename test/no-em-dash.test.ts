@@ -22,7 +22,12 @@ const TARGETS = [
   'resources/skill',
   'build/installer/path.nsh',
   'docs/cli.md',
-  'docs/superpowers/plans/2026-10-04-cli-and-skill.md'
+  'docs/superpowers/plans/2026-10-04-cli-and-skill.md',
+  'src/renderer/src/components/queue',
+  'src/renderer/src/theme/viewsizes.css',
+  'e2e/viewsizes.spec.ts',
+  'docs/superpowers/specs/2026-10-05-view-sizes-design.md',
+  'docs/superpowers/plans/2026-10-05-view-sizes.md'
 ]
 
 function files(p: string): string[] {

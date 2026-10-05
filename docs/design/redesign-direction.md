@@ -32,3 +32,6 @@ Mockup rounds live in `docs/mockups/terminal*/` (each has an `index.html` galler
   multi-selection ("Select one file to preview").
 - Wind is a reference, not a template. Avoid its signatures: the floating progress+button pill, the icon-tile
   header band, and big rounded cards of right-aligned setting rows.
+- View sizes (2026-10-05): the files view has Explorer-style sizes (Details, Tiles, Medium / Large / Extra
+  large icons), Ctrl+wheel and a View menu. Chosen: `docs/mockups/view-zoom/04-explorer-style.html`; spec
+  `docs/superpowers/specs/2026-10-05-view-sizes-design.md`.
