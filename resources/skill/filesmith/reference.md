@@ -95,3 +95,7 @@ Every line: `v` (1), `event`, `ts` (ISO time). Paths are absolute, sizes in byte
 ## Exit codes
 
 `0` all ok or skipped; `1` some failed (or doctor found a failure, or setup failed); `2` usage error or a requirement that fails for every input, nothing ran; `130` canceled.
+
+## Unfinished outputs
+
+A running job writes `name (tag).filesmith-part.ext` (folders: `base.filesmith-part`) next to an empty placeholder at the final name, and renames it onto the final name only on success. A failed or canceled job removes both. Never use a `*.filesmith-part*` entry as a result.

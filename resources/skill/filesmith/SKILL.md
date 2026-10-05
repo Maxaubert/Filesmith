@@ -55,6 +55,8 @@ Every command has `--help`. Every flag, event field and error code: [reference.m
 
 Exit codes: `0` all ok or skipped, `1` some failed, `2` bad arguments or a missing requirement (nothing ran), `130` canceled.
 
+While a job runs, its output name is an empty placeholder next to a `*.filesmith-part*` file or folder; only the `done` event's `output` is a result.
+
 | `code`                  | What to do                                                                  |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `SETUP_REQUIRED`        | Tell the user the `hint` (`filesmith setup ...`); run it only after a yes   |

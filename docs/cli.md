@@ -20,8 +20,8 @@ queue or Completed view.
   (`ELECTRON_RUN_AS_NODE=1`) with `--use-system-ca` and `NODE_USE_ENV_PROXY=1`.
 - cmd expands `%NAME%` inside arguments, even quoted. For file names that contain `%`, use PowerShell or
   Git Bash.
-- After Ctrl+C, cmd asks "Terminate batch job (Y/N)?". That prompt is cosmetic: the jobs are already
-  stopped and the exit code is 130 whatever you answer.
+- Ctrl+C cancels: see [Ctrl+C and unfinished outputs](#ctrlc-and-unfinished-outputs) for how it works
+  in the installed command and its one limit (output redirected in cmd or PowerShell).
 - Windows PowerShell 5.1 decodes captured native output with the OEM code page, so non-ASCII paths in
   `--json` output come out garbled. Run `[Console]::OutputEncoding = [Text.Encoding]::UTF8` first, or use
   Git Bash. PowerShell 7 is not affected.
@@ -58,12 +58,41 @@ filesmith <helper> [args] [options]
   `--dry-run` validates everything, prints the planned outputs and writes and downloads nothing. Planned
   names are predictions; the real names are in the `done` events. `--out` creates the folder (with
   parents) when it is missing; `generate` writes to the current folder unless `--out` is given.
+- **Unfinished outputs never get the final name.** While a job runs, its final name holds an empty
+  placeholder and the tool writes `name (tag).filesmith-part.ext` (folders: `base.filesmith-part`) in the
+  same folder; only a job that succeeds renames it onto the final name. A failed or canceled job removes
+  both. Treat `*.filesmith-part*` entries as work in progress, never as results.
 - **Output formats.** Human output by default: one line per file (`ok`, `skip`, `fail`) and a summary on
   stdout, a progress line on stderr when it is a terminal. `--json` prints NDJSON events on stdout only
   (see below).
 - **Exit codes.** `0` all ok or skipped; `1` some job failed (or `doctor` found a failure, or `setup`
   failed); `2` usage error or a requirement that fails for every input, nothing ran; `130` canceled
   with Ctrl+C.
+
+### Ctrl+C and unfinished outputs
+
+- **Ctrl+C** (once) cancels the run: every job emits `canceled`, the tools (ffmpeg and the rest) are
+  stopped, unfinished outputs are removed, the summary is printed and the exit code is 130. In cmd there
+  is no "Terminate batch job (Y/N)?" prompt any more. A second Ctrl+C leaves at once, still stopping the
+  tools and removing this run's unfinished outputs.
+- **How, in the installed command.** `Filesmith.exe` in Node mode is a GUI-subsystem program that Electron
+  attaches to the terminal's console after start-up, and in that process Windows never delivers Ctrl+C
+  to Node's `SIGINT` handler: the default handler ends the process at once (0xC000013A). So the CLI reads
+  the console itself in raw mode, where the Ctrl+C key arrives as the byte 0x03 instead of a signal
+  (`src/cli/consoleCtrlC.ts`). Plain Node (`npm run cli`) uses `SIGINT` as usual.
+- **Ctrl+Break, closing the window, a hard kill** (`taskkill /F`, or Windows sending Ctrl+C
+  programmatically with `GenerateConsoleCtrlEvent`) still end `Filesmith.exe` at once, with no summary and
+  no exit 130. A small detached watchdog (`src/cli/watchdog.ts`, started with the first output) then stops
+  the tools the run left running and removes its part files and placeholders, so nothing half-written
+  stays behind.
+- **Limit: output redirected in cmd or PowerShell** (`filesmith ... > out.txt`, `| findstr`). Then
+  Windows starts `Filesmith.exe` without a console, so the Ctrl+C key never reaches it: the run finishes
+  (cmd then asks "Terminate batch job (Y/N)?"). Close the run with `taskkill /IM Filesmith.exe /F` if you
+  must; the watchdog cleans up. Git Bash pipes and Claude Code's Bash tool are not affected by this, as
+  they do not cancel with a key press anyway.
+- **Manual check** (also automated in `e2e/cli-packed.spec.ts`): in a new cmd window run
+  `filesmith compress "<a long video>" --codec h265`, press Ctrl+C at about 20 %: `stop`, `1 canceled`,
+  `echo %ERRORLEVEL%` prints 130, no `ffmpeg.exe` in Task Manager, and only the source in the folder.
 
 ### Examples
 
@@ -176,6 +205,11 @@ Verified 2026-10-04 on this machine, source: running `node_modules/electron/dist
 - `require('electron')` returns a path string in Node mode, so the engine never imports `electron`; it
   reads its paths from `src/main/env.ts` (set by `src/main/index.ts` for the app and by
   `src/cli/bootstrap.ts` for the CLI).
+- Ctrl+C never reaches a `SIGINT` / `SIGBREAK` handler in Node mode: the process ends with 0xC000013A.
+  Measured 2026-10-05 with a 6-line script under `electron.exe` and plain `node.exe`; the same loss
+  reproduces in any GUI-subsystem process (pythonw) that registers a console control handler before
+  `AttachConsole`, while one registered after it works. Raw-mode console input does reach the process
+  (see Ctrl+C above). With stdout redirected, Electron does not attach a console at all.
 - The `runAsNode` Electron fuse must stay on, or the shims stop working (the release workflow's packed-CLI
   smoke test fails loudly if it is ever turned off).
 
@@ -189,5 +223,7 @@ Verified 2026-10-04 on this machine, source: running `node_modules/electron/dist
 - Process-level tests: `e2e/cli.spec.ts` runs `out/main/cli.js` end to end (build first), and
   `e2e/skill.spec.ts` covers the Settings > CLAUDE button. Run `npm run test:e2e`.
 - `e2e/cli-packed.spec.ts` runs the shims in the install layout and skips unless `dist/win-unpacked`
-  exists. Build it with `npx electron-builder --win dir --publish never` (after `npm run build`), then
+  exists. It includes the console Ctrl+C test: `e2e/ctrlc-console.ps1` runs the cmd shim in a new
+  (minimized) console, writes a Ctrl+C key record into the console input and reports the exit code and
+  the console text. Build it with `npx electron-builder --win dir --publish never` (after `npm run build`), then
   `npx playwright test e2e/cli-packed.spec.ts`.
