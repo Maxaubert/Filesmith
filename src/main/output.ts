@@ -15,7 +15,8 @@ function* fileCandidates(dir: string, name: string, ext: string, tag: string): G
   for (let n = 2; ; n++) yield join(dir, `${name} (${tag} ${n})${e}`)
 }
 
-function* dirCandidates(dir: string, base: string): Generator<string> {
+/** Folder names in collision order: `base`, `base (2)`, `base (3)`, ... */
+export function* dirCandidates(dir: string, base: string): Generator<string> {
   yield join(dir, base)
   for (let n = 2; ; n++) yield join(dir, `${base} (${n})`)
 }

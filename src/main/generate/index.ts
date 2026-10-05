@@ -1,5 +1,5 @@
 import { writeFileSync } from 'fs'
-import { reserveFileInDir } from '../output'
+import { reserveOutputInDir } from '../atomicOutput'
 import { engineEnv } from '../env'
 import type { GenerateOptions } from '@shared/generate'
 import { GEN_MAX_COUNT } from '@shared/generate'
@@ -120,8 +120,21 @@ export async function generateImages(
 
       const imgs = await waitForImages(baseUrl, promptId, signal, () => sawProgress)
       const bytes = await fetchImage(baseUrl, imgs[0])
-      const out = reserveFileInDir(generatedOutputDir(opts), slug(opts.prompt), '.png', 'generated')
-      writeFileSync(out, bytes)
+      // Written to a part file and renamed into place, like every tool output.
+      const reserved = reserveOutputInDir(
+        generatedOutputDir(opts),
+        slug(opts.prompt),
+        '.png',
+        'generated'
+      )
+      let out: string
+      try {
+        writeFileSync(reserved.part, bytes)
+        out = reserved.commit()
+      } catch (e) {
+        reserved.discard()
+        throw e
+      }
       onProgress(i, 100)
       onImage(i, out)
     }
