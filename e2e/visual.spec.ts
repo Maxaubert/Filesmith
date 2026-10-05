@@ -178,17 +178,17 @@ test('capture each view size next to the view-zoom mockup', async () => {
     .getByRole('button', { name: 'Convert' })
     .click()
   await page.getByRole('row', { name: /beach-panorama/ }).click()
-  for (let n = 1; n <= 5; n++) {
+  for (let n = 1; n <= 6; n++) {
     await page.keyboard.press(`Control+Shift+Digit${n}`)
     await expect(page.getByRole('grid', { name: 'Files' })).toHaveAttribute(
       'data-size',
-      ['details', 'tiles', 'medium', 'large', 'xl'][n - 1]
+      ['details', 'details-l', 'tiles', 'medium', 'large', 'xl'][n - 1]
     )
-    // Let the fade, the flash and any 256px thumbnails settle.
+    // Let the fade, the flash and any bigger thumbnails settle.
     await page.waitForTimeout(800)
     await page.screenshot({ path: join(VZ, `impl-size${n - 1}.png`) })
   }
-  await page.keyboard.press('Control+Shift+Digit2')
+  await page.keyboard.press('Control+Shift+Digit3')
   await page.getByRole('button', { name: /^View: / }).click()
   await expect(page.getByRole('menu', { name: 'View' })).toBeVisible()
   await page.screenshot({ path: join(VZ, 'impl-menu.png') })

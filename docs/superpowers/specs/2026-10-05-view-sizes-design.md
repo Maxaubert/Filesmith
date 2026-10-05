@@ -11,16 +11,18 @@ the one exception), square, flush, IBM Plex Sans + Mono, no em-dashes.
 
 ## 1. Goal and scope
 
-The files view (the queue of Convert, Compress, Resize, Upscale, Remove BG and the PDF tool cards) gets five
-view sizes, named like Windows File Explorer:
+The files view (the queue of Convert, Compress, Resize, Upscale, Remove BG and the PDF tool cards) gets six
+view sizes, named like Windows File Explorer (Large details added 2026-10-05 at the owner's request: "two list
+stages, one with slightly bigger rows"):
 
 | #   | Id        | Label             | Layout                                                                    |
 | --- | --------- | ----------------- | ------------------------------------------------------------------------- |
-| 1   | `details` | Details           | today's table: head, columns, 32px rows, 18px thumb (unchanged)           |
-| 2   | `tiles`   | Tiles             | two columns of 64px two-line tiles with a 48px thumb                      |
-| 3   | `medium`  | Medium icons      | grid of 132px cards: square thumb, name (2 lines), compact status line    |
-| 4   | `large`   | Large icons       | grid of 196px cards; status line adds the change % / estimate / size      |
-| 5   | `xl`      | Extra large icons | grid of 274px cards; status line adds the source size for done rows       |
+| 1   | `details`   | Details           | today's table: head, columns, 32px rows, 18px thumb (unchanged)         |
+| 2   | `details-l` | Large details     | the same table with 44px rows, a 32px thumb and 14px names (else equal) |
+| 3   | `tiles`     | Tiles             | two columns of 64px two-line tiles with a 48px thumb                    |
+| 4   | `medium`    | Medium icons      | grid of 132px cards: square thumb, name (2 lines), compact status line  |
+| 5   | `large`     | Large icons       | grid of 196px cards; status line adds the change % / estimate / size    |
+| 6   | `xl`        | Extra large icons | grid of 274px cards; status line adds the source size for done rows     |
 
 Behaviour stays the same in every size. Only the layout of the rows changes. Completed, Generate, Tools and
 Settings are not part of this work.
@@ -33,15 +35,15 @@ Settings are not part of this work.
   scaled by 40. Ctrl+wheel anywhere else (inspector, sidebar) does nothing special; Electron does not zoom the
   page on Ctrl+wheel, and the files view listener is the only one that calls `preventDefault`.
 - **Keyboard**, whenever the files view is shown: `Ctrl+=` / `Ctrl++` (also numpad +, and Ctrl+Shift+= ) =
-  bigger, `Ctrl+-` (also numpad -) = smaller, `Ctrl+0` = reset to Details, `Ctrl+Shift+1..5` jump to a size.
-  Digits are matched on `KeyboardEvent.code` (`Digit1..5`) so Nordic layouts, where Shift+1 is `!`, work.
+  bigger, `Ctrl+-` (also numpad -) = smaller, `Ctrl+0` = reset to Details, `Ctrl+Shift+1..6` jump to a size.
+  Digits are matched on `KeyboardEvent.code` (`Digit1..6`) so Nordic layouts, where Shift+1 is `!`, work.
   The handler calls `preventDefault`, which also keeps Electron's default menu zoom accelerators
   (zoomIn / zoomOut / resetZoom) from zooming the whole page; e2e asserts the zoom factor stays 1.
 - **View menu button** at the right end of the files toolbar, after the count: view glyph, current label
   (min-width 96px so the toolbar does not jump), chevron. `aria-haspopup="menu"`, `aria-expanded`,
   `title="View (Ctrl+wheel to resize)"`. It flashes `--inv-bg` for 450ms when the size changes by wheel or key
   (no flash under reduced motion). Its menu (anchored under the button, right-aligned, `.menu` styling,
-  min-width 272px) lists the five sizes as `menuitemradio` with a tick, the size glyph, label and
+  min-width 272px) lists the six sizes as `menuitemradio` with a tick, the size glyph, label and
   `Ctrl+Shift+N`; a separator; `Reset to Details  Ctrl+0`; a separator; two hint lines
   (`Ctrl + wheel over the list`, `Bigger, smaller  Ctrl+= / Ctrl+-`). Focus lands on the checked entry; arrows
   walk the entries, Home/End jump, Enter/Space/click picks and closes, Escape or an outside click closes and
@@ -98,12 +100,25 @@ session). An e2e run with a private `FILESMITH_USER_DATA` starts from a fresh st
 
 ## 5. Thumbnails
 
-The renderer already requests a 128px thumbnail per item (`window.filesmith.thumbnail(path, 128, kind)`;
-main `thumbnail.ts`: OS shell first, then magick / ffmpeg). 128px covers Details (18px), Tiles (48px) and
-Medium (116px). Large (180px) and Extra large (258px) request a **256px** thumbnail, lazily and only for the
-current queue's items while one of those sizes is shown, cached by path in renderer memory (never persisted).
-Until it arrives the 128px one is shown, so nothing flickers. The IPC already takes a size; main is unchanged.
-Cost check: the OS provider serves 256px from its cache; the fallbacks run under the existing 3-slot limiter.
+The renderer requests a 128px thumbnail per item (`window.filesmith.thumbnail(path, 128, kind)`; main
+`thumbnail.ts`: OS shell first, then magick / ffmpeg). Bigger sizes ask for a bigger one, sized to the
+screen (revised 2026-10-05: the owner's 4K screen at 225% made the old fixed 256px look pixelated):
+
+- `thumbPxFor(size, devicePixelRatio)` (`queue/thumbSize.ts`) returns the smallest bucket of
+  128 / 256 / 512 / 768 / 1024 that covers the size's thumb width (Details 18, Large details 32, Tiles 48,
+  cards their `--cw` 132 / 196 / 274) times the DPR. At DPR 1: 128, 128, 128, 256, 256, 512. At DPR 2.25:
+  128, 128, 128, 512, 512, 768.
+- Above 128 the request is lazy, only for the current queue's items while that size is shown, once per
+  `${path}@${px}`, cached in renderer memory (never persisted). The best one on hand is shown meanwhile: the
+  wanted bucket, else a bigger cached one (stepping back down asks for nothing), else a smaller one, else the
+  128px one. A failure keeps what is shown.
+- The DPR is watched (`useDevicePixelRatio`: a `(resolution: Ndppx)` media query plus resize), so moving the
+  window to another monitor recomputes the bucket.
+- Main: the Windows shell provider often caps at 256px whatever is asked. When an OS result's longer side is
+  more than 2px under a request above 128 (`osTooSmall`), images, video and audio also go through the tool
+  path (magick `-thumbnail NxN>`, an ffmpeg frame or cover art scaled with `min(N,iw)`), and the bigger of the
+  two wins. Neither path upscales beyond the source. All of it stays under the 3-slot limiter.
+- Card images use `object-fit: cover` and default (smooth) image rendering.
 
 Without a thumbnail, cards show the kind's glyph (image, video, audio, pdf, doc, archive) centred in a
 `--line-strong` frame. Cards at Medium and up show the kind tag (`PNG`) at the bottom right of the thumb;
@@ -116,10 +131,11 @@ video thumbs get a centred play glyph.
 | renderer  | `queue/viewSize.ts` (model, keys, wheel), `queue/gridKeys.ts`, `queue/cardModel.ts` (pure, tested)          |
 | renderer  | `queue/useViewSize.ts` (persisted hook), `queue/ViewMenu.tsx`, `queue/QueueTile.tsx`, `queue/QueueCard.tsx`, `queue/Thumb.tsx` |
 | renderer  | `QueueTable` (size switch, wheel, keyboard grid nav, fade), `QueueToolbar` (menu slot), `TotalsRow` (flat), `StatusCell` / `ResultCell` (extract inline parts), `tableKeys` (Left/Right) |
-| renderer  | `theme/viewsizes.css` (new, imported from `index.css`), 6 new icons (`view-details`, `view-tiles`, `view-medium`, `view-large`, `view-xl`, `mouse`) |
-| App       | `useViewSize`, keyboard shortcuts, 256px thumbnail requests                                                |
-| main      | none                                                                                                      |
-| e2e       | new `e2e/viewsizes.spec.ts`; `ui.spec.ts` toolbar test also expects the View button; `visual.spec.ts` captures `docs/mockups/view-zoom/shots/impl-size0..4.png` and `impl-menu.png` (opt-in, `FILESMITH_SHOTS=1`) |
+| renderer  | `theme/viewsizes.css` (new, imported from `index.css`), 7 new icons (`view-details`, `view-details-l`, `view-tiles`, `view-medium`, `view-large`, `view-xl`, `mouse`) |
+| renderer  | `queue/thumbSize.ts` (bucket per size and DPR, cache lookup, pure, tested), `queue/useDevicePixelRatio.ts` |
+| App       | `useViewSize`, keyboard shortcuts, DPR-sized thumbnail requests                                            |
+| main      | `thumbnail.ts`: fall back to magick / ffmpeg when the OS thumbnail is smaller than a big request           |
+| e2e       | new `e2e/viewsizes.spec.ts`; `ui.spec.ts` toolbar test also expects the View button; `visual.spec.ts` captures `docs/mockups/view-zoom/shots/impl-size0..5.png` and `impl-menu.png` (opt-in, `FILESMITH_SHOTS=1`) |
 | version   | 0.6.0 -> **0.7.0** (minor: a feature)                                                                     |
 
 ## 7. Testing
@@ -128,7 +144,7 @@ video thumbs get a centred play glyph.
   accumulation), grid neighbour navigation (columns, short last row, group crossing), card line per state and
   size, `tableKey` Left/Right, icon registry, no em-dash scan of the new files.
 - Playwright (`npm run build` first): Ctrl+wheel over the list changes the size and Ctrl+wheel over the
-  inspector does not; the View menu lists five sizes and picks one; Ctrl+Shift+3 / Ctrl+0 / Ctrl+= / Ctrl+-;
+  inspector does not; the View menu lists six sizes and picks one; Ctrl+Shift+3 / Ctrl+0 / Ctrl+= / Ctrl+-;
   the page zoom factor stays 1; the size survives a reload; selection, Shift+click and right-click work on
   cards; arrow keys move focus in a grid.
 - Gate: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run test:e2e`.

@@ -3,8 +3,9 @@ import type { KeyLike } from './tableKeys'
 // Pure model for the files view sizes (spec 1-3), named like Windows File
 // Explorer. Kept out of the .tsx files so Vitest and Fast Refresh both work.
 
-export type ViewSize = 'details' | 'tiles' | 'medium' | 'large' | 'xl'
-export type ViewIcon = 'view-details' | 'view-tiles' | 'view-medium' | 'view-large' | 'view-xl'
+export type ViewSize = 'details' | 'details-l' | 'tiles' | 'medium' | 'large' | 'xl'
+export type ViewIcon =
+  'view-details' | 'view-details-l' | 'view-tiles' | 'view-medium' | 'view-large' | 'view-xl'
 
 export interface ViewSizeDef {
   id: ViewSize
@@ -16,11 +17,17 @@ export interface ViewSizeDef {
 
 export const VIEW_SIZES: readonly ViewSizeDef[] = [
   { id: 'details', label: 'Details', icon: 'view-details', digit: 1 },
-  { id: 'tiles', label: 'Tiles', icon: 'view-tiles', digit: 2 },
-  { id: 'medium', label: 'Medium icons', icon: 'view-medium', digit: 3 },
-  { id: 'large', label: 'Large icons', icon: 'view-large', digit: 4 },
-  { id: 'xl', label: 'Extra large icons', icon: 'view-xl', digit: 5 }
+  { id: 'details-l', label: 'Large details', icon: 'view-details-l', digit: 2 },
+  { id: 'tiles', label: 'Tiles', icon: 'view-tiles', digit: 3 },
+  { id: 'medium', label: 'Medium icons', icon: 'view-medium', digit: 4 },
+  { id: 'large', label: 'Large icons', icon: 'view-large', digit: 5 },
+  { id: 'xl', label: 'Extra large icons', icon: 'view-xl', digit: 6 }
 ]
+
+/** The two table sizes: head, columns, column-aligned totals. */
+export function isListSize(s: ViewSize): boolean {
+  return s === 'details' || s === 'details-l'
+}
 
 export const DEFAULT_VIEW: ViewSize = 'details'
 export const VIEW_KEY = 'filesmith.viewSize'
@@ -45,13 +52,14 @@ export interface ViewKeyLike extends KeyLike {
   code: string
 }
 
-/** Ctrl+= / Ctrl++ bigger, Ctrl+- smaller, Ctrl+0 Details, Ctrl+Shift+1..5 a size.
+/** Ctrl+= / Ctrl++ bigger, Ctrl+- smaller, Ctrl+0 Details, Ctrl+Shift+1..6 a size.
  * Digits match on `code`, so Shift+1 = `!` on Nordic layouts still works. */
 export function viewKeyFor(e: ViewKeyLike): ViewKey | null {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return null
   if (e.shiftKey) {
-    const m = /^Digit([1-5])$/.exec(e.code)
-    if (m) return { kind: 'set', size: VIEW_SIZES[Number(m[1]) - 1].id }
+    const m = /^Digit([1-9])$/.exec(e.code)
+    const def = m ? VIEW_SIZES[Number(m[1]) - 1] : undefined
+    if (def) return { kind: 'set', size: def.id }
     return e.key === '+' ? { kind: 'step', delta: 1 } : null
   }
   if (e.key === '=' || e.key === '+') return { kind: 'step', delta: 1 }
@@ -87,9 +95,4 @@ export function wheelStep(
   if (Math.abs(acc) >= THRESHOLD && now - s.last > MIN_GAP_MS)
     return { state: { acc: 0, at: now, last: now }, step: acc < 0 ? 1 : -1 }
   return { state: { acc, at: now, last: s.last }, step: 0 }
-}
-
-/** Thumbnail pixels a size needs (spec 5): the 128px one covers up to Medium. */
-export function thumbPx(s: ViewSize): 128 | 256 {
-  return s === 'large' || s === 'xl' ? 256 : 128
 }

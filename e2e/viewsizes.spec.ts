@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { MAIN, ROOT } from './helpers'
+import { execFileSync } from 'child_process'
+import { FFMPEG, MAGICK, MAIN, ROOT, magickEnv } from './helpers'
 
 // View sizes (spec docs/superpowers/specs/2026-10-05-view-sizes-design.md) on a
 // seeded session: four images and a video, so there are two group headers.
@@ -73,22 +74,23 @@ async function ctrlWheel(x: number, y: number, dy: number): Promise<void> {
   await page.waitForTimeout(150)
 }
 
-test('the View menu lists the five sizes and picks one', async () => {
+test('the View menu lists the six sizes and picks one', async () => {
   await sizeIs('details')
   await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Details')
   await viewBtn().click()
   const menu = page.getByRole('menu', { name: 'View' })
   const items = menu.getByRole('menuitemradio')
   await expect(items).toHaveText([
-    /Details\s*Ctrl\+Shift\+1/,
-    /Tiles\s*Ctrl\+Shift\+2/,
-    /Medium icons\s*Ctrl\+Shift\+3/,
-    /Large icons\s*Ctrl\+Shift\+4/,
-    /Extra large icons\s*Ctrl\+Shift\+5/
+    /^Details\s*Ctrl\+Shift\+1/,
+    /Large details\s*Ctrl\+Shift\+2/,
+    /Tiles\s*Ctrl\+Shift\+3/,
+    /Medium icons\s*Ctrl\+Shift\+4/,
+    /Large icons\s*Ctrl\+Shift\+5/,
+    /Extra large icons\s*Ctrl\+Shift\+6/
   ])
   await expect(items.first()).toHaveAttribute('aria-checked', 'true')
   await expect(items.first()).toBeFocused()
-  await items.nth(3).click()
+  await items.nth(4).click()
   await expect(menu).toHaveCount(0)
   await sizeIs('large')
   await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Large icons')
@@ -102,26 +104,28 @@ test('the View menu lists the five sizes and picks one', async () => {
 test('Ctrl+wheel over the list steps the size; over the inspector it does nothing', async () => {
   const g = (await grid().boundingBox())!
   await ctrlWheel(g.x + g.width / 2, g.y + g.height / 2, -100)
-  await sizeIs('tiles')
+  await sizeIs('details-l')
   await ctrlWheel(g.x + g.width / 2, g.y + g.height / 2, -100)
-  await sizeIs('medium')
-  await ctrlWheel(g.x + g.width / 2, g.y + g.height / 2, 100)
   await sizeIs('tiles')
+  await ctrlWheel(g.x + g.width / 2, g.y + g.height / 2, 100)
+  await sizeIs('details-l')
   const insp = (await page.locator('.insp').boundingBox())!
   await ctrlWheel(insp.x + insp.width / 2, insp.y + insp.height / 2, -100)
-  await sizeIs('tiles')
+  await sizeIs('details-l')
   expect(await zoom()).toBe(1)
   await page.keyboard.press('Control+0')
 })
 
 test('keyboard shortcuts change the size without zooming the page', async () => {
   await page.keyboard.press('Control+Shift+Digit2')
-  await sizeIs('tiles')
+  await sizeIs('details-l')
   await page.keyboard.press('Control+=')
-  await sizeIs('medium')
-  await page.keyboard.press('Control+-')
   await sizeIs('tiles')
-  await page.keyboard.press('Control+Shift+Digit5')
+  await page.keyboard.press('Control+-')
+  await sizeIs('details-l')
+  await page.keyboard.press('Control+Shift+Digit3')
+  await sizeIs('tiles')
+  await page.keyboard.press('Control+Shift+Digit6')
   await sizeIs('xl')
   await page.keyboard.press('Control+=')
   await sizeIs('xl')
@@ -134,7 +138,7 @@ test('keyboard shortcuts change the size without zooming the page', async () => 
 
 test('a size change keeps focus on the same item', async () => {
   await row('bravo').click()
-  await page.keyboard.press('Control+Shift+Digit3')
+  await page.keyboard.press('Control+Shift+Digit4')
   await sizeIs('medium')
   await expect(page.locator('[data-id="v-1"]')).toBeFocused()
   await page.keyboard.press('Control+0')
@@ -142,7 +146,7 @@ test('a size change keeps focus on the same item', async () => {
 })
 
 test('selection, the right-click menu and arrow keys work in an icon grid', async () => {
-  await page.keyboard.press('Control+Shift+Digit3')
+  await page.keyboard.press('Control+Shift+Digit4')
   await row('alpha').click()
   await row('charlie').click({ modifiers: ['Shift'] })
   for (const n of ['alpha', 'bravo', 'charlie'])
@@ -165,11 +169,84 @@ test('selection, the right-click menu and arrow keys work in an icon grid', asyn
 })
 
 test('the chosen size survives a reload', async () => {
-  await page.keyboard.press('Control+Shift+Digit4')
+  await page.keyboard.press('Control+Shift+Digit5')
   await sizeIs('large')
   await page.reload()
   await expect(row('alpha')).toBeVisible()
   await sizeIs('large')
   await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Large icons')
   await page.keyboard.press('Control+0')
+})
+
+test('Large details is the Details table with taller rows and a bigger thumb', async () => {
+  const geom = () =>
+    row('alpha').evaluate((r) => ({
+      h: r.getBoundingClientRect().height,
+      thumb: r.querySelector('.thumb')!.getBoundingClientRect().width,
+      name: parseFloat(getComputedStyle(r.querySelector('.name')!).fontSize),
+      cols: getComputedStyle(r).gridTemplateColumns
+    }))
+  await sizeIs('details')
+  const small = await geom()
+  await page.keyboard.press('Control+Shift+Digit2')
+  await sizeIs('details-l')
+  await expect(viewBtn()).toHaveAttribute('aria-label', 'View: Large details')
+  const big = await geom()
+  expect(small.h).toBe(32)
+  expect(big.h).toBe(44)
+  expect(big.thumb).toBe(32)
+  expect(big.name).toBeGreaterThan(small.name)
+  // Same columns, same head and the column-aligned totals.
+  expect(big.cols).toBe(small.cols)
+  await expect(grid().getByRole('columnheader', { name: 'name' })).toBeVisible()
+  await expect(grid().locator('.totals.flat')).toHaveCount(0)
+  // Up/Down still walk the rows; right-click still opens the row menu.
+  await row('alpha').click()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.locator('[data-id="v-1"]')).toBeFocused()
+  await row('bravo').click({ button: 'right' })
+  await expect(page.getByRole('menuitem', { name: /Remove/ })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+0')
+})
+
+test('big thumbnail buckets really are big, for an image and a video', async () => {
+  test.skip(!existsSync(MAGICK) || !existsSync(FFMPEG), 'needs resources/bin')
+  const dir = join(userData, 'big')
+  mkdirSync(dir, { recursive: true })
+  const img = join(dir, 'photo.png')
+  const vid = join(dir, 'clip.mp4')
+  execFileSync(MAGICK, ['-size', '2400x1600', 'plasma:', img], { env: magickEnv })
+  execFileSync(FFMPEG, [
+    '-y',
+    '-loglevel',
+    'error',
+    '-f',
+    'lavfi',
+    '-i',
+    'testsrc=size=1920x1080:rate=25:duration=2',
+    '-pix_fmt',
+    'yuv420p',
+    vid
+  ])
+  const dims = (path: string, size: number, kind: string, fit?: 'cover'): Promise<number[]> =>
+    page.evaluate(
+      async ({ path, size, kind, fit }) => {
+        const url = await window.filesmith.thumbnail(path, size, kind as never, fit)
+        if (!url) return [0, 0]
+        const im = new Image()
+        im.src = url
+        await im.decode()
+        return [im.naturalWidth, im.naturalHeight]
+      },
+      { path, size, kind, fit }
+    )
+  // The Windows shell tends to cap at 256; the tool fallback must make up the rest.
+  expect(Math.max(...(await dims(img, 768, 'image')))).toBeGreaterThanOrEqual(766)
+  expect(Math.max(...(await dims(vid, 768, 'video')))).toBeGreaterThanOrEqual(766)
+  // Cards crop to a square, so their thumbnails fill: the SHORT side reaches the bucket.
+  expect(Math.min(...(await dims(img, 768, 'image', 'cover')))).toBeGreaterThanOrEqual(766)
+  expect(Math.min(...(await dims(vid, 768, 'video', 'cover')))).toBeGreaterThanOrEqual(766)
+  // The 128px one every item gets stays small.
+  expect(Math.max(...(await dims(img, 128, 'image')))).toBeLessThanOrEqual(128)
 })

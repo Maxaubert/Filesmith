@@ -110,6 +110,12 @@ export const ICON_SHAPES: Record<IconName, Prim[]> = {
     ['circle', 8, 12.5, 0.75]
   ],
   'view-details': [['path', 'M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h11']],
+  'view-details-l': [
+    ['rect', 2.5, 2.5, 3, 3],
+    ['rect', 2.5, 6.5, 3, 3],
+    ['rect', 2.5, 10.5, 3, 3],
+    ['path', 'M7.5 4h6M7.5 8h6M7.5 12h6']
+  ],
   'view-tiles': [
     ['rect', 2.5, 2.5, 4, 4],
     ['rect', 2.5, 9.5, 4, 4],

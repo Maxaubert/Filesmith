@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_VIEW,
   parseViewSize,
+  isListSize,
   stepSize,
-  thumbPx,
   VIEW_KEY,
   VIEW_SIZES,
   viewDef,
@@ -29,31 +29,39 @@ const k = (
 })
 
 describe('view sizes', () => {
-  it('lists the five Explorer sizes in order with their Ctrl+Shift digit', () => {
+  it('lists the six sizes in order with their Ctrl+Shift digit', () => {
     expect(VIEW_SIZES.map((s) => [s.id, s.label, s.digit])).toEqual([
       ['details', 'Details', 1],
-      ['tiles', 'Tiles', 2],
-      ['medium', 'Medium icons', 3],
-      ['large', 'Large icons', 4],
-      ['xl', 'Extra large icons', 5]
+      ['details-l', 'Large details', 2],
+      ['tiles', 'Tiles', 3],
+      ['medium', 'Medium icons', 4],
+      ['large', 'Large icons', 5],
+      ['xl', 'Extra large icons', 6]
     ])
+    expect(viewDef('details-l').icon).toBe('view-details-l')
     expect(DEFAULT_VIEW).toBe('details')
     expect(VIEW_KEY).toBe('filesmith.viewSize')
     expect(viewDef('large').icon).toBe('view-large')
   })
   it('steps one size and clamps at both ends', () => {
-    expect(stepSize('details', 1)).toBe('tiles')
+    expect(stepSize('details', 1)).toBe('details-l')
+    expect(stepSize('details-l', 1)).toBe('tiles')
+    expect(stepSize('tiles', -1)).toBe('details-l')
     expect(stepSize('medium', -1)).toBe('tiles')
     expect(stepSize('xl', 1)).toBe('xl')
     expect(stepSize('details', -1)).toBe('details')
   })
   it('reads a stored value, falling back to Details for anything unknown', () => {
     expect(parseViewSize('large')).toBe('large')
-    for (const bad of [null, undefined, '', 'huge', '3', 3, {}])
+    expect(parseViewSize('details-l')).toBe('details-l')
+    for (const bad of [null, undefined, '', 'huge', '3', 3, {}, 'details-xl'])
       expect(parseViewSize(bad)).toBe('details')
   })
-  it('gives 256px thumbnails only to the two largest sizes', () => {
-    expect(VIEW_SIZES.map((s) => thumbPx(s.id))).toEqual([128, 128, 128, 256, 256])
+  it('treats the two Details sizes as the table', () => {
+    expect(VIEW_SIZES.filter((s) => isListSize(s.id)).map((s) => s.id)).toEqual([
+      'details',
+      'details-l'
+    ])
   })
 })
 
@@ -72,17 +80,22 @@ describe('view keys', () => {
     expect(viewKeyFor(k('0', 'Digit0'))).toEqual({ kind: 'set', size: 'details' })
     expect(viewKeyFor(k('0', 'Numpad0'))).toEqual({ kind: 'set', size: 'details' })
   })
-  it('maps Ctrl+Shift+1..5 by code, whatever character the layout makes', () => {
+  it('maps Ctrl+Shift+1..6 by code, whatever character the layout makes', () => {
     expect(viewKeyFor(k('!', 'Digit1', { shiftKey: true }))).toEqual({
       kind: 'set',
       size: 'details'
     })
-    expect(viewKeyFor(k('#', 'Digit3', { shiftKey: true }))).toEqual({
+    expect(viewKeyFor(k('@', 'Digit2', { shiftKey: true }))).toEqual({
+      kind: 'set',
+      size: 'details-l'
+    })
+    expect(viewKeyFor(k('$', 'Digit4', { shiftKey: true }))).toEqual({
       kind: 'set',
       size: 'medium'
     })
-    expect(viewKeyFor(k('%', 'Digit5', { shiftKey: true }))).toEqual({ kind: 'set', size: 'xl' })
-    expect(viewKeyFor(k('&', 'Digit6', { shiftKey: true }))).toBeNull()
+    expect(viewKeyFor(k('&', 'Digit6', { shiftKey: true }))).toEqual({ kind: 'set', size: 'xl' })
+    expect(viewKeyFor(k('/', 'Digit7', { shiftKey: true }))).toBeNull()
+    expect(viewKeyFor(k('=', 'Digit0', { shiftKey: true }))).toBeNull()
   })
   it('works with Cmd, ignores Alt, plain keys and other Ctrl keys', () => {
     expect(viewKeyFor(k('=', 'Equal', { ctrlKey: false, metaKey: true }))).toEqual({

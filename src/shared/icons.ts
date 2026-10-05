@@ -47,6 +47,7 @@ export const ICON_NAMES = [
   'grip',
   'dots',
   'view-details',
+  'view-details-l',
   'view-tiles',
   'view-medium',
   'view-large',
