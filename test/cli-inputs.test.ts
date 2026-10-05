@@ -22,7 +22,7 @@ beforeAll(() => {
   mkdirSync(join(root, 'sub'))
   writeFileSync(join(root, 'sub', 'c.png'), 'x')
   mkdirSync(join(root, 'odd dir'))
-  for (const f of ['my file & co.png', 'Æble ø.png', '-x.png'])
+  for (const f of ['my file & co.png', 'Æble æøå.png', '-x.png'])
     writeFileSync(join(root, 'odd dir', f), 'x')
 })
 afterAll(() => rmSync(root, { recursive: true, force: true }))
@@ -72,10 +72,10 @@ describe('expandInputs', () => {
   })
 
   it('paths with spaces, &, non-ASCII letters and a flag-like name come back unchanged', async () => {
-    const odd = ['my file & co.png', 'Æble ø.png', '-x.png'].map((f) => at('odd dir', f))
+    const odd = ['my file & co.png', 'Æble æøå.png', '-x.png'].map((f) => at('odd dir', f))
     const sorted = [...odd].sort()
     const literal = await expandInputs(
-      ['odd dir/my file & co.png', 'odd dir\\Æble ø.png', 'odd dir/-x.png'],
+      ['odd dir/my file & co.png', 'odd dir\\Æble æøå.png', 'odd dir/-x.png'],
       opts()
     )
     expect(literal.files).toEqual(odd)
@@ -88,6 +88,12 @@ describe('expandInputs', () => {
     for (const p of odd) expect(deep).toContain(p)
     const abs = (await expandInputs([`${at('odd dir')}\\*.png`], opts())).files
     expect([...abs].sort()).toEqual(sorted)
+  })
+
+  it('a flag-like name works bare (after --) and as ./-x.png from its own folder', async () => {
+    const r = await expandInputs(['-x.png', './-x.png', '.\\-x.png'], opts({ cwd: at('odd dir') }))
+    expect(r.files).toEqual([at('odd dir', '-x.png')])
+    expect(r.issues).toEqual([])
   })
 
   it('no match and not found are per-argument issues', async () => {
