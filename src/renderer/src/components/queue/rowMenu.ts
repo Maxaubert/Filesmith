@@ -44,7 +44,7 @@ export function rowMenuModel(targets: QueueItem[], queue: QueueItem[]): RowMenuE
   const retries = targets.filter(retryable).length
   const clearable = queue.filter(finished).length
   return [
-    { action: 'open', label: 'Open', icon: 'eye', disabled: !one },
+    { action: 'open', label: 'Open in default app', icon: 'arrow', disabled: !one },
     {
       action: 'reveal',
       label: 'Show in File Explorer',

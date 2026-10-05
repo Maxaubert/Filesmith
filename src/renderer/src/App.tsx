@@ -617,7 +617,11 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Open', icon: 'eye', onClick: () => openExternally('output', item) },
+        {
+          label: 'Open in default app',
+          icon: 'arrow',
+          onClick: () => openExternally('output', item)
+        },
         {
           label: 'Show in File Explorer',
           icon: 'folder',
@@ -716,7 +720,7 @@ export default function App(): JSX.Element {
       x,
       y,
       items: [
-        { label: 'Open', icon: 'eye', onClick: () => previewGen(path) },
+        { label: 'Preview', icon: 'eye', onClick: () => previewGen(path) },
         {
           label: 'Open in default app',
           icon: 'arrow',

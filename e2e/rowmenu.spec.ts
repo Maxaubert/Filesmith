@@ -67,7 +67,7 @@ test('right-clicking an unselected row selects it and opens its menu', async () 
   await expect(item('Retry')).toBeDisabled()
   await expect(item('Stop')).toBeDisabled()
   // Keyboard: focus starts on the first entry and arrows walk the live ones.
-  await expect(item('Open')).toBeFocused()
+  await expect(item('Open in default app')).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(item('Show in File Explorer')).toBeFocused()
   await page.keyboard.press('Escape')
@@ -80,7 +80,7 @@ test('a multi-selection menu counts, and Preview and Info show no single file', 
   await row('bravo').click({ button: 'right' })
   await expect(item('Remove 3 from list')).toBeVisible()
   await expect(item('Delete 3 files')).toBeVisible()
-  await expect(item('Open')).toBeDisabled()
+  await expect(item('Open in default app')).toBeDisabled()
   await expect(item('Show in File Explorer')).toBeDisabled()
   await expect(item('Retry')).toBeEnabled()
   // Delete asks first, names the count and the Recycle Bin; cancel leaves all.
