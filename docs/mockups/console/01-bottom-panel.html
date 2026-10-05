@@ -1,0 +1,972 @@
+<!doctype html>
+<!--
+  Console concept 01, "Bottom panel" (2026-10-05).
+  A VS Code style panel under the files view. The inspector keeps its full height on the right.
+  Toggle: the Console button in the files toolbar, or Ctrl+` . Resize: drag the line on top of the panel.
+  One session, no tabs. It runs filesmith commands only, typed without the "filesmith" prefix;
+  anything else is refused in one line that points to "Open in terminal" (real Windows terminal,
+  current folder, filesmith on PATH).
+  Queue: console jobs never join the Convert queue. Their output stays in the console, with a
+  "Show in File Explorer" button under each finished run.
+  Screenshot states: #state=closed | open-idle | running | error | rejected | completion | history
+  Typing works: try  convert *.heic --to webp,  resize *.png --percent 50,  compress lecture.mov,
+  convert IMG_2042.jpg --to png,  del *.*,  claude,  doctor,  help,  clear. Tab completes, Up/Down recalls,
+  Ctrl+C or Stop cancels a run, Ctrl+L clears.
+  Base: the shipped renderer CSS (src/renderer/src/theme) and docs/mockups/view-zoom/shots/impl-*.png.
+  Strict monochrome (r=g=b); the red Stop is the one hue.
+-->
+<html lang="en" data-sidebar="expanded">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Console Bottom Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0a0a0a; --bg-1:#0f0f0f; --hover:#1a1a1a; --selected:#202020; --field:#141414; --track:#2a2a2a;
+  --line:#262626; --line-strong:#3a3a3a;
+  --fg1:#ededed; --fg2:#b4b4b4; --fg3:#8c8c8c; --fg-disabled:#5c5c5c;
+  --inv-bg:#2a2a2a; --inv-fg:#ededed; --inv-hover:#3a3a3a; --inv-active:#202020; --focus:#ededed;
+  --stop-bg:#c42b1c; --stop-hover:#d13b2c; --stop-active:#a8251a; --stop-fg:#ffffff;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",Consolas,monospace;
+  --sbw:208px;
+  --cols:40px 1fr 64px 88px 184px 232px;
+  --ch:340px;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box;border-radius:0}
+html,body{background:var(--bg-0)}
+body{margin:0;width:1440px;height:900px;overflow:hidden;color:var(--fg1);font:13px/1.4 var(--sans);
+  -webkit-font-smoothing:antialiased;display:grid;grid-template-rows:32px 1fr;user-select:none;cursor:default}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:square;stroke-linejoin:miter}
+svg.i *{vector-effect:non-scaling-stroke}
+svg.i12{width:12px;height:12px}
+:focus-visible{outline:1px solid var(--focus);outline-offset:-1px}
+
+/* title bar */
+.titlebar{background:var(--bg-0);border-bottom:1px solid var(--line);display:flex;align-items:center;padding-left:14px}
+.brand{display:flex;align-items:center;gap:8px;color:var(--fg1);font-weight:600;line-height:1}
+.tsep{width:1px;align-self:stretch;background:var(--line);margin:0 12px}
+.crumb{display:flex;align-items:center;gap:6px;color:var(--fg3);font:12px/1 var(--mono)}
+.crumb button{font:inherit;color:var(--fg3);padding:4px 2px}
+.crumb button:hover{color:var(--fg1);text-decoration:underline;text-underline-offset:3px}
+.crumb b{color:var(--fg1);font-weight:500}
+.winctl{margin-left:auto;display:flex;align-self:stretch}
+.winctl button{width:46px;display:grid;place-items:center;color:var(--fg2);border-left:1px solid var(--line)}
+.winctl button:hover{background:var(--hover);color:var(--fg1)}
+.winctl svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1}
+
+/* workbench */
+.wb{display:grid;grid-template-columns:auto minmax(0,1fr) 340px;min-height:0}
+.side{width:var(--sbw);background:var(--bg-0);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.side-head{height:32px;display:flex;align-items:center;border-bottom:1px solid var(--line);flex:none}
+.side-head .lbl{padding-left:16px;font:11px/1 var(--mono);color:var(--fg3)}
+.toggle{margin-left:auto;width:47px;height:31px;display:grid;place-items:center;color:var(--fg2)}
+.toggle:hover{background:var(--hover);color:var(--fg1)}
+.nav{display:flex;flex-direction:column;padding:6px 0}
+.item{height:36px;display:flex;align-items:center;gap:12px;padding:0 14px 0 15px;color:var(--fg2);white-space:nowrap;text-align:left;width:100%}
+.item:hover{background:var(--hover);color:var(--fg1)}
+.item.on{color:var(--fg1);font-weight:600;background:var(--selected)}
+.item .lab{flex:1}
+.item .n{font:500 11px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg3)}
+.side .spacer{flex:1}
+.nav.bottom{border-top:1px solid var(--line)}
+
+/* center column: toolbar, files, console */
+.center{position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:32px minmax(0,1fr);min-width:0;min-height:0;background:var(--bg-0)}
+.con-open .center{grid-template-rows:32px minmax(0,1fr) var(--ch)}
+.toolbar{display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
+.tbtn{display:inline-flex;align-items:center;gap:8px;padding:0 14px;color:var(--fg1);line-height:1;border-right:1px solid var(--line);white-space:nowrap}
+.tbtn.add{font-weight:600}
+.tbtn:hover{background:var(--hover)}
+.tbtn:active{background:var(--selected)}
+.tb-right{margin-left:auto;display:flex;align-items:stretch}
+.count{display:flex;align-items:center;font:12px var(--mono);color:var(--fg3);padding:0 12px;white-space:nowrap}
+.viewbtn{display:inline-flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-left:1px solid var(--line);color:var(--fg2);font-size:12px;line-height:1}
+.viewbtn .vl{color:var(--fg1);min-width:96px;text-align:left}
+.viewbtn:hover{background:var(--hover);color:var(--fg1)}
+/* the console toggle: a toolbar button that stays pressed while the panel is open */
+.conbtn{display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-left:1px solid var(--line);color:var(--fg2);font-size:12px;line-height:1;white-space:nowrap}
+.conbtn .cl{color:var(--fg1)}
+.conbtn .k{font:11px var(--mono);color:var(--fg3)}
+.conbtn .live{display:none;font:600 11px var(--mono);color:var(--fg1)}
+.conbtn.busy .live{display:inline}
+.con-open .conbtn .live{display:none}
+.conbtn:hover{background:var(--hover);color:var(--fg1)}
+.conbtn[aria-pressed="true"]{background:var(--selected);color:var(--fg1)}
+.conbtn[aria-pressed="true"] .cl{font-weight:600}
+
+/* files table (Details) */
+.qtable{min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.qbody{flex:1;min-height:0;overflow:hidden}
+.cols{display:grid;grid-template-columns:var(--cols);align-items:center}
+.thead{height:28px;border-bottom:1px solid var(--line-strong);flex:none}
+.th{height:28px;display:flex;align-items:center;gap:4px;padding:0 10px;font:500 11px/1 var(--mono);color:var(--fg3);border-right:1px solid var(--line)}
+.th:last-child{border-right:0}
+.th.num{justify-content:flex-end}
+.th.ck{justify-content:center;padding:0}
+.tr{position:relative;height:32px;border-bottom:1px solid var(--line)}
+.tr:hover{background:var(--hover)}
+.tr.sel{background:var(--selected)}
+.td{padding:0 10px;display:flex;align-items:center;gap:10px;min-width:0;white-space:nowrap}
+.td.num{justify-content:flex-end}
+.td.ck{justify-content:center;padding:0}
+.box{width:14px;height:14px;border:1px solid var(--fg3);display:grid;place-items:center;flex:none;color:var(--inv-fg)}
+.box svg{width:10px;height:10px;stroke-width:2}
+.box.on{background:var(--inv-bg);border-color:var(--inv-bg)}
+.box.mixed{border-color:var(--fg2)}
+.box.mixed::before{content:"";width:8px;height:2px;background:var(--fg1)}
+.name{font:13px var(--mono);color:var(--fg1);overflow:hidden;text-overflow:ellipsis}
+.thumb{width:18px;height:18px;border:1px solid var(--line-strong);flex:none}
+.meta{font:12px var(--mono);color:var(--fg3)}
+.size{font:12px var(--mono);color:var(--fg2)}
+.res{display:flex;align-items:center;gap:8px;font:12px var(--mono);font-variant-numeric:tabular-nums}
+.res b{font-weight:600;color:var(--fg1)}
+.res .pct{color:var(--fg3)}
+.td.rc{position:relative;overflow:visible}
+.res .arr{position:absolute;left:0;top:50%;transform:translate(calc(-50% - .5px),-50%);padding:2px 1px;background:var(--bg-0);color:var(--fg3);display:flex}
+.tr.sel .res .arr{background:var(--selected)}
+.st{display:flex;align-items:center;gap:8px;font-size:12px;min-width:0}
+.st.done{color:var(--fg2)}
+.st.fail{color:var(--inv-fg);background:var(--inv-bg);font-weight:600;height:22px;padding:0 8px 0 6px;gap:6px;overflow:hidden}
+.row-act{margin-left:auto;width:24px;height:24px;display:grid;place-items:center;color:var(--fg1);border:1px solid var(--line-strong);flex:none}
+.row-act:hover{border-color:var(--fg2);background:var(--hover)}
+.totals{height:30px;border-top:1px solid var(--line-strong);font:12px var(--mono);color:var(--fg2);flex:none}
+.totals b{font-weight:600;color:var(--fg1)}
+.totals .so{color:var(--fg3)}
+
+/* inspector */
+.insp{background:var(--bg-0);border-left:1px solid var(--line);display:grid;grid-template-rows:32px 1fr auto;min-height:0;min-width:0}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tab{position:relative;display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--fg3);font-size:12px;line-height:1}
+.tab:hover{color:var(--fg1);background:var(--hover)}
+.tab.on{color:var(--fg1);font-weight:600}
+.tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--fg1)}
+.ihead{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.ihead h1{margin:0;font-weight:600;font-size:14px;line-height:1.3}
+.ihead span{font:12px var(--mono);color:var(--fg3)}
+.ibody{min-height:0;overflow:hidden}
+.vs{padding:0 0 12px}
+.vs-gh{display:flex;align-items:center;gap:10px;padding:14px 16px 4px;font:600 11px/1 var(--mono);letter-spacing:.09em;color:var(--fg3)}
+.vs-gh::after{content:"";flex:1;height:1px;background:var(--line)}
+.vs-set{display:flex;flex-direction:column;gap:3px;padding:7px 16px 9px}
+.vs-t{font:500 13px/1.3 var(--sans);color:var(--fg1)}
+.vs-d{font:12px/1.4 var(--sans);color:var(--fg3);margin-bottom:5px}
+.vs-sel{display:flex;align-items:center;width:100%;height:28px;padding:0 6px 0 8px;background:var(--field);border:1px solid var(--line-strong);font:13px var(--mono);color:var(--fg1);text-align:left}
+.vs-sel .val{flex:1}
+.vs-sel svg{color:var(--fg2)}
+.vs-sel.dis{color:var(--fg-disabled);border-color:var(--line);background:transparent}
+.vs-sel.dis svg{color:var(--fg-disabled)}
+.vs-sel.half{width:168px}
+.vs-row{display:flex;gap:6px}
+.vs-row .vs-sel{flex:1;width:auto}
+.seg{display:flex;width:100%;height:28px;border:1px solid var(--line-strong)}
+.seg button{flex:1 1 0;display:grid;place-items:center;font:13px/1 var(--mono);color:var(--fg2);border-left:1px solid var(--line-strong)}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--inv-bg);color:var(--inv-fg);font-weight:600}
+.sbtn{display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px 0 8px;font:12px/1 var(--sans);color:var(--fg1);border:1px solid var(--line-strong);white-space:nowrap}
+.sbtn svg{color:var(--fg2)}
+.sbtn:hover{background:var(--hover);border-color:var(--fg3)}
+.sbtn:hover svg{color:var(--fg1)}
+.sbtn:active{background:var(--inv-bg)}
+.vs-row .sbtn{height:28px}
+.vs-est{margin:14px 16px 0;border:1px solid var(--line-strong);padding:12px 14px 13px;display:grid;gap:9px}
+.vs-est .eh{display:flex;justify-content:space-between;font:11px/1 var(--mono);color:var(--fg3);letter-spacing:.04em}
+.vs-est .ev{display:flex;align-items:baseline;gap:10px;font:13px var(--mono)}
+.vs-est .ev .from{color:var(--fg2)}
+.vs-est .ev svg{color:var(--fg3);align-self:center}
+.vs-est .ev b{font-size:16px;font-weight:600}
+.vs-est .ev .pct{margin-left:auto;color:var(--fg2)}
+.ifoot{border-top:1px solid var(--line);display:flex;align-items:stretch;height:48px}
+.primary{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--inv-bg);color:var(--inv-fg);font-weight:600;font-size:13px}
+.primary:hover{background:var(--inv-hover)}
+
+/* ---------- console panel ---------- */
+.console{position:relative;display:none;grid-template-rows:32px minmax(0,1fr);min-height:0;border-top:1px solid var(--line-strong);background:var(--bg-0)}
+.con-open .console{display:grid}
+/* the sash: a 7px hit area on the top edge, a 2px grey line while hovered or dragged */
+.sash{position:absolute;left:0;right:0;top:-4px;height:7px;cursor:row-resize;z-index:5}
+.sash::after{content:"";position:absolute;left:0;right:0;top:2px;height:2px;background:transparent;transition:background-color .1s .15s}
+.sash:hover::after,.sash.drag::after{background:var(--fg3)}
+.chead{display:flex;align-items:stretch;border-bottom:1px solid var(--line);min-width:0;overflow:hidden}
+.chead .lbl{display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;font:600 12px/1 var(--sans);color:var(--fg1)}
+.chead .lbl svg{color:var(--fg2)}
+.cwd{display:inline-flex;align-items:center;gap:8px;padding:0 8px 0 10px;border-left:1px solid var(--line);border-right:1px solid var(--line);font:12px/1 var(--mono);color:var(--fg2)}
+.cwd .p{color:var(--fg1)}
+.cwd:hover{background:var(--hover);color:var(--fg1)}
+.cwd[aria-expanded="true"]{background:var(--hover)}
+.chead .note{display:block;align-self:center;min-width:0;padding:0 12px;font-size:12px;color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chead .r{margin-left:auto;display:flex;align-items:stretch;flex:none}
+.hbtn{display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-left:1px solid var(--line);color:var(--fg1);font-size:12px;line-height:1;white-space:nowrap}
+.hbtn svg{color:var(--fg2)}
+.hbtn:hover{background:var(--hover)}
+.hbtn:hover svg{color:var(--fg1)}
+.hbtn:active{background:var(--selected)}
+.hib{width:36px;display:grid;place-items:center;color:var(--fg2);border-left:1px solid var(--line)}
+.hib:hover{background:var(--hover);color:var(--fg1)}
+/* Stop: the one hue, shown only while a console run is going */
+.stopbtn{display:none;align-items:center;gap:8px;padding:0 14px;background:var(--stop-bg);color:var(--stop-fg);font-weight:600;font-size:12px;line-height:1;white-space:nowrap}
+.stopbtn .k{font:500 11px var(--mono);opacity:.85}
+.stopbtn:hover{background:var(--stop-hover)}
+.stopbtn:active{background:var(--stop-active)}
+.running .stopbtn{display:inline-flex}
+
+.cbody:focus{outline:0}
+.cbody{min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px 0 4px;font:12px/19px var(--mono);font-variant-numeric:tabular-nums;color:var(--fg2);
+  scrollbar-width:thin;scrollbar-color:var(--line-strong) var(--bg-0);user-select:text;cursor:text}
+.ln{padding:0 16px;white-space:pre;min-height:19px;display:flex;align-items:center;gap:0}
+.ln.note{display:block;padding-top:1px;padding-bottom:1px;line-height:18px;color:var(--fg3);white-space:normal;font-family:var(--sans);font-size:12px}
+.ln.note b{font-weight:500;color:var(--fg2)}
+.ln.note code{font:12px var(--mono);color:var(--fg2)}
+/* a command block: the echoed command, then its output */
+.blk{margin-top:10px}
+.blk:first-child{margin-top:2px}
+.cmd .pr{color:var(--fg3)}
+.cmd .fx{color:var(--fg3)}
+.cmd .tx{color:var(--fg1);font-weight:500}
+.cmd .dec{margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--fg3);font-size:11px;padding-left:16px}
+.cmd .dec.bad{color:var(--fg1);font-weight:600}
+.ok .tg{color:var(--fg2)}
+.ok .nm{color:var(--fg1)}
+.skip{color:var(--fg3)}
+.fail .tg,.fail .nm,.fail .msg{color:var(--fg1);font-weight:600}
+.stop .tg{color:var(--fg1)}
+.hint{color:var(--fg2);padding-left:calc(16px + 8ch)}
+.hint.run{padding-left:calc(16px + 2ch)}
+.hint .h{color:var(--fg3)}
+.sum{color:var(--fg2)}
+.sum .acts{display:inline-flex;gap:6px;margin-left:14px}
+.mini{height:20px;padding:0 8px 0 6px;font-size:11px;gap:6px}
+.mini svg{width:12px;height:12px}
+.prog .bar{width:120px;height:2px;background:var(--track);position:relative;margin-left:14px}
+.prog .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--fg1)}
+.prog b{color:var(--fg1);font-weight:600}
+.prog .eta{color:var(--fg3)}
+.prog .nm{color:var(--fg1)}
+.refuse{color:var(--fg2);white-space:normal;font-family:var(--sans);font-size:12px;gap:10px}
+.refuse svg{color:var(--fg3)}
+.refuse code{font:12px var(--mono);color:var(--fg1)}
+.refuse .sbtn{margin-left:4px}
+
+/* prompt line */
+.pline{display:flex;align-items:center;height:26px;padding:0 16px;margin-top:6px;position:relative}
+.pline .pr,.pline .fx{color:var(--fg3);white-space:pre}
+.pin{flex:1;min-width:0;height:22px;background:transparent;border:0;outline:0;padding:0;font:500 12px var(--mono);color:var(--fg1);caret-color:var(--fg1)}
+.pin::placeholder{color:var(--fg3);font-weight:400;font-style:italic}
+.pline .keys{display:flex;gap:14px;font:11px var(--mono);color:var(--fg3);white-space:nowrap;padding-left:16px}
+.pline .keys kbd{font:inherit;color:var(--fg2);border:1px solid var(--line-strong);padding:0 4px;margin-right:5px}
+.pline.wait .pin{display:none}
+.pline .waitmsg{display:none;flex:1;font:12px var(--sans);color:var(--fg3)}
+.pline.wait .waitmsg{display:block}
+.pline.wait .pr,.pline.wait .fx{display:none}
+
+/* completion list, anchored above the caret */
+.comp{position:fixed;z-index:40;min-width:380px;background:var(--bg-0);border:1px solid var(--line-strong);padding:4px 0 0;display:none}
+.comp.on{display:block}
+.comp .gh{padding:6px 12px 4px;font:600 11px/1 var(--mono);letter-spacing:.09em;color:var(--fg3)}
+.comp ul{list-style:none;margin:0;padding:0 0 4px}
+.comp li{height:26px;display:flex;align-items:center;gap:14px;padding:0 12px;cursor:pointer}
+.comp li .v{font:12px var(--mono);color:var(--fg2);min-width:118px;white-space:pre}
+.comp li .v u{text-decoration:none;color:var(--fg1);font-weight:600}
+.comp li .d{font:12px var(--sans);color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp li:hover,.comp li.act{background:var(--hover)}
+.comp li.act .v{color:var(--fg1)}
+.comp li.act .d{color:var(--fg2)}
+.comp .ft{display:flex;gap:14px;border-top:1px solid var(--line);padding:6px 12px;font:11px var(--mono);color:var(--fg3)}
+.comp .ft kbd{font:inherit;color:var(--fg2);border:1px solid var(--line-strong);padding:0 4px;margin-right:5px}
+
+/* small dropdown menu (folder picker) */
+.menu{position:fixed;z-index:50;min-width:236px;padding:4px 0;background:var(--bg-0);border:1px solid var(--line-strong);display:none}
+.menu.on{display:block}
+.menu-item{width:100%;height:28px;display:flex;align-items:center;gap:10px;padding:0 12px;font-size:12px;color:var(--fg2);text-align:left}
+.menu-item .tick{visibility:hidden}
+.menu-item[aria-checked="true"]{color:var(--fg1);font-weight:600}
+.menu-item[aria-checked="true"] .tick{visibility:visible}
+.menu-item .p{font-family:var(--mono)}
+.menu-item:hover{background:var(--hover);color:var(--fg1)}
+.menu-sep{height:1px;margin:4px 0;background:var(--line)}
+
+@media (prefers-reduced-motion:reduce){.sash::after{transition:none}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-convert" viewBox="0 0 16 16"><path d="M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13"/></symbol>
+    <symbol id="i-compress" viewBox="0 0 16 16"><path d="M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11"/></symbol>
+    <symbol id="i-resize" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10"/></symbol>
+    <symbol id="i-upscale" viewBox="0 0 16 16"><rect x="2.5" y="8.5" width="5" height="5"/><path d="M9 2.5h4.5V7M13.5 2.5L8.5 7.5"/></symbol>
+    <symbol id="i-removebg" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5"/></symbol>
+    <symbol id="i-generate" viewBox="0 0 16 16"><path d="M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></symbol>
+    <symbol id="i-completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8.25l1.75 1.75L10.75 6.5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 16 16"><path d="M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6"/><circle cx="9" cy="5" r="1.5"/><circle cx="6" cy="11" r="1.5"/></symbol>
+    <symbol id="i-addfile" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3M8 7v5M5.5 9.5h5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 16 16"><path d="M3 3v3h3M3.3 6A5 5 0 1 1 3 9.5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5v.5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M10 5l3 3-3 3"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11"/><path d="M6 2.5v11M10.5 6.5L9 8l1.5 1.5"/></symbol>
+    <symbol id="i-anvil" viewBox="0 0 16 16"><path d="M1.5 4.5h10c0 2 1.5 3 3 3v1h-5l-1 2h2v2h-6v-2h2l-1-2c-2.5 0-4-1.5-4-4z"/></symbol>
+    <symbol id="i-options" viewBox="0 0 16 16"><path d="M2.5 4.5h3M8.5 4.5h5M2.5 11.5h7M12.5 11.5h1"/><rect x="5.5" y="3" width="3" height="3"/><rect x="9.5" y="10" width="3" height="3"/></symbol>
+    <symbol id="i-view-details" viewBox="0 0 16 16"><path d="M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h11"/></symbol>
+    <symbol id="i-console" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11"/><path d="M4.5 6l2 2-2 2M8.5 10.5h3"/></symbol>
+    <symbol id="i-external" viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M13.5 2.5L8 8M11.5 9.5v4h-9v-9h4"/></symbol>
+    <symbol id="i-clear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M4.2 11.8l7.6-7.6"/></symbol>
+  </defs>
+</svg>
+
+<header class="titlebar">
+  <div class="brand"><svg class="i"><use href="#i-anvil"/></svg><span>Filesmith</span></div>
+  <span class="tsep"></span>
+  <nav class="crumb" aria-label="Location"><button>convert</button><span>/</span><b>images</b></nav>
+  <div class="winctl">
+    <button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+    <button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+    <button aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </div>
+</header>
+
+<div class="wb">
+  <nav class="side" aria-label="Operations">
+    <div class="side-head">
+      <span class="lbl">operations</span>
+      <button class="toggle" aria-label="Collapse sidebar" title="Collapse sidebar (Ctrl+B)"><svg class="i"><use href="#i-sidebar"/></svg></button>
+    </div>
+    <div class="nav">
+      <button class="item on" aria-current="page"><svg class="i"><use href="#i-convert"/></svg><span class="lab">Convert</span><span class="n">6</span></button>
+      <button class="item"><svg class="i"><use href="#i-compress"/></svg><span class="lab">Compress</span></button>
+      <button class="item"><svg class="i"><use href="#i-resize"/></svg><span class="lab">Resize</span></button>
+      <button class="item"><svg class="i"><use href="#i-upscale"/></svg><span class="lab">Upscale</span></button>
+      <button class="item"><svg class="i"><use href="#i-removebg"/></svg><span class="lab">Remove BG</span></button>
+      <button class="item"><svg class="i"><use href="#i-generate"/></svg><span class="lab">Generate</span></button>
+      <button class="item"><svg class="i"><use href="#i-tools"/></svg><span class="lab">PDF Tools</span></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="nav bottom">
+      <button class="item"><svg class="i"><use href="#i-completed"/></svg><span class="lab">Completed</span><span class="n">1</span></button>
+      <button class="item"><svg class="i"><use href="#i-settings"/></svg><span class="lab">Settings</span></button>
+    </div>
+  </nav>
+
+  <main class="center" id="center">
+    <div class="toolbar">
+      <button class="tbtn add"><svg class="i"><use href="#i-addfile"/></svg>Add files</button>
+      <div class="tb-right">
+        <span class="count">6 files, 1 selected</span>
+        <button class="conbtn" id="conBtn" aria-pressed="false" aria-controls="console" title="Console (Ctrl+`)">
+          <svg class="i"><use href="#i-console"/></svg><span class="cl">Console</span><span class="live" id="conLive"></span><span class="k">Ctrl+`</span>
+        </button>
+        <button class="viewbtn" aria-haspopup="menu"><svg class="i"><use href="#i-view-details"/></svg><span class="vl">Details</span><svg class="i i12"><use href="#i-chev-d"/></svg></button>
+      </div>
+    </div>
+
+    <div class="qtable" role="table" aria-label="Convert queue">
+      <div class="thead cols" role="row">
+        <div class="th ck"><span class="box mixed"></span></div>
+        <div class="th">name</div><div class="th">kind</div><div class="th num">size</div><div class="th">result</div><div class="th">status</div>
+      </div>
+      <div class="qbody" id="qbody"></div>
+      <div class="totals cols" role="row">
+        <div class="td"></div><div class="td">6 files</div><div class="td"></div><div class="td num">177 MB</div>
+        <div class="td"><span>167 MB</span><svg class="i i12" style="color:var(--fg3)"><use href="#i-arrow"/></svg><b>1.2 GB</b><span class="so">so far</span></div>
+        <div class="td"><b>3 of 6 done</b></div>
+      </div>
+    </div>
+
+    <section class="console" id="console" aria-label="Console">
+      <div class="sash" id="sash" role="separator" aria-orientation="horizontal" aria-label="Resize console" tabindex="0"></div>
+      <div class="chead">
+        <span class="lbl"><svg class="i"><use href="#i-console"/></svg>Console</span>
+        <button class="cwd" id="cwdBtn" aria-haspopup="menu" aria-expanded="false" title="Folder the commands run in">
+          <svg class="i"><use href="#i-folder"/></svg><span class="p" id="cwdLbl">D:\Photos\Trip</span><svg class="i i12"><use href="#i-chev-d"/></svg>
+        </button>
+        <span class="note" title="Runs here do not join the queue">filesmith only, not in the queue</span>
+        <div class="r">
+          <button class="stopbtn" id="stopBtn" title="Stop the run (Ctrl+C)"><svg class="i"><use href="#i-stop"/></svg>Stop<span class="k">Ctrl+C</span></button>
+          <button class="hbtn" id="termBtn" title="Open Windows Terminal in this folder, with filesmith on PATH"><svg class="i"><use href="#i-external"/></svg>Open in terminal</button>
+          <button class="hib" id="clearBtn" title="Clear (Ctrl+L)" aria-label="Clear console"><svg class="i"><use href="#i-clear"/></svg></button>
+          <button class="hib" id="closeBtn" title="Close console (Ctrl+`)" aria-label="Close console"><svg class="i"><use href="#i-close"/></svg></button>
+        </div>
+      </div>
+      <div class="cbody" id="cbody">
+        <div id="out"></div>
+        <div class="pline" id="pline">
+          <span class="pr" id="ppr">D:\Photos\Trip&gt; </span><span class="fx">filesmith </span>
+          <input class="pin" id="pin" spellcheck="false" autocomplete="off" aria-label="filesmith command" placeholder="convert *.heic --to webp">
+          <span class="waitmsg" id="waitmsg">Running. Ctrl+C or Stop cancels it; the app's queue keeps working.</span>
+          <span class="keys" id="keys"><span><kbd>Tab</kbd>complete</span><span><kbd>Up</kbd><kbd>Down</kbd>history</span></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="insp" aria-label="Inspector">
+    <div class="tabs">
+      <button class="tab on"><svg class="i"><use href="#i-options"/></svg>Options</button>
+      <button class="tab"><svg class="i"><use href="#i-eye"/></svg>Preview</button>
+      <button class="tab"><svg class="i"><use href="#i-info"/></svg>Info</button>
+    </div>
+    <div class="ibody">
+      <div class="ihead"><h1>Convert</h1><span>1 selected</span></div>
+      <div class="vs">
+        <div class="vs-gh">FORMAT</div>
+        <div class="vs-set"><div class="vs-t">Format</div><div class="vs-d">The format the selected files are converted to.</div>
+          <button class="vs-sel"><span class="val">webp</span><svg class="i"><use href="#i-chev-d"/></svg></button></div>
+        <div class="vs-set"><div class="vs-t">Quality</div><div class="vs-d">Smaller files, or closer to the original.</div>
+          <div class="seg"><button>smaller</button><button class="on">balanced</button><button>best</button></div></div>
+        <div class="vs-gh">OUTPUT</div>
+        <div class="vs-set"><div class="vs-t">Location</div><div class="vs-d">Files are written next to each source.</div>
+          <div class="vs-row"><button class="vs-sel"><span class="val">next to source</span><svg class="i"><use href="#i-chev-d"/></svg></button>
+          <button class="sbtn"><svg class="i"><use href="#i-folder"/></svg>Choose folder</button></div></div>
+        <div class="vs-gh">FILES</div>
+        <div class="vs-set"><div class="vs-t">If file exists</div><div class="vs-d">Existing files are never overwritten.</div>
+          <button class="vs-sel half dis"><span class="val">add (2)</span><svg class="i"><use href="#i-chev-d"/></svg></button></div>
+        <div class="vs-est"><div class="eh"><span>estimate</span><span>1 file</span></div>
+          <div class="ev"><span class="from">29 MB</span><svg class="i i12"><use href="#i-arrow"/></svg><b>~649 KB</b><span class="pct">-98%</span></div></div>
+      </div>
+    </div>
+    <div class="ifoot"><button class="primary"><svg class="i"><use href="#i-play"/></svg>Convert 1 image</button></div>
+  </aside>
+</div>
+
+<div class="menu" id="cwdMenu" role="menu"></div>
+<div class="comp" id="comp" role="listbox" aria-label="Completions"></div>
+
+<script>
+(() => {
+const $ = (s) => document.querySelector(s)
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const ico = (n, cls = 'i') => `<svg class="${cls}"><use href="#i-${n}"/></svg>`
+
+/* ---------- queue rows (copied from the shipped Details view) ---------- */
+const rows = [
+  { n: 'IMG_2041.jpg', k: 'JPG', s: '694 KB', r: ['29 KB', '-96%'], st: 'done', g: '#7a7a7a,#3c3c3c' },
+  { n: 'beach-panorama.png', k: 'PNG', s: '29 MB', r: ['51 KB', '-99%'], st: 'done', sel: 1, g: '#9a9a9a,#4a4a4a' },
+  { n: 'scan_0007.tiff', k: 'TIFF', s: '137 MB', r: ['1.2 GB', '+800%'], st: 'done', g: '#6a6a6a,#2c2c2c' },
+  { n: 'portrait.jpg', k: 'JPG', s: '680 KB', g: '#8a8a8a,#333333' },
+  { n: 'diagram.png', k: 'PNG', s: '9.3 MB', g: '#b0b0b0,#5a5a5a' },
+  { n: 'IMG_2042.jpg', k: 'JPG', s: '692 KB', st: 'fail', g: '#767676,#2f2f2f' }
+]
+$('#qbody').innerHTML = rows.map((r) => `
+  <div class="tr cols${r.sel ? ' sel' : ''}" role="row">
+    <div class="td ck"><span class="box${r.sel ? ' on' : ''}">${r.sel ? ico('check') : ''}</span></div>
+    <div class="td"><span class="thumb" style="background:linear-gradient(135deg,${r.g})"></span><span class="name">${r.n}</span></div>
+    <div class="td"><span class="meta">${r.k}</span></div>
+    <div class="td num"><span class="size">${r.s}</span></div>
+    <div class="td rc">${r.r ? `<span class="res"><span class="arr">${ico('arrow', 'i i12')}</span><b>${r.r[0]}</b><span class="pct">${r.r[1]}</span></span>` : ''}</div>
+    <div class="td">${r.st === 'done' ? `<span class="st done">${ico('check')}Done</span>${r.sel ? `<button class="row-act" title="Show in File Explorer">${ico('folder')}</button>` : ''}`
+      : r.st === 'fail' ? `<span class="st fail">${ico('warning')}Unsupported compression</span><button class="row-act" title="Retry">${ico('retry')}</button>` : ''}</div>
+  </div>`).join('')
+
+/* ---------- fake folder ---------- */
+const MB = 1024 * 1024, KB = 1024
+const FOLDERS = {
+  'D:\\Photos\\Trip': [
+    ['IMG_3301.heic', 3.2 * MB], ['IMG_3302.heic', 2.9 * MB], ['IMG_3303.heic', 3.4 * MB],
+    ['IMG_2041.jpg', 694 * KB], ['IMG_2042.jpg', 692 * KB], ['portrait.jpg', 680 * KB],
+    ['beach-panorama.png', 29 * MB], ['diagram.png', 9.3 * MB], ['screenshot_01.png', 1.8 * MB], ['screenshot_02.png', 2.1 * MB],
+    ['scan_0007.tiff', 137 * MB], ['lecture.mov', 1.4 * 1024 * MB], ['notes.pdf', 4.2 * MB]
+  ],
+  'D:\\Scans': [['scan_0001.tiff', 96 * MB], ['scan_0002.tiff', 101 * MB], ['receipts.pdf', 12 * MB]],
+  'C:\\Users\\Ove\\Downloads': [['IMG_9001.heic', 2.4 * MB], ['clip.mp4', 88 * MB], ['report.docx', 640 * KB]]
+}
+let cwd = 'D:\\Photos\\Trip'
+const files = () => FOLDERS[cwd] || []
+const fmt = (b) => b >= 1024 * MB ? `${(b / 1024 / MB).toFixed(1)} GB` : b >= MB ? `${(b / MB).toFixed(1)} MB` : `${Math.round(b / KB)} KB`
+const pct = (a, b) => { const d = Math.round(((b - a) / a) * 100); return `${d > 0 ? '+' : ''}${d}%` }
+const ext = (n) => n.slice(n.lastIndexOf('.') + 1).toLowerCase()
+const stem = (n) => n.slice(0, n.lastIndexOf('.'))
+const pad = (s, n) => (s.length < n ? s.padEnd(n) + ' ' : s + '  ')
+
+/* ---------- catalog for completion ---------- */
+const VERBS = [
+  ['convert', 'change the format (--to)'], ['compress', 'make files smaller'], ['resize', 'scale images'],
+  ['upscale', 'enlarge with Real-ESRGAN'], ['removebg', 'remove the background'], ['generate', 'make an image from a prompt'],
+  ['pdf', 'merge, split, extract, to-images'], ['formats', 'list targets and values'], ['doctor', 'check the tools'],
+  ['setup', 'download an AI tool'], ['skill', 'install the Claude skill'], ['help', 'what this console runs'], ['clear', 'clear the console (Ctrl+L)']
+]
+const COMMON = [['--out', 'output folder'], ['--recursive', 'include subfolders'], ['--dry-run', 'plan only, write nothing'], ['--json', 'NDJSON events'], ['--help', 'options for this command']]
+const FLAGS = {
+  convert: [['--to', 'target format, required'], ['--quality', 'smaller | balanced | best | 1-100'], ['--resolution', 'dpi for PDF pages'], ['--page-format', 'jpg | png'], ['--compression', 'store | normal']],
+  compress: [['--quality', '10-100'], ['--format', 'keep | webp | avif'], ['--codec', 'h264 | h265 | av1'], ['--scale', '25-100 (video)'], ['--level', 'lossless | high | balanced | smallest']],
+  resize: [['--percent', 'for example 50'], ['--width', 'pixels'], ['--height', 'pixels'], ['--fit', 'contain | stretch']],
+  upscale: [['--factor', '2 | 3 | 4'], ['--model', 'photo | anime | pid'], ['--gpu', 'full | balanced']],
+  removebg: [['--fill', 'transparent | white | black | image'], ['--color', '#rrggbb'], ['--image', 'background image']],
+  generate: [['--model', 'model name'], ['--count', '1-8'], ['--size', 'WxH'], ['--style', 'photo | anime | 3d'], ['--seed', 'number']]
+}
+const VALUES = {
+  '--to': [['webp', 'image'], ['jpg', 'image'], ['png', 'image'], ['avif', 'image'], ['jxl', 'image'], ['tiff', 'image'], ['mp4', 'video'], ['mp3', 'audio'], ['pdf', 'document'], ['cbz', 'comic archive']],
+  '--quality': [['smaller', ''], ['balanced', 'the default'], ['best', '']],
+  '--factor': [['2', ''], ['3', ''], ['4', '']],
+  '--fill': [['transparent', 'the default'], ['white', ''], ['black', ''], ['image', '']],
+  '--codec': [['h264', ''], ['h265', ''], ['av1', '']]
+}
+const TARGETS = ['png', 'jpg', 'webp', 'avif', 'jxl', 'tiff', 'bmp', 'gif', 'ico', 'mp4', 'mkv', 'mov', 'webm', 'mp3', 'flac', 'wav', 'pdf', 'docx', 'txt', 'cbz', 'zip', '7z']
+const OPS = ['convert', 'compress', 'resize', 'upscale', 'removebg']
+
+/* ---------- console state ---------- */
+const out = $('#out'), pin = $('#pin'), cbody = $('#cbody'), comp = $('#comp'), pline = $('#pline')
+const hist = []
+let hIdx = -1, draft = ''
+let run = null // { timer, blk, jobs, i, t0, ... }
+
+function scroll () { cbody.scrollTop = cbody.scrollHeight }
+function add (html, cls = '', parent = out) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; parent.appendChild(d); return d }
+function line (blk, cls, html) { return add(html, 'ln ' + cls, blk) }
+function promptText () { return `${cwd}&gt; ` }
+
+function banner () {
+  add(`Runs <b>filesmith</b> commands in this folder; type them without the prefix, for example <code>convert *.heic --to webp</code>. Runs here do not join the Convert queue. For any other program, use Open in terminal.`, 'ln note')
+}
+
+function newBlock (text) {
+  const blk = add('', 'blk')
+  const l = line(blk, 'cmd', `<span class="pr">${esc(cwd)}&gt; </span><span class="fx">filesmith </span><span class="tx">${esc(text)}</span><span class="dec"></span>`)
+  blk.dec = l.querySelector('.dec')
+  return blk
+}
+function finish (blk, code, ms) {
+  blk.dec.className = 'dec' + (code ? ' bad' : '')
+  blk.dec.innerHTML = `${code ? ico('warning', 'i i12') : ico('check', 'i i12')}exit ${code}${ms != null ? `  ${(ms / 1000).toFixed(1)} s` : ''}`
+}
+function resLine (blk, label, left, right) {
+  const cls = label === 'ok' ? 'ok' : label === 'fail' ? 'fail' : label === 'skip' ? 'skip' : 'stop'
+  line(blk, cls, `<span class="tg">${label.padEnd(8)}</span><span class="nm">${esc(pad(left, 34))}</span><span class="msg">${esc(right)}</span>`)
+}
+function hintLine (blk, h, run) { line(blk, 'hint' + (run ? ' run' : ''), `<span class="h">hint:</span>&nbsp;${esc(h)}`) }
+function runErr (blk, msg, h) {
+  line(blk, 'fail', `<span class="msg">filesmith: ${esc(msg)}</span>`)
+  if (h) hintLine(blk, h, true)
+  finish(blk, 2, null)
+}
+function summary (blk, s, ms, explorer) {
+  const n = s.ok + s.failed + s.skipped + s.canceled
+  const parts = [`${s.ok} ok`, `${s.skipped} skipped`, `${s.failed} failed`]
+  if (s.canceled) parts.push(`${s.canceled} canceled`)
+  const l = line(blk, 'sum', `${n} ${n === 1 ? 'file' : 'files'}: ${parts.join(', ')} (${(ms / 1000).toFixed(1)} s)` +
+    (explorer && s.ok ? `<span class="acts"><button class="sbtn mini" data-act="explorer" data-path="${esc(explorer)}">${ico('folder', 'i')}Show in File Explorer</button></span>` : ''))
+  return l
+}
+function refuse (blk, word) {
+  line(blk, 'refuse', `${ico('info')}<span><code>${esc(word)}</code> is not a filesmith command. This console only runs filesmith; use a terminal for anything else.</span><button class="sbtn mini" data-act="terminal">${ico('external')}Open in terminal</button>`)
+  blk.dec.innerHTML = 'not run'
+}
+
+/* ---------- parsing ---------- */
+function tokens (s) { return (s.match(/"[^"]*"|\S+/g) || []).map((t) => t.replace(/^"|"$/g, '')) }
+function globRe (g) { return new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i') }
+function parse (toks) {
+  const o = { ins: [], fl: {} }
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i]
+    if (t.startsWith('--') || t === '-o') {
+      const [k, v] = t.split('=')
+      const key = k === '-o' ? '--out' : k.toLowerCase()
+      if (['--dry-run', '--json', '--recursive', '--help', '--greyscale'].includes(key)) o.fl[key] = true
+      else o.fl[key] = v != null ? v : toks[++i]
+    } else o.ins.push(t)
+  }
+  return o
+}
+
+/* ---------- jobs ---------- */
+const TAG = { convert: '', compress: 'compressed', resize: 'resized', upscale: 'upscaled', removebg: 'no bg' }
+function plan (verb, f, fl) {
+  const [n, size] = f
+  const e = ext(n)
+  if (n === 'IMG_2042.jpg') return { n, size, fail: 'Unsupported compression (JPEG lossless)', hint: 'Open it in an image editor, save it as a regular JPEG and try again.' }
+  if (verb === 'convert') {
+    const to = String(fl['--to']).toLowerCase()
+    if (to === e || (to === 'jpg' && e === 'jpeg')) return { n, size, skip: `already ${to}` }
+    const r = { webp: 0.2, avif: 0.15, jxl: 0.25, jpg: 0.3, png: 1.4, tiff: 3.2 }[to] || 0.8
+    return { n, size, out: `${stem(n)}.${to}`, outSize: size * r, dur: 900 + Math.min(size / MB, 40) * 60 }
+  }
+  if (e === 'mov' || e === 'mp4') return { n, size, out: `${stem(n)} (${TAG[verb]}).mp4`, outSize: size * 0.32, dur: 14000 }
+  const r = { compress: 0.42, resize: 0.27, upscale: 3.6, removebg: 0.7 }[verb]
+  const oe = verb === 'upscale' || verb === 'removebg' ? 'png' : e
+  return { n, size, out: `${stem(n)} (${TAG[verb]}).${oe}`, outSize: size * r, dur: verb === 'upscale' ? 4200 : 1100 + Math.min(size / MB, 40) * 50 }
+}
+function kindOk (verb, n) {
+  const e = ext(n)
+  const img = ['heic', 'jpg', 'jpeg', 'png', 'tiff', 'webp']
+  if (verb === 'convert') return true
+  if (verb === 'compress') return true
+  return img.includes(e)
+}
+
+function startRun (blk, verb, jobs, outDir, opts = {}) {
+  const s = { ok: 0, failed: 0, skipped: 0, canceled: 0 }
+  run = { blk, verb, jobs, i: 0, s, t0: performance.now(), outDir, prog: null, start: performance.now() }
+  document.body.classList.add('running')
+  pline.classList.add('wait')
+  blk.dec.innerHTML = 'running'
+  $('#conBtn').classList.add('busy')
+  cbody.focus({ preventScroll: true })
+  if (opts.frozen) return
+  step()
+}
+function progLine () {
+  if (!run.prog) run.prog = line(run.blk, 'prog', '')
+  return run.prog
+}
+function drawProg (p, eta) {
+  const j = run.jobs[run.i]
+  progLine().innerHTML = `[${run.i + 1}/${run.jobs.length}] <span class="nm">&nbsp;${esc(j.n)}</span>&nbsp;<b>${Math.round(p)}%</b><span class="eta">&nbsp;(${Math.max(0, Math.round(eta))}s)</span><span class="bar"><i style="width:${p}%"></i></span>`
+  $('#conLive').textContent = `${Math.round(p)}%`
+  scroll()
+}
+function step () {
+  if (!run) return
+  const j = run.jobs[run.i]
+  if (!j) return end(0)
+  if (j.skip) { resLine(run.blk, 'skip', j.n, j.skip); run.s.skipped++; run.i++; return step() }
+  const t0 = performance.now(), dur = j.fail ? 500 : j.dur
+  const tick = () => {
+    if (!run) return
+    const p = Math.min(100, ((performance.now() - t0) / dur) * 100)
+    if (p < 100) { drawProg(p, ((100 - p) / 100) * dur / 1000); run.timer = setTimeout(tick, 120); return }
+    if (run.prog) { run.prog.remove(); run.prog = null }
+    if (j.fail) { resLine(run.blk, 'fail', j.n, j.fail); hintLine(run.blk, j.hint); run.s.failed++ }
+    else { resLine(run.blk, 'ok', `${j.n} -> ${j.out}`, `${fmt(j.size)} -> ${fmt(j.outSize)}  (${pct(j.size, j.outSize)})`); run.s.ok++ }
+    run.i++
+    scroll()
+    step()
+  }
+  tick()
+}
+function end (canceledCode) {
+  const r = run
+  clearTimeout(r.timer)
+  if (r.prog) { r.prog.remove(); r.prog = null }
+  if (canceledCode) {
+    for (let k = r.i; k < r.jobs.length; k++) { resLine(r.blk, 'stop', r.jobs[k].n, ''); r.s.canceled++ }
+  }
+  const ms = performance.now() - r.start
+  summary(r.blk, r.s, ms, r.outDir)
+  finish(r.blk, canceledCode ? 130 : r.s.failed ? 1 : 0, ms)
+  run = null
+  document.body.classList.remove('running')
+  pline.classList.remove('wait')
+  $('#conBtn').classList.remove('busy')
+  $('#conLive').textContent = ''
+  pin.focus()
+  scroll()
+}
+function stopRun () { if (run) end(130) }
+
+/* ---------- commands ---------- */
+function exec (raw, opts = {}) {
+  let text = raw.trim()
+  if (!text) return
+  if (/^filesmith(\s|$)/i.test(text)) text = text.replace(/^filesmith\s*/i, '')
+  if (/^(clear|cls)$/i.test(text)) { out.innerHTML = ''; return }
+  const toks = tokens(text)
+  const verb = (toks[0] || '').toLowerCase()
+  const blk = newBlock(text)
+  pin.placeholder = ''
+  const known = ['convert', 'compress', 'resize', 'upscale', 'removebg', 'remove-bg', 'generate', 'pdf', 'formats', 'doctor', 'setup', 'skill', 'help']
+  if (!known.includes(verb)) { refuse(blk, toks[0]); scroll(); return }
+  const { ins, fl } = parse(toks.slice(1))
+  const v = verb === 'remove-bg' ? 'removebg' : verb
+
+  if (v === 'help' || fl['--help']) {
+    ;[
+      `Commands run in ${cwd}, without the "filesmith" prefix:`,
+      '  convert, compress, resize, upscale, removebg   the sidebar operations',
+      '  generate "<prompt>"                            make an image with ComfyUI',
+      '  pdf <tool>                                     merge, split, burst, extract-text, to-images',
+      '  formats, doctor, setup, skill                  helpers',
+      '  clear                                          clear this console (Ctrl+L)',
+      'Add --help to a command for its options. Other programs: Open in terminal.'
+    ].forEach((t) => line(blk, '', esc(t)))
+    finish(blk, 0, 40); scroll(); return
+  }
+  if (v === 'doctor') {
+    ;[['ok', 'ffmpeg', 'bundled, 7.1'], ['ok', 'imagemagick', 'bundled, 7.1.1'], ['ok', 'mutool', 'bundled, 1.24'], ['ok', 'realesrgan', 'bundled, Vulkan GPU found'], ['warn', 'removebg', 'not set up']]
+      .forEach(([s, id, d]) => line(blk, s === 'warn' ? 'fail' : '', esc(`  ${s.padEnd(6)}${id.padEnd(18)}${d}`)))
+    line(blk, 'hint', '<span class="h">fix:</span>&nbsp;setup removebg')
+    line(blk, 'sum', 'No problems found, 1 warning.')
+    finish(blk, 0, 600); scroll(); return
+  }
+  if (v === 'formats') {
+    line(blk, '', esc('convert   image  png jpg webp avif jxl tiff bmp gif ico'))
+    line(blk, '', esc('          video  mp4 mkv mov webm avi gif    audio  mp3 m4a aac ogg opus flac wav'))
+    line(blk, '', esc('          docs   pdf docx odt rtf txt html   archives  cbz cbr cb7 cbt zip rar 7z tar'))
+    finish(blk, 0, 120); scroll(); return
+  }
+  if (!OPS.includes(v)) { runErr(blk, `${v} is not part of this mockup`, `try convert, compress, resize, upscale or removebg`); scroll(); return }
+  if (v === 'convert' && !fl['--to']) { runErr(blk, 'convert needs --to <format>', 'for example: convert *.heic --to webp'); scroll(); return }
+  if (v === 'convert' && !TARGETS.includes(String(fl['--to']).toLowerCase())) { runErr(blk, `unknown format "${fl['--to']}" for --to`, 'formats convert lists every target'); scroll(); return }
+  if (!ins.length) { runErr(blk, `${v} needs at least one file`, `for example: ${v} *.png`); scroll(); return }
+  const picked = []
+  for (const g of ins) {
+    const m = files().filter((f) => globRe(g).test(f[0]))
+    if (!m.length) {
+      runErr(blk, g.includes('*') ? `no files match ${g}` : `${g} was not found`, `the console runs in ${cwd}; pick another folder in the header`)
+      scroll(); return
+    }
+    m.forEach((f) => { if (!picked.includes(f)) picked.push(f) })
+  }
+  const jobs = picked.map((f) => (kindOk(v, f[0]) ? plan(v, f, fl) : { n: f[0], skip: `${v} does not take .${ext(f[0])} files` }))
+  if (fl['--dry-run']) {
+    jobs.forEach((j) => j.fail ? (resLine(blk, 'fail', j.n, `would fail: ${j.fail}`), hintLine(blk, j.hint)) : j.skip ? resLine(blk, 'skip', j.n, j.skip) : resLine(blk, 'plan', `${j.n} -> ${j.out}`, v))
+    const ok = jobs.filter((j) => j.out).length, f = jobs.filter((j) => j.fail).length
+    line(blk, 'sum', esc(`${jobs.length} files: ${ok} would run, ${jobs.length - ok - f} skipped, ${f} would fail (0.1 s)`))
+    finish(blk, 0, 100); scroll(); return
+  }
+  startRun(blk, v, jobs, fl['--out'] || cwd, opts)
+  scroll()
+  return blk
+}
+
+/* ---------- prompt keys, history, completion ---------- */
+let items = [], act = 0
+function ctx () {
+  const v = pin.value
+  const caret = pin.selectionStart ?? v.length
+  const before = v.slice(0, caret)
+  const toks = before.split(/\s+/)
+  const cur = toks[toks.length - 1]
+  const prev = toks.length > 1 ? toks[toks.length - 2] : ''
+  const verb = toks.length > 1 ? toks[0].toLowerCase() : ''
+  return { before, cur, prev, verb, first: toks.length === 1 }
+}
+function candidates () {
+  const c = ctx()
+  if (c.first) return { title: 'COMMANDS', list: VERBS.filter(([w]) => w.startsWith(c.cur.toLowerCase())), cur: c.cur }
+  if (VALUES[c.prev]) return { title: c.prev.slice(2).toUpperCase(), list: VALUES[c.prev].filter(([w]) => w.startsWith(c.cur.toLowerCase())), cur: c.cur }
+  if (c.cur.startsWith('-')) {
+    const used = pin.value.split(/\s+/)
+    const all = [...(FLAGS[c.verb] || []), ...COMMON].filter(([f]) => f.startsWith(c.cur.toLowerCase()) && !used.includes(f))
+    return { title: `${c.verb.toUpperCase()} OPTIONS`, list: all, cur: c.cur }
+  }
+  const re = globRe(c.cur + '*')
+  return { title: 'FILES IN ' + cwd.toUpperCase(), list: files().filter(([n]) => re.test(n)).map(([n, s]) => [n, fmt(s)]), cur: c.cur }
+}
+function insert (word) {
+  const c = ctx()
+  const after = pin.value.slice(c.before.length)
+  const base = c.before.slice(0, c.before.length - c.cur.length)
+  const addSpace = !after.startsWith(' ')
+  pin.value = base + word + (addSpace ? ' ' : '') + after.trimStart()
+  const pos = (base + word).length + 1
+  pin.setSelectionRange(pos, pos)
+}
+function caretX () {
+  const m = document.createElement('span')
+  m.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:500 12px "IBM Plex Mono",monospace'
+  m.textContent = ctx().before.slice(0, ctx().before.length - ctx().cur.length)
+  document.body.appendChild(m)
+  const w = m.getBoundingClientRect().width
+  m.remove()
+  return pin.offsetLeft + w
+}
+function showComp (forceOpen) {
+  const r = candidates()
+  items = r.list
+  if (!items.length) return hideComp()
+  if (items.length === 1 && !forceOpen) { insert(items[0][0]); return hideComp() }
+  act = 0
+  const hl = (w) => `<u>${esc(w.slice(0, r.cur.length))}</u>${esc(w.slice(r.cur.length))}`
+  comp.innerHTML = `<div class="gh">${esc(r.title)}</div><ul>${items.slice(0, 8).map(([w, d], i) =>
+    `<li role="option" data-i="${i}" class="${i === act ? 'act' : ''}"><span class="v">${r.cur.startsWith('-') || r.cur ? hl(w) : esc(w)}</span><span class="d">${esc(d)}</span></li>`).join('')}</ul>
+    <div class="ft"><span><kbd>Tab</kbd>next</span><span><kbd>Enter</kbd>insert</span><span><kbd>Esc</kbd>close</span></div>`
+  const pr = pline.getBoundingClientRect()
+  comp.style.left = (pr.left + Math.max(0, Math.min(caretX() - 12, pline.clientWidth - 400))) + 'px'
+  comp.style.bottom = (window.innerHeight - pr.top + 2) + 'px'
+  comp.classList.add('on')
+}
+function hideComp () { comp.classList.remove('on'); items = [] }
+function moveComp (d) {
+  const n = Math.min(items.length, 8)
+  act = (act + d + n) % n
+  comp.querySelectorAll('li').forEach((li, i) => li.classList.toggle('act', i === act))
+}
+comp.addEventListener('mousedown', (e) => {
+  const li = e.target.closest('li'); if (!li) return
+  e.preventDefault(); insert(items[+li.dataset.i][0]); hideComp(); pin.focus()
+})
+
+pin.addEventListener('keydown', (e) => {
+  const open = comp.classList.contains('on')
+  if (e.key === 'Tab') { e.preventDefault(); if (open) moveComp(e.shiftKey ? -1 : 1); else showComp(); return }
+  if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); moveComp(e.key === 'ArrowDown' ? 1 : -1); return }
+  if (open && e.key === 'Enter') { e.preventDefault(); insert(items[act][0]); hideComp(); return }
+  if (open && e.key === 'Escape') { e.preventDefault(); hideComp(); return }
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    const v = pin.value
+    if (v.trim()) { hist.push(v.trim()); }
+    hIdx = -1; pin.value = ''
+    exec(v); scroll(); return
+  }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (!hist.length) return
+    if (hIdx === -1) { draft = pin.value; if (e.key === 'ArrowDown') return; hIdx = hist.length }
+    hIdx += e.key === 'ArrowUp' ? -1 : 1
+    if (hIdx < 0) hIdx = 0
+    if (hIdx >= hist.length) { hIdx = -1; pin.value = draft } else pin.value = hist[hIdx]
+    const L = pin.value.length; pin.setSelectionRange(L, L)
+    return
+  }
+  if (e.key === 'Escape' && !pin.value) { setOpen(false); return }
+})
+pin.addEventListener('input', () => { if (comp.classList.contains('on')) showComp(true) })
+pin.addEventListener('blur', () => setTimeout(hideComp, 120))
+
+/* ---------- open, close, resize ---------- */
+function setOpen (on) {
+  document.body.classList.toggle('con-open', on)
+  $('#conBtn').setAttribute('aria-pressed', String(on))
+  if (on) { scroll(); setTimeout(() => (run ? cbody : pin).focus(), 0) }
+  else $('#conBtn').focus()
+}
+$('#conBtn').addEventListener('click', () => setOpen(!document.body.classList.contains('con-open')))
+$('#closeBtn').addEventListener('click', () => setOpen(false))
+$('#clearBtn').addEventListener('click', () => { out.innerHTML = ''; if (run) {} pin.focus() })
+$('#stopBtn').addEventListener('click', stopRun)
+cbody.setAttribute('tabindex', '-1')
+cbody.addEventListener('mouseup', () => { if (!getSelection().toString() && !run) pin.focus() })
+
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && (e.code === 'Backquote' || e.key === '`')) { e.preventDefault(); setOpen(!document.body.classList.contains('con-open')); return }
+  if (!document.body.classList.contains('con-open')) return
+  const inCon = $('#console').contains(document.activeElement)
+  if (inCon && e.ctrlKey && (e.key === 'c' || e.key === 'C') && run && !getSelection().toString()) { e.preventDefault(); stopRun(); return }
+  if (inCon && e.ctrlKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); out.innerHTML = '' }
+})
+
+const sash = $('#sash')
+let drag = null
+sash.addEventListener('mousedown', (e) => { drag = { y: e.clientY, h: $('#console').offsetHeight }; sash.classList.add('drag'); e.preventDefault() })
+window.addEventListener('mousemove', (e) => {
+  if (!drag) return
+  const h = Math.max(140, Math.min(640, drag.h + (drag.y - e.clientY)))
+  document.documentElement.style.setProperty('--ch', h + 'px')
+})
+window.addEventListener('mouseup', () => { drag = null; sash.classList.remove('drag') })
+sash.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+  e.preventDefault()
+  const h = Math.max(140, Math.min(640, $('#console').offsetHeight + (e.key === 'ArrowUp' ? 20 : -20)))
+  document.documentElement.style.setProperty('--ch', h + 'px')
+})
+
+/* ---------- header actions: folder picker, terminal, explorer ---------- */
+const menu = $('#cwdMenu')
+function drawMenu () {
+  menu.innerHTML = Object.keys(FOLDERS).map((p) =>
+    `<button class="menu-item" role="menuitemradio" aria-checked="${p === cwd}" data-p="${esc(p)}">${ico('check', 'i i12 tick')}<span class="p">${esc(p)}</span></button>`).join('') +
+    `<div class="menu-sep"></div><button class="menu-item" data-p="">${ico('folder', 'i i12')}Choose folder</button>`
+}
+$('#cwdBtn').addEventListener('click', (e) => {
+  e.stopPropagation()
+  const on = !menu.classList.contains('on')
+  drawMenu()
+  const r = $('#cwdBtn').getBoundingClientRect()
+  menu.style.left = r.left + 'px'; menu.style.top = r.bottom + 'px'
+  menu.classList.toggle('on', on)
+  $('#cwdBtn').setAttribute('aria-expanded', String(on))
+})
+menu.addEventListener('click', (e) => {
+  const b = e.target.closest('.menu-item'); if (!b) return
+  if (b.dataset.p) setCwd(b.dataset.p)
+  menu.classList.remove('on'); $('#cwdBtn').setAttribute('aria-expanded', 'false'); pin.focus()
+})
+document.addEventListener('mousedown', (e) => { if (!menu.contains(e.target) && e.target !== $('#cwdBtn')) { menu.classList.remove('on'); $('#cwdBtn').setAttribute('aria-expanded', 'false') } })
+function setCwd (p) {
+  cwd = p
+  $('#cwdLbl').textContent = p
+  $('#ppr').textContent = p + '> '
+  add(`Folder is now <code>${esc(p)}</code>.`, 'ln note')
+  scroll()
+}
+function terminalNote () {
+  add(`Opened Windows Terminal in <code>${esc(cwd)}</code>. filesmith is on its PATH, along with every other program.`, 'ln note')
+  scroll()
+}
+$('#termBtn').addEventListener('click', terminalNote)
+out.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b) return
+  if (b.dataset.act === 'terminal') terminalNote()
+  if (b.dataset.act === 'explorer') { add(`Opened <code>${esc(b.dataset.path)}</code> in File Explorer.`, 'ln note'); scroll() }
+})
+
+/* ---------- scripted states (#state=...) ---------- */
+function instant (cmd) {
+  // run a command to completion synchronously (for the screenshot states)
+  hist.push(cmd)
+  const blk = exec(cmd, { frozen: true })
+  if (!run) return blk
+  const r = run
+  r.jobs.forEach((j) => {
+    if (j.skip) { resLine(blk, 'skip', j.n, j.skip); r.s.skipped++ }
+    else if (j.fail) { resLine(blk, 'fail', j.n, j.fail); hintLine(blk, j.hint); r.s.failed++ }
+    else { resLine(blk, 'ok', `${j.n} -> ${j.out}`, `${fmt(j.size)} -> ${fmt(j.outSize)}  (${pct(j.size, j.outSize)})`); r.s.ok++ }
+  })
+  r.i = r.jobs.length
+  r.start = performance.now() - r.jobs.reduce((a, j) => a + (j.dur || 400), 0)
+  end(0)
+  return blk
+}
+function frozenRun (cmd, doneCount, p, eta) {
+  hist.push(cmd)
+  const blk = exec(cmd, { frozen: true })
+  const r = run
+  for (let k = 0; k < doneCount; k++) {
+    const j = r.jobs[k]
+    resLine(blk, 'ok', `${j.n} -> ${j.out}`, `${fmt(j.size)} -> ${fmt(j.outSize)}  (${pct(j.size, j.outSize)})`); r.s.ok++
+  }
+  r.i = doneCount
+  r.start = performance.now() - 3400
+  drawProg(p, eta)
+  // keep it alive: resume the real ticker from here if the viewer waits
+  const j = r.jobs[r.i]
+  j.dur = 9000
+  const t0 = performance.now() - (p / 100) * j.dur
+  const tick = () => {
+    if (!run) return
+    const q = Math.min(100, ((performance.now() - t0) / j.dur) * 100)
+    if (q < 100) { drawProg(q, ((100 - q) / 100) * j.dur / 1000); run.timer = setTimeout(tick, 150); return }
+    run.prog.remove(); run.prog = null
+    resLine(run.blk, 'ok', `${j.n} -> ${j.out}`, `${fmt(j.size)} -> ${fmt(j.outSize)}  (${pct(j.size, j.outSize)})`); run.s.ok++
+    run.i++; step()
+  }
+  if (!new URLSearchParams(location.hash.slice(1)).has('still')) run.timer = setTimeout(tick, 4000)
+}
+
+const state = new URLSearchParams(location.hash.slice(1)).get('state') || 'open-idle'
+banner()
+if (state !== 'closed') {
+  instant('convert *.heic --to webp --quality balanced')
+  if (state === 'running') frozenRun('resize *.png --percent 50', 2, 62, 4)
+  if (state === 'error') instant('convert IMG_2042.jpg *.tiff --to png')
+  if (state === 'rejected') { hist.push('del *.*'); exec('del *.*') }
+  if (state === 'history') {
+    instant('convert IMG_2042.jpg *.tiff --to png')
+    hist.push('compress *.jpg --quality smaller')
+    const up = () => pin.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+    up(); up(); pin.focus()
+  }
+  if (state === 'completion') { pin.value = 'convert *.heic --'; pin.focus(); pin.setSelectionRange(pin.value.length, pin.value.length) }
+  setOpen(true)
+  if (state === 'completion') setTimeout(() => { pin.focus(); showComp(true) }, 50)
+}
+})()
+</script>
+</body>
+</html>
