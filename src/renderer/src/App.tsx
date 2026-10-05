@@ -55,7 +55,7 @@ import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/se
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
 import { useViewSize } from './components/queue/useViewSize'
-import { viewKeyFor } from './components/queue/viewSize'
+import { thumbPx, viewKeyFor } from './components/queue/viewSize'
 import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
 import {
   deleteConfirm,
@@ -126,13 +126,13 @@ export default function App(): JSX.Element {
   const [genFocus, setGenFocus] = useState<string | null>(null)
   const [outThumbs, setOutThumbs] = useState<Record<string, string | null>>({})
   // 256px thumbnails for Large / Extra large icons, by source path (spec 5).
-  // Task 6 adds the setter and the effect that fills it.
-  const [bigThumbs] = useState<Record<string, string | null>>({})
+  const [bigThumbs, setBigThumbs] = useState<Record<string, string | null>>({})
   const [menu, setMenu] = useState<MenuState | null>(null)
   // Which column/tool the open preview window is showing, so we can push live
   // list updates to it when the queue changes.
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
+  const bigRequested = useRef<Set<string>>(new Set())
   // Cached video dimensions (via ffprobe) for the compress resolution preview.
   const [vDims, setVDims] = useState<Record<string, { width: number; height: number } | null>>({})
   const vDimsRequested = useRef<Set<string>>(new Set())
@@ -273,6 +273,22 @@ export default function App(): JSX.Element {
       }
     }
   }, [state.queues])
+
+  // Large / Extra large icons want 256px thumbnails (spec 5). Asked lazily, once
+  // per path, only for the current queue while such a size is shown; the 128px
+  // one stays on screen until it arrives, and a failure keeps it.
+  useEffect(() => {
+    const px = thumbPx(view.size)
+    if (px <= 128) return
+    for (const item of cur.items) {
+      const p = item.file.path
+      if (!inInput(item) || bigRequested.current.has(p)) continue
+      bigRequested.current.add(p)
+      void window.filesmith.thumbnail(p, px, item.file.kind).then((t) => {
+        if (t) setBigThumbs((m) => ({ ...m, [p]: t }))
+      })
+    }
+  }, [view.size, cur.items])
 
   // --- Selection-derived state (current tool's queue) --------------------------
   // Operations key off each item's EFFECTIVE file (a result's output file), so
