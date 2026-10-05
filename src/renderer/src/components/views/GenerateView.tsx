@@ -1,5 +1,4 @@
 import type { JSX } from 'react'
-import { genCountLabel } from '../options/generate/genReady'
 import { EmptyState } from '../queue/EmptyState'
 import { ProgressBar } from '../ui/ProgressBar'
 
@@ -50,16 +49,9 @@ export function GenerateView({
   )
   return (
     <>
-      {/* The row stays so the centre lines up with the inspector tabs; Run and
+      {/* No toolbar row: the prompt sits flush under the title bar, and Run and
           Stop live in the inspector footer only (owner, 2026-10-05). */}
-      <div className="toolbar" role="toolbar" aria-label="Generate actions">
-        <div className="tb-right">
-          <span className="count" aria-live="polite">
-            {genCountLabel(running, results.length)}
-          </span>
-        </div>
-      </div>
-      <div className="vbody scroll-thin">
+      <div className="vbody full scroll-thin">
         <textarea
           className="prompt"
           aria-label="Prompt"

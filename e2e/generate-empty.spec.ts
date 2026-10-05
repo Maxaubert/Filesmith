@@ -30,10 +30,9 @@ test('Generate without a model shows one next step and says why it cannot run', 
     await prompt.fill('a lighthouse at dusk')
     await expect(page.getByTestId('run')).toBeDisabled()
     await prompt.fill('')
-    // The toolbar row stays (it lines up with the inspector tabs) but holds no
-    // Generate button: Run lives in the inspector footer only.
-    const bar = page.getByRole('toolbar', { name: 'Generate actions' })
-    await expect(bar.getByRole('button')).toHaveCount(0)
+    // No toolbar row and no Generate button there: Run lives in the inspector
+    // footer only, and the prompt sits flush at the top of the centre column.
+    await expect(page.getByRole('toolbar', { name: 'Generate actions' })).toHaveCount(0)
     if (process.env['FILESMITH_SHOTS']) {
       mkdirSync(SHOTS, { recursive: true })
       await page.screenshot({ path: join(SHOTS, 'after.png') })

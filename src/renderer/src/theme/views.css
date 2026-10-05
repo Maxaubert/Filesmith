@@ -227,6 +227,10 @@
 .tbtn:disabled {
   color: var(--fg-disabled);
 }
+/* A view without a toolbar row takes the whole centre column. */
+.vbody.full {
+  grid-row: 1 / -1;
+}
 .vbody {
   min-height: 0;
   overflow-y: auto;
@@ -282,9 +286,10 @@
 .prompt::placeholder {
   color: var(--fg3);
 }
-.prompt:focus {
-  outline: 1px solid var(--focus);
-  outline-offset: -1px;
+/* No focus outline: the caret shows where you type (owner, 2026-10-06). */
+.prompt:focus,
+.prompt:focus-visible {
+  outline: none;
 }
 .gen-grid {
   display: grid;

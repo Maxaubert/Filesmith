@@ -8,9 +8,3 @@ export function genBlockReason(
     ? 'Add an image model to generate'
     : 'Choose your ComfyUI folder to generate'
 }
-
-/** Count line for the Generate toolbar, like the file count on other tabs. */
-export function genCountLabel(running: boolean, results: number): string {
-  if (running) return 'Generating'
-  return `${results} image${results === 1 ? '' : 's'}`
-}

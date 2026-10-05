@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  genBlockReason,
-  genCountLabel
-} from '../src/renderer/src/components/options/generate/genReady'
+import { genBlockReason } from '../src/renderer/src/components/options/generate/genReady'
 
 describe('genBlockReason', () => {
   it('does not block before the scan answers', () => {
@@ -21,13 +18,5 @@ describe('genBlockReason', () => {
     expect(genBlockReason({ models: [], comfyFolder: 'C:/ComfyUI' })).toBe(
       'Add an image model to generate'
     )
-  })
-})
-
-describe('genCountLabel', () => {
-  it('counts images and says when it is generating', () => {
-    expect(genCountLabel(false, 0)).toBe('0 images')
-    expect(genCountLabel(false, 1)).toBe('1 image')
-    expect(genCountLabel(true, 3)).toBe('Generating')
   })
 })
