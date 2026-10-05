@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
-import { tmpdir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { basename, extname, join, resolve } from 'path'
 import { BG_DEFAULTS } from '@shared/removebg'
 import { formatBytes } from '@shared/compress'
@@ -38,6 +38,7 @@ import { hashFile, setupRembg } from '../main/rembg/setup'
 import { isStale, readLock } from '../main/locks'
 import { folderStats, freeBytesAt, moveToRecycleBin, tooBigForRecycleBin } from '../main/recycle'
 import { engineEnv, resourcePath } from '../main/env'
+import { installSkill, skillCommand, skillSourceDir, skillStatus } from '../main/skill'
 import { defaultReadinessDeps, removebgReadiness, upscaleReadiness } from '../main/tools/readiness'
 import {
   comfyGenerationAvailable,
@@ -52,6 +53,7 @@ import type { FileCommandDeps } from './commands/files'
 import type { FormatsDeps } from './commands/formats'
 import type { GenerateDeps } from './commands/generate'
 import type { SetupDeps } from './commands/setup'
+import type { SkillDeps } from './commands/skill'
 import { UsageError } from './exit'
 import { pathState } from './inputs'
 import type { CliDeps } from './main'
@@ -354,7 +356,18 @@ export function defaultDoctorDeps(): DoctorDeps {
         })
       }
       return out
-    }
+    },
+    skill: () => skillStatus(homedir(), VERSION)
+  }
+}
+
+export function defaultSkillDeps(): SkillDeps {
+  const command = skillCommand(packaged(), engineEnv().resourcesDir)
+  return {
+    install: ({ dryRun }) =>
+      installSkill({ home: homedir(), version: VERSION, command, trash: moveToRecycleBin, dryRun }),
+    status: () => skillStatus(homedir(), VERSION),
+    sourceDir: skillSourceDir
   }
 }
 
@@ -365,6 +378,7 @@ export function defaultDeps(): CliDeps {
     generate: defaultGenerateDeps(),
     setup: defaultSetupDeps(),
     formats: defaultFormatsDeps(),
-    doctor: defaultDoctorDeps()
+    doctor: defaultDoctorDeps(),
+    skill: defaultSkillDeps()
   }
 }

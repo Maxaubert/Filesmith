@@ -1,6 +1,7 @@
 import type { GenModel } from '@shared/genArch'
 import { BG_DEFAULTS } from '@shared/removebg'
 import { formatBytes } from '@shared/compress'
+import type { SkillStatus } from '@shared/ipc'
 import type { Reporter } from '../events'
 import type { ParsedArgs } from '../parse'
 import { VERSION } from '../version'
@@ -56,6 +57,7 @@ export interface DoctorDeps {
   bundledVersion(): string | null
   deepSmoke(): Promise<{ ok: boolean; detail: string }>
   verify(): Promise<{ id: string; ok: boolean; detail: string }[]>
+  skill(): SkillStatus
 }
 
 const SETUP_COMFY = 'filesmith setup comfy --folder "<ComfyUI folder>"'
@@ -312,6 +314,16 @@ export async function collectChecks(
       ? 'Windows uses a proxy but HTTPS_PROXY is not set; setup downloads may fail'
       : 'ok',
     fix: proxyGap ? 'set HTTPS_PROXY=http://<proxy>:<port>' : undefined
+  })
+  const skill = deps.skill()
+  add({
+    id: 'skill',
+    group: 'environment',
+    status: skill.installed && skill.current ? 'ok' : 'warn',
+    detail: skill.installed
+      ? `Claude skill ${skill.version}${skill.current ? '' : `, older than ${deps.version}`}`
+      : 'Claude skill not installed',
+    fix: skill.installed && skill.current ? undefined : 'filesmith skill install'
   })
 
   if (o.verify)

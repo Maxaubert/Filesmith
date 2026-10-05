@@ -35,3 +35,21 @@ export interface ComfyStatus {
   folder: string | null
   models: ComfyModel[]
 }
+
+/** skill:status: the Claude Code skill in ~/.claude/skills/filesmith. */
+export interface SkillStatus {
+  installed: boolean
+  path: string
+  version: string | null
+  /** Installed and the same version as the app. */
+  current: boolean
+}
+
+/** skill:install */
+export interface SkillInstallResult {
+  ok: boolean
+  path?: string
+  updated?: boolean
+  previousVersion?: string
+  error?: string
+}

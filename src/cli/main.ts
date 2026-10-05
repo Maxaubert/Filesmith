@@ -5,6 +5,7 @@ import { runDoctor, type DoctorDeps } from './commands/doctor'
 import { runFormats, type FormatsDeps } from './commands/formats'
 import { runGenerate, type GenerateDeps } from './commands/generate'
 import { runSetup, type SetupDeps } from './commands/setup'
+import { runSkill, type SkillDeps } from './commands/skill'
 import { JsonReporter, type Reporter } from './events'
 import { CliError, EXIT, UsageError } from './exit'
 import { renderGroupHelp, renderHelp, renderRootHelp, usageLine } from './help'
@@ -20,6 +21,7 @@ export interface CliDeps {
   setup: SetupDeps
   formats: FormatsDeps
   doctor: DoctorDeps
+  skill: SkillDeps
 }
 
 async function dispatch(
@@ -36,6 +38,9 @@ async function dispatch(
       return runFormats(args, reporter, deps.formats)
     case 'doctor':
       return runDoctor(args, reporter, deps.doctor, deps.clock)
+    case 'skill install':
+    case 'skill status':
+      return runSkill(args, reporter, deps.skill, deps.clock)
     case 'setup':
       return runSetup(args, io.cwd, reporter, deps.setup, io.signal, deps.clock)
     default:

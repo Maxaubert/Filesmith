@@ -49,6 +49,11 @@ extraResources:
   - from: resources/cli
     to: cli
     filter: ['**/*']
+  # The Claude Code skill, copied out by `filesmith skill install` and the
+  # Settings button (spec 6). Never installed silently.
+  - from: resources/skill
+    to: skill
+    filter: ['**/*']
 win:
   target:
     - nsis

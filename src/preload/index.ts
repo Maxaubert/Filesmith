@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { FileInfo, FileKind, JobEvent, JobRequest } from '@shared/types'
 import type { ComfyModel } from '@shared/comfy'
-import type { ComfyStatus, PidStatus } from '@shared/ipc'
+import type { ComfyStatus, PidStatus, SkillInstallResult, SkillStatus } from '@shared/ipc'
 import type { GenerateOptions } from '@shared/generate'
 import type { GenModelScan } from '@shared/genArch'
 
@@ -166,6 +166,10 @@ const api = {
   // Remove Background availability (discloses the AI model + one-time download).
   removebgStatus: (): Promise<{ ready: boolean; uvAvailable: boolean }> =>
     ipcRenderer.invoke('removebg:status'),
+
+  /** Claude Code skill (Settings > CLAUDE). */
+  skillStatus: (): Promise<SkillStatus> => ipcRenderer.invoke('skill:status'),
+  installSkill: (): Promise<SkillInstallResult> => ipcRenderer.invoke('skill:install'),
 
   // Session persistence (queues + produced files survive close/reopen)
   sessionLoad: (): Promise<unknown> => ipcRenderer.invoke('session:load'),

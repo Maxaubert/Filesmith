@@ -133,7 +133,14 @@ function harness(
       version: VERSION,
       bundledVersion: () => null,
       deepSmoke: async () => ({ ok: true, detail: '' }),
-      verify: async () => []
+      verify: async () => [],
+      skill: () => ({ installed: false, path: 'H:\\skill', version: null, current: false })
+    },
+    // Never dispatched here; test/skill.test.ts covers the install logic.
+    skill: {
+      install: async () => ({ path: 'H:\\skill', updated: false, changed: [] }),
+      status: () => ({ installed: false, path: 'H:\\skill', version: null, current: false }),
+      sourceDir: () => 'R:\\skill'
     }
   }
   return {

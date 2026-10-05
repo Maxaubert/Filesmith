@@ -41,6 +41,12 @@ const good = (over: Partial<DoctorDeps> = {}): DoctorDeps => ({
   bundledVersion: () => null,
   deepSmoke: async () => ({ ok: true, detail: '4x4 upscaled' }),
   verify: async () => [],
+  skill: () => ({
+    installed: false,
+    path: 'H:\\.claude\\skills\\filesmith',
+    version: null,
+    current: false
+  }),
   ...over
 })
 
@@ -112,5 +118,18 @@ describe('doctor', () => {
     )
     expect(checks.find((c) => c.id === 'realesrgan-smoke')?.status).toBe('ok')
     expect(checks.find((c) => c.id === 'verify pid weights')?.status).toBe('fail')
+  })
+
+  it('reports the Claude skill and offers to install or update it', async () => {
+    const missing = await collectChecks(good(), { deep: false, verify: false })
+    expect(missing.find((c) => c.id === 'skill')).toMatchObject({
+      status: 'warn',
+      fix: 'filesmith skill install'
+    })
+    const old = await collectChecks(
+      good({ skill: () => ({ installed: true, path: 'x', version: '0.5.0', current: false }) }),
+      { deep: false, verify: false }
+    )
+    expect(old.find((c) => c.id === 'skill')?.detail).toContain('0.5.0')
   })
 })
