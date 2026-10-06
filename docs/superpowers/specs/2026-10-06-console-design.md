@@ -23,7 +23,7 @@ commands (the CLI from #30, `docs/cli.md`) without leaving the app, and nothing 
 
 In scope:
 
-- A bottom panel in the center column, on every tab, toggled by a **Console** button in the files toolbar and
+- A bottom panel in the center column, on every tab, toggled by a **Console** button in the bottom strip and
   by **Ctrl+`** anywhere; resizable; open state, height and history persisted.
 - Commands are typed **without** the `filesmith` prefix (a pasted leading `filesmith` is stripped). Only CLI
   commands and four built-ins (`cd`, `clear`/`cls`, `help`, `history`) run. Anything else is refused in one
@@ -61,17 +61,20 @@ toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works the
 
 ## 3. Open, close, resize
 
-- **Toggle:** the `Console` button in `.tb-right` of the files toolbar, between the count and the View button
-  (mockup lines 368-372): console glyph, `Console`, `Ctrl+`` hint in `--fg3`; `aria-pressed`,
+- **Toggle (owner feedback on 0.8.0):** the files list has no totals row any more. In its place, at the bottom
+  of the centre column on every tab, a 30px strip (`.constrip`, `role="toolbar"`, `Console strip`) holds only
+  the `Console` button: console glyph, `Console`, `Ctrl+`` hint in `--fg3`; `aria-pressed`,
   `aria-controls="console"`, `title="Console (Ctrl+`)"`. Pressed = `--selected` background and bold label.
-  While a command runs and the panel is closed, the button shows the live percentage (`.live`).
+  The strip stays flush with the window bottom; the open panel sits directly above it. The files toolbar is
+  Add files, the count and View. While a command runs and the panel is closed, the button shows the live
+  percentage (`.live`). The head's folder button toggles its menu: a second click closes it.
 - **Ctrl+`** toggles everywhere except under an open modal (`dialog[open]`). It is matched on
   `KeyboardEvent.code === 'Backquote'`, because on Nordic layouts the key is a dead key and `e.key` is
   unreliable.
 - **Focus:** opening focuses the prompt, or the body while a command runs. Closing returns focus to the element
   that had it before opening (the Console button when it was used). **Esc** in the panel first closes the
   completion list, then the folder menu, then moves focus back to the files view without closing the panel
-  (VS Code behaviour). The panel closes only by Ctrl+`, the close button or the toolbar button.
+  (VS Code behaviour). The panel closes only by Ctrl+`, the close button or the strip's Console button.
 - **Resize:** a 7px sash on the top edge (`role="separator"`, `aria-orientation="horizontal"`,
   `aria-label="Resize console"`, `tabindex=0`, `aria-valuenow/min/max`), a 2px `--fg3` line on hover or drag,
   `cursor: row-resize`. Pointer events with `setPointerCapture`; during the drag `--ch` is written straight to
@@ -149,8 +152,8 @@ with a warning glyph, or `not run`).
   `hint:` / `fix:` sub-lines, the `N files: ...` summary, `filesmith: ...` errors (bold), the rest `--fg2`.
   stderr lines render like stdout lines (the CLI already prefixes errors).
 - **Progress:** one live row below the results while a job runs, drawn from the CLI's events, not its text:
-  `[2/4]  screenshot_01.png 62% (4s)` and a 120px 2px bar (`--track` / `--fg1`). Steps (`setup`, `generate`
-  downloads) show `step 41% (12s)` the same way; heartbeats show the step and the elapsed time. The row goes
+  `[2/4]  screenshot_01.png 62%(4s)` and a 120px 2px bar (`--track` / `--fg1`). Steps (`setup`, `generate`
+  downloads) show `step 41%(12s)` the same way; heartbeats show the step and the elapsed time. The row goes
   away when the job ends. The head's Console button shows the same percentage while the panel is closed.
 - **Show in File Explorer:** after the summary of a finished run that produced at least one output, a small
   button. It selects the first output in Explorer (`shell.showItemInFolder`). Outputs come from the CLI's `done`
@@ -281,7 +284,7 @@ Types live once in `src/shared/console.ts`.
 | cli      | `io.ts` (`events?`), `events.ts` (`TeeReporter`), `main.ts` (tee), `bootstrap.ts` (IPC interrupt, disconnect, events) |
 | main     | `console/catalog.ts`, `console/lines.ts`, `console/runCli.ts`, `console/dirs.ts`, `console/validate.ts`, `console/terminal.ts`, `console/ipc.ts`; `ipc.ts` (`reveal`), `index.ts` (register, quit) |
 | preload  | `index.ts` (the methods above)                                                                      |
-| renderer | `components/console/{consoleModel.ts, consoleHeight.ts, consoleFolders.ts, useConsolePanel.ts, ConsolePanel.tsx, ConsoleOutput.tsx, CompletionList.tsx}`, `theme/console.css`, icons `console`, `external`, `clear`, `QueueToolbar` (button), `shortcuts.ts` (Ctrl+`, `inConsole`, `isTextEntryTarget`), `App.tsx` (mount, keys) |
+| renderer | `components/console/{consoleModel.ts, consoleHeight.ts, consoleFolders.ts, useConsolePanel.ts, ConsolePanel.tsx, ConsoleOutput.tsx, CompletionList.tsx}`, `theme/console.css`, icons `console`, `external`, `clear`, `ConsoleStrip.tsx` (the bottom strip), `shortcuts.ts` (Ctrl+`, `inConsole`, `isTextEntryTarget`), `App.tsx` (mount, keys) |
 | docs     | `docs/cli.md` (a Console section), `CLAUDE.md` (layout lines), this spec and the plan                |
 
 ## 10. Security
@@ -309,7 +312,7 @@ Types live once in `src/shared/console.ts`.
 
 ## 11. Open questions for the owner (with recommended answers)
 
-1. **Console button only in the files toolbar?** Recommended: yes, plus Ctrl+` everywhere and the panel's own
+1. **Console button only in the files toolbar?** Superseded: it lives in the bottom strip on every tab, plus Ctrl+` everywhere and the panel's own
    close button; the other tabs' heads stay as they are (no new design there). Once opened, the panel stays
    open across tabs.
 2. **One command at a time?** Recommended: yes (9.4).

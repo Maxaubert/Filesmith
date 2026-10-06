@@ -79,7 +79,8 @@ export function fmtSize(n: number): string {
 
 export function progressText(p: Progress): string {
   if (p.pct == null) return p.elapsedSec != null ? `${p.label} (${fmtEta(p.elapsedSec)})` : p.label
-  return `${p.label} ${Math.round(p.pct)}%${p.etaSec != null ? ` (${fmtEta(p.etaSec)})` : ''}`
+  // The queue's format: no space before the bracket, 62%(4s).
+  return `${p.label} ${Math.round(p.pct)}%${p.etaSec != null ? `(${fmtEta(p.etaSec)})` : ''}`
 }
 
 /** The full output path of an `ok` row (its text shows base names only). */

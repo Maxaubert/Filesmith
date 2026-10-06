@@ -37,3 +37,5 @@ Mockup rounds live in `docs/mockups/terminal*/` (each has an `index.html` galler
   `docs/superpowers/specs/2026-10-05-view-sizes-design.md`.
 - View menu (2026-10-05, #41): View menu = 3 sizes (Details, Tiles, Extra large icons), no icons, no
   shortcuts; the other sizes via Ctrl+wheel.
+- Console (2026-10-06, #39, feedback on 0.8.0): the totals row is removed; the bottom strip of the centre
+  column holds only the Console button (Ctrl+`), and the open console sits above it.

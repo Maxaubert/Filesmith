@@ -54,7 +54,7 @@ describe('consoleReducer', () => {
       { type: 'event', id: 'r1', ev: { event: 'progress', id: 'j1', pct: 62, etaSec: 4 } }
     ])
     expect(cmd(s).status).toBe('running')
-    expect(progressText(cmd(s).progress!)).toBe('[1/4]  a.png 62% (4s)')
+    expect(progressText(cmd(s).progress!)).toBe('[1/4]  a.png 62%(4s)')
     const more: ConsoleAction[] = [
       {
         type: 'event',
@@ -82,7 +82,7 @@ describe('consoleReducer', () => {
         ev: { event: 'step', step: 'download model', pct: 41, etaSec: 12 }
       }
     ])
-    expect(progressText(cmd(s).progress!)).toBe('download model 41% (12s)')
+    expect(progressText(cmd(s).progress!)).toBe('download model 41%(12s)')
     const h = consoleReducer(s, {
       type: 'event',
       id: 'r1',

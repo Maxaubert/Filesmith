@@ -49,6 +49,8 @@ export function ConsolePanel(p: {
   onHistory: (l: string) => void
   queueDirs: string[]
   onMenu: (m: MenuState) => void
+  /** The trigger of the open app menu, so the folder button shows its state. */
+  menuTrigger: HTMLElement | null
   onBusy: (pct: number | null | undefined) => void
 }): JSX.Element {
   const [state, dispatch] = useReducer(consoleReducer, INITIAL)
@@ -316,6 +318,7 @@ export function ConsolePanel(p: {
     p.onMenu({
       x: r.left,
       y: r.bottom,
+      trigger: folderBtn.current ?? undefined,
       items: [
         ...choices.map((d) => ({
           label: d,
@@ -386,6 +389,7 @@ export function ConsolePanel(p: {
           type="button"
           className="cwd"
           aria-haspopup="menu"
+          aria-expanded={!!folderBtn.current && p.menuTrigger === folderBtn.current}
           title="Folder the commands run in"
           onClick={folderMenu}
         >

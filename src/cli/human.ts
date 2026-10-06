@@ -110,7 +110,8 @@ export class HumanReporter implements Reporter {
       case 'progress': {
         if (!this.opts.stderrTTY) return
         const pct = e.pct == null ? 'working' : `${Math.round(e.pct)}%`
-        const eta = e.etaSec != null ? ` (${fmtEta(e.etaSec)})` : ''
+        // The app queue's format: 62%(4s), a space only after a word.
+        const eta = e.etaSec != null ? `${e.pct == null ? ' ' : ''}(${fmtEta(e.etaSec)})` : ''
         this.redraw(`[${f(e.id)}/${this.total}] ${f(this.names.get(e.id) ?? '')} ${pct}${eta}`)
         return
       }
@@ -183,7 +184,7 @@ export class HumanReporter implements Reporter {
         return
       case 'step': {
         const pct = e.pct == null ? '' : ` ${Math.round(e.pct)}%`
-        const eta = e.etaSec != null ? ` (${fmtEta(e.etaSec)})` : ''
+        const eta = e.etaSec != null ? `${e.pct == null ? ' ' : ''}(${fmtEta(e.etaSec)})` : ''
         const step = f(e.step)
         if (e.detail) this.out(`  - ${step}: ${f(e.detail)}\n`)
         else if (this.opts.stderrTTY) this.redraw(`${step}${pct}${eta}`)

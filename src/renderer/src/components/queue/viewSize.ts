@@ -22,7 +22,7 @@ export const VIEW_SIZES: readonly ViewSizeDef[] = [
 /** The View menu offers only these three; the others are reached by Ctrl+wheel. */
 export const MENU_SIZES: readonly ViewSize[] = ['details', 'tiles', 'xl']
 
-/** The two table sizes: head, columns, column-aligned totals. */
+/** The two table sizes: head and columns. */
 export function isListSize(s: ViewSize): boolean {
   return s === 'details' || s === 'details-l'
 }

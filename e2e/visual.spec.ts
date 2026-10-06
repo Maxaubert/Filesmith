@@ -217,8 +217,9 @@ test('capture the console next to the console mockup', async () => {
   await prompt.press('Enter')
   const stop = panel.getByRole('button', { name: /^Stop/ })
   await expect(stop).toBeVisible()
-  await page.waitForTimeout(800)
+  // Shoot as soon as a percentage shows (62%(4s)); the run may end soon after.
+  await expect(panel.locator('.ln.prog')).toContainText('%', { timeout: 15_000 })
   await page.screenshot({ path: join(CS, 'impl-running.png') })
-  await stop.click()
+  if (await stop.isVisible()) await stop.click({ timeout: 2_000 }).catch(() => {})
   await expect(stop).toBeHidden({ timeout: 15_000 })
 })

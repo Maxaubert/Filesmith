@@ -7,7 +7,6 @@ import {
   formatProgress,
   kindLabel,
   pctChange,
-  queueTotals,
   rowView,
   shortError
 } from '../src/renderer/src/components/queue/rowModel'
@@ -149,29 +148,6 @@ describe('rowView', () => {
     const v = rowView(item())
     expect(v.kind).toBe('HEIC')
     expect(v.size).toBe('3.1 MB')
-  })
-})
-
-describe('queueTotals', () => {
-  it('sums inputs, counts statuses, and only adds done rows with a file output', () => {
-    const t = queueTotals([
-      item({ id: '1', status: 'done', outputPath: 'o1', outputSize: 1_000_000 }),
-      item({ id: '2', status: 'done', outputPath: 'C:/x/folder' }),
-      item({ id: '3', status: 'running' }),
-      item({ id: '4', status: 'queued' }),
-      item({ id: '5', status: 'failed' }),
-      item({ id: 'r', isResult: true, status: 'done', outputPath: 'o1', outputSize: 1_000_000 }),
-      item({ id: 'h', hiddenInput: true })
-    ])
-    expect(t).toEqual({
-      files: 5,
-      bytes: 16_000_000,
-      doneSrc: 3_200_000,
-      doneOut: 1_000_000,
-      done: 2,
-      failed: 1,
-      inFlight: 2
-    })
   })
 })
 

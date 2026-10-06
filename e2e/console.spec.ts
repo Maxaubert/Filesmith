@@ -69,8 +69,8 @@ const grid = () => page.getByRole('grid', { name: 'Files' })
 const nav = () => page.getByRole('navigation', { name: 'Operations' })
 const panel = () => page.getByRole('region', { name: 'Console' })
 const prompt = () => page.getByRole('textbox', { name: 'filesmith command' })
-const conBtn = () =>
-  page.getByRole('toolbar', { name: 'File actions' }).getByRole('button', { name: /^Console/ })
+const strip = () => page.getByRole('toolbar', { name: 'Console strip' })
+const conBtn = () => strip().getByRole('button', { name: /^Console/ })
 const sizeIs = (s: string) => expect(grid()).toHaveAttribute('data-size', s)
 const zoom = () =>
   app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor())
@@ -99,8 +99,50 @@ test('Ctrl+` and the button toggle the panel; it survives a tab switch', async (
   await expect(panel()).toBeVisible()
   await conBtn().click()
   await expect(panel()).toBeHidden()
+  await expect(conBtn()).toHaveAttribute('aria-pressed', 'false')
   await conBtn().click()
   await expect(panel()).toBeVisible()
+  await expect(conBtn()).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('the bottom strip holds only the Console button, flush under the open panel', async () => {
+  await expect(page.getByRole('row', { name: 'Totals' })).toHaveCount(0)
+  await expect(strip().getByRole('button')).toHaveCount(1)
+  const files = page.getByRole('toolbar', { name: 'File actions' })
+  await expect(files.getByRole('button', { name: /^Console/ })).toHaveCount(0)
+  const win = await page.evaluate(() => window.innerHeight)
+  const s = (await strip().boundingBox())!
+  const p = (await panel().boundingBox())!
+  expect(Math.round(s.y + s.height)).toBe(win)
+  expect(Math.round(s.height)).toBe(30)
+  expect(Math.round(p.y + p.height)).toBe(Math.round(s.y))
+  // On every tab with a centre column, including Generate, Completed and Settings.
+  for (const tab of ['Generate', 'Completed', 'Settings', 'Convert']) {
+    await nav()
+      .getByRole('button', { name: new RegExp(`^${tab}`) })
+      .first()
+      .click()
+    await expect(conBtn()).toBeVisible()
+    const t = (await strip().boundingBox())!
+    expect(Math.round(t.y + t.height)).toBe(win)
+  }
+  await expect(panel()).toBeVisible()
+})
+
+test('the folder button toggles its menu: click opens, click again closes', async () => {
+  const folder = panel().locator('button.cwd')
+  const menu = page.locator('.ctx-pop')
+  await folder.click()
+  await expect(menu).toBeVisible()
+  await expect(folder).toHaveAttribute('aria-expanded', 'true')
+  await folder.click()
+  await expect(menu).toHaveCount(0)
+  await expect(folder).toHaveAttribute('aria-expanded', 'false')
+  await folder.click()
+  await expect(menu).toBeVisible()
+  // A press elsewhere still closes it.
+  await panel().locator('.chead .lbl').click()
+  await expect(menu).toHaveCount(0)
 })
 
 test('typing in the console never changes the view size or zooms the page', async () => {

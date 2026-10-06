@@ -52,6 +52,7 @@ import { useRailPrefs } from './components/shell/useRailPrefs'
 import { sidebarVerbs } from './components/shell/railPrefs'
 import { inConsole, isTextEntryTarget, shortcutFor } from './components/shell/shortcuts'
 import { ConsolePanel } from './components/console/ConsolePanel'
+import { ConsoleStrip } from './components/console/ConsoleStrip'
 import { useConsolePanel } from './components/console/useConsolePanel'
 import { dirOf } from './components/console/consoleFolders'
 import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/selectAll'
@@ -61,7 +62,7 @@ import { useViewSize } from './components/queue/useViewSize'
 import { viewKeyFor } from './components/queue/viewSize'
 import { needsThumb, thumbKey, thumbPxFor } from './components/queue/thumbSize'
 import { useDevicePixelRatio } from './components/queue/useDevicePixelRatio'
-import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
+import { doneSamples, type RowActionKind } from './components/queue/rowModel'
 import {
   deleteConfirm,
   menuTargets,
@@ -88,6 +89,7 @@ import { SettingsView } from './components/views/SettingsView'
 import { ToolsView } from './components/views/ToolsView'
 import type { GenerateOptions } from '@shared/generate'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
+import { toggleMenu } from './components/menuToggle'
 import { useGenerateStatus } from './components/options/hooks/useGenerateStatus'
 import { genBlockReason } from './components/options/generate/genReady'
 import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
@@ -1261,13 +1263,9 @@ export default function App(): JSX.Element {
                   flash={view.flash}
                   onAdd={() => void browse()}
                   onView={(s) => view.setSize(s)}
-                  consoleOpen={con.open}
-                  consoleLive={conBusy == null ? null : `${Math.round(conBusy)}%`}
-                  onConsole={con.toggle}
                 />
                 <QueueTable
                   groups={groups}
-                  totals={queueTotals(cur.items)}
                   selected={cur.selected}
                   activeGroup={activeGroup}
                   sort={sort}
@@ -1316,8 +1314,14 @@ export default function App(): JSX.Element {
               history={con.history}
               onHistory={con.addHistory}
               queueDirs={[...new Set(inputs.map((i) => dirOf(i.file.path)))]}
-              onMenu={setMenu}
+              onMenu={(m) => setMenu((cur) => toggleMenu(cur, m))}
+              menuTrigger={menu?.trigger ?? null}
               onBusy={setConBusy}
+            />
+            <ConsoleStrip
+              open={con.open}
+              live={conBusy == null ? null : `${Math.round(conBusy)}%`}
+              onToggle={con.toggle}
             />
           </main>
 

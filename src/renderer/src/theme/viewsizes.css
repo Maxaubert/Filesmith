@@ -319,17 +319,6 @@
   opacity: 0.4;
 }
 
-/* totals as one line under the non-Details sizes */
-.totals.flat {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  padding: 0 16px;
-}
-.totals.flat .res {
-  gap: 8px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .card .cck {
     transition: none;

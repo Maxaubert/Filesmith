@@ -109,6 +109,21 @@ test('the View menu lists three plain sizes and picks one', async () => {
   await sizeIs('details')
 })
 
+test('the View button toggles its menu: click opens, click again closes', async () => {
+  const menu = page.getByRole('menu', { name: 'View' })
+  await viewBtn().click()
+  await expect(menu).toBeVisible()
+  await expect(viewBtn()).toHaveAttribute('aria-expanded', 'true')
+  await viewBtn().click()
+  await expect(menu).toHaveCount(0)
+  await expect(viewBtn()).toHaveAttribute('aria-expanded', 'false')
+  await viewBtn().click()
+  await expect(menu).toBeVisible()
+  await viewBtn().click()
+  await expect(menu).toHaveCount(0)
+  await sizeIs('details')
+})
+
 test('Ctrl+wheel reaches the sizes the menu does not list', async () => {
   const g = (await grid().boundingBox())!
   for (const s of ['details-l', 'tiles', 'medium']) {
@@ -232,10 +247,9 @@ test('Large details is the Details table with taller rows and a bigger thumb', a
   expect(big.h).toBe(44)
   expect(big.thumb).toBe(32)
   expect(big.name).toBeGreaterThan(small.name)
-  // Same columns, same head and the column-aligned totals.
+  // Same columns, same head.
   expect(big.cols).toBe(small.cols)
   await expect(grid().getByRole('columnheader', { name: 'name' })).toBeVisible()
-  await expect(grid().locator('.totals.flat')).toHaveCount(0)
   // Up/Down still walk the rows; right-click still opens the row menu.
   await row('alpha').click()
   await page.keyboard.press('ArrowDown')

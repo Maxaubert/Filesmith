@@ -24,6 +24,9 @@ export interface MenuState {
   x: number
   y: number
   items: MenuItem[]
+  /** The button that opened the menu, if any. A press on it does not count as
+   *  an outside press: its own click toggles the menu (see menuToggle.ts). */
+  trigger?: HTMLElement
 }
 
 /**
@@ -89,16 +92,20 @@ export function ContextMenu({
   useEffect(() => {
     if (!menu) return
     const close = (): void => onClose()
+    // A press on the trigger is left to the trigger's click, which toggles.
+    const press = (e: MouseEvent): void => {
+      if (!menu.trigger?.contains(e.target as Node)) onClose()
+    }
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()
     }
-    window.addEventListener('mousedown', close)
+    window.addEventListener('mousedown', press)
     window.addEventListener('scroll', close, true)
     window.addEventListener('blur', close)
     window.addEventListener('resize', close)
     window.addEventListener('keydown', onKey)
     return () => {
-      window.removeEventListener('mousedown', close)
+      window.removeEventListener('mousedown', press)
       window.removeEventListener('scroll', close, true)
       window.removeEventListener('blur', close)
       window.removeEventListener('resize', close)
