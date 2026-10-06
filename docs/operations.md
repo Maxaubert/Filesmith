@@ -35,8 +35,9 @@ never mixes two families, and the target list only shows formats valid for every
 Routing notes:
 
 - PDF to TXT uses mutool and does not need LibreOffice.
-- Other document conversions need LibreOffice installed
-  (`winget install TheDocumentFoundation.LibreOffice`). It is not bundled.
+- Other document conversions use the LibreOffice copy bundled with the app. If it is missing,
+  Filesmith falls back to an installed LibreOffice
+  (`winget install TheDocumentFoundation.LibreOffice`).
 - Archive to archive is extract and repack. Archive to PDF puts the images in filename
   order, the way a reader shows them.
 - PDF to a comic format renders each page to an image, then packs them.
