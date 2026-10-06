@@ -20,7 +20,6 @@ export function ConsoleStrip({
         className="conbtn"
         aria-pressed={open}
         aria-controls="console"
-        title="Console (Ctrl+`)"
         onClick={onToggle}
       >
         <Icon name="console" />

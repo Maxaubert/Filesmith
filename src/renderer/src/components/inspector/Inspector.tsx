@@ -69,12 +69,7 @@ export function Inspector({
             Stop
           </PrimaryButton>
         ) : (
-          <PrimaryButton
-            data-testid="run"
-            disabled={runDisabled}
-            onClick={onRun}
-            title="Run (Ctrl+Enter)"
-          >
+          <PrimaryButton data-testid="run" disabled={runDisabled} onClick={onRun}>
             {runLabel}
           </PrimaryButton>
         )}

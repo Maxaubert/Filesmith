@@ -27,7 +27,8 @@ export function Sidebar({
       type="button"
       className={`item${tab === t.id ? ' on' : ''}`}
       aria-current={tab === t.id ? 'page' : undefined}
-      title={t.label}
+      // A tooltip only when the label is hidden (collapsed to icons).
+      title={collapsed ? t.label : undefined}
       onClick={() => onSelect(t.id)}
     >
       <Icon name={t.icon} />
@@ -44,7 +45,7 @@ export function Sidebar({
           className="toggle"
           aria-expanded={!collapsed}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={`${collapsed ? 'Expand' : 'Collapse'} sidebar (Ctrl+B)`}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           onClick={onToggle}
         >
           <Icon name="sidebar" />

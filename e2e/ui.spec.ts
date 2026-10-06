@@ -38,9 +38,13 @@ test('the app is dark and square', async () => {
 test('the sidebar collapses with its toggle and Ctrl+B, and remembers it', async () => {
   const toggle = sidebarToggle(page)
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  // Tooltips only where the label is hidden: none while expanded, the label when collapsed.
+  const settings = sidebar(page).getByRole('button', { name: 'Settings' })
+  await expect(settings).not.toHaveAttribute('title')
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-expanded', 'false')
   await expect.poll(async () => (await sidebar(page).boundingBox())?.width).toBe(48)
+  await expect(settings).toHaveAttribute('title', 'Settings')
   await page.reload()
   await expect(sidebarToggle(page)).toHaveAttribute('aria-expanded', 'false')
   await page.keyboard.press('Control+B')
@@ -77,6 +81,10 @@ test('an empty workspace offers Add files and a disabled Run', async () => {
   await expect(
     page.getByRole('toolbar', { name: 'Console strip' }).getByRole('button', { name: /^Console/ })
   ).toBeVisible()
+  // The button already reads "Console Ctrl+`": no tooltip repeating it.
+  await expect(
+    page.getByRole('toolbar', { name: 'Console strip' }).getByRole('button', { name: /^Console/ })
+  ).not.toHaveAttribute('title')
 })
 
 test('the toolbar is Add files and the View menu; row actions live in the right-click menu', async () => {

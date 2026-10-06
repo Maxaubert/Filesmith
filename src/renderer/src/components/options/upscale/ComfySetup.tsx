@@ -107,11 +107,7 @@ export function ComfyImportCard({
             <SmallButton icon="folder" onClick={locateOnly}>
               {status.folder ? 'Change ComfyUI folder' : 'Locate my ComfyUI folder'}
             </SmallButton>
-            {status.folder && (
-              <span className="mono" title={status.folder}>
-                {status.folder}
-              </span>
-            )}
+            {status.folder && <span className="mono">{status.folder}</span>}
           </>
         )}
         {errorLine}
@@ -148,7 +144,7 @@ export function ComfyImportCard({
           </div>
           <ul className="sizes mono">
             {unsupported.map((m) => (
-              <li key={m.path} title={m.reason}>
+              <li key={m.path} title={m.name}>
                 <span className="nm">{m.name}</span>
                 <span>{m.reason ?? 'unsupported'}</span>
               </li>

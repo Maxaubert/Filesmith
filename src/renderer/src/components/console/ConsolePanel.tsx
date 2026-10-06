@@ -390,36 +390,29 @@ export function ConsolePanel(p: {
           className="cwd"
           aria-haspopup="menu"
           aria-expanded={!!folderBtn.current && p.menuTrigger === folderBtn.current}
-          title="Folder the commands run in"
+          title={cwd}
           onClick={folderMenu}
         >
           <Icon name="folder" />
           <span className="p">{cwd}</span>
           <Icon name="chev-d" size={12} />
         </button>
-        <span className="note" title="Runs here do not join the queue">
-          filesmith only, not in the queue
-        </span>
+        <span className="note">filesmith only, not in the queue</span>
         <div className="r">
           {runId && (
-            <button type="button" className="stopbtn" title="Stop the run (Ctrl+C)" onClick={stop}>
+            <button type="button" className="stopbtn" onClick={stop}>
               <Icon name="stop" />
               Stop<span className="k">Ctrl+C</span>
             </button>
           )}
-          <button
-            type="button"
-            className="hbtn"
-            title="Open a terminal in this folder, with filesmith on PATH"
-            onClick={() => void terminal()}
-          >
+          <button type="button" className="hbtn" onClick={() => void terminal()}>
             <Icon name="external" />
             Open in terminal
           </button>
           <button
             type="button"
             className="hib"
-            title="Clear (Ctrl+L)"
+            title="Clear console"
             aria-label="Clear console"
             onClick={() => dispatch({ type: 'clear' })}
           >
@@ -428,7 +421,7 @@ export function ConsolePanel(p: {
           <button
             type="button"
             className="hib"
-            title="Close console (Ctrl+`)"
+            title="Close console"
             aria-label="Close console"
             onClick={p.onClose}
           >

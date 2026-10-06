@@ -27,7 +27,7 @@ export function QueueToolbar({
     : `${files} file${files === 1 ? '' : 's'}${selected ? `, ${selected} selected` : ''}`
   return (
     <div className="toolbar" role="toolbar" aria-label="File actions">
-      <AddFilesButton onClick={onAdd} title="Add files (Ctrl+O)" />
+      <AddFilesButton onClick={onAdd} />
       <div className="tb-right">
         <span className="count" aria-live="polite">
           {count}

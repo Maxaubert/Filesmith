@@ -70,7 +70,7 @@ export function AddModel({
         }
       >
         <div className="vs-row">
-          <SmallButton icon="folder" onClick={pickComfy} title={comfyFolder ?? undefined}>
+          <SmallButton icon="folder" onClick={pickComfy}>
             {folderLabel}
           </SmallButton>
           <SmallButton icon="addfile" onClick={importOne}>
@@ -89,15 +89,11 @@ export function AddModel({
         <SmallButton icon="addfile" onClick={importOne}>
           Add a model
         </SmallButton>
-        <SmallButton
-          icon="folder"
-          onClick={() => void window.filesmith.registryOpenFolder()}
-          title="Open the folder where your own model entries live"
-        >
+        <SmallButton icon="folder" onClick={() => void window.filesmith.registryOpenFolder()}>
           Open folder
         </SmallButton>
       </div>
-      <SmallButton icon="folder" onClick={pickComfy} title={comfyFolder ?? undefined}>
+      <SmallButton icon="folder" onClick={pickComfy}>
         {folderLabel}
       </SmallButton>
       {status}
