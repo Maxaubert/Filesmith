@@ -20,7 +20,7 @@ import {
   mkdirSync,
   rmSync
 } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { dirname, join, relative, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -83,28 +83,71 @@ const sh = join(root, 'cli', 'filesmith')
 if (existsSync(sh) && readFileSync(sh, 'utf8').includes('\r'))
   failures.push('cli/filesmith has CRLF line endings (Git Bash cannot run it)')
 
-/** Run a bundled exe; record a failure if it cannot start or exits non-zero. */
+/** Seconds one smoke run may take before it counts as hung (issue #43). */
+const SMOKE_LIMIT_S = 90
+
+/** Kill a process and every process it started (soffice.com starts soffice.bin). */
+function killTree(/** @type {number | undefined} */ pid) {
+  if (!pid) return
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+    return
+  }
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch {
+    /* already gone */
+  }
+}
+
+/**
+ * Run a bundled exe; record a failure if it cannot start, exits non-zero, or
+ * hangs. It settles on 'exit', not on the pipes closing: a grandchild that
+ * inherits the output pipes (LibreOffice's soffice.bin) kept the old
+ * execFileSync waiting forever, which is how the release check hung for 45
+ * minutes (issue #43). Whatever is still running afterwards is killed as a tree.
+ */
 function smoke(
   /** @type {string} */ label,
   /** @type {string} */ exe,
   /** @type {string[]} */ argv,
   env = {}
 ) {
-  if (!existsSync(exe)) return
-  try {
-    const out = execFileSync(exe, argv, {
-      encoding: 'utf8',
+  if (!existsSync(exe)) return Promise.resolve()
+  console.log(`  ... ${label}`)
+  return new Promise((done) => {
+    let out = ''
+    let err = ''
+    let finished = false
+    const child = spawn(exe, argv, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 120_000,
-      env: { ...process.env, ...env }
+      env: { ...process.env, ...env },
+      windowsHide: true
     })
-    console.log(`  ✓ ${label}: ${out.split(/\r?\n/).find((l) => l.trim()) ?? 'ok'}`)
-  } catch (e) {
-    const err = /** @type {{ status?: number, stderr?: string, message: string }} */ (e)
-    failures.push(
-      `${label} failed to run (exit ${err.status ?? '?'}): ${(err.stderr || err.message).trim()}`
+    child.stdout.on('data', (d) => (out += d))
+    child.stderr.on('data', (d) => (err += d))
+    const end = (/** @type {string | null} */ problem) => {
+      if (finished) return
+      finished = true
+      clearTimeout(timer)
+      killTree(child.pid)
+      if (problem) failures.push(`${label}: ${problem}`)
+      else console.log(`  ✓ ${label}: ${out.split(/\r?\n/).find((l) => l.trim()) ?? 'ok'}`)
+      done(undefined)
+    }
+    const timer = setTimeout(
+      () => end(`hung for ${SMOKE_LIMIT_S} s and was killed (${exe})`),
+      SMOKE_LIMIT_S * 1000
     )
-  }
+    child.on('error', (e) => end(`failed to start: ${e.message}`))
+    // A short grace period lets the pipes drain after exit, then stop waiting.
+    child.on('exit', (code) =>
+      setTimeout(
+        () => end(code === 0 ? null : `failed to run (exit ${code}): ${(err || out).trim()}`),
+        250
+      )
+    )
+  })
 }
 
 console.log(`Verifying bundled tools in ${root}`)
@@ -119,20 +162,32 @@ const magickEnv = {
 const tmp = mkdtempSync(join(tmpdir(), 'filesmith-verify-'))
 try {
   const png = join(tmp, 'probe.png')
-  smoke('magick encode PNG', join(bin, 'magick.exe'), ['-size', '8x8', 'xc:red', png], magickEnv)
-  smoke(
+  await smoke(
+    'magick encode PNG',
+    join(bin, 'magick.exe'),
+    ['-size', '8x8', 'xc:red', png],
+    magickEnv
+  )
+  await smoke(
     'magick decode PNG',
     join(bin, 'magick.exe'),
     [png, '-format', '%wx%h %m', 'info:'],
     magickEnv
   )
-  smoke('ffmpeg', join(bin, 'ffmpeg.exe'), ['-hide_banner', '-version'])
-  smoke('ffprobe', join(bin, 'ffprobe.exe'), ['-hide_banner', '-version'])
-  smoke('caesiumclt', join(bin, 'caesiumclt.exe'), ['--version'])
-  smoke('mutool', join(bin, 'mutool.exe'), ['-v'])
-  smoke('7z', join(bin, '7z.exe'), ['i'])
-  smoke('ghostscript', join(root, 'ghostscript', 'bin', 'gswin64c.exe'), ['--version'])
-  smoke('libreoffice', join(root, 'libreoffice', 'program', 'soffice.com'), ['--version'])
+  await smoke('ffmpeg', join(bin, 'ffmpeg.exe'), ['-hide_banner', '-version'])
+  await smoke('ffprobe', join(bin, 'ffprobe.exe'), ['-hide_banner', '-version'])
+  await smoke('caesiumclt', join(bin, 'caesiumclt.exe'), ['--version'])
+  await smoke('mutool', join(bin, 'mutool.exe'), ['-v'])
+  await smoke('7z', join(bin, '7z.exe'), ['i'])
+  await smoke('ghostscript', join(root, 'ghostscript', 'bin', 'gswin64c.exe'), ['--version'])
+  // A throwaway profile, so a first run never sits in LibreOffice's profile setup.
+  const profile = 'file:///' + join(tmp, 'lo-profile').replaceAll('\\', '/')
+  await smoke('libreoffice', join(root, 'libreoffice', 'program', 'soffice.com'), [
+    `-env:UserInstallation=${profile}`,
+    '--headless',
+    '--norestore',
+    '--version'
+  ])
 } finally {
   rmSync(tmp, { recursive: true, force: true })
 }
