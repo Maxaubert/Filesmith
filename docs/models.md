@@ -22,7 +22,8 @@ locations (your profile, Documents, OneDrive, drive roots, names like `ComfyUI`,
 - **Generate**, with no model found: **Choose ComfyUI folder**.
 - **Generate > Your models > Change ComfyUI folder**.
 - **Generate**, when ComfyUI was not found: **Locate my ComfyUI folder**.
-- **Upscale > AI models > ComfyUI models > Locate my ComfyUI folder** or **Change folder**.
+- **Upscale > AI models > ComfyUI models**: **Locate my ComfyUI folder** or **Browse to ComfyUI folder**
+  (**Change ComfyUI folder** or **Change folder** once one is set).
 - CLI: `filesmith setup comfy --folder "D:\ComfyUI"`.
 
 You can pick the ComfyUI root, its `models` folder or its `upscale_models` folder. The choice is stored

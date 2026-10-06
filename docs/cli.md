@@ -166,7 +166,7 @@ The app has a console panel at the bottom of the files view (spec
 `docs/superpowers/specs/2026-10-06-console-design.md`). It runs filesmith commands only; for anything
 else, use a terminal.
 
-- **Open and close.** Ctrl+` (anywhere in the app, except while a dialog is open) toggles it. The
+- **Open and close.** ``Ctrl+` `` (anywhere in the app, except while a dialog is open) toggles it. The
   bottom strip of the centre column holds the **Console** button, which shows the running command's
   percentage while the panel is closed; the strip hides while the panel is open. The panel header has
   **Clear** (disabled while a command runs) and **Minimise**. Drag the top edge (or focus it and use

@@ -47,16 +47,16 @@ Routing notes:
 
 Options:
 
-| Option         | Shown for               | Choices                                       | Default        |
-| -------------- | ----------------------- | --------------------------------------------- | -------------- |
-| Format         | all                     | targets above                                 | none, pick one |
-| Quality        | images                  | smaller, balanced, best                       | balanced       |
-| Compression    | archive to archive      | store, normal                                 | store          |
-| Resolution     | PDF to comic            | 72 to 400 dpi                                 | 150 dpi        |
-| Page format    | PDF to comic            | jpg, png                                      | jpg            |
-| Page quality   | PDF to comic, jpg pages | 10 to 100                                     | 100            |
-| Location       | non-archive converts    | next to source, chosen folder (Choose folder) | next to source |
-| If file exists | non-archive converts    | add (2), fixed                                | add (2)        |
+| Option         | Shown for               | Choices                                       | Default                                      |
+| -------------- | ----------------------- | --------------------------------------------- | -------------------------------------------- |
+| Format         | all                     | targets above                                 | WebP for images, else the first valid target |
+| Quality        | images                  | smaller, balanced, best                       | balanced                                     |
+| Compression    | archive to archive      | store, normal                                 | store                                        |
+| Resolution     | PDF to comic            | 72 to 400 dpi                                 | 150 dpi                                      |
+| Page format    | PDF to comic            | jpg, png                                      | jpg                                          |
+| Page quality   | PDF to comic, jpg pages | 10 to 100                                     | 100                                          |
+| Location       | non-archive converts    | next to source, chosen folder (Choose folder) | next to source                               |
+| If file exists | non-archive converts    | add (2), the only choice                      | add (2)                                      |
 
 Output: one file per source in the target format, tag `converted`.
 
@@ -178,6 +178,8 @@ Model setup:
 
 Output: PNG named from the start of the prompt (`a-red-fox.png`, tag `generated`), saved to
 your Downloads folder.
+
+![Generate with a model picked and an empty prompt](screenshots/generate.png)
 
 ## PDF Tools
 

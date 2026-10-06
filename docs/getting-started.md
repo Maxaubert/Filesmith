@@ -93,6 +93,8 @@ Six sizes, named like File Explorer: **Details**, **Large details**, **Tiles**, 
 - **Large details** is the Details table with taller rows, bigger thumbnails and larger names.
 - The size is remembered between sessions.
 
+![The files view at Large icons](screenshots/view-large-icons.png)
+
 ### Inspector
 
 The right panel has three tabs:
@@ -147,6 +149,8 @@ Filesmith never overwrites your source or any existing file.
 - **Claude:** installs or updates the Filesmith skill for Claude Code into
   `%USERPROFILE%\.claude\skills\filesmith`, so Claude can run Filesmith for you through the CLI.
 
+![Settings: sidebar order, tools and the Claude skill](screenshots/settings.png)
+
 ## Keyboard shortcuts
 
 | Keys                  | Action                                                                              |
@@ -154,7 +158,7 @@ Filesmith never overwrites your source or any existing file.
 | Ctrl+O                | Add files                                                                           |
 | Ctrl+Enter            | Run                                                                                 |
 | Ctrl+B                | Collapse or expand the sidebar                                                      |
-| Ctrl+`                | Open or close the console                                                           |
+| ``Ctrl+` ``           | Open or close the console                                                           |
 | Ctrl+wheel            | Step the view size                                                                  |
 | Ctrl+= / Ctrl++       | Bigger view size                                                                    |
 | Ctrl+-                | Smaller view size                                                                   |
@@ -171,8 +175,8 @@ View-size keys only work in the files view, and not while you type in a text fie
 
 ## The console
 
-The **Console** button in the bottom strip (or **Ctrl+`**) opens a console panel under the files table.
-It runs **filesmith commands only**, without the `filesmith`prefix:`convert`, `compress`, `resize`,
+The **Console** button in the bottom strip (or ``Ctrl+` ``) opens a console panel under the files table.
+It runs **filesmith commands only**, without the `filesmith` prefix: `convert`, `compress`, `resize`,
 `upscale`, `removebg`, `generate "<prompt>"`, `pdf <tool>`, and the helpers `formats`, `doctor`,
 `setup`, `skill`. Anything else is refused with "Only filesmith commands run here". Use a terminal for
 other programs. The full command reference is in [cli.md](cli.md).
@@ -196,3 +200,5 @@ Built-ins:
 - Drag the top edge to resize the panel. **Esc** returns focus to the files table.
 - Console jobs do not appear in the app's queue or Completed view, and the app's queue keeps working
   while one runs.
+
+![The console open under the files table after a convert run](screenshots/console.png)
