@@ -151,7 +151,6 @@ test('the panel head holds Clear and Minimise, slim and on the right', async () 
   expect(Math.round(head.height)).toBeLessThanOrEqual(28)
   const x = (await closeBtn().boundingBox())!
   expect(Math.round(x.x + x.width)).toBe(Math.round(head.x + head.width))
-  await expect(panel().getByRole('button', { name: 'Open in terminal' })).toHaveCount(0)
 })
 
 test('typing in the console never changes the view size or zooms the page', async () => {
@@ -187,15 +186,15 @@ test('cd, a real convert with Show in File Explorer, nothing in the queue', asyn
   expect(await grid().getByRole('row').count()).toBe(rowsBefore)
 })
 
-test('other programs are refused with Open in terminal; main refuses them too', async () => {
+test('other programs are refused with a plain line; main refuses them too', async () => {
   await type('del *.*')
-  await expect(panel().getByText('is not a filesmith command.', { exact: false })).toBeVisible()
-  // Open in terminal lives only on the refusal line, not in the head.
+  // The refusal is text only: no button on the line, `not run` at the right.
   const refusal = panel().locator('.ln.refuse').last()
-  await expect(refusal.getByRole('button', { name: 'Open in terminal' })).toBeVisible()
-  await expect(
-    panel().locator('.chead').getByRole('button', { name: 'Open in terminal' })
-  ).toHaveCount(0)
+  await expect(refusal).toHaveText(
+    'del is not a filesmith command. Only filesmith commands run here. Use a terminal for anything else.'
+  )
+  await expect(refusal.getByRole('button')).toHaveCount(0)
+  await expect(panel().locator('.blk').last().locator('.dec')).toHaveText('not run')
   const r = await page.evaluate((w) => window.filesmith.consoleRun('x1', 'calc', w), work)
   expect(r.ok).toBe(false)
   expect(readdirSync(work)).toContain('a.png')
@@ -207,7 +206,11 @@ test('Tab completes commands and values; Up recalls the last line', async () => 
   await expect(prompt()).toHaveValue('convert ')
   await prompt().fill('convert a.png --to w')
   await prompt().press('Tab')
-  await expect(page.getByRole('listbox', { name: 'Completions' })).toContainText('webp')
+  const list = page.getByRole('listbox', { name: 'Completions' })
+  await expect(list).toContainText('webp')
+  // No key hints: neither a footer in the list nor a row at the prompt.
+  await expect(list.locator('kbd')).toHaveCount(0)
+  await expect(panel().locator('.pline kbd')).toHaveCount(0)
   await prompt().press('Escape')
   await prompt().fill('')
   await prompt().press('ArrowUp')
@@ -250,8 +253,7 @@ test('Stop cancels a running convert with exit 130', async () => {
   await type('convert b*.png --to avif --quality best')
   const stop = panel().getByRole('button', { name: /^Stop/ })
   await expect(stop).toBeVisible()
-  // The running footer keeps its key hints; the head is Stop and the close X only.
-  await expect(panel().locator('.pline .keys')).toBeVisible()
+  // The head is Stop, Clear and Minimise only.
   expect(await headNames()).toEqual(['StopCtrl+C', 'Clear console', 'Minimise console'])
   await stop.click()
   await expect(panel().getByText('exit 130', { exact: false })).toBeVisible({ timeout: 15_000 })

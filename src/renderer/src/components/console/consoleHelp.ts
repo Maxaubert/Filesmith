@@ -7,7 +7,7 @@ export const HELP_LINES = (cwd: string): string[] => [
   '  pdf <tool>                                     merge, split, burst, extract-text, to-images',
   '  formats, doctor, setup, skill                  helpers',
   '  cd <folder>, history, clear                    console built-ins (Ctrl+L clears)',
-  'Add --help to a command for its options. Other programs: Open in terminal.'
+  'Add --help to a command for its options. Other programs: use a terminal.'
 ]
 
 export const BUILTIN_ITEMS: CompletionItem[] = [

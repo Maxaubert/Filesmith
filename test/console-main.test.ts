@@ -125,7 +125,7 @@ describe('validateRun', () => {
     expect(validateRun('calc', 'D:\\P', ok)).toEqual({
       ok: false,
       error:
-        '`calc` is not a filesmith command. This console only runs filesmith; use a terminal for anything else.'
+        '`calc` is not a filesmith command. Only filesmith commands run here. Use a terminal for anything else.'
     })
     expect(validateRun('doctor', 'relative', ok)).toEqual({
       ok: false,

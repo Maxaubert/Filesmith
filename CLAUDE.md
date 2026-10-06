@@ -63,7 +63,7 @@ src/
     (planned) jobQueue.ts      batch queue: spawn, stream progress, cancel
     (planned) output.ts        collision-safe output naming (ported from RCMM Get-UniqueOutPath)
     (planned) ipc.ts           renderer <-> engine wiring
-    console/        in-app console: catalog, CLI runner (fork, staged cancel), cd, Open in terminal
+    console/        in-app console: catalog, CLI runner (fork, staged cancel), cd
   preload/     contextBridge — the typed `window.filesmith` API
   renderer/    React UI: shell/ (title bar, sidebar, status bar), queue/ (files table),
                inspector/ (Options, Preview, Info), options/ (one settings file per verb),

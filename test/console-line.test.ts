@@ -124,10 +124,10 @@ describe('classifyLine', () => {
   })
   it('words the refusals', () => {
     expect(refusalText({ kind: 'refuse', word: 'del', reason: 'unknown' })).toBe(
-      '`del` is not a filesmith command. This console only runs filesmith; use a terminal for anything else.'
+      '`del` is not a filesmith command. Only filesmith commands run here. Use a terminal for anything else.'
     )
     expect(refusalText({ kind: 'refuse', word: '-', reason: 'stdin' })).toBe(
-      'Reading file names from stdin is not available here. Use Open in terminal.'
+      'Reading file names from stdin is not available here. Use a terminal for that.'
     )
   })
 })

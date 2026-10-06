@@ -308,8 +308,7 @@
   direction: rtl;
   text-align: left;
 }
-.pline .fx,
-.pline .keys {
+.pline .fx {
   flex-shrink: 0;
 }
 .pin {
@@ -328,21 +327,6 @@
   color: var(--fg3);
   font-weight: 400;
   font-style: italic;
-}
-.pline .keys {
-  display: flex;
-  gap: 14px;
-  font: 11px var(--mono);
-  color: var(--fg3);
-  white-space: nowrap;
-  padding-left: 16px;
-}
-.pline .keys kbd {
-  font: inherit;
-  color: var(--fg2);
-  border: 1px solid var(--line-strong);
-  padding: 0 4px;
-  margin-right: 5px;
 }
 .pline .waitmsg {
   flex: 1;
@@ -403,21 +387,6 @@
 }
 .comp li[aria-selected='true'] .d {
   color: var(--fg2);
-}
-.comp .ft {
-  display: flex;
-  gap: 14px;
-  border-top: 1px solid var(--line);
-  padding: 6px 12px;
-  font: 11px var(--mono);
-  color: var(--fg3);
-}
-.comp .ft kbd {
-  font: inherit;
-  color: var(--fg2);
-  border: 1px solid var(--line-strong);
-  padding: 0 4px;
-  margin-right: 5px;
 }
 
 @media (prefers-reduced-motion: reduce) {

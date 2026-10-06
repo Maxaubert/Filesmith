@@ -6,12 +6,10 @@ import { outputForLine, progressText, type Block } from './consoleModel'
 /** The scrollback: notes and command blocks (spec 7). */
 export function ConsoleOutput({
   blocks,
-  onTerminal,
   onReveal,
   onRowMenu
 }: {
   blocks: Block[]
-  onTerminal: () => void
   onReveal: (path: string) => void
   onRowMenu: (e: MouseEvent, path: string) => void
 }): JSX.Element {
@@ -53,10 +51,6 @@ export function ConsoleOutput({
                     s.code ? <code key={i}>{s.text}</code> : s.text
                   )}
                 </span>
-                <button type="button" className="sbtn mini" onClick={onTerminal}>
-                  <Icon name="external" size={12} />
-                  Open in terminal
-                </button>
               </div>
             )}
             {b.lines.map((l, i) => {

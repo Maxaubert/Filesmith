@@ -27,15 +27,14 @@ In scope:
   by **Ctrl+`** anywhere; resizable; open state, height and history persisted.
 - Commands are typed **without** the `filesmith` prefix (a pasted leading `filesmith` is stripped). Only CLI
   commands and four built-ins (`cd`, `clear`/`cls`, `help`, `history`) run. Anything else is refused in one
-  line with an inline **Open in terminal** action (the only place it appears).
-- **Open in terminal** starts the real Windows terminal (Windows Terminal if installed, else PowerShell) in the
-  console's folder with `filesmith` on PATH.
+  plain line of text (no button; owner, 2026-10-06: "remove this extra stuff like buttons and Open in
+  terminal").
 - Live progress, a red **Stop** (and Ctrl+C) while a command runs, Up/Down history, Tab completion of commands,
   sub-commands, flags, values and file names, **Show in File Explorer** under finished runs.
 - Console runs never join the app's queue; their output stays in the console.
 
 Out of scope: a general shell, pipes or redirection, several console sessions or tabs, running two console
-commands at once, `-` (file names from stdin), colour output, saving scrollback across restarts, a console
+commands at once, `-` (file names from stdin), launching an external terminal (removed 2026-10-06), colour output, saving scrollback across restarts, a console
 toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works there; see 11, Q1). Any change to the View menu (done in PR #42).
 
 ## 2. Layout
@@ -55,7 +54,7 @@ toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works the
   `theme/console.css`.
 - **Head (owner feedback 2026-10-06, "just an open and close, keep it simple"):** a slim 28px row, right-aligned:
   the red **Stop** (only while a command runs), an icon-only Clear (circle with a slash, `aria-label="Clear console"`, disabled while running; clears the output and the input) and an icon-only Minimise (a bar, `aria-label="Minimise console"`) that hides the panel (owner, 2026-10-06).
-  Nothing else: no label, folder button, note or Open in terminal. The folder shows in the prompt and
+  Nothing else: no label, folder button or note. The folder shows in the prompt and
   changes with `cd`; `clear`/`cls` and Ctrl+L clear.
 - **Body:** scrollback then the prompt line. The body scrolls (`.scroll-thin`), the output is selectable
   (`.select-text`; `body` is `user-select:none`).
@@ -87,8 +86,8 @@ toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works the
 ## 4. The prompt
 
 - `D:\Photos\Trip> filesmith ` (folder and fixed prefix in `--fg3`) then the input (mono 12px, 500,
-  `--fg1`), placeholder `convert *.heic --to webp` while the scrollback is empty, and at the right the key
-  hints `Tab complete` and `Up Down history`.
+  `--fg1`) and placeholder `convert *.heic --to webp` while the scrollback is empty. No key hints (owner,
+  2026-10-06); Tab, Up and Down work without them.
 - **Enter** runs the line. Empty lines do nothing. A non-empty line is pushed onto history first.
 - While a command runs, the input is replaced by `Running. Ctrl+C or Stop cancels it; the app's queue keeps
   working.` (mockup `.pline.wait`). Typing ahead is not supported (one command at a time).
@@ -120,12 +119,12 @@ toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works the
 | Line                        | Result                                                                          |
 | --------------------------- | ------------------------------------------------------------------------------- |
 | `clear`, `cls`, Ctrl+L      | empties the scrollback                                                          |
-| `help`                      | the console help (mockup lines 685-693), then `Add --help to a command for its options. Other programs: Open in terminal.` |
+| `help`                      | the console help (mockup lines 685-693), then `Add --help to a command for its options. Other programs: use a terminal.` |
 | `history`                   | numbered past lines, oldest first                                               |
 | `cd ...`                    | section 5                                                                       |
 | `<command> --help`, `help <command>` | passed to the CLI (its own help text)                                  |
 | a CLI command               | runs (section 7)                                                                |
-| a line with `-` as an input | refused: `Reading file names from stdin is not available here. Use Open in terminal.` |
+| a line with `-` as an input | refused: `Reading file names from stdin is not available here. Use a terminal for that.` |
 | anything else               | refused (below)                                                                 |
 
 The CLI commands are the first words of the catalog (`convert`, `compress`, `resize`, `upscale`, `removebg`,
@@ -136,8 +135,8 @@ after a prefix the built-ins do not apply (`filesmith cd ..` is refused, `filesm
 and a bare `filesmith` prints the CLI's help.
 
 **Refusal** (mockup `01-bottom-panel-rejected.png`): the echoed command with `not run` at the right, then one
-line: info glyph, `` `del` is not a filesmith command. This console only runs filesmith; use a terminal for
-anything else. `` and a small **Open in terminal** button. Nothing is started. The check runs in the renderer
+line: info glyph and `` `del` is not a filesmith command. Only filesmith commands run here. Use a terminal for
+anything else. `` (text only, no button). Nothing is started. The check runs in the renderer
 for the message and again in main before anything is spawned (section 9).
 
 ## 7. Output
@@ -174,7 +173,7 @@ with a warning glyph, or `not run`).
 - **Completion** (mockup `01-bottom-panel-completion.png`): Tab opens a list above the caret, or inserts at once
   when there is exactly one candidate. Tab / Shift+Tab or Up / Down move, Enter or a click inserts, Esc closes;
   typing refilters while it is open. Up to eight rows: the value (matched prefix bold `--fg1`) and a short
-  description in `--fg3`; a footer with the keys. Group title per context:
+  description in `--fg3`; no key footer (owner, 2026-10-06). Group title per context:
   - first word: `COMMANDS` (every CLI command and the built-ins, with their one-line summary);
   - after `pdf` / `skill`: `PDF TOOLS` / `SKILL` sub-commands;
   - a word starting with `-`: `<COMMAND> OPTIONS` (the command's flags with their help, aliases match too,
@@ -256,35 +255,19 @@ events over it:
 | `consoleDefaultDir(): Promise<string>`                                     | `console:default-dir` (Downloads, else home)         |
 | `consoleCd(base, arg): Promise<{ ok: true; dir: string } \| { ok: false; error: string }>` | `console:cd`                        |
 | `consoleList(dir, prefix): Promise<ConsoleEntry[]>`                        | `console:list` (names for completion, max 200)       |
-| `consoleOpenTerminal(cwd): Promise<{ ok: boolean; error?: string }>`       | `console:terminal`                                  |
 | `reveal(path)` (exists)                                                    | `reveal` handler **restored** (it was dropped in #21, so every Show in folder in the app is broken today) |
 
 Types live once in `src/shared/console.ts`.
 
-### 9.6 Open in terminal
-
-- **PATH:** packaged, `join(process.resourcesPath, 'cli')` (the folder the installer puts on the user PATH;
-  prepended anyway because the installer's change only reaches terminals started after it). Dev: main writes a
-  shim `userData/dev-cli/filesmith.cmd` that runs `"<execPath>" "<appPath>\out\main\cli.js" %*` with
-  `ELECTRON_RUN_AS_NODE=1` (a `%` in either path doubled, since cmd expands it inside quotes), and prepends
-  that folder.
-- **PATH is set inside the shell**, not through the spawn env (a running Windows Terminal ignores the caller's
-  env for a new window): PowerShell `-NoExit -NoLogo -EncodedCommand <base64 UTF-16LE of
-  $env:Path = '<dir>;' + $env:Path>`.
-- **Windows Terminal:** `wt.exe -w new -d <folder> powershell.exe -NoExit -NoLogo -EncodedCommand <b64>`
-  (`;` in the folder escaped as `\;`), detached. When `wt.exe` fails to start (ENOENT), fall back to
-  `powershell.exe` with `cwd` = the folder, detached, its own window.
-- The console prints a note: `Opened a terminal in <folder>. filesmith is on its PATH.` or the error.
-
-### 9.7 Files
+### 9.6 Files
 
 | Area     | Files                                                                                               |
 | -------- | --------------------------------------------------------------------------------------------------- |
 | shared   | `console.ts` (types), `consoleLine.ts` (tokenize, classify), `consoleComplete.ts` (completion)       |
 | cli      | `io.ts` (`events?`), `events.ts` (`TeeReporter`), `main.ts` (tee), `bootstrap.ts` (IPC interrupt, disconnect, events) |
-| main     | `console/catalog.ts`, `console/lines.ts`, `console/runCli.ts`, `console/dirs.ts`, `console/validate.ts`, `console/terminal.ts`, `console/ipc.ts`; `ipc.ts` (`reveal`), `index.ts` (register, quit) |
+| main     | `console/catalog.ts`, `console/lines.ts`, `console/runCli.ts`, `console/dirs.ts`, `console/validate.ts`, `console/ipc.ts`; `ipc.ts` (`reveal`), `index.ts` (register, quit) |
 | preload  | `index.ts` (the methods above)                                                                      |
-| renderer | `components/console/{consoleModel.ts, consoleHeight.ts, useConsolePanel.ts, ConsolePanel.tsx, ConsoleOutput.tsx, CompletionList.tsx}`, `theme/console.css`, icons `console`, `external`, `ConsoleStrip.tsx` (the bottom strip, hidden while open), `shortcuts.ts` (Ctrl+`, `inConsole`, `isTextEntryTarget`), `App.tsx` (mount, keys) |
+| renderer | `components/console/{consoleModel.ts, consoleHeight.ts, useConsolePanel.ts, ConsolePanel.tsx, ConsoleOutput.tsx, CompletionList.tsx}`, `theme/console.css`, icon `console`, `ConsoleStrip.tsx` (the bottom strip, hidden while open), `shortcuts.ts` (Ctrl+`, `inConsole`, `isTextEntryTarget`), `App.tsx` (mount, keys) |
 | docs     | `docs/cli.md` (a Console section), `CLAUDE.md` (layout lines), this spec and the plan                |
 
 ## 10. Security
@@ -306,8 +289,6 @@ Types live once in `src/shared/console.ts`.
   plus the two fixed variables. The CLI deletes `ELECTRON_RUN_AS_NODE` before starting tools, as today.
 - **Folder:** `cwd` must be an absolute path to an existing directory, checked in main.
 - **Never overwrite:** unchanged, the CLI's own collision-safe output rules apply.
-- **Open in terminal:** the folder is the only input; it is passed as an argument (`-d`) or `cwd`, and the
-  encoded script contains only the CLI folder chosen by main, single quotes doubled.
 - **Limits:** a line is capped at 8,000 characters; one run per window at a time (main refuses a second id).
 
 ## 11. Open questions for the owner (with recommended answers)
@@ -326,14 +307,13 @@ Types live once in `src/shared/console.ts`.
   aliases, used flags, values, files), catalog builder (every command present, globals), `TeeReporter` and
   `main()` with `io.events` (events and human text both written), line splitter (CRLF, partial chunks,
   flush), cancel stages of the runner with a fake child (interrupt, second interrupt, kill after 5 s, exit),
-  `resolveCd` (relative, `..`, `~`, `D:`, quoted, `-`), terminal launch arguments (WT, fallback, `;` escaping,
-  encoded command), console model (blocks, line styling, progress row, exit status, scrollback cap, history
+  `resolveCd` (relative, `..`, `~`, `D:`, quoted, `-`), console model (blocks, line styling, progress row, exit status, scrollback cap, history
   ring and draft), height clamp, `shortcutFor` Ctrl+` by code, preload/main channel parity,
   icons, `isTextEntryTarget` (text inputs, textarea, contenteditable yes; checkbox, button, null no), no em-dash and monochrome scans of the new files.
 - **Playwright** (`npm run build` first): Ctrl+`, the strip button and the close X open and close the panel
   and it survives a tab switch; open, the strip is hidden and the panel is flush with the window bottom; the
   head holds only the close X (plus Stop while running); `clear` and Ctrl+L empty the scrollback; a real `convert` of a fixture PNG to webp in a temp folder shows `ok`, the summary and Show in File
-  Explorer, and does not add a row to the queue; `del *.*` is refused with Open in terminal on the refusal line (never in the head); Tab completes
+  Explorer, and does not add a row to the queue; `del *.*` is refused with a text-only line (no button) and `not run`; the prompt and the completion list show no key hints; Tab completes
   `conv` to `convert` and lists `--to` values; Up recalls the last line; a long `upscale`-free run (a 40-file
   convert) is stopped with Stop and ends `exit 130`; `cd ..` changes the prompt; the sash drag changes the
   height; with focus in the console prompt Ctrl+= / Ctrl+- / Ctrl+0 leave the files view size unchanged and

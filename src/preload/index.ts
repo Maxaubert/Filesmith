@@ -208,8 +208,6 @@ const api = {
     name: string
   ): Promise<{ dir: string; entries: ConsoleEntry[] }> =>
     ipcRenderer.invoke('console:list', cwd, dir, name),
-  consoleOpenTerminal: (cwd: string): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke('console:terminal', cwd),
 
   // window controls (frameless)
   minimize: (): void => ipcRenderer.send('window:minimize'),

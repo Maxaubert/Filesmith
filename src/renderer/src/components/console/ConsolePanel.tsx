@@ -130,14 +130,6 @@ export function ConsolePanel(p: {
     p.onCwd(d)
     note(`Folder is now ${d}.`)
   }
-  const terminal = async (): Promise<void> => {
-    const r = await window.filesmith.consoleOpenTerminal(cwd)
-    note(
-      r.ok
-        ? `Opened a terminal in ${cwd}. filesmith is on its PATH.`
-        : `Could not open a terminal: ${r.error ?? 'unknown error'}`
-    )
-  }
 
   async function submit(raw: string): Promise<void> {
     const line = raw.trim()
@@ -399,7 +391,6 @@ export function ConsolePanel(p: {
       >
         <ConsoleOutput
           blocks={state.blocks}
-          onTerminal={() => void terminal()}
           onReveal={(x) => window.filesmith.reveal(x)}
           onRowMenu={rowMenu}
         />
@@ -434,16 +425,6 @@ export function ConsolePanel(p: {
               />
             </>
           )}
-          {/* Shown while a run is busy too, as in the mockup's running state. */}
-          <span className="keys">
-            <span>
-              <kbd>Tab</kbd>complete
-            </span>
-            <span>
-              <kbd>Up</kbd>
-              <kbd>Down</kbd>history
-            </span>
-          </span>
         </div>
       </div>
       {comp && pr && (

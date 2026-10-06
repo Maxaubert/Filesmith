@@ -101,9 +101,9 @@ export function classifyLine(line: string, verbs: ReadonlySet<string>): LineKind
 
 export function refusalText(k: Extract<LineKind, { kind: 'refuse' }>): string {
   if (k.reason === 'stdin')
-    return 'Reading file names from stdin is not available here. Use Open in terminal.'
+    return 'Reading file names from stdin is not available here. Use a terminal for that.'
   if (k.reason === 'too-long') return `The line is longer than ${MAX_LINE} characters.`
-  return `\`${k.word}\` is not a filesmith command. This console only runs filesmith; use a terminal for anything else.`
+  return `\`${k.word}\` is not a filesmith command. Only filesmith commands run here. Use a terminal for anything else.`
 }
 
 /** Split text on `backtick` spans so the UI can draw them as code. Odd

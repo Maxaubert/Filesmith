@@ -47,17 +47,6 @@ export function CompletionList({
           </li>
         ))}
       </ul>
-      <div className="ft">
-        <span>
-          <kbd>Tab</kbd>next
-        </span>
-        <span>
-          <kbd>Enter</kbd>insert
-        </span>
-        <span>
-          <kbd>Esc</kbd>close
-        </span>
-      </div>
     </div>
   )
 }

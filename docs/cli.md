@@ -178,8 +178,6 @@ the panel's top-right corner.
   Explorer**.
 - **Stop** or Ctrl+C cancels a run: the current file is stopped, part files are removed and the run
   ends with exit 130. A second Stop ends it at once (the process tree is killed after 5 s at most).
-- **Open in terminal** (shown on the line that refuses a non-filesmith command) opens Windows Terminal (else PowerShell) in the console's folder with `filesmith`
-  on PATH, for anything the console does not run.
 - Plumbing: each command forks `out/main/cli.js` with `ELECTRON_RUN_AS_NODE`. When `CliIO.events` is
   set, the CLI tees its NDJSON events to it; under a fork they travel over the IPC channel. The parent
   cancels with the `'interrupt'` IPC message (twice for a hard stop), never with a console Ctrl+C.
