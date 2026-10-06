@@ -23,6 +23,8 @@ export const ICON_NAMES = [
   'chev-r',
   'chev-d',
   'trash',
+  'minimize',
+  'reset',
   'cleardone',
   'eye',
   'info',

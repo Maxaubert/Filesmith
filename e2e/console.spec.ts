@@ -89,7 +89,7 @@ async function type(line: string): Promise<void> {
   await prompt().press('Enter')
 }
 
-const closeBtn = () => panel().getByRole('button', { name: 'Close console' })
+const closeBtn = () => panel().getByRole('button', { name: 'Minimise console' })
 const headNames = () =>
   panel()
     .locator('.chead')
@@ -145,14 +145,13 @@ test('closed, the strip holds only the Console button; open, the panel replaces 
   await expect(panel()).toBeVisible()
 })
 
-test('the panel head holds only the close X, slim and on the right', async () => {
-  expect(await headNames()).toEqual(['Close console'])
+test('the panel head holds Clear and Minimise, slim and on the right', async () => {
+  expect(await headNames()).toEqual(['Clear console', 'Minimise console'])
   const head = (await panel().locator('.chead').boundingBox())!
   expect(Math.round(head.height)).toBeLessThanOrEqual(28)
   const x = (await closeBtn().boundingBox())!
   expect(Math.round(x.x + x.width)).toBe(Math.round(head.x + head.width))
   await expect(panel().getByRole('button', { name: 'Open in terminal' })).toHaveCount(0)
-  await expect(panel().getByRole('button', { name: 'Clear console' })).toHaveCount(0)
 })
 
 test('typing in the console never changes the view size or zooms the page', async () => {
@@ -232,7 +231,7 @@ test('console completion follows typing while the list is open', async () => {
   await prompt().fill('')
 })
 
-test('clear and Ctrl+L empty the scrollback', async () => {
+test('clear, Ctrl+L and the Clear button empty the scrollback', async () => {
   await type('help')
   await expect(panel().locator('.blk')).not.toHaveCount(0)
   await prompt().press('Control+l')
@@ -240,6 +239,10 @@ test('clear and Ctrl+L empty the scrollback', async () => {
   await type('help')
   await expect(panel().locator('.blk')).not.toHaveCount(0)
   await type('clear')
+  await expect(panel().locator('.blk')).toHaveCount(0)
+  await type('help')
+  await expect(panel().locator('.blk')).not.toHaveCount(0)
+  await panel().getByRole('button', { name: 'Clear console' }).click()
   await expect(panel().locator('.blk')).toHaveCount(0)
 })
 
@@ -249,7 +252,7 @@ test('Stop cancels a running convert with exit 130', async () => {
   await expect(stop).toBeVisible()
   // The running footer keeps its key hints; the head is Stop and the close X only.
   await expect(panel().locator('.pline .keys')).toBeVisible()
-  expect(await headNames()).toEqual(['StopCtrl+C', 'Close console'])
+  expect(await headNames()).toEqual(['StopCtrl+C', 'Clear console', 'Minimise console'])
   await stop.click()
   await expect(panel().getByText('exit 130', { exact: false })).toBeVisible({ timeout: 15_000 })
   await expect(stop).toBeHidden()

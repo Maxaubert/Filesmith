@@ -354,7 +354,7 @@ export function ConsolePanel(p: {
         onPointerUp={onSashUp}
         onKeyDown={onSashKey}
       />
-      {/* Only close, and Stop while a command runs (owner feedback, 2026-10-06). */}
+      {/* Stop while a command runs, then Clear and Minimise (owner feedback, 2026-10-06). */}
       <div className="chead">
         {runId && (
           <button type="button" className="stopbtn" onClick={stop}>
@@ -365,11 +365,24 @@ export function ConsolePanel(p: {
         <button
           type="button"
           className="hib"
-          title="Close console"
-          aria-label="Close console"
+          title="Clear console"
+          aria-label="Clear console"
+          disabled={!!runId}
+          onClick={() => {
+            dispatch({ type: 'clear' })
+            setInput('')
+          }}
+        >
+          <Icon name="reset" />
+        </button>
+        <button
+          type="button"
+          className="hib"
+          title="Minimise console"
+          aria-label="Minimise console"
           onClick={p.onClose}
         >
-          <Icon name="close" />
+          <Icon name="minimize" />
         </button>
       </div>
       <div

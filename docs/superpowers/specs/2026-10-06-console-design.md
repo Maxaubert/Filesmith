@@ -54,8 +54,8 @@ toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works the
   `.chead`, `.hib`, `.stopbtn`, `.cbody`, `.ln`, `.blk`, `.cmd`, `.pline`, `.comp`) into a new
   `theme/console.css`.
 - **Head (owner feedback 2026-10-06, "just an open and close, keep it simple"):** a slim 28px row, right-aligned:
-  the red **Stop** (only while a command runs) and an icon-only close X (`aria-label="Close console"`).
-  Nothing else: no label, folder button, note, Open in terminal or Clear. The folder shows in the prompt and
+  the red **Stop** (only while a command runs), an icon-only Clear (circle with a slash, `aria-label="Clear console"`, disabled while running; clears the output and the input) and an icon-only Minimise (a bar, `aria-label="Minimise console"`) that hides the panel (owner, 2026-10-06).
+  Nothing else: no label, folder button, note or Open in terminal. The folder shows in the prompt and
   changes with `cd`; `clear`/`cls` and Ctrl+L clear.
 - **Body:** scrollback then the prompt line. The body scrolls (`.scroll-thin`), the output is selectable
   (`.select-text`; `body` is `user-select:none`).
