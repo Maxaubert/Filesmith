@@ -31,6 +31,9 @@ on:
       - 'docs/**'
       - 'LICENSE'
       - '.github/ISSUE_TEMPLATE/**'
+      # Tests cannot change the installer either.
+      - 'test/**'
+      - 'e2e/**'
   pull_request:
     paths:
       - '.github/workflows/release.yml'

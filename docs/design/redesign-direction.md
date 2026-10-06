@@ -3,7 +3,7 @@
 **LOCKED IN (2026-10-04): `docs/mockups/terminal-v5/10-s2-vscode-grouped.html`** is the target design.
 Build the renderer to match it. The rest of this file is the feedback trail that led there.
 
-Mockup rounds live in `docs/mockups/terminal*/` (each has an `index.html` gallery and `shots/`).
+Only the chosen mockups are kept in `docs/mockups/`; the rejected rounds named below were removed and can be recovered from git (see `docs/mockups/README.md`).
 
 - **Dark only.** Light mode is being removed. Black or near-black background. Themes come later.
 - **Strict monochrome.** Greys only (r=g=b). Errors use a glyph and weight, never red.

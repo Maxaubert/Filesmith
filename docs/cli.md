@@ -63,7 +63,8 @@ filesmith <helper> [args] [options]
   same folder; only a job that succeeds renames it onto the final name. A failed or canceled job removes
   both. Treat `*.filesmith-part*` entries as work in progress, never as results.
 - **Output formats.** Human output by default: one line per file (`ok`, `skip`, `fail`) and a summary on
-  stdout, a progress line on stderr when it is a terminal. `--json` prints NDJSON events on stdout only
+  stdout, a progress line on stderr when it is a terminal, in the app queue's format
+  (`[2/5] photo.png 62%(4s)`, `working` when there is no percentage). `--json` prints NDJSON events on stdout only
   (see below).
 - **Exit codes.** `0` all ok or skipped; `1` some job failed (or `doctor` found a failure, or `setup`
   failed); `2` usage error or a requirement that fails for every input, nothing ran; `130` canceled
@@ -162,22 +163,31 @@ The source of this table is `resources/skill/filesmith/reference.md` (Events sec
 ## In-app console
 
 The app has a console panel at the bottom of the files view (spec
-`docs/superpowers/specs/2026-10-06-console-design.md`). Open or close it with Ctrl+` (anywhere in the
-app), the **Console** button in the bottom strip (hidden while the panel is open), or the close X in
-the panel's top-right corner.
+`docs/superpowers/specs/2026-10-06-console-design.md`). It runs filesmith commands only; for anything
+else, use a terminal.
 
+- **Open and close.** ``Ctrl+` `` (anywhere in the app, except while a dialog is open) toggles it. The
+  bottom strip of the centre column holds the **Console** button, which shows the running command's
+  percentage while the panel is closed; the strip hides while the panel is open. The panel header has
+  **Clear** (disabled while a command runs) and **Minimise**. Drag the top edge (or focus it and use
+  Up and Down) to resize. Open state, height, folder and history are remembered.
 - Type commands without the prefix: `convert *.heic --to webp`, `doctor`, `formats`. The line is split
   into plain arguments and handed to the CLI; nothing runs through a shell, so `&`, `|` and `>` are
   just text. Anything that is not a filesmith command is refused, in the panel and again in the main
-  process.
-- Built-ins: `cd <folder>` (the folder commands run in; the last one is remembered, else Downloads),
-  `clear` (or Ctrl+L), `help`, `history` (the last 100 commands; Up and Down recall them). Tab
-  completes commands, flags, values and file names.
-- One command at a time. Console runs do not join the app's queue, and the queue keeps working while
-  one runs. Outputs use the same never-overwrite naming as the CLI; a finished run offers **Show in File
-  Explorer**.
-- **Stop** or Ctrl+C cancels a run: the current file is stopped, part files are removed and the run
-  ends with exit 130. A second Stop ends it at once (the process tree is killed after 5 s at most).
+  process. `-` (file names from stdin) is refused too.
+- Built-ins: `cd <folder>` (the folder commands run in; `cd -` goes back, `cd ~` is your user folder,
+  `cd D:` a drive root; the last folder is remembered, else Downloads), `clear` (or Ctrl+L), `help`,
+  `history` (the last 100 commands; Up and Down recall them). Tab completes commands, flags, values and
+  file names.
+- Output is the CLI's human output, with a progress line in the queue's format (`photo.png 62%(4s)`)
+  and a bar. Each finished command shows `exit <code>` and its time. A finished run with outputs offers
+  **Show in File Explorer**; right-click an output line for **Show in File Explorer** and **Open in
+  default app**.
+- One command at a time. Console runs do not join the app's queue or the Completed view, and the queue
+  keeps working while one runs. Outputs use the same never-overwrite naming as the CLI.
+- **Stop** (in the header while a command runs) or Ctrl+C cancels a run: the current file is stopped,
+  part files are removed and the run ends with exit 130. A second Stop ends it at once (the process
+  tree is killed after 5 s at most). With nothing running, Ctrl+C clears the input.
 - Plumbing: each command forks `out/main/cli.js` with `ELECTRON_RUN_AS_NODE`. When `CliIO.events` is
   set, the CLI tees its NDJSON events to it; under a fork they travel over the IPC channel. The parent
   cancels with the `'interrupt'` IPC message (twice for a hard stop), never with a console Ctrl+C.
