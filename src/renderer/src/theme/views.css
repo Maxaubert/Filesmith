@@ -43,7 +43,7 @@
 
 /* narrow window (spec 3.7, O5): below 1180px the kind column folds into the
    name cell as a trailing fg3 tag. Hidden cells take no grid slot, so the
-   head, rows and totals all drop their third cell and use five columns. */
+   head and rows all drop their third cell and use five columns. */
 .ktag {
   display: none;
 }
@@ -58,12 +58,6 @@
     display: inline;
     margin-left: auto;
   }
-}
-
-/* totals arrow is inline, not the split arrow */
-.totals .tarr,
-.totals .pct {
-  color: var(--fg3);
 }
 
 /* drop target: a 1px fg1 inset outline around the centre panel */
@@ -227,9 +221,9 @@
 .tbtn:disabled {
   color: var(--fg-disabled);
 }
-/* A view without a toolbar row takes the whole centre column. */
+/* A view without a toolbar row takes the centre column above the bottom strip. */
 .vbody.full {
-  grid-row: 1 / -1;
+  grid-row: 1 / 3;
 }
 .vbody {
   min-height: 0;

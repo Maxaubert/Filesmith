@@ -94,7 +94,6 @@ export function ViewMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`View: ${def.label}`}
-        title="View (Ctrl+wheel to resize)"
         onClick={() => setOpen((o) => !o)}
       >
         <span className="vl">{def.label}</span>

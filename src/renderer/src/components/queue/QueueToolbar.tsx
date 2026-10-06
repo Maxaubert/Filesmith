@@ -3,7 +3,7 @@ import { AddFilesButton } from '../ui/Button'
 import { ViewMenu } from './ViewMenu'
 import type { ViewSize } from './viewSize'
 
-/** Add files, the count and the View menu. Row actions (remove, delete, clear
+/** Add files, the count and the View menu (the Console toggle is in the bottom strip). Row actions (remove, delete, clear
  * finished) live in the right-click menu on the rows themselves. */
 export function QueueToolbar({
   files,
@@ -27,7 +27,7 @@ export function QueueToolbar({
     : `${files} file${files === 1 ? '' : 's'}${selected ? `, ${selected} selected` : ''}`
   return (
     <div className="toolbar" role="toolbar" aria-label="File actions">
-      <AddFilesButton onClick={onAdd} title="Add files (Ctrl+O)" />
+      <AddFilesButton onClick={onAdd} />
       <div className="tb-right">
         <span className="count" aria-live="polite">
           {count}

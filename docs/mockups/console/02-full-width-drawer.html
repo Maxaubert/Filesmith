@@ -1,0 +1,825 @@
+<!doctype html>
+<!--
+  Console concept 02 "Full-width drawer".
+  A limited console that only runs filesmith commands (typed without the "filesmith" prefix) slides up
+  across the whole workbench (files + inspector), about 40% of the height. The sidebar stays full height.
+  Its own header bar holds the working folder, Open in terminal, Clear and Close.
+  Open/close: the Console item at the bottom of the sidebar (every tab), or Ctrl+` like VS Code.
+  Console jobs are independent of the app's queue: they never appear in the file list or Completed, their
+  output stays in the console, and each finished run has a Show in File Explorer button.
+  States for screenshots: #state=closed | open-idle | running | error | rejected | completion | history
+  Try typing: help, formats, doctor, convert *.heic --to webp, compress *.jpg --quality balanced --out small,
+  upscale old-scan.png --factor 3, del *.*, claude, clear. Tab completes, Up/Down history, Ctrl+C stops.
+  Shell copied from view-zoom/04-explorer-style and the real app (impl-size0): strict monochrome (r=g=b),
+  the red Stop is the one hue, IBM Plex Sans + Mono, square corners, no bottom status bar.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Filesmith Console Drawer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0a0a0a; --bg-1:#0f0f0f; --hover:#1a1a1a; --selected:#202020; --field:#141414; --track:#2a2a2a;
+  --line:#262626; --line-strong:#3a3a3a;
+  --fg1:#ededed; --fg2:#b4b4b4; --fg3:#8c8c8c; --fg-disabled:#5c5c5c;
+  --inv-bg:#2a2a2a; --inv-fg:#ededed; --inv-hover:#3a3a3a; --inv-active:#202020; --focus:#ededed;
+  --stop-bg:#c42b1c; --stop-hover:#d13b2c; --stop-active:#a8251a; --stop-fg:#ffffff;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",Consolas,monospace;
+  --sbw:208px;
+  --cols:40px 1fr 64px 88px 184px 232px;
+  --dh:348px;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box;border-radius:0}
+html,body{background:var(--bg-0)}
+body{margin:0;width:1440px;height:900px;overflow:hidden;color:var(--fg1);font:13px/1.4 var(--sans);
+  -webkit-font-smoothing:antialiased;display:grid;grid-template-rows:32px 1fr;user-select:none;cursor:default}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:square;stroke-linejoin:miter}
+svg.i *{vector-effect:non-scaling-stroke}
+svg.i12{width:12px;height:12px}
+:focus-visible{outline:1px solid var(--focus);outline-offset:-1px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- title bar ---------- */
+.titlebar{background:var(--bg-0);border-bottom:1px solid var(--line);display:flex;align-items:center;padding-left:14px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;line-height:1}
+.tsep{width:1px;align-self:stretch;background:var(--line);margin:0 12px}
+.crumb{display:flex;align-items:center;gap:6px;color:var(--fg3);font:12px/1 var(--mono)}
+.crumb a{color:var(--fg3);text-decoration:none;padding:4px 2px}
+.crumb b{color:var(--fg1);font-weight:500}
+.winctl{margin-left:auto;display:flex;align-self:stretch}
+.winctl button{width:46px;display:grid;place-items:center;color:var(--fg2);border-left:1px solid var(--line)}
+.winctl button:hover{background:var(--hover);color:var(--fg1)}
+.winctl svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1}
+
+/* ---------- workbench: sidebar | (files + inspector) over the drawer ---------- */
+.wb{display:grid;grid-template-columns:auto 1fr 340px;grid-template-rows:minmax(0,1fr) 0px;min-height:0;
+  transition:grid-template-rows .18s cubic-bezier(.2,.7,.2,1)}
+.wb.open{grid-template-rows:minmax(0,1fr) var(--dh)}
+.wb.dragging{transition:none}
+.side{grid-row:1 / 3;width:var(--sbw);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.side-head{height:32px;display:flex;align-items:center;border-bottom:1px solid var(--line);flex:none}
+.side-head .lbl{padding-left:16px;font:11px/1 var(--mono);color:var(--fg3)}
+.toggle{margin-left:auto;width:47px;height:31px;display:grid;place-items:center;color:var(--fg2)}
+.toggle:hover{background:var(--hover);color:var(--fg1)}
+.nav{display:flex;flex-direction:column;padding:6px 0}
+.item{height:36px;display:flex;align-items:center;gap:12px;padding:0 14px 0 15px;color:var(--fg2);white-space:nowrap;text-align:left;width:100%}
+.item:hover{background:var(--hover);color:var(--fg1)}
+.item.on{color:var(--fg1);font-weight:600;background:var(--selected)}
+.item .lab{flex:1}
+.item .n{font:500 11px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg3)}
+.side .spacer{flex:1}
+.nav.bottom{border-top:1px solid var(--line)}
+/* the Console item is a toggle: pressed = bright label and glyph, no fill (the fill belongs to the tab) */
+.item.con[aria-pressed="true"]{color:var(--fg1);font-weight:600}
+.item.con[aria-pressed="true"] .n{color:var(--fg2)}
+
+/* ---------- center ---------- */
+.center{grid-row:1;grid-column:2;position:relative;display:grid;grid-template-rows:32px 1fr;min-width:0;min-height:0}
+.toolbar{display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
+.tbtn{display:inline-flex;align-items:center;gap:8px;padding:0 14px;color:var(--fg1);line-height:1;border-right:1px solid var(--line);white-space:nowrap}
+.tbtn.add{font-weight:600}
+.tbtn:hover{background:var(--hover)}
+.tbtn:active{background:var(--selected)}
+.tb-right{margin-left:auto;display:flex;align-items:stretch}
+.count{display:flex;align-items:center;font:12px var(--mono);color:var(--fg3);padding:0 14px}
+.viewbtn{display:inline-flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-left:1px solid var(--line);color:var(--fg2);font-size:12px;line-height:1}
+.viewbtn .vl{color:var(--fg1);min-width:96px;text-align:left}
+.viewbtn .k{color:var(--fg3)}
+.viewbtn:hover{background:var(--hover);color:var(--fg1)}
+
+/* queue */
+.qtable{min-height:0;display:flex;flex-direction:column}
+.cols{display:grid;grid-template-columns:var(--cols);align-items:center}
+.thead{height:28px;border-bottom:1px solid var(--line-strong);flex:none}
+.th{height:28px;display:flex;align-items:center;gap:4px;padding:0 10px;font:500 11px/1 var(--mono);color:var(--fg3);border-right:1px solid var(--line)}
+.th:last-child{border-right:0}
+.th.num{justify-content:flex-end}
+.th.ck{justify-content:center;padding:0}
+.qbody{flex:1;min-height:0;overflow:auto}
+.tr{position:relative;height:32px;border-bottom:1px solid var(--line)}
+.tr:hover{background:var(--hover)}
+.tr.sel{background:var(--selected)}
+.td{padding:0 10px;display:flex;align-items:center;gap:10px;min-width:0;white-space:nowrap}
+.td.num{justify-content:flex-end}
+.td.ck{justify-content:center;padding:0}
+.box{width:14px;height:14px;border:1px solid var(--fg3);display:grid;place-items:center;flex:none;color:var(--inv-fg);background:var(--bg-0)}
+.box svg{width:10px;height:10px;stroke-width:2}
+.box.on{background:var(--inv-bg)}
+.box.mixed{border-color:var(--fg2)}
+.box.mixed::before{content:"";width:8px;height:2px;background:var(--fg1)}
+.name{font:13px var(--mono);color:var(--fg1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.th-thumb{width:18px;height:18px;border:1px solid var(--line-strong);flex:none}
+.meta{font:12px var(--mono);color:var(--fg3)}
+.size{font:12px var(--mono);font-variant-numeric:tabular-nums;color:var(--fg2)}
+.res{display:flex;align-items:center;gap:8px;font:12px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.res .arr{color:var(--fg3)}
+.res b{font-weight:600;color:var(--fg1)}
+.res .pct{color:var(--fg3)}
+.td.rc{position:relative;overflow:visible}
+.res .arr.split{position:absolute;left:0;top:50%;transform:translate(calc(-50% - .5px),-50%);box-sizing:content-box;padding:2px 1px;background:var(--bg-0)}
+.tr:hover .res .arr.split{background:var(--hover)}
+.tr.sel .res .arr.split{background:var(--selected)}
+.st{display:flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap;min-width:0}
+.st.done{color:var(--fg2)}
+.st.fail{color:var(--inv-fg);background:var(--inv-bg);font-weight:600;height:22px;padding:0 8px 0 6px;gap:6px}
+.row-act{margin-left:auto;width:24px;height:24px;display:grid;place-items:center;color:var(--fg1);border:1px solid var(--line-strong);flex:none}
+.row-act:hover{border-color:var(--fg2);background:var(--hover)}
+.totals{flex:none;height:30px;border-top:1px solid var(--line-strong);font:12px var(--mono);color:var(--fg2)}
+.totals b{font-weight:600;color:var(--fg1)}
+
+/* ---------- inspector ---------- */
+.insp{grid-row:1;grid-column:3;border-left:1px solid var(--line);display:grid;grid-template-rows:32px 1fr auto;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tab{position:relative;display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--fg3);font-size:12px;line-height:1}
+.tab:hover{color:var(--fg1);background:var(--hover)}
+.tab.on{color:var(--fg1);font-weight:600}
+.tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--fg1)}
+.ibody{min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--line-strong) var(--bg-0)}
+.ihead{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.ihead b{font-weight:600;font-size:14px}
+.ihead span{font:12px var(--mono);color:var(--fg3)}
+.vs{padding:0 0 12px}
+.vs-gh{display:flex;align-items:center;gap:10px;padding:14px 16px 4px;font:600 11px/1 var(--mono);letter-spacing:.09em;color:var(--fg3)}
+.vs-gh::after{content:"";flex:1;height:1px;background:var(--line)}
+.vs-set{display:flex;flex-direction:column;gap:3px;padding:7px 16px 9px}
+.vs-t{font:500 13px/1.3 var(--sans)}
+.vs-d{font:12px/1.4 var(--sans);color:var(--fg3);margin-bottom:5px}
+.vs-sel{display:flex;align-items:center;width:100%;height:28px;padding:0 6px 0 8px;background:var(--field);border:1px solid var(--line-strong);font:13px var(--mono);text-align:left}
+.vs-sel .val{flex:1}
+.vs-sel svg{color:var(--fg2)}
+.vs-sel.half{width:168px}
+.vs-sel.dis{color:var(--fg-disabled);border-color:var(--line);background:transparent}
+.vs-row{display:flex;gap:6px}
+.vs-row .vs-sel{flex:1;width:auto}
+.sbtn{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 10px 0 8px;font:12px/1 var(--sans);border:1px solid var(--line-strong);flex:none;white-space:nowrap}
+.sbtn svg{color:var(--fg2)}
+.sbtn:hover{background:var(--hover);border-color:var(--fg3)}
+.seg{display:flex;width:100%;height:28px;border:1px solid var(--line-strong)}
+.seg button{flex:1 1 0;display:grid;place-items:center;font:13px/1 var(--mono);color:var(--fg2);border-left:1px solid var(--line-strong)}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--inv-bg);color:var(--inv-fg);font-weight:600}
+.vs-est{margin:14px 16px 0;border:1px solid var(--line-strong);padding:12px 14px 13px;display:grid;gap:9px}
+.vs-est .eh{display:flex;justify-content:space-between;font:11px/1 var(--mono);color:var(--fg3);letter-spacing:.04em}
+.vs-est .ev{display:flex;align-items:baseline;gap:10px;font:13px var(--mono);font-variant-numeric:tabular-nums}
+.vs-est .ev .from{color:var(--fg2)}
+.vs-est .ev svg{color:var(--fg3);align-self:center}
+.vs-est .ev b{font-size:16px;font-weight:600}
+.vs-est .ev .pct{margin-left:auto;color:var(--fg2)}
+.ifoot{border-top:1px solid var(--line);display:flex;height:48px}
+.primary{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--inv-bg);color:var(--inv-fg);font-weight:600}
+.primary:hover{background:var(--inv-hover)}
+
+/* ---------- console drawer ---------- */
+.drawer{grid-row:2;grid-column:2 / 4;position:relative;display:grid;grid-template-rows:32px minmax(0,1fr) auto;min-height:0;min-width:0;
+  border-top:1px solid var(--line-strong);background:var(--bg-0);overflow:hidden}
+.wb:not(.open) .drawer{border-top:0}
+.grip{position:absolute;left:0;right:0;top:-3px;height:6px;cursor:ns-resize;z-index:5}
+.grip:hover,.wb.dragging .grip{background:linear-gradient(transparent 2px,var(--fg3) 2px 4px,transparent 4px)}
+
+.dhead{display:flex;align-items:stretch;border-bottom:1px solid var(--line);min-width:0}
+.dtitle{display:flex;align-items:center;gap:8px;padding:0 14px;font-weight:600;line-height:1;border-right:1px solid var(--line)}
+.cwd{display:inline-flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-right:1px solid var(--line);color:var(--fg2);min-width:0}
+.cwd .p{font:12px var(--mono);color:var(--fg1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cwd .k{color:var(--fg3)}
+.cwd:hover{background:var(--hover)}
+.dstat{display:flex;align-items:center;gap:8px;padding:0 14px;font:12px var(--mono);color:var(--fg3);white-space:nowrap}
+.dstat b{color:var(--fg1);font-weight:600}
+.dright{margin-left:auto;display:flex;align-items:stretch}
+.hbtn{display:inline-flex;align-items:center;gap:8px;padding:0 14px;border-left:1px solid var(--line);color:var(--fg1);font-size:12px;line-height:1;white-space:nowrap}
+.hbtn:hover{background:var(--hover)}
+.hbtn:active{background:var(--selected)}
+.hbtn.ico{width:40px;padding:0;justify-content:center;color:var(--fg2)}
+.hbtn.ico:hover{color:var(--fg1)}
+.hbtn .kh{font:11px var(--mono);color:var(--fg3)}
+
+.scroll{overflow:auto;min-height:0;padding:10px 16px 6px;scrollbar-width:thin;scrollbar-color:var(--line-strong) var(--bg-0);user-select:text;cursor:text}
+.note{display:flex;align-items:flex-start;gap:8px;font:12px/20px var(--sans);color:var(--fg3);max-width:860px}
+.note svg{margin-top:2px;color:var(--fg3)}
+.note b{color:var(--fg2);font-weight:500}
+.note .kbd,.khint .kbd{font:11px/1 var(--mono);color:var(--fg2);border:1px solid var(--line-strong);padding:2px 4px}
+.blk{margin-top:12px}
+.blk:first-child{margin-top:0}
+.cmdl,.out,.inrow{font:13px/20px var(--mono);font-variant-numeric:tabular-nums}
+.cmdl{display:flex;gap:8px;white-space:pre}
+.pr{color:var(--fg3);flex:none}
+.cm{color:var(--fg2)}
+.cm .vb{color:var(--fg1);font-weight:600}
+.cm .fl{color:var(--fg2)}
+.cm .vl{color:var(--fg1)}
+.out{margin:0;white-space:pre;color:var(--fg2)}
+.out .tg{color:var(--fg3)}
+.out .tg.f{color:var(--fg1);font-weight:600}
+.out .hn{color:var(--fg3)}
+.out .hn b{color:var(--fg2);font-weight:400}
+.out .em{color:var(--fg1);font-weight:600}
+.out .sm{color:var(--fg1)}
+.out .live{color:var(--fg1)}
+.out .live b{font-weight:600}
+.out .live .eta{color:var(--fg3)}
+.bar{display:inline-block;vertical-align:middle;width:120px;height:2px;margin:0 0 2px 12px;background:var(--track);position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--fg1)}
+
+/* per-run footer: app chrome, not CLI text */
+.bfoot{display:flex;align-items:center;gap:12px;margin-top:6px;font:12px var(--mono);color:var(--fg3);white-space:nowrap}
+.bfoot .x{display:inline-flex;align-items:center;gap:6px}
+.bfoot .x.bad{color:var(--fg1);font-weight:600}
+.bfoot .why{font:12px var(--sans);color:var(--fg3)}
+.mbtn{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 6px;border:1px solid var(--line-strong);font:12px/1 var(--sans);color:var(--fg1);white-space:nowrap}
+.mbtn svg{color:var(--fg2)}
+.mbtn:hover{background:var(--hover);border-color:var(--fg3)}
+.mbtn.stop{background:var(--stop-bg);border-color:var(--stop-bg);color:var(--stop-fg);font-weight:600}
+.mbtn.stop svg{color:var(--stop-fg)}
+.mbtn.stop:hover{background:var(--stop-hover);border-color:var(--stop-hover)}
+.mbtn.stop:active{background:var(--stop-active)}
+
+/* rejected command: calm app notice, not CLI output */
+.rej{display:flex;align-items:center;gap:8px;margin-top:2px;font:12px/24px var(--sans);color:var(--fg2);white-space:nowrap}
+.rej svg{color:var(--fg3)}
+.rej code{font:12px var(--mono);color:var(--fg1)}
+
+/* input row */
+.inwrap{position:relative;border-top:1px solid var(--line)}
+.inrow{display:flex;align-items:center;gap:8px;height:34px;padding:0 16px}
+.inrow input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;padding:0;color:var(--fg1);
+  font:13px var(--mono);caret-color:var(--fg1)}
+.inrow input::placeholder{color:var(--fg3);font-family:var(--sans);font-size:12px}
+.inrow input:disabled{color:var(--fg3)}
+.inrow:focus-within{background:var(--bg-1)}
+.khint{display:flex;align-items:center;gap:6px;font:12px var(--sans);color:var(--fg3);white-space:nowrap}
+.khint .sep{width:8px}
+.khint .hp{font:12px var(--mono);color:var(--fg2)}
+
+/* completion list, anchored above the caret */
+.comp{position:absolute;bottom:100%;margin-bottom:-1px;min-width:560px;background:var(--bg-0);border:1px solid var(--line-strong);display:none;z-index:20}
+.comp.open{display:block}
+.comp-h{display:flex;justify-content:space-between;align-items:center;height:26px;padding:0 10px;font:11px var(--mono);color:var(--fg3);border-bottom:1px solid var(--line)}
+.copt{display:grid;grid-template-columns:120px 190px 1fr;align-items:center;gap:12px;height:28px;padding:0 10px;font:13px var(--mono);color:var(--fg2);cursor:pointer}
+.copt .cv{color:var(--fg1)}
+.copt .cv u{text-decoration:none;font-weight:600}
+.comp.two .copt{grid-template-columns:120px 1fr}
+.comp.two .copt .ca{display:none}
+.copt .ca{font:12px var(--mono);color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.copt .cd{font:12px var(--sans);color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.copt.act{background:var(--selected)}
+.copt.act .cd{color:var(--fg2)}
+.copt:hover{background:var(--hover)}
+.comp-f{display:flex;gap:14px;height:26px;align-items:center;padding:0 10px;border-top:1px solid var(--line);font:11px var(--sans);color:var(--fg3)}
+.comp-f .kbd{font:11px/1 var(--mono);color:var(--fg2);border:1px solid var(--line-strong);padding:2px 4px;margin-right:4px}
+
+@media (prefers-reduced-motion:reduce){.wb{transition:none}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-convert" viewBox="0 0 16 16"><path d="M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13"/></symbol>
+    <symbol id="i-compress" viewBox="0 0 16 16"><path d="M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11"/></symbol>
+    <symbol id="i-resize" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10"/></symbol>
+    <symbol id="i-upscale" viewBox="0 0 16 16"><rect x="2.5" y="8.5" width="5" height="5"/><path d="M9 2.5h4.5V7M13.5 2.5L8.5 7.5"/></symbol>
+    <symbol id="i-removebg" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5"/></symbol>
+    <symbol id="i-generate" viewBox="0 0 16 16"><path d="M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></symbol>
+    <symbol id="i-completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8.25l1.75 1.75L10.75 6.5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 16 16"><path d="M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6"/><circle cx="9" cy="5" r="1.5"/><circle cx="6" cy="11" r="1.5"/></symbol>
+    <symbol id="i-console" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11"/><path d="M4 6l2 2-2 2M8 10.5h4"/></symbol>
+    <symbol id="i-extterm" viewBox="0 0 16 16"><path d="M8.5 2.5h-6v11h11v-6"/><path d="M10 2.5h3.5V6M13.5 2.5L8 8"/></symbol>
+    <symbol id="i-clear" viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h7M2.5 11.5h5M10.5 10l3 3M13.5 10l-3 3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-addfile" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3M8 7v5M5.5 9.5h5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 16 16"><path d="M3 3v3h3M3.3 6A5 5 0 1 1 3 9.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5v.5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M10 5l3 3-3 3"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11"/><path d="M6 2.5v11M10.5 6.5L9 8l1.5 1.5"/></symbol>
+    <symbol id="i-anvil" viewBox="0 0 16 16"><path d="M1.5 4.5h10c0 2 1.5 3 3 3v1h-5l-1 2h2v2h-6v-2h2l-1-2c-2.5 0-4-1.5-4-4z"/></symbol>
+    <symbol id="v-0" viewBox="0 0 16 16"><path d="M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h11"/></symbol>
+  </defs>
+</svg>
+
+<header class="titlebar">
+  <div class="brand"><svg class="i"><use href="#i-anvil"/></svg><span>Filesmith</span></div>
+  <span class="tsep"></span>
+  <nav class="crumb" aria-label="Location"><a href="#">convert</a><span>/</span><b>images</b></nav>
+  <div class="winctl">
+    <button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+    <button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+    <button aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </div>
+</header>
+
+<div class="wb" id="wb">
+  <nav class="side" aria-label="Operations">
+    <div class="side-head"><span class="lbl">operations</span>
+      <button class="toggle" aria-label="Collapse sidebar"><svg class="i"><use href="#i-sidebar"/></svg></button></div>
+    <div class="nav">
+      <button class="item on" aria-current="page"><svg class="i"><use href="#i-convert"/></svg><span class="lab">Convert</span><span class="n">6</span></button>
+      <button class="item"><svg class="i"><use href="#i-compress"/></svg><span class="lab">Compress</span></button>
+      <button class="item"><svg class="i"><use href="#i-resize"/></svg><span class="lab">Resize</span></button>
+      <button class="item"><svg class="i"><use href="#i-upscale"/></svg><span class="lab">Upscale</span></button>
+      <button class="item"><svg class="i"><use href="#i-removebg"/></svg><span class="lab">Remove BG</span></button>
+      <button class="item"><svg class="i"><use href="#i-generate"/></svg><span class="lab">Generate</span></button>
+      <button class="item"><svg class="i"><use href="#i-tools"/></svg><span class="lab">PDF Tools</span></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="nav bottom">
+      <button class="item con" id="conBtn" aria-pressed="false" aria-controls="drawer" title="Console (Ctrl+`)"><svg class="i"><use href="#i-console"/></svg><span class="lab">Console</span><span class="n" id="conN">Ctrl+`</span></button>
+      <button class="item"><svg class="i"><use href="#i-completed"/></svg><span class="lab">Completed</span><span class="n">1</span></button>
+      <button class="item"><svg class="i"><use href="#i-settings"/></svg><span class="lab">Settings</span></button>
+    </div>
+  </nav>
+
+  <main class="center">
+    <div class="toolbar">
+      <button class="tbtn add"><svg class="i"><use href="#i-addfile"/></svg>Add files</button>
+      <div class="tb-right">
+        <span class="count">6 files, 1 selected</span>
+        <button class="viewbtn" title="View (Ctrl+wheel to resize)"><svg class="i"><use href="#v-0"/></svg><span class="vl">Details</span><svg class="i i12 k"><use href="#i-chev-d"/></svg></button>
+      </div>
+    </div>
+    <section class="qtable" role="grid" aria-label="Files">
+      <div class="thead cols" role="row">
+        <div class="th ck"><span class="box mixed" role="checkbox" aria-checked="mixed" aria-label="Select all"></span></div>
+        <div class="th">name</div><div class="th">kind</div><div class="th num">size</div><div class="th">result</div><div class="th">status</div>
+      </div>
+      <div class="qbody" id="qbody" role="rowgroup"></div>
+      <div class="totals cols">
+        <div class="td"></div><div class="td">6 files</div><div class="td"></div><div class="td num">177 MB</div>
+        <div class="td"><span class="res"><span>167 MB</span><svg class="i i12 arr"><use href="#i-arrow"/></svg><b>1.2 GB</b><span class="pct">so far</span></span></div>
+        <div class="td"><b>3 of 6 done</b></div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="insp" aria-label="Inspector">
+    <div class="tabs" role="tablist">
+      <button class="tab on" role="tab" aria-selected="true"><svg class="i"><use href="#i-settings"/></svg>Options</button>
+      <button class="tab" role="tab" aria-selected="false"><svg class="i"><use href="#i-eye"/></svg>Preview</button>
+      <button class="tab" role="tab" aria-selected="false"><svg class="i"><use href="#i-info"/></svg>Info</button>
+    </div>
+    <div class="ibody">
+      <div class="ihead"><b>Convert</b><span>1 selected</span></div>
+      <div class="vs">
+        <div class="vs-gh">FORMAT</div>
+        <div class="vs-set"><div class="vs-t">Format</div><div class="vs-d">The format the selected files are converted to.</div>
+          <button class="vs-sel"><span class="val">webp</span><svg class="i"><use href="#i-chev-d"/></svg></button></div>
+        <div class="vs-set"><div class="vs-t">Quality</div><div class="vs-d">Smaller files, or closer to the original.</div>
+          <div class="seg"><button>smaller</button><button class="on">balanced</button><button>best</button></div></div>
+        <div class="vs-gh">OUTPUT</div>
+        <div class="vs-set"><div class="vs-t">Location</div><div class="vs-d">Files are written next to each source.</div>
+          <div class="vs-row"><button class="vs-sel"><span class="val">next to source</span><svg class="i"><use href="#i-chev-d"/></svg></button>
+          <button class="sbtn"><svg class="i"><use href="#i-folder"/></svg>Choose folder</button></div></div>
+        <div class="vs-gh">FILES</div>
+        <div class="vs-set"><div class="vs-t">If file exists</div><div class="vs-d">Existing files are never overwritten.</div>
+          <button class="vs-sel half dis"><span class="val">add (2)</span><svg class="i"><use href="#i-chev-d"/></svg></button></div>
+        <div class="vs-est"><div class="eh"><span>estimate</span><span>1 file</span></div>
+          <div class="ev"><span class="from">29 MB</span><svg class="i i12"><use href="#i-arrow"/></svg><b>~649 KB</b><span class="pct">-98%</span></div></div>
+      </div>
+    </div>
+    <div class="ifoot"><button class="primary"><svg class="i"><use href="#i-play"/></svg>Convert 1 image</button></div>
+  </aside>
+
+  <!-- ===== console drawer ===== -->
+  <section class="drawer" id="drawer" aria-label="Console" hidden>
+    <div class="grip" id="grip" title="Drag to resize"></div>
+    <div class="dhead">
+      <div class="dtitle"><svg class="i"><use href="#i-console"/></svg>Console</div>
+      <button class="cwd" id="cwdBtn" title="Working folder. Click to choose another one (or type cd)">
+        <svg class="i"><use href="#i-folder"/></svg><span class="p" id="cwdText">C:\Users\Max\Pictures\Trip</span><svg class="i i12 k"><use href="#i-chev-d"/></svg>
+      </button>
+      <div class="dstat" id="dstat"></div>
+      <div class="dright">
+        <button class="hbtn" id="extBtn" title="Open Windows Terminal in this folder, with filesmith on PATH"><svg class="i"><use href="#i-extterm"/></svg>Open in terminal</button>
+        <button class="hbtn ico" id="clrBtn" title="Clear (Ctrl+L)" aria-label="Clear console"><svg class="i"><use href="#i-clear"/></svg></button>
+        <button class="hbtn ico" id="closeBtn" title="Close (Ctrl+`)" aria-label="Close console"><svg class="i"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+    <div class="scroll" id="scroll" role="log" aria-live="polite"></div>
+    <div class="inwrap">
+      <div class="comp" id="comp" role="listbox" aria-label="Completions"></div>
+      <div class="inrow">
+        <span class="pr" id="inPr">C:\Users\Max\Pictures\Trip&gt;</span>
+        <input id="cin" autocomplete="off" spellcheck="false" aria-label="Filesmith command" placeholder="Type a filesmith command, like convert *.heic --to webp">
+        <span class="khint" id="khint"></span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  /* ---------- the app's file list (impl-size0) ---------- */
+  var G = {
+    a:'radial-gradient(circle at 30% 35%,#9a9a9a 0 18%,transparent 19%),linear-gradient(160deg,#6a6a6a,#2a2a2a 60%,#1a1a1a)',
+    b:'linear-gradient(180deg,#9c9c9c 0%,#6e6e6e 42%,#4a4a4a 42% 58%,#c2c2c2 58% 62%,#7e7e7e 62%,#5c5c5c 100%)',
+    c:'repeating-linear-gradient(0deg,#5a5a5a 0 1px,#2a2a2a 1px 4px)',
+    d:'radial-gradient(ellipse at 50% 30%,#8a8a8a,#2a2a2a 60%,#161616)',
+    e:'linear-gradient(#8a8a8a 0 12%,transparent 12%) 0 0/100% 100% no-repeat,linear-gradient(90deg,#4a4a4a 0 26%,#262626 26%)',
+    f:'linear-gradient(180deg,#7a7a7a,#3a3a3a 55%,#202020 55%,#161616)'
+  };
+  var files=[
+    {n:'IMG_2041.jpg',k:'JPG',sz:'694 KB',st:'done',r:'29 KB',p:'-96%',t:G.a},
+    {n:'beach-panorama.png',k:'PNG',sz:'29 MB',st:'done',r:'51 KB',p:'-99%',t:G.b,sel:true},
+    {n:'scan_0007.tiff',k:'TIFF',sz:'137 MB',st:'done',r:'1.2 GB',p:'+800%',t:G.c},
+    {n:'portrait.jpg',k:'JPG',sz:'680 KB',t:G.d},
+    {n:'diagram.png',k:'PNG',sz:'9.3 MB',t:G.e},
+    {n:'IMG_2042.jpg',k:'JPG',sz:'692 KB',st:'fail',why:'Unsupported compression',t:G.f}
+  ];
+  function ic(id,cls){return '<svg class="i'+(cls?' '+cls:'')+'"><use href="#'+id+'"/></svg>'}
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+  var qh='';
+  files.forEach(function(f){
+    var res = f.st==='done' ? '<span class="res">'+ic('i-arrow','i12 arr split')+'<b>'+f.r+'</b><span class="pct">'+f.p+'</span></span>' : '';
+    var st = f.st==='done' ? '<span class="st done">'+ic('i-check')+'Done</span>'
+           : f.st==='fail' ? '<span class="st fail">'+ic('i-warning')+'<span>'+f.why+'</span></span>' : '';
+    var act = f.st==='fail' ? '<button class="row-act" title="Retry">'+ic('i-retry')+'</button>'
+            : f.sel ? '<button class="row-act" title="Show in File Explorer">'+ic('i-folder')+'</button>' : '';
+    qh+='<div class="tr cols'+(f.sel?' sel':'')+'" role="row"><div class="td ck"><span class="box'+(f.sel?' on':'')+'">'+(f.sel?ic('i-check'):'')+'</span></div>'+
+      '<div class="td"><span class="th-thumb" style="background:'+f.t+'"></span><span class="name">'+f.n+'</span></div>'+
+      '<div class="td meta">'+f.k+'</div><div class="td num"><span class="size">'+f.sz+'</span></div>'+
+      '<div class="td rc">'+res+'</div><div class="td">'+st+act+'</div></div>';
+  });
+  document.getElementById('qbody').innerHTML=qh;
+
+  /* ---------- console model ---------- */
+  var CWD0='C:\\Users\\Max\\Pictures\\Trip', CWD=CWD0;
+  var FOLDER={
+    heic:[['IMG_3301.heic',3.2,0.625],['IMG_3302.heic',2.9,0.574],['IMG_3303.heic',3.4,0.686],['IMG_3304.heic',3.1,0.601]],
+    jpg:[['DSC_0144.jpg',4.8,1.1],['DSC_0145.jpg',5.1,1.2],['DSC_0146.jpg',4.4,0.94],['DSC_0147.jpg',6.2,1.4],['DSC_0148.jpg',4.9,1.1],['DSC_0149.jpg',5.3,1.2]],
+    png:[['old-scan.png',8.7,2.1],['logo.png',0.41,0.12]],
+    pdf:[['itinerary.pdf',2.4,0.9]]
+  };
+  var VERBS=['convert','compress','resize','upscale','removebg','generate','pdf','formats','doctor','setup','skill','help'];
+  var LOCAL=['clear','cls','cd'];
+  var VERB_DESC={convert:'change the format',compress:'make files smaller',resize:'change pixel size',upscale:'enlarge with AI',
+    removebg:'cut out the subject',generate:'make an image from a prompt',pdf:'merge, split, extract',formats:'list targets and values',
+    doctor:'check the tools',setup:'install an AI tool',skill:'Claude skill install/status',help:'list commands',clear:'clear the console',cd:'change the working folder'};
+  var FLAGS={
+    convert:[['--to','<format>','target format, required'],['--quality','smaller|balanced|best','smaller files, or closer to the original'],['--out','<folder>','write here, not next to each source'],['--recursive','','descend into subfolders'],['--dry-run','','show the plan, write nothing'],['--json','','one JSON event per line, for scripts'],['--help','','this verb\'s help']],
+    compress:[['--quality','smaller|balanced|best','how hard to compress'],['--codec','h264|h265|av1','video codec'],['--scale','<percent>','also scale down'],['--out','<folder>','write here'],['--recursive','',''],['--dry-run','',''],['--json','','']],
+    resize:[['--percent','<n>%',''],['--width','<px>',''],['--height','<px>',''],['--out','<folder>',''],['--dry-run','','']],
+    upscale:[['--factor','2x|4x',''],['--model','realesrgan|anime|pid',''],['--gpu','full|balanced',''],['--out','<folder>',''],['--dry-run','','']]
+  };
+  var TO=['webp','jpg','png','avif','heic','tiff','gif','pdf'];
+  var QUAL=['smaller','balanced','best'];
+
+  var HIST0=['formats convert','convert *.heic --to webp','doctor','compress *.jpg --quality balanced --out small'];
+  var hist=HIST0.slice();
+  var hIdx=-1, draft='';
+  var running=null;
+
+  var wb=document.getElementById('wb'), drawer=document.getElementById('drawer'), scroll=document.getElementById('scroll'),
+      cin=document.getElementById('cin'), comp=document.getElementById('comp'), khint=document.getElementById('khint'),
+      dstat=document.getElementById('dstat'), conBtn=document.getElementById('conBtn'), conN=document.getElementById('conN');
+
+  function fmtMB(v){return v>=1?(Math.round(v*10)/10)+' MB':Math.round(v*1024)+' KB'}
+  function pct(a,b){var d=Math.round((b-a)/a*100);return (d>0?'+':'')+d+'%'}
+  /* mirrors src/cli/human.ts resultLine: tag padded to 8, name cell padded to 34 */
+  function line(tag,left,right){
+    var cell = left.length<34 ? left+' '.repeat(34-left.length)+' ' : left+'  ';
+    var t = tag+' '.repeat(Math.max(1,8-tag.length));
+    return '<span class="tg'+(tag==='fail'||tag==='stop'?' f':'')+'">'+t+'</span>'+esc(cell)+esc(right||'');
+  }
+  function hint(s){return '<span class="hn">        hint: <b>'+esc(s)+'</b></span>'}
+  function summary(n,ok,sk,fl,cx,ms){
+    var parts=[ok+' ok',sk+' skipped',fl+' failed']; if(cx) parts.push(cx+' canceled');
+    return '<span class="sm">'+n+' '+(n===1?'file':'files')+': '+parts.join(', ')+' ('+(ms/1000).toFixed(1)+' s)</span>';
+  }
+  function hl(cmd){
+    var parts=cmd.split(/(\s+)/), out='', first=true, afterFlag=false;
+    parts.forEach(function(p){
+      if(/^\s+$/.test(p)||!p){out+=p;return}
+      if(first){out+='<span class="vb">'+esc(p)+'</span>';first=false;return}
+      if(/^--?\w/.test(p)){out+='<span class="fl">'+esc(p)+'</span>';afterFlag=true;return}
+      out+='<span class="vl">'+esc(p)+'</span>';afterFlag=false;
+    });
+    return out;
+  }
+  function prompt(){return esc(CWD)+'&gt;'}
+
+  function block(cmd){
+    var b=document.createElement('div'); b.className='blk';
+    b.innerHTML='<div class="cmdl"><span class="pr">'+prompt()+'</span><span class="cm">'+hl(cmd)+'</span></div><pre class="out"></pre>';
+    scroll.appendChild(b); return b;
+  }
+  function emit(b,html){var o=b.querySelector('.out'); o.innerHTML+=(o.innerHTML?'\n':'')+html; toBottom()}
+  function foot(b,code,ms,opts){
+    opts=opts||{};
+    var f=document.createElement('div'); f.className='bfoot';
+    var bad=code!==0;
+    var h='<span class="x'+(bad?' bad':'')+'">'+(bad?ic('i-warning','i12'):ic('i-check','i12'))+'exit '+code+'</span>';
+    if(ms!=null) h+='<span>'+(ms/1000).toFixed(1)+' s</span>';
+    if(opts.why) h+='<span class="why">'+opts.why+'</span>';
+    if(opts.reveal) h+='<button class="mbtn" title="'+esc(opts.reveal)+'">'+ic('i-folder','i12')+'Show in File Explorer</button>';
+    f.innerHTML=h; b.appendChild(f); toBottom();
+  }
+  function note(html,icon){
+    var n=document.createElement('div'); n.className='note'; n.innerHTML=ic(icon||'i-info','i12')+'<span>'+html+'</span>';
+    scroll.appendChild(n); toBottom(); return n;
+  }
+  function toBottom(){scroll.scrollTop=scroll.scrollHeight}
+
+  function banner(){
+    var w=document.createElement('div'); w.className='blk';
+    w.innerHTML='<div class="note">'+ic('i-info','i12')+'<span><b>Filesmith console.</b> Runs filesmith commands in this folder, without the filesmith prefix. Type <span class="kbd">help</span> for the list.</span></div>'+
+      '<div class="note">'+ic('i-info','i12')+'<span>Jobs you run here stay here: they are not added to the Convert list or Completed. For any other command, use Open in terminal.</span></div>';
+    scroll.appendChild(w);
+  }
+
+  /* ---------- glob ---------- */
+  function expand(arg){
+    var m=/^\*\.(\w+)$/.exec(arg);
+    if(m){var k=m[1].toLowerCase(); return FOLDER[k]?FOLDER[k].slice():[]}
+    for(var k2 in FOLDER){var hit=FOLDER[k2].filter(function(f){return f[0].toLowerCase()===arg.toLowerCase()}); if(hit.length) return hit}
+    return null;
+  }
+  function parse(cmd){
+    var toks=cmd.trim().split(/\s+/), o={verb:toks[0].toLowerCase(),inputs:[],flags:{}};
+    for(var i=1;i<toks.length;i++){
+      var t=toks[i];
+      if(/^--/.test(t)){var eq=t.indexOf('='); if(eq>0){o.flags[t.slice(2,eq)]=t.slice(eq+1)} else {var nx=toks[i+1]; if(nx&&!/^-/.test(nx)&&!/^(recursive|dry-run|json|help)$/.test(t.slice(2))){o.flags[t.slice(2)]=nx;i++} else o.flags[t.slice(2)]=true}}
+      else if(t==='-o'){o.flags.out=toks[++i]}
+      else o.inputs.push(t);
+    }
+    return o;
+  }
+
+  /* ---------- run ---------- */
+  function submit(raw){
+    var cmd=raw.trim(); if(!cmd) return;
+    if(/^filesmith\s+/i.test(cmd)) cmd=cmd.replace(/^filesmith\s+/i,'');
+    if(hist[hist.length-1]!==cmd) hist.push(cmd);
+    hIdx=-1; draft='';
+    var verb=cmd.split(/\s+/)[0].toLowerCase();
+    if(verb==='clear'||verb==='cls'){scroll.innerHTML='';return}
+    if(verb==='cd'){var b0=block(cmd); var to=cmd.slice(3).trim(); if(to){CWD=/^[a-z]:\\/i.test(to)?to:CWD+'\\'+to; syncCwd()} return}
+    if(VERBS.indexOf(verb)<0){reject(cmd,verb);return}
+    var o=parse(cmd), b=block(cmd);
+    if(verb==='help'){
+      emit(b,'usage: &lt;verb&gt; &lt;inputs...&gt; [options]       (no filesmith prefix needed here)\n');
+      VERBS.forEach(function(v){emit(b,'  '+v+' '.repeat(12-v.length)+'<span class="hn">'+VERB_DESC[v]+'</span>')});
+      emit(b,'\n<span class="hn">Console only: clear, cd &lt;folder&gt;. Anything else: Open in terminal.</span>');
+      return;
+    }
+    if(verb==='formats'){
+      emit(b,'convert  images   webp jpg png avif heic tiff gif bmp ico pdf\n         video    mp4 webm mkv mov gif\n         audio    mp3 m4a ogg flac wav opus\n         archive  cbz cb7 cbt zip 7z pdf\ncompress --quality smaller | balanced | best');
+      foot(b,0,120); return;
+    }
+    if(verb==='doctor'){
+      ['ffmpeg      7.1 bundled','magick      7.1.1 bundled','mutool      1.25 bundled','caesiumclt  0.21 bundled','7z          24.08 bundled','realesrgan  bundled, Vulkan GPU found'].forEach(function(s){emit(b,'  <span class="tg">ok    </span>'+s)});
+      emit(b,'  <span class="tg">warn  </span>removebg    not set up\n<span class="hn">        fix: <b>setup removebg</b></span>');
+      emit(b,'<span class="sm">No problems found, 1 warning.</span>'); foot(b,0,900); return;
+    }
+    if(verb==='convert'&&!o.flags.to){
+      emit(b,'<span class="em">filesmith: convert needs --to</span>');
+      emit(b,'<span class="hn">  hint: <b>add --to webp (or jpg, png, avif...); formats convert lists every target</b></span>');
+      foot(b,2,null,{why:'usage error, nothing ran'}); return;
+    }
+    if(verb==='upscale'&&o.flags.factor&&!/^[24]x?$/.test(String(o.flags.factor))){
+      emit(b,'<span class="em">filesmith: --factor '+esc(o.flags.factor)+' is not available for the realesrgan model</span>');
+      emit(b,'<span class="hn">  hint: <b>use --factor 2 or --factor 4; formats upscale lists every model and factor</b></span>');
+      foot(b,2,null,{why:'usage error, nothing ran'}); return;
+    }
+    var list=[]; var miss=null;
+    o.inputs.forEach(function(a){var e=expand(a); if(e===null||!e.length){miss=miss||a} else list=list.concat(e)});
+    if(miss||!list.length){
+      emit(b,'<span class="em">filesmith: no files match '+esc(miss||'(no inputs)')+'</span>');
+      emit(b,'<span class="hn">  hint: <b>the console runs in '+esc(CWD)+'; check the name, or cd to the right folder</b></span>');
+      foot(b,2,null,{why:'nothing ran'}); return;
+    }
+    startJob(b,verb,o,list,0,0);
+  }
+
+  function outName(verb,o,f){
+    var base=f[0].replace(/\.\w+$/,''), ext=f[0].split('.').pop();
+    if(verb==='convert') return base+'.'+String(o.flags.to).toLowerCase();
+    if(verb==='removebg') return base+' (no bg).png';
+    if(verb==='upscale') return base+' (upscaled).'+ext;
+    if(verb==='resize') return base+' (resized).'+ext;
+    return f[0];
+  }
+
+  /* startAt: jobs already done; startPct: progress of the current job (for the #state=running snapshot) */
+  function startJob(b,verb,o,list,startAt,startPct,frozen){
+    var t0=Date.now(), i=startAt, p=startPct, out=o.flags.out?String(o.flags.out)+'\\':'';
+    var o2=b.querySelector('.out');
+    for(var j=0;j<startAt;j++){var f=list[j]; emit(b,line('ok',f[0]+' -> '+out+outName(verb,o,f),fmtMB(f[1])+' -> '+fmtMB(f[2])+'  ('+pct(f[1],f[2])+')'))}
+    var live=document.createElement('span'); live.className='live';
+    o2.appendChild(document.createTextNode(o2.textContent?'\n':'')); o2.appendChild(live);
+    var sf=document.createElement('div'); sf.className='bfoot';
+    sf.innerHTML='<button class="mbtn stop" id="stopBtn">'+ic('i-stop','i12')+'Stop</button><span class="why">or press Ctrl+C. Finished files stay; the unfinished one is removed.</span>';
+    b.appendChild(sf);
+    running={b:b,verb:verb,o:o,list:list,live:live,sf:sf,t0:t0,get i(){return i},get p(){return p}};
+    sf.querySelector('#stopBtn').addEventListener('click',stopJob);
+    function paint(){
+      var f=list[i], eta=Math.max(1,Math.round((100-p)/100*10.5));
+      live.innerHTML='['+(i+1)+'/'+list.length+'] '+esc(f[0])+'  <b>'+Math.round(p)+'%</b><span class="eta">('+eta+'s)</span><span class="bar"><i style="width:'+p+'%"></i></span>';
+      dstat.innerHTML=ic('i-sync','i12')+'<span><b>'+verb+'</b> '+(i+1)+' of '+list.length+', '+Math.round(p)+'%</span>';
+      conN.textContent=Math.round((i+p/100)/list.length*100)+'%';
+      toBottom();
+    }
+    function tick(){
+      p+=10+Math.random()*12;
+      if(p>=100){
+        var f=list[i];
+        live.insertAdjacentHTML('beforebegin',line('ok',f[0]+' -> '+out+outName(verb,o,f),fmtMB(f[1])+' -> '+fmtMB(f[2])+'  ('+pct(f[1],f[2])+')')+'\n');
+        i++; p=0;
+        if(i>=list.length){finish(0);return}
+      }
+      paint();
+    }
+    function finish(cx){
+      clearInterval(running.timer);
+      live.remove(); sf.remove();
+      var o3=b.querySelector('.out'); o3.innerHTML=o3.innerHTML.replace(/\n+$/,'');
+      var ms=Date.now()-t0+ (startAt*1100);
+      if(cx){
+        emit(b,line('stop',list[i][0],''));
+        emit(b,summary(list.length,i,0,0,list.length-i,ms));
+        foot(b,130,ms,{why:'stopped, '+i+' finished files kept',reveal:CWD+(out?'\\'+out:'')});
+      } else {
+        emit(b,summary(list.length,list.length,0,0,0,ms));
+        foot(b,0,ms,{reveal:CWD+(out?'\\'+out:'')});
+      }
+      running=null; dstat.innerHTML=''; conN.textContent='Ctrl+`';
+      cin.disabled=false; cin.placeholder='Type a filesmith command, like convert *.heic --to webp'; renderHint(); cin.focus();
+    }
+    running.finish=finish;
+    cin.disabled=true; cin.value=''; cin.placeholder='Running '+verb+'. Ctrl+C or Stop cancels it.'; renderHint();
+    paint();
+    running.timer = frozen ? null : setInterval(tick,300);
+    running.start=function(){if(!running.timer) running.timer=setInterval(tick,300)};
+  }
+  function stopJob(){if(running) running.finish(true)}
+
+  function reject(cmd,verb){
+    var b=block(cmd);
+    var r=document.createElement('div'); r.className='rej';
+    r.innerHTML=ic('i-info','i12')+'<span><code>'+esc(verb)+'</code> is not a Filesmith command, so it did not run. For other commands, use</span>'+
+      '<button class="mbtn" data-ext>'+ic('i-extterm','i12')+'Open in terminal</button>';
+    b.appendChild(r); toBottom();
+  }
+  function openTerminal(){
+    note('Opened Windows Terminal in <b>'+esc(CWD)+'</b>. filesmith is on PATH there, next to every other command.','i-extterm');
+  }
+  scroll.addEventListener('click',function(e){if(e.target.closest('[data-ext]'))openTerminal()});
+  document.getElementById('extBtn').addEventListener('click',openTerminal);
+  document.getElementById('clrBtn').addEventListener('click',function(){scroll.innerHTML='';cin.focus()});
+
+  function syncCwd(){document.getElementById('cwdText').textContent=CWD;document.getElementById('inPr').innerHTML=prompt()}
+
+  /* ---------- open / close ---------- */
+  function setOpen(v,focus){
+    if(v){drawer.hidden=false; void drawer.offsetWidth; wb.classList.add('open')}
+    else {wb.classList.remove('open'); closeComp()}
+    conBtn.setAttribute('aria-pressed',String(v));
+    if(!v){setTimeout(function(){if(!wb.classList.contains('open'))drawer.hidden=true},200)}
+    if(v&&focus!==false) setTimeout(function(){cin.focus()},0);
+  }
+  conBtn.addEventListener('click',function(){setOpen(!wb.classList.contains('open'))});
+  document.getElementById('closeBtn').addEventListener('click',function(){setOpen(false);conBtn.focus()});
+  document.addEventListener('keydown',function(e){
+    if(e.ctrlKey&&(e.code==='Backquote'||e.key==='`')){e.preventDefault();setOpen(!wb.classList.contains('open'))}
+  });
+
+  /* drag the top edge to resize */
+  var grip=document.getElementById('grip');
+  grip.addEventListener('pointerdown',function(e){
+    grip.setPointerCapture(e.pointerId); wb.classList.add('dragging');
+    var r=wb.getBoundingClientRect();
+    function mv(ev){var h=Math.max(160,Math.min(r.height-200,r.bottom-ev.clientY)); document.documentElement.style.setProperty('--dh',h+'px')}
+    function up(){grip.removeEventListener('pointermove',mv);grip.removeEventListener('pointerup',up);wb.classList.remove('dragging')}
+    grip.addEventListener('pointermove',mv); grip.addEventListener('pointerup',up);
+  });
+
+  /* ---------- input: history, completion, Ctrl+C ---------- */
+  function renderHint(txt){
+    khint.innerHTML = txt || (running
+      ? '<span class="kbd">Ctrl+C</span> stops'
+      : '<span class="kbd">Tab</span> completes<span class="sep"></span><span class="kbd">Up</span><span class="kbd">Down</span> history');
+  }
+  var cItems=[], cAct=0, cCtx=null;
+  function closeComp(){comp.classList.remove('open');cItems=[];cCtx=null}
+  function candidates(val){
+    var m=/(\S*)$/.exec(val), word=m[1], before=val.slice(0,val.length-word.length);
+    var toks=before.trim()?before.trim().split(/\s+/):[];
+    if(!toks.length){
+      return {word:word,title:'commands',list:VERBS.concat(['clear','cd']).filter(function(v){return v.indexOf(word.toLowerCase())===0}).map(function(v){return {v:v,d:VERB_DESC[v]||''}})};
+    }
+    var verb=toks[0].toLowerCase(), prev=toks[toks.length-1];
+    if(prev==='--to') return {word:word,title:'--to  targets for images',list:TO.filter(function(v){return v.indexOf(word)===0}).map(function(v){return {v:v,d:''}})};
+    if(prev==='--quality') return {word:word,title:'--quality',list:QUAL.filter(function(v){return v.indexOf(word)===0}).map(function(v){return {v:v,d:{smaller:'smallest files',balanced:'the default',best:'closest to the original'}[v]}})};
+    if(/^-/.test(word)||word===''){
+      var fl=(FLAGS[verb]||FLAGS.convert).filter(function(f){return f[0].indexOf(word)===0&&toks.indexOf(f[0])<0});
+      return {word:word,title:verb+' options',list:fl.map(function(f){return {v:f[0],a:f[1],d:f[2]}})};
+    }
+    var fs=[]; for(var k in FOLDER){fs.push('*.'+k)} for(var k3 in FOLDER) FOLDER[k3].forEach(function(f){fs.push(f[0])});
+    return {word:word,title:'files in '+CWD.split('\\').pop(),list:fs.filter(function(v){return v.toLowerCase().indexOf(word.toLowerCase())===0}).slice(0,7).map(function(v){return {v:v,d:''}})};
+  }
+  function openComp(){
+    var c=candidates(cin.value); if(!c.list.length){closeComp();return false}
+    if(c.list.length===1&&c.word){apply(c,c.list[0].v);return true}
+    cCtx=c; cItems=c.list; cAct=0; drawComp(); return true;
+  }
+  function drawComp(){
+    var h='<div class="comp-h"><span>'+esc(cCtx.title)+'</span><span>'+cItems.length+'</span></div>';
+    cItems.forEach(function(it,i){
+      var v=esc(it.v), w=esc(cCtx.word);
+      var vv = w && it.v.indexOf(cCtx.word)===0 ? '<u>'+w+'</u>'+esc(it.v.slice(cCtx.word.length)) : v;
+      h+='<div class="copt'+(i===cAct?' act':'')+'" role="option" aria-selected="'+(i===cAct)+'" data-i="'+i+'"><span class="cv">'+vv+'</span><span class="ca">'+esc(it.a||'')+'</span><span class="cd">'+esc(it.d||'')+'</span></div>';
+    });
+    h+='<div class="comp-f"><span><span class="kbd">Tab</span>insert</span><span><span class="kbd">Up</span><span class="kbd">Down</span>move</span><span><span class="kbd">Esc</span>close</span></div>';
+    comp.innerHTML=h; comp.classList.toggle('two',!cItems.some(function(x){return x.a})); comp.classList.add('open');
+    /* anchor at the caret column */
+    var meas=document.createElement('span'); meas.style.cssText='position:absolute;visibility:hidden;white-space:pre;font:13px var(--mono)';
+    meas.textContent=cin.value.slice(0,cin.value.length-cCtx.word.length); document.body.appendChild(meas);
+    var left=cin.offsetLeft+meas.offsetWidth-11; meas.remove();
+    comp.style.left=Math.max(0,Math.min(left,drawer.clientWidth-comp.offsetWidth-8))+'px';
+  }
+  function apply(c,v){
+    cin.value=cin.value.slice(0,cin.value.length-c.word.length)+v+' ';
+    closeComp(); cin.setSelectionRange(cin.value.length,cin.value.length);
+  }
+  comp.addEventListener('mousedown',function(e){var o=e.target.closest('.copt'); if(!o)return; e.preventDefault(); apply(cCtx,cItems[+o.dataset.i].v); cin.focus()});
+
+  cin.addEventListener('keydown',function(e){
+    if(e.ctrlKey&&(e.key==='c'||e.key==='C')&&running){e.preventDefault();stopJob();return}
+    if(e.ctrlKey&&(e.key==='l'||e.key==='L')){e.preventDefault();scroll.innerHTML='';return}
+    if(comp.classList.contains('open')){
+      if(e.key==='ArrowDown'){e.preventDefault();cAct=(cAct+1)%cItems.length;drawComp();return}
+      if(e.key==='ArrowUp'){e.preventDefault();cAct=(cAct-1+cItems.length)%cItems.length;drawComp();return}
+      if(e.key==='Tab'||e.key==='Enter'){e.preventDefault();apply(cCtx,cItems[cAct].v);return}
+      if(e.key==='Escape'){e.preventDefault();closeComp();return}
+    }
+    if(e.key==='Tab'){e.preventDefault();openComp();return}
+    if(e.key==='Escape'){if(cin.value){cin.value=''}else{setOpen(false);conBtn.focus()}return}
+    if(e.key==='Enter'){e.preventDefault();var v=cin.value;cin.value='';renderHint();submit(v);return}
+    if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+      e.preventDefault();
+      if(hIdx===-1){if(e.key==='ArrowDown')return; draft=cin.value; hIdx=hist.length}
+      hIdx+= e.key==='ArrowUp'?-1:1;
+      if(hIdx<0)hIdx=0;
+      if(hIdx>=hist.length){hIdx=-1;cin.value=draft;renderHint();return}
+      cin.value=hist[hIdx]; histHint();
+      return;
+    }
+  });
+  cin.addEventListener('input',function(){if(hIdx!==-1){hIdx=-1;renderHint()} if(comp.classList.contains('open'))openComp()});
+  function histHint(){renderHint('<span class="hp">history '+(hIdx+1)+' of '+hist.length+'</span><span class="sep"></span><span class="kbd">Up</span><span class="kbd">Down</span> more<span class="sep"></span><span class="kbd">Enter</span> runs')}
+  document.addEventListener('keydown',function(e){if(e.ctrlKey&&(e.key==='c'||e.key==='C')&&running&&document.activeElement!==cin){e.preventDefault();stopJob()}});
+  document.getElementById('cwdBtn').addEventListener('click',function(){note('Choose folder opens the Windows folder picker. You can also type <b>cd &lt;folder&gt;</b>.')});
+
+  /* ---------- scripted history and #state= ---------- */
+  function seedFinished(){
+    banner();
+    var b=block('convert *.heic --to webp');
+    FOLDER.heic.forEach(function(f){emit(b,line('ok',f[0]+' -> '+f[0].replace('.heic','.webp'),fmtMB(f[1])+' -> '+fmtMB(f[2])+'  ('+pct(f[1],f[2])+')'))});
+    emit(b,summary(4,4,0,0,0,5800));
+    foot(b,0,5800,{reveal:CWD});
+  }
+  function setState(s){
+    if(running){clearInterval(running.timer);running=null}
+    scroll.innerHTML=''; closeComp(); cin.disabled=false; cin.value=''; cin.placeholder='Type a filesmith command, like convert *.heic --to webp';
+    dstat.innerHTML=''; conN.textContent='Ctrl+`'; hIdx=-1; hist=HIST0.slice(); CWD=CWD0; syncCwd(); renderHint();
+    seedFinished();
+    if(s==='closed'){setOpen(false,false); drawer.hidden=true; return}
+    wb.style.transition='none'; setOpen(true,false); void wb.offsetWidth; wb.style.transition='';
+    if(s==='running'){
+      var b=block('compress *.jpg --quality balanced --out small');
+      startJob(b,'compress',parse('compress *.jpg --quality balanced --out small'),FOLDER.jpg,3,62,true);
+      setTimeout(function(){if(running)running.start()},2500);
+    } else if(s==='error'){
+      submit('upscale old-scan.png --factor 3');
+    } else if(s==='rejected'){
+      submit('claude'); submit('del *.*');
+    } else if(s==='completion'){
+      cin.value='convert *.heic --'; cin.focus(); openComp();
+    } else if(s==='history'){
+      submit('upscale old-scan.png --factor 3');
+      hIdx=hist.length-2; cin.value=hist[hIdx]; histHint();
+    }
+    toBottom();
+    if(s!=='running') setTimeout(function(){cin.focus(); if(s==='completion'&&!comp.classList.contains('open'))openComp()},0);
+  }
+  function fromHash(){var m=/state=([\w-]+)/.exec(location.hash); setState(m?m[1]:'open-idle')}
+  window.addEventListener('hashchange',fromHash);
+  window.__setState=setState;
+  fromHash();
+})();
+</script>
+</body>
+</html>

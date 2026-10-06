@@ -50,7 +50,10 @@ import { crumbsFor } from './components/shell/crumbs'
 import { useSidebar } from './components/shell/useSidebar'
 import { useRailPrefs } from './components/shell/useRailPrefs'
 import { sidebarVerbs } from './components/shell/railPrefs'
-import { shortcutFor } from './components/shell/shortcuts'
+import { inConsole, isTextEntryTarget, shortcutFor } from './components/shell/shortcuts'
+import { ConsolePanel } from './components/console/ConsolePanel'
+import { ConsoleStrip } from './components/console/ConsoleStrip'
+import { useConsolePanel } from './components/console/useConsolePanel'
 import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/selectAll'
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
@@ -58,7 +61,7 @@ import { useViewSize } from './components/queue/useViewSize'
 import { viewKeyFor } from './components/queue/viewSize'
 import { needsThumb, thumbKey, thumbPxFor } from './components/queue/thumbSize'
 import { useDevicePixelRatio } from './components/queue/useDevicePixelRatio'
-import { doneSamples, queueTotals, type RowActionKind } from './components/queue/rowModel'
+import { doneSamples, type RowActionKind } from './components/queue/rowModel'
 import {
   deleteConfirm,
   menuTargets,
@@ -85,6 +88,7 @@ import { SettingsView } from './components/views/SettingsView'
 import { ToolsView } from './components/views/ToolsView'
 import type { GenerateOptions } from '@shared/generate'
 import { ContextMenu, type MenuState } from './components/ContextMenu'
+import { toggleMenu } from './components/menuToggle'
 import { useGenerateStatus } from './components/options/hooks/useGenerateStatus'
 import { genBlockReason } from './components/options/generate/genReady'
 import { ConfirmDialog, type ConfirmState } from './components/ConfirmDialog'
@@ -154,6 +158,9 @@ export default function App(): JSX.Element {
   // launch, pruning anything whose file was deleted since; then save on change.
   const hydrated = useRef(false)
   const sidebar = useSidebar()
+  // The console panel (spec 3): open state, height, history, folder.
+  const con = useConsolePanel()
+  const [conBusy, setConBusy] = useState<number | null | undefined>(undefined)
   const rail = useRailPrefs()
   // Files view size (spec 3): one per app, persisted like the sidebar.
   const view = useViewSize()
@@ -903,18 +910,37 @@ export default function App(): JSX.Element {
   // so the window listener reads the latest ones through a ref, refreshed after
   // every render like `latest` above (assigning it during render breaks the
   // react-hooks/refs rule).
-  const actions = useRef({ run, browse, runCount, toggle: sidebar.toggle, filesView, view })
+  const actions = useRef({
+    run,
+    browse,
+    runCount,
+    toggle: sidebar.toggle,
+    toggleConsole: con.toggle,
+    filesView,
+    view
+  })
   useEffect(() => {
-    actions.current = { run, browse, runCount, toggle: sidebar.toggle, filesView, view }
+    actions.current = {
+      run,
+      browse,
+      runCount,
+      toggle: sidebar.toggle,
+      toggleConsole: con.toggle,
+      filesView,
+      view
+    }
   })
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const a = actions.current
       const s = shortcutFor(e)
       if (s) {
+        if (s === 'toggleConsole' && document.querySelector('dialog[open]')) return
+        if (s === 'run' && inConsole(document.activeElement)) return
         e.preventDefault()
         if (s === 'toggleSidebar') a.toggle()
         else if (s === 'addFiles') void a.browse()
+        else if (s === 'toggleConsole') a.toggleConsole()
         else if (s === 'run' && a.runCount > 0) void a.run()
         return
       }
@@ -925,6 +951,8 @@ export default function App(): JSX.Element {
       const v = a.filesView && !modal ? viewKeyFor(e) : null
       if (!v) return
       e.preventDefault()
+      // Typing in the console prompt (or any text field): no size change.
+      if (isTextEntryTarget(document.activeElement)) return
       if (v.kind === 'step') a.view.step(v.delta)
       else a.view.setSize(v.size, { flash: true })
     }
@@ -1183,7 +1211,11 @@ export default function App(): JSX.Element {
         />
 
         <>
-          <main className={`center${dragging ? ' dropping' : ''}`} aria-label="Workspace">
+          <main
+            className={`center${dragging ? ' dropping' : ''}${con.open ? ' con-open' : ''}`}
+            style={{ ['--ch' as string]: `${con.height}px` }}
+            aria-label="Workspace"
+          >
             {onCompleted ? (
               <CompletedView
                 entries={completed}
@@ -1233,7 +1265,6 @@ export default function App(): JSX.Element {
                 />
                 <QueueTable
                   groups={groups}
-                  totals={queueTotals(cur.items)}
                   selected={cur.selected}
                   activeGroup={activeGroup}
                   sort={sort}
@@ -1271,6 +1302,23 @@ export default function App(): JSX.Element {
                 />
               </>
             )}
+            <ConsolePanel
+              open={con.open}
+              height={con.height}
+              onHeight={con.setHeight}
+              onClose={() => con.setOpen(false)}
+              cwd={con.cwd}
+              onCwd={con.setCwd}
+              history={con.history}
+              onHistory={con.addHistory}
+              onMenu={(m) => setMenu((cur) => toggleMenu(cur, m))}
+              onBusy={setConBusy}
+            />
+            <ConsoleStrip
+              open={con.open}
+              live={conBusy == null ? null : `${Math.round(conBusy)}%`}
+              onToggle={con.toggle}
+            />
           </main>
 
           {showInspector && (

@@ -3,7 +3,7 @@ import type { JobOptions } from '@shared/types'
 import { formatBytes } from '@shared/compress'
 import { groupOf, inInput, type ItemStatus, type QueueItem } from '../../state'
 
-// Pure view model for one table row (spec 4.3) and the totals row (spec 4.4).
+// Pure view model for one table row (spec 4.3).
 // Kept apart from the .tsx files so React Fast Refresh and Vitest both work.
 
 export function formatEtaCompact(sec: number | null | undefined): string {
@@ -154,34 +154,6 @@ export function rowView(item: QueueItem, estimateBytes?: number | null): RowView
     status: statusFor(item),
     action: actionFor(item.status)
   }
-}
-
-export interface Totals {
-  files: number
-  bytes: number
-  doneSrc: number
-  doneOut: number
-  done: number
-  failed: number
-  inFlight: number
-}
-
-export function queueTotals(items: QueueItem[]): Totals {
-  const t: Totals = { files: 0, bytes: 0, doneSrc: 0, doneOut: 0, done: 0, failed: 0, inFlight: 0 }
-  for (const i of items) {
-    if (!inInput(i)) continue
-    t.files += 1
-    t.bytes += i.file.size
-    if (i.status === 'done') {
-      t.done += 1
-      if (i.outputSize != null) {
-        t.doneSrc += i.file.size
-        t.doneOut += i.outputSize
-      }
-    } else if (i.status === 'failed') t.failed += 1
-    else if (i.status === 'queued' || i.status === 'running') t.inFlight += 1
-  }
-  return t
 }
 
 function sameOptions(a: JobOptions | undefined, b: JobOptions): boolean {

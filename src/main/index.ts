@@ -3,6 +3,7 @@ import { join, extname } from 'path'
 import { createReadStream, statSync } from 'fs'
 import { Readable } from 'stream'
 import { registerGlobalIpc, cancelActiveGenerations } from './ipc'
+import { registerConsoleIpc } from './console/ipc'
 import { pidSidecar } from './pid/sidecar'
 import { spandrelSidecar } from './comfy/sidecar'
 import { stopComfyServer } from './generate'
@@ -180,6 +181,8 @@ function createWindow(): void {
 
 // The running job queue, so app quit can cancel in-flight tool runs.
 let jobQueue: import('./jobQueue').JobQueue | null = null
+// Console child processes, so app quit can interrupt and then kill them.
+let consoleRuns: { stopAll(): void } | null = null
 
 // Single-instance: a second launch must not spawn a rival process that races the
 // same session.json and duplicates windows. Hand focus to the existing window.
@@ -209,6 +212,7 @@ if (!app.requestSingleInstanceLock()) {
     // dock activate) stack duplicate listeners and throw on the first
     // duplicate handle().
     jobQueue = registerGlobalIpc()
+    consoleRuns = registerConsoleIpc()
 
     createWindow()
     app.on('activate', () => {
@@ -225,6 +229,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     jobQueue?.cancelAll()
     cancelActiveGenerations()
+    consoleRuns?.stopAll()
     pidSidecar.stop()
     spandrelSidecar.stop()
     stopComfyServer()

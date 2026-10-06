@@ -38,9 +38,13 @@ test('the app is dark and square', async () => {
 test('the sidebar collapses with its toggle and Ctrl+B, and remembers it', async () => {
   const toggle = sidebarToggle(page)
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  // Tooltips only where the label is hidden: none while expanded, the label when collapsed.
+  const settings = sidebar(page).getByRole('button', { name: 'Settings' })
+  await expect(settings).not.toHaveAttribute('title')
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-expanded', 'false')
   await expect.poll(async () => (await sidebar(page).boundingBox())?.width).toBe(48)
+  await expect(settings).toHaveAttribute('title', 'Settings')
   await page.reload()
   await expect(sidebarToggle(page)).toHaveAttribute('aria-expanded', 'false')
   await page.keyboard.press('Control+B')
@@ -74,6 +78,23 @@ test('an empty workspace offers Add files and a disabled Run', async () => {
   await expect(page.getByTestId('run')).toBeDisabled()
   await expect(page.getByText('no files', { exact: true })).toBeVisible()
   await expect(page.getByRole('row', { name: 'Totals' })).toHaveCount(0)
+  await expect(
+    page.getByRole('toolbar', { name: 'Console strip' }).getByRole('button', { name: /^Console/ })
+  ).toBeVisible()
+  // The button already reads "Console Ctrl+`": no tooltip repeating it.
+  await expect(
+    page.getByRole('toolbar', { name: 'Console strip' }).getByRole('button', { name: /^Console/ })
+  ).not.toHaveAttribute('title')
+  // Open, the console panel replaces the strip; its head is only the close X.
+  const strip = page.getByRole('toolbar', { name: 'Console strip' })
+  const panel = page.getByRole('region', { name: 'Console' })
+  await strip.getByRole('button', { name: /^Console/ }).click()
+  await expect(panel).toBeVisible()
+  await expect(strip).toBeHidden()
+  await expect(panel.locator('.chead').getByRole('button')).toHaveCount(2)
+  await panel.getByRole('button', { name: 'Minimise console' }).click()
+  await expect(panel).toBeHidden()
+  await expect(strip).toBeVisible()
 })
 
 test('the toolbar is Add files and the View menu; row actions live in the right-click menu', async () => {

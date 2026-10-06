@@ -105,6 +105,12 @@ export function registerGlobalIpc(): JobQueue {
     if (p) void shell.openPath(p)
   })
 
+  // Show in File Explorer (the queue rows, Completed, the console). The handler
+  // went missing in #21; test/ipc-parity.test.ts now guards every channel.
+  ipcMain.on('reveal', (_e, p: string) => {
+    if (p) shell.showItemInFolder(p)
+  })
+
   // Move a file to the OS recycle bin — reversible, never a hard delete.
   ipcMain.handle('file:trash', async (_e, p: string) => {
     if (!p) return false

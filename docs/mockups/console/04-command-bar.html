@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Command bar</title>
+<!--
+  Filesmith console, concept 04: command bar.
+  A one-line filesmith prompt docked under the files list. Compact by default; it grows upward into
+  an output log when a command runs or when you press Up. Only filesmith commands run here; anything
+  else points to "Open in terminal". Console jobs never enter the app queue or Completed.
+  States: #state=closed | open-idle | running | error | rejected | completion | history
+  Keys: Ctrl+` open/close, Enter run, Up/Down history, Tab complete, Ctrl+C stop, Esc collapse/close.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0a0a0a;--bg-1:#0f0f0f;--hover:#1a1a1a;--selected:#202020;--field:#141414;--track:#2a2a2a;
+  --line:#262626;--line-strong:#3a3a3a;--fg1:#ededed;--fg2:#b4b4b4;--fg3:#8c8c8c;--fg-disabled:#5c5c5c;
+  --inv-bg:#2a2a2a;--inv-fg:#ededed;--inv-hover:#3a3a3a;--inv-active:#202020;--focus:#ededed;
+  --stop-bg:#c42b1c;--stop-hover:#d13b2c;--stop-active:#a8251a;--stop-fg:#ffffff;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',Consolas,monospace;
+  --cols:40px 1fr 64px 88px 184px 232px;color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box;border-radius:0}
+html,body{background:var(--bg-0)}
+body{margin:0;width:1440px;height:900px;overflow:hidden;color:var(--fg1);font:13px/1.4 var(--sans);
+  -webkit-font-smoothing:antialiased;user-select:none;cursor:default;display:grid;grid-template-rows:32px 1fr}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:square;stroke-linejoin:miter}
+svg.i *{vector-effect:non-scaling-stroke}
+svg.i12{width:12px;height:12px}
+svg.i10{width:10px;height:10px}
+:focus-visible{outline:1px solid var(--focus);outline-offset:-1px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* title bar */
+.titlebar{border-bottom:1px solid var(--line);display:flex;align-items:center;padding-left:14px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;line-height:1}
+.tsep{width:1px;align-self:stretch;background:var(--line);margin:0 12px}
+.crumb{display:flex;align-items:center;gap:6px;color:var(--fg3);font:12px/1 var(--mono)}
+.crumb b{color:var(--fg1);font-weight:500}
+.winctl{margin-left:auto;display:flex;align-self:stretch}
+.winctl button{width:46px;display:grid;place-items:center;color:var(--fg2);border-left:1px solid var(--line)}
+.winctl button:hover{background:var(--hover);color:var(--fg1)}
+.winctl svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1}
+
+/* workbench */
+.wb{display:grid;grid-template-columns:208px 1fr 340px;min-height:0}
+.side{border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.side-head{height:32px;display:flex;align-items:center;border-bottom:1px solid var(--line);flex:none}
+.side-head .lbl{padding-left:16px;font:11px/1 var(--mono);color:var(--fg3)}
+.toggle{margin-left:auto;width:47px;height:31px;display:grid;place-items:center;color:var(--fg2)}
+.toggle:hover{background:var(--hover);color:var(--fg1)}
+.nav{display:flex;flex-direction:column;padding:6px 0}
+.item{height:36px;display:flex;align-items:center;gap:12px;padding:0 14px 0 15px;color:var(--fg2);white-space:nowrap;text-align:left;width:100%}
+.item:hover{background:var(--hover);color:var(--fg1)}
+.item.on{color:var(--fg1);font-weight:600;background:var(--selected)}
+.item .lab{flex:1}
+.item .n{font:500 11px/1 var(--mono);color:var(--fg3)}
+.side .spacer{flex:1}
+.nav.bottom{border-top:1px solid var(--line)}
+
+.center{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.toolbar{height:32px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
+.tbtn{display:inline-flex;align-items:center;gap:8px;padding:0 14px;color:var(--fg1);line-height:1;border-right:1px solid var(--line);font-weight:600}
+.tbtn:hover{background:var(--hover)}
+.tb-right{margin-left:auto;display:flex;align-items:stretch}
+.count{display:flex;align-items:center;font:12px var(--mono);color:var(--fg3);padding:0 12px}
+.viewbtn{display:inline-flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-left:1px solid var(--line);color:var(--fg2);font-size:12px;line-height:1}
+.viewbtn .vl{color:var(--fg1);min-width:96px;text-align:left}
+.viewbtn:hover{background:var(--hover);color:var(--fg1)}
+
+.qtable{flex:1;min-height:0;display:flex;flex-direction:column}
+.cols{display:grid;grid-template-columns:var(--cols);align-items:center}
+.thead{height:28px;flex:none;border-bottom:1px solid var(--line-strong)}
+.th{height:28px;display:flex;align-items:center;gap:4px;padding:0 10px;font:500 11px/1 var(--mono);color:var(--fg3);border-right:1px solid var(--line)}
+.th:last-child{border-right:0}
+.th.num{justify-content:flex-end}
+.th.ck{justify-content:center;padding:0}
+.qbody{flex:1;min-height:0;overflow:hidden}
+.tr{position:relative;height:32px;border-bottom:1px solid var(--line)}
+.tr:hover{background:var(--hover)}
+.tr.sel{background:var(--selected)}
+.td{padding:0 10px;display:flex;align-items:center;gap:10px;min-width:0;white-space:nowrap;height:100%}
+.td.num{justify-content:flex-end}
+.td.ck{justify-content:center;padding:0}
+.box{width:14px;height:14px;border:1px solid var(--fg3);display:grid;place-items:center;flex:none;color:var(--inv-fg)}
+.box svg{width:10px;height:10px;stroke-width:2}
+.box.on{background:var(--inv-bg);border-color:var(--inv-bg)}
+.box.mixed{border-color:var(--fg2)}
+.box.mixed::before{content:'';width:8px;height:2px;background:var(--fg1)}
+.name{font:13px var(--mono);color:var(--fg1);overflow:hidden;text-overflow:ellipsis}
+.thumb{width:18px;height:18px;border:1px solid var(--line-strong);flex:none}
+.meta{font:12px var(--mono);color:var(--fg3)}
+.size{font:12px var(--mono);color:var(--fg2)}
+.tr.sel .meta{color:var(--fg2)}
+.td.rc{position:relative;overflow:visible}
+.res{display:flex;align-items:center;gap:8px;font:12px var(--mono)}
+.res .arr{position:absolute;left:0;top:50%;transform:translate(calc(-50% - .5px),-50%);padding:2px 1px;background:var(--bg-0);color:var(--fg3)}
+.tr.sel .res .arr{background:var(--selected)}
+.res b{font-weight:600}
+.res .pct{color:var(--fg3)}
+.res .pct.grew{font-weight:600;color:var(--fg2)}
+.st{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2)}
+.st.fail{color:var(--inv-fg);background:var(--inv-bg);font-weight:600;height:22px;padding:0 8px 0 6px;gap:6px}
+.row-act{margin-left:auto;width:24px;height:24px;display:grid;place-items:center;color:var(--fg1);border:1px solid var(--line-strong);flex:none}
+.row-act:hover{border-color:var(--fg2);background:var(--hover)}
+.totals{height:30px;flex:none;border-top:1px solid var(--line-strong);font:12px var(--mono);color:var(--fg2);position:relative}
+.totals b{font-weight:600;color:var(--fg1)}
+.totals .td{gap:8px}
+
+/* console toggle, at the right end of the totals row */
+.contog{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;gap:7px;padding:0 10px 0 10px;
+  border-left:1px solid var(--line);font:12px/1 var(--sans);color:var(--fg2);background:var(--bg-0)}
+.contog .k{font:11px var(--mono);color:var(--fg3)}
+.contog:hover{background:var(--hover);color:var(--fg1)}
+.contog[aria-pressed="true"]{background:var(--selected);color:var(--fg1);font-weight:600}
+.contog[aria-pressed="true"] .k{font-weight:400}
+
+/* ---------- console: log (grows upward) + command bar ---------- */
+.clog{flex:none;height:0;overflow:hidden;display:flex;flex-direction:column;border-top:1px solid transparent;
+  transition:height .18s cubic-bezier(.2,.7,.2,1)}
+.console.open.expanded .clog{height:var(--logh,330px);border-top-color:var(--line-strong)}
+.clog-head{height:28px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid var(--line);cursor:row-resize;position:relative}
+.clog-head .ttl{display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;font:11px/1 var(--mono);color:var(--fg3)}
+.clog-head .ttl b{color:var(--fg2);font-weight:500}
+.clog-head .note{margin-left:auto;display:flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;color:var(--fg3);cursor:default}
+.hbtn{width:32px;display:grid;place-items:center;color:var(--fg2);border-left:1px solid var(--line);cursor:pointer}
+.hbtn:hover{background:var(--hover);color:var(--fg1)}
+.clog-body{flex:1;min-height:0;overflow-y:auto;padding:6px 0 10px;font:12px/20px var(--mono);font-variant-numeric:tabular-nums;
+  user-select:text;scrollbar-width:thin;scrollbar-color:var(--line-strong) var(--bg-0)}
+.blk{padding:4px 14px 8px}
+.blk + .blk{border-top:1px solid var(--line);padding-top:8px}
+.pl{display:flex;align-items:baseline;gap:0;color:var(--fg1)}
+.pl .cwd{color:var(--fg3)}
+.pl .cmd{color:var(--fg1);font-weight:500}
+.pl .ex{margin-left:auto;padding-left:16px;color:var(--fg3);white-space:nowrap}
+.pl .ex.bad{color:var(--fg1);font-weight:600}
+.ln{display:grid;grid-template-columns:64px 316px 1fr;color:var(--fg2);white-space:pre}
+.ln .tag{color:var(--fg3)}
+.ln.fail .tag,.ln.fail .nm{color:var(--fg1);font-weight:600}
+.ln.fail .rt{color:var(--fg1)}
+.ln.stop .tag{color:var(--fg2)}
+.ln .rt b{color:var(--fg1);font-weight:600}
+.ln .nm{overflow:hidden;text-overflow:ellipsis}
+.hint{padding-left:64px;color:var(--fg2);white-space:pre-wrap}
+.hint .hk{color:var(--fg3)}
+.err{color:var(--fg1);font-weight:600;white-space:pre-wrap}
+.err + .hint{padding-left:16px}
+.prog{display:grid;grid-template-columns:64px 1fr;color:var(--fg1);margin-top:2px}
+.prog .tag{color:var(--fg3)}
+.prog b{font-weight:600}
+.prog .eta{color:var(--fg3)}
+.sum{display:flex;align-items:center;gap:12px;margin-top:4px;color:var(--fg2)}
+.sum .sp{flex:1}
+.plain{color:var(--fg2);white-space:pre}
+.rej{display:flex;align-items:center;gap:10px;color:var(--fg2);font-family:var(--sans);font-size:12.5px;margin-top:3px}
+.rej svg{color:var(--fg3)}
+.banner{padding:2px 14px 8px;color:var(--fg3);font-family:var(--sans);font-size:12px;line-height:18px}
+
+/* small outlined button (app .sbtn) */
+.sbtn{display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 10px 0 8px;font:12px/1 var(--sans);color:var(--fg1);
+  border:1px solid var(--line-strong);white-space:nowrap;flex:none}
+.sbtn svg{color:var(--fg2)}
+.sbtn:hover{background:var(--hover);border-color:var(--fg3)}
+.sbtn:active{background:var(--inv-bg)}
+.chip{font:12px var(--mono);color:var(--fg1);border:1px solid var(--line-strong);padding:0 6px;height:20px;display:inline-flex;align-items:center;vertical-align:baseline}
+.chip:hover{background:var(--hover);border-color:var(--fg3)}
+
+/* the one-line bar; height matches the inspector's run-button footer so both edges line up */
+.cbar{flex:none;height:0;overflow:hidden;display:flex;align-items:stretch;border-top:1px solid transparent;background:var(--bg-0)}
+.console.open .cbar{height:48px;border-top-color:var(--line-strong)}
+.console.open:not(.expanded) .cbar{border-top-color:var(--line-strong)}
+.xbtn{width:40px;flex:none;display:grid;place-items:center;color:var(--fg2);border-right:1px solid var(--line)}
+.xbtn:hover{background:var(--hover);color:var(--fg1)}
+.xbtn svg{transition:transform .18s}
+.console.expanded .xbtn svg{transform:scaleY(-1)}
+.prompt{display:flex;align-items:center;flex:1;min-width:0;padding-left:12px;font:13px var(--mono);position:relative}
+.prompt .cwd{color:var(--fg3);white-space:nowrap}
+.prompt .cwd b{color:var(--fg2);font-weight:500}
+.prompt .gt{color:var(--fg3);padding:0 8px 0 1px}
+.prompt input{flex:1;min-width:0;height:100%;background:none;border:0;outline:0;color:var(--fg1);font:13px var(--mono);caret-color:var(--fg1);padding:0}
+.prompt input::placeholder{color:var(--fg-disabled)}
+.hist{display:none;align-items:center;padding:0 12px;font:11px var(--mono);color:var(--fg3);white-space:nowrap}
+.console.browsing .hist{display:flex}
+.keys{display:flex;align-items:center;gap:6px;padding:0 10px;font:11px var(--mono);color:var(--fg-disabled);white-space:nowrap}
+.keys b{font-weight:500;color:var(--fg3)}
+.console.running .keys,.console.browsing .keys,.console.typing .keys{display:none}
+.cright{display:flex;align-items:center;gap:8px;padding:0 8px 0 4px}
+.stopb{display:none;align-items:center;gap:8px;height:30px;padding:0 12px 0 10px;background:var(--stop-bg);color:var(--stop-fg);font-weight:600;font-size:12px}
+.stopb .k{font:400 11px var(--mono);opacity:.85}
+.stopb:hover{background:var(--stop-hover)}
+.stopb:active{background:var(--stop-active)}
+.console.running .stopb{display:inline-flex}
+.opent{height:30px}
+.closeb{width:30px;height:30px;display:grid;place-items:center;color:var(--fg2)}
+.closeb:hover{background:var(--hover);color:var(--fg1)}
+
+/* completion list (app .menu) */
+.console{position:relative;flex:none}
+.comp{position:absolute;bottom:48px;z-index:20;min-width:500px;padding:4px 0 0;background:var(--bg-0);border:1px solid var(--line-strong);display:none}
+.comp.show{display:block}
+.ci{height:28px;display:grid;grid-template-columns:104px 184px 1fr;align-items:center;gap:10px;padding:0 12px;font-size:12px;color:var(--fg2);cursor:pointer}
+.ci .f{font:12px var(--mono);color:var(--fg1)}
+.ci .v{font:12px var(--mono);color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci .d{color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci:hover{background:var(--hover)}
+.ci.on{background:var(--selected);color:var(--fg1)}
+.ci.on .f{font-weight:600}
+.ci.on .d,.ci.on .v{color:var(--fg2)}
+.comp-foot{margin-top:4px;border-top:1px solid var(--line);height:26px;display:flex;align-items:center;gap:14px;padding:0 12px;font:11px var(--mono);color:var(--fg3)}
+.comp-foot b{color:var(--fg2);font-weight:500}
+
+/* inspector */
+.insp{border-left:1px solid var(--line);display:grid;grid-template-rows:32px 1fr 48px;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tab{position:relative;display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--fg3);font-size:12px;line-height:1}
+.tab.on{color:var(--fg1);font-weight:600}
+.tab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--fg1)}
+.ibody{min-height:0;overflow:hidden}
+.ihead{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.ihead h1{margin:0;font-weight:600;font-size:14px;line-height:1.3}
+.ihead span{font:12px var(--mono);color:var(--fg3)}
+.vs-gh{display:flex;align-items:center;gap:10px;padding:14px 16px 4px;font:600 11px/1 var(--mono);letter-spacing:.09em;color:var(--fg3)}
+.vs-gh::after{content:'';flex:1;height:1px;background:var(--line)}
+.vs-set{display:flex;flex-direction:column;gap:3px;padding:7px 16px 9px}
+.vs-t{font:500 13px/1.3 var(--sans)}
+.vs-d{font:12px/1.4 var(--sans);color:var(--fg3);margin-bottom:5px}
+.vs-sel{display:flex;align-items:center;width:100%;height:28px;padding:0 6px 0 8px;background:var(--field);border:1px solid var(--line-strong);font:13px var(--mono);color:var(--fg1);text-align:left}
+.vs-sel .val{flex:1}
+.vs-sel svg{color:var(--fg2)}
+.vs-sel.dis{color:var(--fg-disabled);width:168px}
+.vs-sel.dis svg{color:var(--fg-disabled)}
+.vs-row{display:flex;gap:6px}
+.vs-row > .vs-sel{flex:1}
+.vs-row .sbtn{height:28px}
+.seg{display:flex;width:100%;height:28px;border:1px solid var(--line-strong)}
+.seg button{flex:1;display:grid;place-items:center;font:13px/1 var(--mono);color:var(--fg2);border-left:1px solid var(--line-strong)}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--inv-bg);color:var(--inv-fg);font-weight:600}
+.vs-est{margin:14px 16px 0;border:1px solid var(--line-strong);padding:12px 14px 13px;display:grid;gap:9px}
+.vs-est .eh{display:flex;justify-content:space-between;font:11px/1 var(--mono);color:var(--fg3);letter-spacing:.04em}
+.vs-est .ev{display:flex;align-items:baseline;gap:10px;font:13px var(--mono)}
+.vs-est .ev .from{color:var(--fg2)}
+.vs-est .ev svg{color:var(--fg3);align-self:center}
+.vs-est .ev b{font-size:16px;font-weight:600}
+.vs-est .ev .pct{margin-left:auto;color:var(--fg2)}
+.ifoot{border-top:1px solid var(--line);display:flex}
+.primary{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--inv-bg);color:var(--inv-fg);font-weight:600}
+.primary:hover{background:var(--inv-hover)}
+
+@media (prefers-reduced-motion:reduce){.clog,.xbtn svg{transition:none}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-convert" viewBox="0 0 16 16"><path d="M2.5 5.5h10.5M10.5 3l2.5 2.5-2.5 2.5M13.5 10.5H3M5.5 8L3 10.5 5.5 13"/></symbol>
+    <symbol id="i-compress" viewBox="0 0 16 16"><path d="M8 1.5V6M5.5 3.5L8 6l2.5-2.5M8 14.5V10M5.5 12.5L8 10l2.5 2.5M2.5 8h11"/></symbol>
+    <symbol id="i-resize" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M13.5 10v3.5H10M3 3l10 10"/></symbol>
+    <symbol id="i-upscale" viewBox="0 0 16 16"><rect x="2.5" y="8.5" width="5" height="5"/><path d="M9 2.5h4.5V7M13.5 2.5L8.5 7.5"/></symbol>
+    <symbol id="i-removebg" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6 6H4.5l-2-2 7-8zM6 6l4 4M8 13.5h5.5"/></symbol>
+    <symbol id="i-generate" viewBox="0 0 16 16"><path d="M7 2l1.2 3.3L11.5 6.5 8.2 7.7 7 11 5.8 7.7 2.5 6.5l3.3-1.2zM12.5 10v4M10.5 12h4"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></symbol>
+    <symbol id="i-completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 8.25l1.75 1.75L10.75 6.5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 16 16"><path d="M2.5 5h5M10.5 5h3M2.5 11h2M7.5 11h6"/><circle cx="9" cy="5" r="1.5"/><circle cx="6" cy="11" r="1.5"/></symbol>
+    <symbol id="i-addfile" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3M8 7v5M5.5 9.5h5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 16 16"><path d="M3 3v3h3M3.3 6A5 5 0 1 1 3 9.5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="i-chev-u" viewBox="0 0 16 16"><path d="M4 10l4-4 4 4"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6 4.5V2.5h4v2M4.5 4.5l.5 9h6l.5-9"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5v.5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M10 5l3 3-3 3"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11"/><path d="M6 2.5v11M10.5 6.5L9 8l1.5 1.5"/></symbol>
+    <symbol id="i-anvil" viewBox="0 0 16 16"><path d="M1.5 4.5h10c0 2 1.5 3 3 3v1h-5l-1 2h2v2h-6v-2h2l-1-2c-2.5 0-4-1.5-4-4z"/></symbol>
+    <symbol id="i-details" viewBox="0 0 16 16"><path d="M2.5 4h11M2.5 7h11M2.5 10h11M2.5 13h11"/></symbol>
+    <symbol id="i-term" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11"/><path d="M4 6l2.5 2L4 10M8 10.5h4"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 16 16"><rect x="1.5" y="3.5" width="10" height="10"/><path d="M4 7l2 1.5L4 10M9 1.5h5.5V7M14.5 1.5L9.5 6.5"/></symbol>
+  </defs>
+</svg>
+
+<header class="titlebar">
+  <span class="brand"><svg class="i"><use href="#i-anvil"/></svg>Filesmith</span>
+  <span class="tsep"></span>
+  <span class="crumb">convert <span>/</span> <b>images</b></span>
+  <div class="winctl">
+    <button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
+    <button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg></button>
+    <button aria-label="Close"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></button>
+  </div>
+</header>
+
+<div class="wb">
+  <aside class="side">
+    <div class="side-head"><span class="lbl">operations</span><button class="toggle" aria-label="Collapse sidebar"><svg class="i"><use href="#i-sidebar"/></svg></button></div>
+    <nav class="nav">
+      <button class="item on"><svg class="i"><use href="#i-convert"/></svg><span class="lab">Convert</span><span class="n">6</span></button>
+      <button class="item"><svg class="i"><use href="#i-compress"/></svg><span class="lab">Compress</span></button>
+      <button class="item"><svg class="i"><use href="#i-resize"/></svg><span class="lab">Resize</span></button>
+      <button class="item"><svg class="i"><use href="#i-upscale"/></svg><span class="lab">Upscale</span></button>
+      <button class="item"><svg class="i"><use href="#i-removebg"/></svg><span class="lab">Remove BG</span></button>
+      <button class="item"><svg class="i"><use href="#i-generate"/></svg><span class="lab">Generate</span></button>
+      <button class="item"><svg class="i"><use href="#i-tools"/></svg><span class="lab">PDF Tools</span></button>
+    </nav>
+    <div class="spacer"></div>
+    <nav class="nav bottom">
+      <button class="item"><svg class="i"><use href="#i-completed"/></svg><span class="lab">Completed</span><span class="n">1</span></button>
+      <button class="item"><svg class="i"><use href="#i-settings"/></svg><span class="lab">Settings</span></button>
+    </nav>
+  </aside>
+
+  <main class="center">
+    <div class="toolbar">
+      <button class="tbtn"><svg class="i"><use href="#i-addfile"/></svg>Add files</button>
+      <div class="tb-right">
+        <span class="count">6 files, 1 selected</span>
+        <button class="viewbtn"><svg class="i"><use href="#i-details"/></svg><span class="vl">Details</span><svg class="i i12"><use href="#i-chev-d"/></svg></button>
+      </div>
+    </div>
+
+    <div class="qtable">
+      <div class="cols thead">
+        <div class="th ck"><span class="box mixed"></span></div>
+        <div class="th">name</div><div class="th">kind</div><div class="th num">size</div><div class="th">result</div><div class="th">status</div>
+      </div>
+      <div class="qbody" id="rows"></div>
+      <div class="cols totals">
+        <div></div>
+        <div class="td">6 files</div>
+        <div></div>
+        <div class="td num">177 MB</div>
+        <div class="td">167 MB <svg class="i i12" style="color:var(--fg3)"><use href="#i-arrow"/></svg> <b>1.2 GB</b> <span style="color:var(--fg3)">so far</span></div>
+        <div class="td"><b>3 of 6 done</b></div>
+        <button class="contog" id="contog" aria-pressed="false" title="Console (Ctrl+`)"><svg class="i"><use href="#i-term"/></svg>Console <span class="k">Ctrl+`</span></button>
+      </div>
+    </div>
+
+    <section class="console" id="console" aria-label="filesmith console">
+      <div class="clog" id="clog">
+        <div class="clog-head" title="Drag to resize">
+          <span class="ttl">console <b>C:\Users\Max\Pictures\Trip</b></span>
+          <span class="note"><svg class="i i12"><use href="#i-info"/></svg>Runs on its own: jobs here never join the list or Completed</span>
+          <button class="hbtn" id="clearb" title="Clear output"><svg class="i"><use href="#i-trash"/></svg></button>
+          <button class="hbtn" id="collb" title="Collapse to one line (Esc)"><svg class="i"><use href="#i-chev-d"/></svg></button>
+        </div>
+        <div class="clog-body" id="logbody"></div>
+      </div>
+      <div class="comp" id="comp" role="listbox"></div>
+      <div class="cbar">
+        <button class="xbtn" id="xbtn" title="Show output (Up)"><svg class="i"><use href="#i-chev-u"/></svg></button>
+        <label class="prompt" id="prompt">
+          <span class="cwd">C:\Users\Max\Pictures\<b>Trip</b></span><span class="gt">&gt;</span>
+          <input id="cin" spellcheck="false" autocomplete="off" aria-label="filesmith command" placeholder="e.g. convert *.heic --to webp">
+        </label>
+        <span class="keys" id="keys"><b>Tab</b> complete <b>Up</b> history</span>
+        <span class="hist" id="hist">history 2 of 5</span>
+        <div class="cright">
+          <button class="stopb" id="stopb"><svg class="i i12" style="fill:currentColor;stroke:none"><use href="#i-stop"/></svg>Stop <span class="k">Ctrl+C</span></button>
+          <button class="sbtn opent" id="opent" title="Opens Windows Terminal here, with filesmith on PATH"><svg class="i"><use href="#i-ext"/></svg>Open in terminal</button>
+          <button class="closeb" id="closeb" title="Close console (Ctrl+`)"><svg class="i"><use href="#i-close"/></svg></button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="insp">
+    <div class="tabs">
+      <button class="tab on"><svg class="i"><use href="#i-settings"/></svg>Options</button>
+      <button class="tab"><svg class="i"><use href="#i-eye"/></svg>Preview</button>
+      <button class="tab"><svg class="i"><use href="#i-info"/></svg>Info</button>
+    </div>
+    <div class="ibody">
+      <div class="ihead"><h1>Convert</h1><span>1 selected</span></div>
+      <div class="vs-gh">FORMAT</div>
+      <div class="vs-set"><span class="vs-t">Format</span><span class="vs-d">The format the selected files are converted to.</span>
+        <button class="vs-sel"><span class="val">webp</span><svg class="i"><use href="#i-chev-d"/></svg></button></div>
+      <div class="vs-set"><span class="vs-t">Quality</span><span class="vs-d">Smaller files, or closer to the original.</span>
+        <div class="seg"><button>smaller</button><button class="on">balanced</button><button>best</button></div></div>
+      <div class="vs-gh">OUTPUT</div>
+      <div class="vs-set"><span class="vs-t">Location</span><span class="vs-d">Files are written next to each source.</span>
+        <div class="vs-row"><button class="vs-sel"><span class="val">next to source</span><svg class="i"><use href="#i-chev-d"/></svg></button>
+        <button class="sbtn"><svg class="i"><use href="#i-folder"/></svg>Choose folder</button></div></div>
+      <div class="vs-gh">FILES</div>
+      <div class="vs-set"><span class="vs-t">If file exists</span><span class="vs-d">Existing files are never overwritten.</span>
+        <button class="vs-sel dis"><span class="val">add (2)</span><svg class="i"><use href="#i-chev-d"/></svg></button></div>
+      <div class="vs-est"><div class="eh"><span>estimate</span><span>1 file</span></div>
+        <div class="ev"><span class="from">29 MB</span><svg class="i i12"><use href="#i-arrow"/></svg><b>~649 KB</b><span class="pct">-98%</span></div></div>
+    </div>
+    <div class="ifoot"><button class="primary"><svg class="i"><use href="#i-play"/></svg>Convert 1 image</button></div>
+  </aside>
+</div>
+
+<script>
+/* ---------- files list (static, matches the app) ---------- */
+const ROWS = [
+  ['IMG_2041.jpg','JPG','694 KB','29 KB','-96%','done',0],
+  ['beach-panorama.png','PNG','29 MB','51 KB','-99%','done',1],
+  ['scan_0007.tiff','TIFF','137 MB','1.2 GB','+800%','done',0],
+  ['portrait.jpg','JPG','680 KB','','','',0],
+  ['diagram.png','PNG','9.3 MB','','','',0],
+  ['IMG_2042.jpg','JPG','692 KB','','','fail',0]
+];
+const thumbs = ['#6a6a6a,#2c2c2c','#9a9a9a,#3a3a3a','#4a4a4a,#8a8a8a','#7a7a7a,#262626','#b0b0b0,#505050','#5a5a5a,#a0a0a0'];
+document.getElementById('rows').innerHTML = ROWS.map((r,i)=>`
+  <div class="cols tr${r[6]?' sel':''}">
+    <div class="td ck"><span class="box${r[6]?' on':''}">${r[6]?'<svg class="i"><use href="#i-check"/></svg>':''}</span></div>
+    <div class="td"><span class="thumb" style="background:linear-gradient(135deg,${thumbs[i]})"></span><span class="name">${r[0]}</span></div>
+    <div class="td"><span class="meta">${r[1]}</span></div>
+    <div class="td num"><span class="size">${r[2]}</span></div>
+    <div class="td rc">${r[3]?`<span class="res"><span class="arr">-&gt;</span><b>${r[3]}</b><span class="pct${r[4][0]==='+'?' grew':''}">${r[4]}</span></span>`:''}</div>
+    <div class="td">${r[5]==='done'?'<span class="st"><svg class="i"><use href="#i-check"/></svg>Done</span>':''}
+      ${r[5]==='fail'?'<span class="st fail"><svg class="i"><use href="#i-warning"/></svg>Unsupported compression</span><button class="row-act" aria-label="Retry"><svg class="i"><use href="#i-retry"/></svg></button>':''}
+      ${r[6]?'<button class="row-act" aria-label="Show in File Explorer"><svg class="i"><use href="#i-folder"/></svg></button>':''}</div>
+  </div>`).join('');
+// the result arrow in the app is an icon; use it here too
+document.querySelectorAll('.res .arr').forEach(a=>a.innerHTML='<svg class="i i12"><use href="#i-arrow"/></svg>');
+
+/* ---------- console ---------- */
+const $ = id => document.getElementById(id);
+const con = $('console'), cin = $('cin'), logb = $('logbody'), comp = $('comp');
+const CWD = 'C:\\Users\\Max\\Pictures\\Trip';
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let history = ['compress *.jpg --quality smaller','convert *.heic --to webp'];
+let hIdx = -1, draft = '', run = null;
+
+const BANNER = `<div class="banner">Only filesmith commands, typed without "filesmith". Output stays here; results are written next to the sources. Need anything else? Open in terminal.</div>`;
+
+function setOpen(v){
+  con.classList.toggle('open', v);
+  $('contog').setAttribute('aria-pressed', v);
+  if (!v) { con.classList.remove('expanded'); hideComp(); }
+  else setTimeout(()=>cin.focus(), 0);
+}
+function setExpanded(v){ con.classList.toggle('expanded', v); $('xbtn').title = v ? 'Hide output (Esc)' : 'Show output (Up)'; if(v) scrollEnd(); }
+function scrollEnd(){ requestAnimationFrame(()=>{ logb.scrollTop = logb.scrollHeight; }); }
+
+/* block builders */
+const pl = (cmd, ex, bad) => `<div class="pl"><span class="cwd">Trip&gt;&nbsp;</span><span class="cmd">${esc(cmd)}</span>${ex!=null?`<span class="ex${bad?' bad':''}">${ex}</span>`:''}</div>`;
+const ln = (tag, nm, rt, cls) => `<div class="ln ${cls||tag}"><span class="tag">${tag}</span><span class="nm">${esc(nm)}</span><span class="rt">${rt||''}</span></div>`;
+const okln = (a,b,from,to,pct) => ln('ok', `${a} -> ${b}`, `${from} -> <b>${to}</b>  (${pct})`);
+const sum = (txt, explorer) => `<div class="sum"><span>${txt}</span><span class="sp"></span>${explorer?`<button class="sbtn" onclick="explorerNote(this)"><svg class="i"><use href="#i-folder"/></svg>Show in File Explorer</button>`:''}</div>`;
+const hint = (h) => `<div class="hint"><span class="hk">hint:</span> ${h}</div>`;
+const chip = (c) => `<button class="chip" onclick="insertCmd('${c}')" title="Put this command in the prompt">${c}</button>`;
+
+const HEIC = [['IMG_2043.heic','3.2 MB','640 KB','-80%'],['IMG_2044.heic','2.9 MB','588 KB','-80%'],['IMG_2045.heic','4.1 MB','702 KB','-83%'],['IMG_2046.heic','3.6 MB','655 KB','-82%'],['IMG_2047.heic','2.4 MB','512 KB','-79%']];
+const JPG = [['IMG_2041.jpg','694 KB','412 KB','-41%'],['portrait.jpg','680 KB','398 KB','-41%'],['IMG_2042.jpg','692 KB','405 KB','-41%']];
+
+function doneConvert(ext){
+  return `<div class="blk">${pl('convert *.heic --to '+ext,'exit 0')}
+    ${HEIC.map(f=>okln(f[0], f[0].replace('.heic','.'+ext), f[1], f[2], f[3])).join('')}
+    ${sum('5 files: 5 ok, 0 skipped, 0 failed (3.4 s)', true)}</div>`;
+}
+function rejectBlk(cmd){
+  const w = cmd.trim().split(/\s+/)[0];
+  return `<div class="blk">${pl(cmd,'not run')}
+    <div class="rej"><svg class="i"><use href="#i-info"/></svg><span><b style="font-weight:600;color:var(--fg1)">${esc(w)}</b> is not a filesmith command. This console runs filesmith only; use a terminal for anything else.</span>
+    <button class="sbtn" onclick="openTerm()"><svg class="i"><use href="#i-ext"/></svg>Open in terminal</button></div></div>`;
+}
+function upscaleFail(){
+  return `<div class="blk">${pl('upscale portrait.jpg diagram.png','exit 1',true)}
+    ${ln('fail','portrait.jpg','Real-ESRGAN is not set up yet.')}
+    ${hint(`run ${chip('setup upscale')} once (one download, about 45 MB), then run this again.`)}
+    ${ln('fail','diagram.png','Real-ESRGAN is not set up yet.')}
+    ${sum('2 files: 0 ok, 0 skipped, 2 failed (0.2 s)', false)}</div>`;
+}
+function usageErr(cmd){
+  return `<div class="blk">${pl(cmd,'exit 2',true)}
+    <div class="err">filesmith convert needs --to &lt;format&gt;, e.g. --to webp.</div>
+    <div class="hint" style="padding-left:16px"><span class="hk">hint:</span> ${chip('formats convert')} lists every target.</div></div>`;
+}
+function noMatch(cmd, g){
+  return `<div class="blk">${pl(cmd,'exit 2',true)}
+    <div class="err">filesmith: No file matches ${esc(g)}</div>
+    <div class="hint" style="padding-left:16px"><span class="hk">hint:</span> paths are relative to ${CWD}</div></div>`;
+}
+
+function append(html){ logb.insertAdjacentHTML('beforeend', html); scrollEnd(); }
+
+/* fake runner */
+function startRun(cmd, files, mk, label){
+  const t0 = performance.now();
+  const blk = document.createElement('div'); blk.className='blk';
+  blk.innerHTML = pl(cmd, 'running') + '<div class="out"></div><div class="prog"></div>';
+  logb.appendChild(blk);
+  con.classList.add('running');
+  cin.placeholder = 'Running. Ctrl+C or Stop cancels it.';
+  let i = 0, pct = 0;
+  run = { blk, cancel(){ finish(true); } };
+  const tick = () => {
+    pct += 7 + Math.random()*9;
+    if (pct >= 100) { blk.querySelector('.out').insertAdjacentHTML('beforeend', mk(files[i])); i++; pct = 0; }
+    if (i >= files.length) return finish(false);
+    const eta = Math.max(1, Math.round((100-pct)/40 + (files.length-i-1)*2));
+    blk.querySelector('.prog').innerHTML = `<span class="tag">[${i+1}/${files.length}]</span><span>${files[i][0]} <b>${Math.round(pct)}%</b><span class="eta">(${eta}s)</span></span>`;
+    scrollEnd();
+  };
+  tick(); run.timer = setInterval(tick, 160);
+  function finish(canceled){
+    clearInterval(run.timer);
+    const out = blk.querySelector('.out');
+    const ok = i, rest = files.slice(i);
+    if (canceled) rest.forEach(f=> out.insertAdjacentHTML('beforeend', ln('stop', f[0], 'canceled, unfinished output removed', 'stop')));
+    blk.querySelector('.prog').remove();
+    const s = ((performance.now()-t0)/1000).toFixed(1);
+    blk.querySelector('.ex').textContent = canceled ? 'exit 130' : 'exit 0';
+    blk.insertAdjacentHTML('beforeend', sum(`${files.length} files: ${ok} ok, 0 skipped, 0 failed${canceled?`, ${rest.length} canceled`:''} (${s} s)`, ok>0));
+    con.classList.remove('running'); run = null;
+    cin.placeholder = 'e.g. convert *.heic --to webp';
+    scrollEnd(); cin.focus();
+  }
+}
+
+const VERBS = {
+  convert:'Change the format', compress:'Make files smaller', resize:'Change pixel size', upscale:'Enlarge with AI',
+  removebg:'Cut out the subject', generate:'Make an image from a prompt', pdf:'Merge, split, extract', formats:'List targets and values',
+  doctor:'Check the bundled tools', setup:'Download an AI tool', skill:'Install the Claude skill', help:'Show the help'
+};
+const FLAGS = {
+  convert:[['--to','<format>','Target format, required'],['--quality','smaller|balanced|best','Default balanced'],['--out','<folder>','Write here, not next to source'],['--recursive','','Descend into folders'],['--dry-run','','Show the plan, write nothing'],['--json','','NDJSON events'],['--help','','Show options']],
+  compress:[['--quality','smaller|balanced|best','Default balanced'],['--out','<folder>','Write here'],['--recursive','','Descend into folders'],['--dry-run','','Show the plan'],['--json','','NDJSON events']],
+  upscale:[['--factor','2x|3x|4x','Default 4x'],['--model','<model>','formats upscale lists them'],['--gpu','full|balanced','Default balanced'],['--out','<folder>','Write here'],['--dry-run','','Show the plan']]
+};
+const VALUES = { '--to':[['webp','Small, good quality'],['avif','Smallest, slower'],['jpg','Widest support'],['png','Lossless'],['tiff','Archive, print'],['heic','Apple photos']],
+  '--quality':[['smaller','Smallest files'],['balanced','Default'],['best','Closest to the original']] };
+
+function exec(raw){
+  let cmd = raw.trim(); if(!cmd) return;
+  history.push(cmd); hIdx = -1; draft = ''; setBrowsing(false);
+  setExpanded(true);
+  let t = cmd.split(/\s+/);
+  if (t[0].toLowerCase()==='filesmith') { t.shift(); cmd = t.join(' '); }
+  const v = (t[0]||'').toLowerCase();
+  if (!VERBS[v] && v!=='remove-bg') return append(rejectBlk(cmd));
+  if (v==='convert'){
+    const to = t[t.indexOf('--to')+1];
+    if (!t.includes('--to') || !to) return append(usageErr(cmd));
+    const g = t[1]||'';
+    if (/\*\.(gif|bmp)$/i.test(g)) return append(noMatch(cmd,g));
+    if (t.includes('--dry-run')) return append(`<div class="blk">${pl(cmd,'exit 0')}${HEIC.map(f=>ln('plan', `${f[0]} -> ${f[0].replace('.heic','.'+to)}`, 'convert')).join('')}${sum('5 files: 5 would run, 0 skipped, 0 would fail (0.1 s)')}</div>`);
+    return startRun(cmd, HEIC, f=>okln(f[0], f[0].replace('.heic','.'+to), f[1], f[2], f[3]));
+  }
+  if (v==='compress') return startRun(cmd, JPG, f=>okln(f[0], f[0].replace('.jpg',' (compressed).jpg'), f[1], f[2], f[3]));
+  if (v==='upscale') return append(upscaleFail());
+  if (v==='setup') return startRun(cmd, [['real-esrgan']], ()=>ln('ok','real-esrgan','set up'));
+  if (v==='doctor') return append(`<div class="blk">${pl(cmd,'exit 0')}${['ffmpeg','imagemagick','mutool','caesiumclt','7zip'].map(n=>`<div class="plain">  ok    ${n.padEnd(18)}bundled</div>`).join('')}<div class="plain">  warn  ${'real-esrgan'.padEnd(18)}not set up</div><div class="plain">No problems found, 1 warning.</div></div>`);
+  if (v==='formats') return append(`<div class="blk">${pl(cmd,'exit 0')}<div class="plain">convert  --to       webp avif jpg png tiff heic gif bmp ico pdf</div><div class="plain">         --quality  smaller balanced best</div></div>`);
+  if (v==='help') return append(`<div class="blk">${pl(cmd,'exit 0')}<div class="plain">Usage: filesmith &lt;verb&gt; &lt;inputs...&gt; [options]\n\nVerbs: ${Object.keys(VERBS).join(', ')}</div></div>`);
+  return startRun(cmd, [['IMG_2041.jpg','694 KB','352 KB','-49%']], f=>okln(f[0], f[0].replace('.jpg',' ('+v+').png'), f[1], f[2], f[3]));
+}
+
+/* actions */
+window.insertCmd = c => { cin.value = c; cin.focus(); };
+window.openTerm = () => append(`<div class="banner">Opened Windows Terminal in ${CWD}. filesmith is on its PATH.</div>`);
+window.explorerNote = () => append(`<div class="banner">Showed IMG_2043.webp in File Explorer.</div>`);
+function stopRun(){ if (run) run.cancel(); }
+
+/* history */
+function setBrowsing(v){ con.classList.toggle('browsing', v); if(v) $('hist').textContent = `history ${history.length - hIdx} of ${history.length}`; }
+function histUp(){
+  if (!history.length) return;
+  if (hIdx === -1) { draft = cin.value; hIdx = history.length; }
+  hIdx = Math.max(0, hIdx-1); cin.value = history[hIdx]; setBrowsing(true); setExpanded(true);
+}
+function histDown(){
+  if (hIdx === -1) return;
+  hIdx++; if (hIdx >= history.length) { hIdx = -1; cin.value = draft; setBrowsing(false); } else { cin.value = history[hIdx]; setBrowsing(true); }
+}
+
+/* completion */
+let items = [], sel = 0, repl = null;
+function completions(){
+  const val = cin.value, toks = val.split(' '), cur = toks[toks.length-1], prev = toks[toks.length-2], verb = toks[0].toLowerCase();
+  if (toks.length === 1) return Object.entries(VERBS).filter(([k])=>k.startsWith(cur.toLowerCase())).map(([k,d])=>[k,'',d]);
+  if (VALUES[prev]) return VALUES[prev].filter(([k])=>k.startsWith(cur)).map(([k,d])=>[k,'',d]);
+  if (cur.startsWith('-')) return (FLAGS[verb]||FLAGS.convert).filter(([k])=>k.startsWith(cur)).filter(([k])=>!toks.slice(0,-1).includes(k));
+  return [];
+}
+function showComp(list){
+  items = list; sel = 0;
+  const m = document.createElement('canvas').getContext('2d'); m.font = '13px "IBM Plex Mono"';
+  const before = cin.value.slice(0, cin.value.lastIndexOf(' ')+1);
+  const x = cin.getBoundingClientRect().left - con.getBoundingClientRect().left + m.measureText(before).width - 13;
+  comp.style.left = Math.max(0, x) + 'px';
+  comp.innerHTML = list.map((it,i)=>`<div class="ci${i===0?' on':''}" data-i="${i}"><span class="f">${esc(it[0])}</span><span class="v">${esc(it[1])}</span><span class="d">${esc(it[2])}</span></div>`).join('')
+    + `<div class="comp-foot"><span><b>Tab</b> insert</span><span><b>Up Down</b> choose</span><span><b>Esc</b> close</span></div>`;
+  comp.classList.add('show');
+  const maxL = con.clientWidth - comp.offsetWidth - 8; if (parseFloat(comp.style.left) > maxL) comp.style.left = maxL + 'px';
+  comp.querySelectorAll('.ci').forEach(el=>el.addEventListener('mousedown',e=>{e.preventDefault(); sel=+el.dataset.i; accept();}));
+}
+function hideComp(){ comp.classList.remove('show'); items = []; }
+function moveSel(d){ sel = (sel + d + items.length) % items.length; comp.querySelectorAll('.ci').forEach((el,i)=>el.classList.toggle('on', i===sel)); }
+function accept(){
+  const it = items[sel]; if(!it) return;
+  const toks = cin.value.split(' '); toks[toks.length-1] = it[0];
+  cin.value = toks.join(' ') + ' '; hideComp(); cin.focus();
+}
+function tab(){
+  const list = completions(); if (!list.length) return;
+  if (list.length === 1) { items = list; sel = 0; accept(); } else showComp(list);
+}
+
+/* keys */
+cin.addEventListener('keydown', e=>{
+  if (e.ctrlKey && (e.key==='c'||e.key==='C') && run) { e.preventDefault(); stopRun(); return; }
+  if (comp.classList.contains('show')) {
+    if (e.key==='ArrowDown'){ e.preventDefault(); return moveSel(1); }
+    if (e.key==='ArrowUp'){ e.preventDefault(); return moveSel(-1); }
+    if (e.key==='Tab'||e.key==='Enter'){ e.preventDefault(); return accept(); }
+    if (e.key==='Escape'){ e.preventDefault(); return hideComp(); }
+  }
+  if (e.key==='Tab'){ e.preventDefault(); return tab(); }
+  if (e.key==='Enter'){ e.preventDefault(); if(run) return; const v = cin.value; cin.value=''; return exec(v); }
+  if (e.key==='ArrowUp'){ e.preventDefault(); return histUp(); }
+  if (e.key==='ArrowDown'){ e.preventDefault(); return histDown(); }
+  if (e.key==='Escape'){ e.preventDefault(); if (con.classList.contains('expanded')) setExpanded(false); else setOpen(false); }
+});
+cin.addEventListener('input', ()=>{ con.classList.toggle('typing', !!cin.value); if (comp.classList.contains('show')) { const l = completions(); l.length ? showComp(l) : hideComp(); } if (hIdx!==-1){ hIdx=-1; setBrowsing(false);} });
+document.addEventListener('keydown', e=>{
+  if (e.ctrlKey && (e.key==='`' || e.code==='Backquote')) { e.preventDefault(); setOpen(!con.classList.contains('open')); }
+  else if (e.ctrlKey && (e.key==='c'||e.key==='C') && run && document.activeElement!==cin) { stopRun(); }
+});
+$('contog').onclick = ()=>setOpen(!con.classList.contains('open'));
+$('closeb').onclick = ()=>setOpen(false);
+$('xbtn').onclick = ()=>{ setExpanded(!con.classList.contains('expanded')); cin.focus(); };
+$('collb').onclick = ()=>{ setExpanded(false); cin.focus(); };
+$('clearb').onclick = ()=>{ logb.innerHTML = BANNER; cin.focus(); };
+$('stopb').onclick = stopRun;
+$('opent').onclick = window.openTerm;
+
+/* ---------- states for screenshots ---------- */
+function frozenRunning(){
+  return `<div class="blk">${pl('compress *.jpg --quality smaller','running')}
+    ${okln('IMG_2041.jpg','IMG_2041 (compressed).jpg','694 KB','412 KB','-41%')}
+    <div class="prog"><span class="tag">[2/3]</span><span>portrait.jpg <b>62%</b><span class="eta">(4s)</span></span></div></div>`;
+}
+function applyState(){
+  const s = (location.hash.match(/state=([\w-]+)/)||[])[1] || 'open-idle';
+  if (run) { clearInterval(run.timer); run = null; }
+  con.className = 'console'; hideComp(); cin.value=''; hIdx=-1; cin.placeholder = 'e.g. convert *.heic --to webp';
+  logb.innerHTML = BANNER;
+  con.querySelector('.clog').style.transition = 'none';
+  const base = doneConvert('webp');
+  switch (s) {
+    case 'closed': setOpen(false); break;
+    case 'open-idle': setOpen(true); logb.innerHTML += base; break;
+    case 'running': setOpen(true); setExpanded(true); logb.innerHTML += base + frozenRunning(); con.classList.add('running'); cin.placeholder='Running. Ctrl+C or Stop cancels it.';
+      run = { cancel(){ applyStateTo('stopped'); } }; break;
+    case 'stopped': setOpen(true); setExpanded(true); logb.innerHTML += base + `<div class="blk">${pl('compress *.jpg --quality smaller','exit 130')}${okln('IMG_2041.jpg','IMG_2041 (compressed).jpg','694 KB','412 KB','-41%')}${ln('stop','portrait.jpg','canceled, unfinished output removed','stop')}${ln('stop','IMG_2042.jpg','canceled, unfinished output removed','stop')}${sum('3 files: 1 ok, 0 skipped, 0 failed, 2 canceled (2.6 s)', true)}</div>`; break;
+    case 'error': setOpen(true); setExpanded(true); logb.innerHTML += base + usageErr('convert *.png') + upscaleFail(); break;
+    case 'rejected': setOpen(true); setExpanded(true); logb.innerHTML += base + rejectBlk('del *.*') + rejectBlk('claude'); break;
+    case 'completion': setOpen(true); setExpanded(true); logb.innerHTML += base; cin.value = 'convert *.png --'; setTimeout(()=>{ cin.focus(); cin.setSelectionRange(99,99); showComp(completions()); }, 0); break;
+    case 'history': setOpen(true); setExpanded(true); logb.innerHTML += base + upscaleFail();
+      history = ['convert *.heic --to webp','compress *.jpg --quality smaller','convert *.png','upscale portrait.jpg diagram.png','resize *.jpg --percent 50'];
+      hIdx = 3; cin.value = history[3]; setBrowsing(true); break;
+  }
+  requestAnimationFrame(()=>{ con.querySelector('.clog').style.transition = ''; logb.scrollTop = logb.scrollHeight; });
+}
+function applyStateTo(s){ location.hash = 'state='+s; }
+window.addEventListener('hashchange', applyState);
+setInterval(()=>con.classList.toggle('typing', !!cin.value), 80);
+applyState();
+</script>
+</body>
+</html>

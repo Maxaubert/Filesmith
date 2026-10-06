@@ -23,6 +23,8 @@ export const ICON_NAMES = [
   'chev-r',
   'chev-d',
   'trash',
+  'minimize',
+  'reset',
   'cleardone',
   'eye',
   'info',
@@ -45,7 +47,8 @@ export const ICON_NAMES = [
   'tocbz',
   'edit',
   'grip',
-  'dots'
+  'dots',
+  'console'
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]

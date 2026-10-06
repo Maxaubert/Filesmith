@@ -14,9 +14,8 @@ import { EmptyState } from './EmptyState'
 import { QueueCard } from './QueueCard'
 import { QueueRow } from './QueueRow'
 import { QueueTile } from './QueueTile'
-import { TotalsRow } from './TotalsRow'
 import { gridNeighbor, moveFor } from './gridKeys'
-import { rowView, type RowActionKind, type Totals } from './rowModel'
+import { rowView, type RowActionKind } from './rowModel'
 import type { RowProps } from './rowProps'
 import type { CheckState } from './selectAll'
 import { tableKey } from './tableKeys'
@@ -34,7 +33,6 @@ const HEADS: { key: SortKey; label: string; num?: boolean }[] = [
 
 export function QueueTable({
   groups,
-  totals,
   selected,
   activeGroup,
   sort,
@@ -58,7 +56,6 @@ export function QueueTable({
   onWheelStep
 }: {
   groups: RowGroup[]
-  totals: Totals
   selected: string[]
   activeGroup: string | null
   sort: SortState | null
@@ -289,7 +286,6 @@ export function QueueTable({
           ))
         )}
       </div>
-      {totals.files > 0 && <TotalsRow totals={totals} flat={!list} />}
     </section>
   )
 }

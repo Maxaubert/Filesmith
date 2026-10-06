@@ -136,7 +136,7 @@ describe('HumanReporter', () => {
     r.emit({ event: 'start', id: '2', input: 'C:\\a.mp4', inSize: 1, op: 'compress' })
     r.emit({ event: 'progress', id: '2', pct: 62, etaSec: 4 })
     r.emit({ event: 'canceled', id: '2', input: 'C:\\a.mp4' })
-    expect(e.text()).toBe('\r\x1b[2K[2/2] a.mp4 62% (4s)\r\x1b[2K')
+    expect(e.text()).toBe('\r\x1b[2K[2/2] a.mp4 62%(4s)\r\x1b[2K')
     expect(o.text()).toBe('stop    a.mp4\n')
   })
 

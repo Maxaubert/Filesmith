@@ -6,7 +6,7 @@ import { runFormats, type FormatsDeps } from './commands/formats'
 import { runGenerate, type GenerateDeps } from './commands/generate'
 import { runSetup, type SetupDeps } from './commands/setup'
 import { runSkill, type SkillDeps } from './commands/skill'
-import { JsonReporter, type Reporter } from './events'
+import { JsonReporter, TeeReporter, type Reporter } from './events'
 import { CliError, EXIT, UsageError } from './exit'
 import { renderGroupHelp, renderHelp, renderRootHelp, usageLine } from './help'
 import { HumanReporter } from './human'
@@ -91,12 +91,16 @@ function failure(e: unknown, io: CliIO, reporter: Reporter, json: boolean): numb
 /** The whole CLI as a function of its I/O (spec 4.3). */
 export async function main(io: CliIO, deps: CliDeps): Promise<number> {
   const json = detectJson(io.argv)
+  const human = (): Reporter =>
+    new HumanReporter(io.stdout, io.stderr, {
+      color: io.stdoutTTY && !io.env.NO_COLOR,
+      stderrTTY: io.stderrTTY
+    })
   const reporter: Reporter = json
     ? new JsonReporter(io.stdout)
-    : new HumanReporter(io.stdout, io.stderr, {
-        color: io.stdoutTTY && !io.env.NO_COLOR,
-        stderrTTY: io.stderrTTY
-      })
+    : io.events
+      ? new TeeReporter(human(), new JsonReporter(io.events))
+      : human()
   try {
     const args = parseArgv(io.argv)
     if (args.kind === 'version') {
