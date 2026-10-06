@@ -54,7 +54,6 @@ import { inConsole, isTextEntryTarget, shortcutFor } from './components/shell/sh
 import { ConsolePanel } from './components/console/ConsolePanel'
 import { ConsoleStrip } from './components/console/ConsoleStrip'
 import { useConsolePanel } from './components/console/useConsolePanel'
-import { dirOf } from './components/console/consoleFolders'
 import { activeGroupFor, headerCheck, toggleAllIds } from './components/queue/selectAll'
 import { QueueTable } from './components/queue/QueueTable'
 import { QueueToolbar } from './components/queue/QueueToolbar'
@@ -1310,12 +1309,9 @@ export default function App(): JSX.Element {
               onClose={() => con.setOpen(false)}
               cwd={con.cwd}
               onCwd={con.setCwd}
-              recent={con.recent}
               history={con.history}
               onHistory={con.addHistory}
-              queueDirs={[...new Set(inputs.map((i) => dirOf(i.file.path)))]}
               onMenu={(m) => setMenu((cur) => toggleMenu(cur, m))}
-              menuTrigger={menu?.trigger ?? null}
               onBusy={setConBusy}
             />
             <ConsoleStrip

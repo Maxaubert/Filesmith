@@ -89,7 +89,14 @@ async function type(line: string): Promise<void> {
   await prompt().press('Enter')
 }
 
-test('Ctrl+` and the button toggle the panel; it survives a tab switch', async () => {
+const closeBtn = () => panel().getByRole('button', { name: 'Close console' })
+const headNames = () =>
+  panel()
+    .locator('.chead')
+    .getByRole('button')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent?.trim()))
+
+test('Ctrl+`, the button and the close X toggle the panel; it survives a tab switch', async () => {
   await page.keyboard.press('Control+Backquote')
   await expect(panel()).toBeVisible()
   await expect(prompt()).toBeFocused()
@@ -97,52 +104,55 @@ test('Ctrl+` and the button toggle the panel; it survives a tab switch', async (
   await expect(panel()).toBeVisible()
   await nav().getByRole('button', { name: 'Convert' }).click()
   await expect(panel()).toBeVisible()
-  await conBtn().click()
+  await closeBtn().click()
   await expect(panel()).toBeHidden()
   await expect(conBtn()).toHaveAttribute('aria-pressed', 'false')
   await conBtn().click()
   await expect(panel()).toBeVisible()
-  await expect(conBtn()).toHaveAttribute('aria-pressed', 'true')
+  await expect(strip()).toBeHidden()
+  // Closing gives focus back to the Console button, shown again.
+  await prompt().press('Control+Backquote')
+  await expect(panel()).toBeHidden()
+  await expect(conBtn()).toBeFocused()
+  await page.keyboard.press('Control+Backquote')
+  await expect(panel()).toBeVisible()
 })
 
-test('the bottom strip holds only the Console button, flush under the open panel', async () => {
-  await expect(page.getByRole('row', { name: 'Totals' })).toHaveCount(0)
-  await expect(strip().getByRole('button')).toHaveCount(1)
-  const files = page.getByRole('toolbar', { name: 'File actions' })
-  await expect(files.getByRole('button', { name: /^Console/ })).toHaveCount(0)
+test('closed, the strip holds only the Console button; open, the panel replaces it', async () => {
   const win = await page.evaluate(() => window.innerHeight)
-  const s = (await strip().boundingBox())!
-  const p = (await panel().boundingBox())!
-  expect(Math.round(s.y + s.height)).toBe(win)
-  expect(Math.round(s.height)).toBe(30)
-  expect(Math.round(p.y + p.height)).toBe(Math.round(s.y))
-  // On every tab with a centre column, including Generate, Completed and Settings.
+  // Open: no strip, the panel is flush with the window bottom on every tab.
+  await expect(strip()).toBeHidden()
   for (const tab of ['Generate', 'Completed', 'Settings', 'Convert']) {
     await nav()
       .getByRole('button', { name: new RegExp(`^${tab}`) })
       .first()
       .click()
-    await expect(conBtn()).toBeVisible()
-    const t = (await strip().boundingBox())!
-    expect(Math.round(t.y + t.height)).toBe(win)
+    await expect(panel()).toBeVisible()
+    await expect(strip()).toBeHidden()
+    const p = (await panel().boundingBox())!
+    expect(Math.round(p.y + p.height)).toBe(win)
   }
+  // Closed: the strip is back with its one button, flush with the window bottom.
+  await closeBtn().click()
+  await expect(page.getByRole('row', { name: 'Totals' })).toHaveCount(0)
+  await expect(strip().getByRole('button')).toHaveCount(1)
+  const files = page.getByRole('toolbar', { name: 'File actions' })
+  await expect(files.getByRole('button', { name: /^Console/ })).toHaveCount(0)
+  const s = (await strip().boundingBox())!
+  expect(Math.round(s.y + s.height)).toBe(win)
+  expect(Math.round(s.height)).toBe(30)
+  await conBtn().click()
   await expect(panel()).toBeVisible()
 })
 
-test('the folder button toggles its menu: click opens, click again closes', async () => {
-  const folder = panel().locator('button.cwd')
-  const menu = page.locator('.ctx-pop')
-  await folder.click()
-  await expect(menu).toBeVisible()
-  await expect(folder).toHaveAttribute('aria-expanded', 'true')
-  await folder.click()
-  await expect(menu).toHaveCount(0)
-  await expect(folder).toHaveAttribute('aria-expanded', 'false')
-  await folder.click()
-  await expect(menu).toBeVisible()
-  // A press elsewhere still closes it.
-  await panel().locator('.chead .lbl').click()
-  await expect(menu).toHaveCount(0)
+test('the panel head holds only the close X, slim and on the right', async () => {
+  expect(await headNames()).toEqual(['Close console'])
+  const head = (await panel().locator('.chead').boundingBox())!
+  expect(Math.round(head.height)).toBeLessThanOrEqual(28)
+  const x = (await closeBtn().boundingBox())!
+  expect(Math.round(x.x + x.width)).toBe(Math.round(head.x + head.width))
+  await expect(panel().getByRole('button', { name: 'Open in terminal' })).toHaveCount(0)
+  await expect(panel().getByRole('button', { name: 'Clear console' })).toHaveCount(0)
 })
 
 test('typing in the console never changes the view size or zooms the page', async () => {
@@ -181,7 +191,12 @@ test('cd, a real convert with Show in File Explorer, nothing in the queue', asyn
 test('other programs are refused with Open in terminal; main refuses them too', async () => {
   await type('del *.*')
   await expect(panel().getByText('is not a filesmith command.', { exact: false })).toBeVisible()
-  await expect(panel().getByRole('button', { name: 'Open in terminal' }).first()).toBeVisible()
+  // Open in terminal lives only on the refusal line, not in the head.
+  const refusal = panel().locator('.ln.refuse').last()
+  await expect(refusal.getByRole('button', { name: 'Open in terminal' })).toBeVisible()
+  await expect(
+    panel().locator('.chead').getByRole('button', { name: 'Open in terminal' })
+  ).toHaveCount(0)
   const r = await page.evaluate((w) => window.filesmith.consoleRun('x1', 'calc', w), work)
   expect(r.ok).toBe(false)
   expect(readdirSync(work)).toContain('a.png')
@@ -217,20 +232,24 @@ test('console completion follows typing while the list is open', async () => {
   await prompt().fill('')
 })
 
+test('clear and Ctrl+L empty the scrollback', async () => {
+  await type('help')
+  await expect(panel().locator('.blk')).not.toHaveCount(0)
+  await prompt().press('Control+l')
+  await expect(panel().locator('.blk')).toHaveCount(0)
+  await type('help')
+  await expect(panel().locator('.blk')).not.toHaveCount(0)
+  await type('clear')
+  await expect(panel().locator('.blk')).toHaveCount(0)
+})
+
 test('Stop cancels a running convert with exit 130', async () => {
   await type('convert b*.png --to avif --quality best')
   const stop = panel().getByRole('button', { name: /^Stop/ })
   await expect(stop).toBeVisible()
-  // The running footer keeps its key hints and the head note reads in full (mockup 01 running).
+  // The running footer keeps its key hints; the head is Stop and the close X only.
   await expect(panel().locator('.pline .keys')).toBeVisible()
-  const note = panel().locator('.chead .note')
-  const fits = await note.evaluate((el) => {
-    const r = document.createRange()
-    r.selectNodeContents(el)
-    const pad = parseFloat(getComputedStyle(el).paddingLeft) * 2
-    return r.getBoundingClientRect().width <= el.getBoundingClientRect().width - pad + 0.01
-  })
-  expect(fits).toBe(true)
+  expect(await headNames()).toEqual(['StopCtrl+C', 'Close console'])
   await stop.click()
   await expect(panel().getByText('exit 130', { exact: false })).toBeVisible({ timeout: 15_000 })
   await expect(stop).toBeHidden()

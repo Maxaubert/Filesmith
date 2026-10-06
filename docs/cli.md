@@ -163,7 +163,8 @@ The source of this table is `resources/skill/filesmith/reference.md` (Events sec
 
 The app has a console panel at the bottom of the files view (spec
 `docs/superpowers/specs/2026-10-06-console-design.md`). Open or close it with Ctrl+` (anywhere in the
-app) or the **Console** button in the files toolbar.
+app), the **Console** button in the bottom strip (hidden while the panel is open), or the close X in
+the panel's top-right corner.
 
 - Type commands without the prefix: `convert *.heic --to webp`, `doctor`, `formats`. The line is split
   into plain arguments and handed to the CLI; nothing runs through a shell, so `&`, `|` and `>` are
@@ -177,7 +178,7 @@ app) or the **Console** button in the files toolbar.
   Explorer**.
 - **Stop** or Ctrl+C cancels a run: the current file is stopped, part files are removed and the run
   ends with exit 130. A second Stop ends it at once (the process tree is killed after 5 s at most).
-- **Open in terminal** opens Windows Terminal (else PowerShell) in the console's folder with `filesmith`
+- **Open in terminal** (shown on the line that refuses a non-filesmith command) opens Windows Terminal (else PowerShell) in the console's folder with `filesmith`
   on PATH, for anything the console does not run.
 - Plumbing: each command forks `out/main/cli.js` with `ELECTRON_RUN_AS_NODE`. When `CliIO.events` is
   set, the CLI tees its NDJSON events to it; under a fork they travel over the IPC channel. The parent

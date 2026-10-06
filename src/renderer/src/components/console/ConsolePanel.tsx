@@ -22,7 +22,6 @@ import { CompletionList } from './CompletionList'
 import { ConsoleOutput } from './ConsoleOutput'
 import { BUILTIN_ITEMS, HELP_LINES } from './consoleHelp'
 import { clampConsoleHeight } from './consoleHeight'
-import { folderChoices } from './consoleFolders'
 import { HIST_IDLE, histStep, type HistNav } from './consoleHistory'
 import { consoleReducer, fmtSize, INITIAL } from './consoleModel'
 
@@ -44,13 +43,9 @@ export function ConsolePanel(p: {
   onClose: () => void
   cwd: string | null
   onCwd: (d: string) => void
-  recent: string[]
   history: string[]
   onHistory: (l: string) => void
-  queueDirs: string[]
   onMenu: (m: MenuState) => void
-  /** The trigger of the open app menu, so the folder button shows its state. */
-  menuTrigger: HTMLElement | null
   onBusy: (pct: number | null | undefined) => void
 }): JSX.Element {
   const [state, dispatch] = useReducer(consoleReducer, INITIAL)
@@ -64,7 +59,6 @@ export function ConsolePanel(p: {
   const section = useRef<HTMLElement>(null)
   const body = useRef<HTMLDivElement>(null)
   const pin = useRef<HTMLInputElement>(null)
-  const folderBtn = useRef<HTMLButtonElement>(null)
   const prevFocus = useRef<HTMLElement | null>(null)
   const stick = useRef(true)
 
@@ -109,7 +103,12 @@ export function ConsolePanel(p: {
     if (p.open) {
       prevFocus.current = document.activeElement as HTMLElement | null
       ;(runId ? body.current : pin.current)?.focus()
-    } else if (section.current?.contains(document.activeElement)) prevFocus.current?.focus()
+    } else if (section.current?.contains(document.activeElement)) {
+      // Opened from the strip button, which hides while open: focus it again.
+      const back = prevFocus.current
+      const ok = back && back !== document.body && back.isConnected
+      ;(ok ? back : document.querySelector<HTMLElement>('.conbtn'))?.focus()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.open])
 
@@ -311,30 +310,6 @@ export function ConsolePanel(p: {
     p.onHeight(clampConsoleHeight(p.height + (e.key === 'ArrowUp' ? 20 : -20), centerH()))
   }
 
-  function folderMenu(): void {
-    const r = folderBtn.current?.getBoundingClientRect()
-    if (!r) return
-    const choices = folderChoices(p.recent, p.queueDirs)
-    p.onMenu({
-      x: r.left,
-      y: r.bottom,
-      trigger: folderBtn.current ?? undefined,
-      items: [
-        ...choices.map((d) => ({
-          label: d,
-          icon: d === cwd ? ('check' as const) : ('folder' as const),
-          onClick: () => changeDir(d)
-        })),
-        { sep: true as const },
-        {
-          label: 'Choose folder',
-          icon: 'folder' as const,
-          onClick: () => void window.filesmith.pickFolder().then((d) => d && changeDir(d))
-        }
-      ]
-    })
-  }
-
   function rowMenu(e: MouseEvent, path: string): void {
     e.preventDefault()
     p.onMenu({
@@ -379,55 +354,23 @@ export function ConsolePanel(p: {
         onPointerUp={onSashUp}
         onKeyDown={onSashKey}
       />
+      {/* Only close, and Stop while a command runs (owner feedback, 2026-10-06). */}
       <div className="chead">
-        <span className="lbl">
-          <Icon name="console" />
-          Console
-        </span>
+        {runId && (
+          <button type="button" className="stopbtn" onClick={stop}>
+            <Icon name="stop" />
+            Stop<span className="k">Ctrl+C</span>
+          </button>
+        )}
         <button
-          ref={folderBtn}
           type="button"
-          className="cwd"
-          aria-haspopup="menu"
-          aria-expanded={!!folderBtn.current && p.menuTrigger === folderBtn.current}
-          title={cwd}
-          onClick={folderMenu}
+          className="hib"
+          title="Close console"
+          aria-label="Close console"
+          onClick={p.onClose}
         >
-          <Icon name="folder" />
-          <span className="p">{cwd}</span>
-          <Icon name="chev-d" size={12} />
+          <Icon name="close" />
         </button>
-        <span className="note">filesmith only, not in the queue</span>
-        <div className="r">
-          {runId && (
-            <button type="button" className="stopbtn" onClick={stop}>
-              <Icon name="stop" />
-              Stop<span className="k">Ctrl+C</span>
-            </button>
-          )}
-          <button type="button" className="hbtn" onClick={() => void terminal()}>
-            <Icon name="external" />
-            Open in terminal
-          </button>
-          <button
-            type="button"
-            className="hib"
-            title="Clear console"
-            aria-label="Clear console"
-            onClick={() => dispatch({ type: 'clear' })}
-          >
-            <Icon name="clear" />
-          </button>
-          <button
-            type="button"
-            className="hib"
-            title="Close console"
-            aria-label="Close console"
-            onClick={p.onClose}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
       </div>
       <div
         ref={body}

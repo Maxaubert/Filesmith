@@ -85,6 +85,16 @@ test('an empty workspace offers Add files and a disabled Run', async () => {
   await expect(
     page.getByRole('toolbar', { name: 'Console strip' }).getByRole('button', { name: /^Console/ })
   ).not.toHaveAttribute('title')
+  // Open, the console panel replaces the strip; its head is only the close X.
+  const strip = page.getByRole('toolbar', { name: 'Console strip' })
+  const panel = page.getByRole('region', { name: 'Console' })
+  await strip.getByRole('button', { name: /^Console/ }).click()
+  await expect(panel).toBeVisible()
+  await expect(strip).toBeHidden()
+  await expect(panel.locator('.chead').getByRole('button')).toHaveCount(1)
+  await panel.getByRole('button', { name: 'Close console' }).click()
+  await expect(panel).toBeHidden()
+  await expect(strip).toBeVisible()
 })
 
 test('the toolbar is Add files and the View menu; row actions live in the right-click menu', async () => {

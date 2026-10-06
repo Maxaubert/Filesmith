@@ -19,11 +19,6 @@ import {
   clampConsoleHeight,
   parseHeight
 } from '../src/renderer/src/components/console/consoleHeight'
-import {
-  dirOf,
-  folderChoices,
-  pushRecent
-} from '../src/renderer/src/components/console/consoleFolders'
 import { HELP_LINES } from '../src/renderer/src/components/console/consoleHelp'
 
 const cmd = (s: ConsoleState, id = 'r1') =>
@@ -157,19 +152,13 @@ describe('history', () => {
   })
 })
 
-describe('height and folders', () => {
+describe('height and help', () => {
   it('clamps between 120 and the center minus head and 120', () => {
     expect(clampConsoleHeight(50, 800)).toBe(120)
     expect(clampConsoleHeight(900, 800)).toBe(800 - 32 - 120)
     expect(clampConsoleHeight(300, 200)).toBe(120)
     expect(parseHeight('abc')).toBe(280)
     expect(parseHeight('333')).toBe(333)
-  })
-  it('recent folders and the folder menu, case-insensitive, five each', () => {
-    expect(dirOf('D:\\Photos\\a.png')).toBe('D:\\Photos')
-    expect(dirOf('C:\\a.png')).toBe('C:\\')
-    expect(pushRecent(['D:\\A', 'D:\\B'], 'd:\\b')).toEqual(['d:\\b', 'D:\\A'])
-    expect(folderChoices(['D:\\A'], ['d:\\a', 'E:\\X'])).toEqual(['D:\\A', 'E:\\X'])
   })
   it('help text names the folder and has no em-dash', () => {
     expect(HELP_LINES('D:\\P')[0]).toBe('Commands run in D:\\P, without the "filesmith" prefix:')

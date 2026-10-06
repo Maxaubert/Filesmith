@@ -113,9 +113,5 @@ export const ICON_SHAPES: Record<IconName, Prim[]> = {
     ['rect', 1.5, 2.5, 13, 11],
     ['path', 'M4.5 6l2 2-2 2M8.5 10.5h3']
   ],
-  external: [['path', 'M9.5 2.5h4v4M13.5 2.5L8 8M11.5 9.5v4h-9v-9h4']],
-  clear: [
-    ['circle', 8, 8, 5.5],
-    ['path', 'M4.2 11.8l7.6-7.6']
-  ]
+  external: [['path', 'M9.5 2.5h4v4M13.5 2.5L8 8M11.5 9.5v4h-9v-9h4']]
 }

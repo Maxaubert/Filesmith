@@ -27,7 +27,7 @@ In scope:
   by **Ctrl+`** anywhere; resizable; open state, height and history persisted.
 - Commands are typed **without** the `filesmith` prefix (a pasted leading `filesmith` is stripped). Only CLI
   commands and four built-ins (`cd`, `clear`/`cls`, `help`, `history`) run. Anything else is refused in one
-  line with an **Open in terminal** button.
+  line with an inline **Open in terminal** action (the only place it appears).
 - **Open in terminal** starts the real Windows terminal (Windows Terminal if installed, else PowerShell) in the
   console's folder with `filesmith` on PATH.
 - Live progress, a red **Stop** (and Ctrl+C) while a command runs, Up/Down history, Tab completion of commands,
@@ -44,18 +44,19 @@ toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works the
   therefore under the files view on the queue tabs and under Completed, Settings, Tools and Generate on theirs.
   The inspector is a sibling of `<main>`, so it keeps its full height on the right (mockup shot
   `01-bottom-panel-running.png`). On tabs without the inspector the panel spans to the right edge.
-- **Grid:** `.center` keeps `grid-template-rows: 32px minmax(0,1fr)`; with the panel open it becomes
-  `32px minmax(0,1fr) var(--ch)` (class `con-open` on `.center`, `--ch` set inline on `.center`, not on `:root`).
+- **Grid:** `.center` is `32px minmax(0,1fr) 30px` (the last row is the bottom strip); with the panel open it
+  becomes `32px minmax(0,1fr) var(--ch)`: the strip is hidden and the panel takes the bottom row, flush with
+  the window bottom (class `con-open` on `.center`, `--ch` set inline on `.center`, not on `:root`).
 - **One instance:** the panel stays mounted while closed (`display:none`), so scrollback and a running command
   survive a close and every tab switch.
-- **Panel:** `section.console` (`aria-label="Console"`, `id="console"`), rows `32px minmax(0,1fr)`,
+- **Panel:** `section.console` (`aria-label="Console"`, `id="console"`), rows `28px minmax(0,1fr)`,
   `border-top: 1px solid var(--line-strong)`, `--bg-0`. CSS copied from the mockup (`.console`, `.sash`,
-  `.chead`, `.cwd`, `.hbtn`, `.hib`, `.stopbtn`, `.cbody`, `.ln`, `.blk`, `.cmd`, `.pline`, `.comp`) into a new
+  `.chead`, `.hib`, `.stopbtn`, `.cbody`, `.ln`, `.blk`, `.cmd`, `.pline`, `.comp`) into a new
   `theme/console.css`.
-- **Head (32px), left to right:** `Console` label with the console glyph; the folder button (folder glyph, the
-  folder in mono, chevron; `aria-haspopup="menu"`); the note `filesmith only, not in the queue` (ellipsised);
-  right-aligned: **Stop** (only while running), **Open in terminal**, Clear (icon button, `Clear (Ctrl+L)`),
-  Close (icon button, `Close console (Ctrl+`)`).
+- **Head (owner feedback 2026-10-06, "just an open and close, keep it simple"):** a slim 28px row, right-aligned:
+  the red **Stop** (only while a command runs) and an icon-only close X (`aria-label="Close console"`).
+  Nothing else: no label, folder button, note, Open in terminal or Clear. The folder shows in the prompt and
+  changes with `cd`; `clear`/`cls` and Ctrl+L clear.
 - **Body:** scrollback then the prompt line. The body scrolls (`.scroll-thin`), the output is selectable
   (`.select-text`; `body` is `user-select:none`).
 
@@ -64,17 +65,17 @@ toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works the
 - **Toggle (owner feedback on 0.8.0):** the files list has no totals row any more. In its place, at the bottom
   of the centre column on every tab, a 30px strip (`.constrip`, `role="toolbar"`, `Console strip`) holds only
   the `Console` button: console glyph, `Console`, `Ctrl+`` hint in `--fg3`; `aria-pressed`,
-  `aria-controls="console"`, `title="Console (Ctrl+`)"`. Pressed = `--selected` background and bold label.
-  The strip stays flush with the window bottom; the open panel sits directly above it. The files toolbar is
-  Add files, the count and View. While a command runs and the panel is closed, the button shows the live
-  percentage (`.live`). The head's folder button toggles its menu: a second click closes it.
+  `aria-controls="console"`. The strip shows only while the panel is closed, flush with the window bottom;
+  open, it is hidden (kept mounted) and the panel takes its place at the window bottom. The files toolbar is
+  Add files and View. While a command runs and the panel is closed, the button shows the live
+  percentage (`.live`).
 - **Ctrl+`** toggles everywhere except under an open modal (`dialog[open]`). It is matched on
   `KeyboardEvent.code === 'Backquote'`, because on Nordic layouts the key is a dead key and `e.key` is
   unreliable.
 - **Focus:** opening focuses the prompt, or the body while a command runs. Closing returns focus to the element
-  that had it before opening (the Console button when it was used). **Esc** in the panel first closes the
-  completion list, then the folder menu, then moves focus back to the files view without closing the panel
-  (VS Code behaviour). The panel closes only by Ctrl+`, the close button or the strip's Console button.
+  that had it before opening (the Console button, shown again, when it was used). **Esc** in the panel first
+  closes the completion list, then moves focus back to the files view without closing the panel
+  (VS Code behaviour). The panel closes only by Ctrl+` or the close X.
 - **Resize:** a 7px sash on the top edge (`role="separator"`, `aria-orientation="horizontal"`,
   `aria-label="Resize console"`, `tabindex=0`, `aria-valuenow/min/max`), a 2px `--fg3` line on hover or drag,
   `cursor: row-resize`. Pointer events with `setPointerCapture`; during the drag `--ch` is written straight to
@@ -104,16 +105,15 @@ toggle in the heads of Completed, Settings, Tools and Generate (Ctrl+` works the
 
 ## 5. Folder
 
-- Every command runs in the console's folder (its working directory), shown in the head and in the prompt.
+- Every command runs in the console's folder (its working directory), shown in the prompt.
 - **Default:** the last console folder (`localStorage['filesmith.console.cwd']`) if it still exists, else the
   Downloads folder, else the home folder. Main checks existence (`consoleDir`).
-- **Folder menu** (the head button; the app's `.menu` styling): up to five recent console folders, then the
-  distinct folders of the current queue's files (up to five), each a `menuitemradio` with a tick on the current
-  one; a separator; `Choose folder` (the existing `pickFolder`). Picking prints a note `Folder is now <path>.`
+- No folder menu (removed 2026-10-06 with the head buttons): the folder changes only with `cd`, which prints a
+  note `Folder is now <path>.`
 - **`cd`** (built-in): `cd <path>` resolves against the console folder (relative, `..`, quoted, `~`, a bare
   drive `D:`, absolute) in main and refuses in one line when it is not a folder
   (`cd: D:\Nope is not a folder.`); `cd` alone prints the folder; `cd -` returns to the previous one. It changes
-  only the console's folder, never the app's. Recent folders: the last five distinct, stored with the cwd.
+  only the console's folder, never the app's.
 
 ## 6. Built-ins and rejected commands
 
@@ -154,7 +154,7 @@ with a warning glyph, or `not run`).
 - **Progress:** one live row below the results while a job runs, drawn from the CLI's events, not its text:
   `[2/4]  screenshot_01.png 62%(4s)` and a 120px 2px bar (`--track` / `--fg1`). Steps (`setup`, `generate`
   downloads) show `step 41%(12s)` the same way; heartbeats show the step and the elapsed time. The row goes
-  away when the job ends. The head's Console button shows the same percentage while the panel is closed.
+  away when the job ends. The strip's Console button shows the same percentage while the panel is closed.
 - **Show in File Explorer:** after the summary of a finished run that produced at least one output, a small
   button. It selects the first output in Explorer (`shell.showItemInFolder`). Outputs come from the CLI's `done`
   events (`output`), so they are full paths even though the text rows show base names. Right-clicking a result
@@ -284,7 +284,7 @@ Types live once in `src/shared/console.ts`.
 | cli      | `io.ts` (`events?`), `events.ts` (`TeeReporter`), `main.ts` (tee), `bootstrap.ts` (IPC interrupt, disconnect, events) |
 | main     | `console/catalog.ts`, `console/lines.ts`, `console/runCli.ts`, `console/dirs.ts`, `console/validate.ts`, `console/terminal.ts`, `console/ipc.ts`; `ipc.ts` (`reveal`), `index.ts` (register, quit) |
 | preload  | `index.ts` (the methods above)                                                                      |
-| renderer | `components/console/{consoleModel.ts, consoleHeight.ts, consoleFolders.ts, useConsolePanel.ts, ConsolePanel.tsx, ConsoleOutput.tsx, CompletionList.tsx}`, `theme/console.css`, icons `console`, `external`, `clear`, `ConsoleStrip.tsx` (the bottom strip), `shortcuts.ts` (Ctrl+`, `inConsole`, `isTextEntryTarget`), `App.tsx` (mount, keys) |
+| renderer | `components/console/{consoleModel.ts, consoleHeight.ts, useConsolePanel.ts, ConsolePanel.tsx, ConsoleOutput.tsx, CompletionList.tsx}`, `theme/console.css`, icons `console`, `external`, `ConsoleStrip.tsx` (the bottom strip, hidden while open), `shortcuts.ts` (Ctrl+`, `inConsole`, `isTextEntryTarget`), `App.tsx` (mount, keys) |
 | docs     | `docs/cli.md` (a Console section), `CLAUDE.md` (layout lines), this spec and the plan                |
 
 ## 10. Security
@@ -328,11 +328,12 @@ Types live once in `src/shared/console.ts`.
   flush), cancel stages of the runner with a fake child (interrupt, second interrupt, kill after 5 s, exit),
   `resolveCd` (relative, `..`, `~`, `D:`, quoted, `-`), terminal launch arguments (WT, fallback, `;` escaping,
   encoded command), console model (blocks, line styling, progress row, exit status, scrollback cap, history
-  ring and draft), height clamp, folder list, `shortcutFor` Ctrl+` by code, preload/main channel parity,
+  ring and draft), height clamp, `shortcutFor` Ctrl+` by code, preload/main channel parity,
   icons, `isTextEntryTarget` (text inputs, textarea, contenteditable yes; checkbox, button, null no), no em-dash and monochrome scans of the new files.
-- **Playwright** (`npm run build` first): Ctrl+` and the button open and close the panel and it survives a tab
-  switch; a real `convert` of a fixture PNG to webp in a temp folder shows `ok`, the summary and Show in File
-  Explorer, and does not add a row to the queue; `del *.*` is refused with Open in terminal; Tab completes
+- **Playwright** (`npm run build` first): Ctrl+`, the strip button and the close X open and close the panel
+  and it survives a tab switch; open, the strip is hidden and the panel is flush with the window bottom; the
+  head holds only the close X (plus Stop while running); `clear` and Ctrl+L empty the scrollback; a real `convert` of a fixture PNG to webp in a temp folder shows `ok`, the summary and Show in File
+  Explorer, and does not add a row to the queue; `del *.*` is refused with Open in terminal on the refusal line (never in the head); Tab completes
   `conv` to `convert` and lists `--to` values; Up recalls the last line; a long `upscale`-free run (a 40-file
   convert) is stopped with Stop and ends `exit 130`; `cd ..` changes the prompt; the sash drag changes the
   height; with focus in the console prompt Ctrl+= / Ctrl+- / Ctrl+0 leave the files view size unchanged and

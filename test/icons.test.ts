@@ -46,7 +46,7 @@ describe('icon registry', () => {
           for (const v of p.slice(1) as number[]) expect(v, name).toBeLessThanOrEqual(16)
   })
   it('draws the console glyphs', () => {
-    for (const n of ['console', 'external', 'clear'] as const)
+    for (const n of ['console', 'external'] as const)
       expect(ICON_SHAPES[n].length).toBeGreaterThan(0)
   })
   it('every tab and tool card names a real icon', () => {

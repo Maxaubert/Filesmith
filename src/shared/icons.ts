@@ -47,8 +47,7 @@ export const ICON_NAMES = [
   'grip',
   'dots',
   'console',
-  'external',
-  'clear'
+  'external'
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]
