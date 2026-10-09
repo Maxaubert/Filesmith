@@ -92,6 +92,27 @@ Every line: `v` (1), `event`, `ts` (ISO time). Paths are absolute, sizes in byte
 
 `USAGE`, `NOT_FOUND`, `NO_MATCH`, `UNSUPPORTED_KIND`, `SAME_FORMAT`, `OUT_DIR_MISSING`, `TOOL_MISSING`, `SETUP_REQUIRED`, `GPU_UNSUPPORTED`, `RAR_MISSING`, `PASSWORD`, `TOOL_FAILED`, `CANCELED`, `INTERNAL`.
 
+| `code`                  | What to do                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `SETUP_REQUIRED`        | Tell the user the `hint` (`filesmith setup ...`); run it only after a yes       |
+| `GPU_UNSUPPORTED`       | That model needs an NVIDIA GPU; offer `--model photo` (any GPU)                 |
+| `TOOL_MISSING`          | Run `filesmith doctor --json` and report the failing check                      |
+| `RAR_MISSING`           | CBR and RAR output need WinRAR; offer `cbz` or `zip`                            |
+| `UNSUPPORTED_KIND`      | That file cannot take this operation; `filesmith formats --json` lists what can |
+| `NOT_FOUND`, `NO_MATCH` | Check the path or the pattern                                                   |
+| `OUT_DIR_MISSING`       | `--out` is a file, or could not be created                                      |
+| `PASSWORD`              | The archive is password-protected; ask the user                                 |
+| `USAGE`                 | Fix the arguments from the message                                              |
+| `TOOL_FAILED`           | Report the message; the file may be damaged                                     |
+
+## Safety rules (full list)
+
+- Dry run first (`--dry-run`) for bulk work and for anything slow or large (upscale, generate, setup); show the planned outputs, then run without it. Report the real names from `done` events.
+- Quote every path. In cmd a `%` inside an argument can be expanded; prefer Git Bash.
+- `filesmith setup ...` downloads up to several GB: ask first. Never run `filesmith setup remove ...` or `--permanent` unless the user asked for exactly that.
+- Exit 1: report each `error` event's `input`, `message` and `hint`. Exit 2: nothing ran; fix the arguments instead of retrying.
+- Avoid GPU jobs (`upscale` with pid or comfy models, `generate`) while the user runs one in the app. Do not install or update Filesmith while a CLI job runs.
+
 ## Exit codes
 
 `0` all ok or skipped; `1` some failed (or doctor found a failure, or setup failed); `2` usage error or a requirement that fails for every input, nothing ran; `130` canceled.
