@@ -106,6 +106,7 @@ jobs:
         run: node scripts/fetch-binaries.mjs --pinned
 
       - name: Verify bundled tools (resources/)
+        timeout-minutes: 10
         run: node scripts/verify-bundle.mjs resources --manifest dist/resources-manifest.txt
 
       # --publish never: on CI electron-builder tries to publish ITSELF and
@@ -116,6 +117,7 @@ jobs:
       # electron-builder only WARNS when an extraResources source is missing, so
       # check what actually got packed.
       - name: Verify bundled tools (packed app)
+        timeout-minutes: 10
         run: node scripts/verify-bundle.mjs dist/win-unpacked/resources --manifest dist/packed-manifest.txt
 
       # The command line in the packed app (spec 7.3): the shim must run the
