@@ -1,8 +1,11 @@
 import { cpus } from 'os'
 import { statSync } from 'fs'
 import type { JobEvent, JobRequest, ToolId } from '@shared/types'
+import { engineEnv } from './env'
 import { fileInfoFromPath } from './fileInfo'
+import { canReplace, finishOptionsFor, finishOutput } from './finishOutput'
 import { resolveOutDir } from './output'
+import { moveToRecycleBin } from './recycle'
 import { getTool } from './tools/registry'
 import { ToolMissingError } from './run'
 import { toolMissingMessage } from './toolResolver'
@@ -90,8 +93,11 @@ export class JobQueue {
     this.emit({ id: req.id, status: 'running' })
     try {
       const file = fileInfoFromPath(req.input)
-      const outDir = resolveOutDir(req.options.outDir)
-      const output = await tool.run(file, req.options, {
+      const fo = finishOptionsFor(req.tool, req.options)
+      const replace = fo.replace && canReplace(req.tool, req.options)
+      // Replace puts the new file where the original was, so Location is moot.
+      const outDir = replace ? undefined : resolveOutDir(req.options.outDir)
+      const produced = await tool.run(file, req.options, {
         signal: ctrl.signal,
         outDir,
         allowDownload: this.opts.allowDownload ?? true,
@@ -104,6 +110,13 @@ export class JobQueue {
             etaSec: etaSec ?? undefined
           })
       })
+      const { path: output, note } = await finishOutput(
+        file.path,
+        produced,
+        fo,
+        replace,
+        engineEnv().trash ?? moveToRecycleBin
+      )
       // Report the produced size so the UI can show the result and how much it
       // shrank. Directory outputs (pages-to-images, split) have no single size.
       let outputSize: number | undefined
@@ -113,7 +126,14 @@ export class JobQueue {
       } catch {
         /* best effort */
       }
-      this.emit({ id: req.id, status: 'done', percent: 100, outputPath: output, outputSize })
+      this.emit({
+        id: req.id,
+        status: 'done',
+        percent: 100,
+        outputPath: output,
+        outputSize,
+        message: note
+      })
     } catch (err) {
       const aborted = ctrl.signal.aborted
       this.emit({

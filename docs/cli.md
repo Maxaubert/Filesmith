@@ -55,6 +55,11 @@ filesmith <helper> [args] [options]
   `convert` requires `--to`. `filesmith formats [verb]` lists every target, value and model.
 - **Never overwrite, and dry runs.** Output names follow the app's rule: `name.ext` if free, else
   `name (tag).ext`, else `name (tag 2).ext`; folders `base`, `base (2)`. There is no `--force`.
+  `--replace` (convert, compress, resize, upscale, removebg) is the one exception, and it is opt-in:
+  the new file takes the original's place and the original goes to the Recycle Bin, only after the
+  new file is written; on a drive without a Recycle Bin the original is kept. `--rename "{name}-web"` names outputs by a pattern (`{name}`, `{n}`, `{date}`),
+  `--dates today` gives new files the current time instead of the source's date, and
+  `--strip-metadata` removes GPS and camera data from images and video.
   `--dry-run` validates everything, prints the planned outputs and writes and downloads nothing. Planned
   names are predictions; the real names are in the `done` events. `--out` creates the folder (with
   parents) when it is missing; `generate` writes to the current folder unless `--out` is given.

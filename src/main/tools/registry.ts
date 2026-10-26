@@ -59,6 +59,7 @@ import {
   magickFrame,
   magickQualityArgs,
   normalizeExt,
+  stripArgs,
   toolForKind
 } from './convert'
 import { buildResizeArgs, buildResizeSpec, isValidResizeSpec } from './resize'
@@ -294,7 +295,11 @@ const convertTool: ToolModule = {
       if (duration) ctx.onProgress(0, 'Converting…')
       return runToOutput(
         resolveTool(kindTool),
-        (out) => buildFfmpegArgs(file.path, out, ffmpegExtraFor(file.kind, targetExt)),
+        (out) =>
+          buildFfmpegArgs(file.path, out, [
+            ...ffmpegExtraFor(file.kind, targetExt),
+            ...stripArgs(file.kind, options.stripMetadata)
+          ]),
         output,
         ctx,
         kindTool,
@@ -302,7 +307,11 @@ const convertTool: ToolModule = {
         ffmpegProgress(duration, (pct, eta) => ctx.onProgress(pct, 'Converting…', eta))
       )
     }
-    const extra = [...magickExtraFor(targetExt), ...magickQualityArgs(targetExt, options.quality)]
+    const extra = [
+      ...stripArgs(file.kind, options.stripMetadata),
+      ...magickExtraFor(targetExt),
+      ...magickQualityArgs(targetExt, options.quality)
+    ]
     // Single-frame target: read only the first frame so a multi-frame source
     // doesn't split into out-0/out-1/… and leave the exact output path empty.
     const src = MULTIFRAME_TARGETS.includes(normalizeExt(targetExt))
@@ -488,7 +497,7 @@ const resizeTool: ToolModule = {
     const animated = normalizeExt(file.ext) === '.gif'
     return runToOutput(
       resolveTool('magick'),
-      (out) => buildResizeArgs(file.path, out, spec, animated),
+      (out) => buildResizeArgs(file.path, out, spec, animated, options.stripMetadata === true),
       output,
       ctx,
       'magick',
@@ -548,7 +557,13 @@ const compressTool: ToolModule = {
       ctx.onProgress(duration ? 0 : undefined, `Compressing video (${codec})…`)
       return runToOutput(
         resolveTool('ffmpeg'),
-        (out) => buildVideoCompressArgs(file.path, out, { codec, quality, scale }),
+        (out) =>
+          buildVideoCompressArgs(file.path, out, {
+            codec,
+            quality,
+            scale,
+            strip: options.stripMetadata === true
+          }),
         output,
         ctx,
         'ffmpeg',
@@ -590,7 +605,13 @@ const compressTool: ToolModule = {
     const imageFormat = String(options.imageFormat ?? 'keep') as ImageFormat
     ctx.onProgress(undefined, `Compressing image (q${quality})…`)
 
-    if (imageFormat === 'keep' && CAESIUM_EXTS.includes(normalizeExt(file.ext))) {
+    // Remove photo metadata goes through ImageMagick, which can turn the pixels
+    // upright before dropping the Orientation tag; Caesium cannot.
+    if (
+      imageFormat === 'keep' &&
+      CAESIUM_EXTS.includes(normalizeExt(file.ext)) &&
+      options.stripMetadata !== true
+    ) {
       const tmp = mkdtempSync(join(tmpdir(), 'filesmith-'))
       const est = estimateProgress(estimateSecForBytes(file.size, 0.08), (p, eta) =>
         ctx.onProgress(p, undefined, eta)
@@ -627,7 +648,7 @@ const compressTool: ToolModule = {
     const output = reserveOutput(file.path, outExt, 'compressed', ctx.outDir)
     return runToOutput(
       resolveTool('magick'),
-      (out) => buildMagickCompressArgs(file.path, out, quality),
+      (out) => buildMagickCompressArgs(file.path, out, quality, options.stripMetadata === true),
       output,
       ctx,
       'magick',

@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync, statfsSync } from 'fs'
-import { dirname, join } from 'path'
+import { dirname, join, parse } from 'path'
 import { run } from './run'
 
 /** Beyond this Windows deletes "to the Recycle Bin" permanently, so we refuse
@@ -73,4 +73,41 @@ export async function moveToRecycleBin(path: string): Promise<void> {
     throw new Error(
       `Could not move ${path} to the Recycle Bin. ${r.stderr.trim().split('\n').pop() ?? ''}`.trim()
     )
+}
+
+const binByRoot = new Map<string, Promise<boolean>>()
+
+/** True when `path` is on a local fixed drive, where Windows really recycles.
+ * On removable drives and network shares a "send to the Recycle Bin" silently
+ * deletes for good, so Replace originals refuses there. Cached per drive. */
+export function hasRecycleBin(path: string): Promise<boolean> {
+  const root = parse(path).root.toLowerCase()
+  if (!/^[a-z]:\\$/.test(root)) return Promise.resolve(false) // UNC share or relative
+  let p = binByRoot.get(root)
+  if (!p) {
+    p = driveIsFixed(root).catch(() => false)
+    binByRoot.set(root, p)
+  }
+  return p
+}
+
+async function driveIsFixed(root: string): Promise<boolean> {
+  const ps = join(
+    process.env.SystemRoot ?? 'C:\\Windows',
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe'
+  )
+  const r = await run(
+    ps,
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      '[System.IO.DriveInfo]::new($env:FILESMITH_DRIVE).DriveType'
+    ],
+    { env: { ...process.env, FILESMITH_DRIVE: root } }
+  )
+  return r.code === 0 && r.stdout.trim() === 'Fixed'
 }

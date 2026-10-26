@@ -30,6 +30,9 @@ const api = {
   pickImage: (): Promise<string | null> => ipcRenderer.invoke('image:pick'),
   /** Folder picker for the output location; resolves to the path or null. */
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke('files:pick-folder'),
+  /** Downloads / Desktop / Pictures, for the output Location dropdown. */
+  knownFolders: (): Promise<{ downloads: string; desktop: string; pictures: string }> =>
+    ipcRenderer.invoke('files:known-folders'),
   classify: (paths: string[]): Promise<FileInfo[]> => ipcRenderer.invoke('files:classify', paths),
   /** Resolve the absolute path of a dropped File (Electron removed File.path). */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),

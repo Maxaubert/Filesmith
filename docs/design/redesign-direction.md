@@ -37,5 +37,10 @@ Only the chosen mockups are kept in `docs/mockups/`; the rejected rounds named b
   `docs/superpowers/specs/2026-10-05-view-sizes-design.md`.
 - View menu (2026-10-05, #41): View menu = 3 sizes (Details, Tiles, Extra large icons), no icons, no
   shortcuts; the other sizes via Ctrl+wheel.
+- Output options (2026-10-26): `docs/mockups/output-options/01-output-options.html`. Location is ONE
+  dropdown (Next to source, Downloads, Desktop, Pictures, recent folders, "choose folder…" at the end),
+  no separate Choose folder button, and a line under it shows where files land. Then ORIGINALS
+  (Replace originals, to the Recycle Bin), NAMING (Rename pattern), METADATA (Keep original dates,
+  Remove photo metadata). On Convert, Compress, Resize, Upscale and Remove BG.
 - Console (2026-10-06, #39, feedback on 0.8.0): the totals row is removed; the bottom strip of the centre
   column holds only the Console button (Ctrl+`), and the open console sits above it.

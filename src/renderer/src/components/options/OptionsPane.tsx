@@ -7,6 +7,7 @@ import { ArchiveSettings } from './ArchiveSettings'
 import { CompressSettings } from './CompressSettings'
 import { ConvertSettings } from './ConvertSettings'
 import { GenerateSettings } from './generate/GenerateSettings'
+import { OutputSettings } from './OutputSettings'
 import { useArchiveStatus } from './hooks/useArchiveStatus'
 import { PdfSettings } from './PdfSettings'
 import { RemoveBgSettings } from './RemoveBgSettings'
@@ -23,6 +24,7 @@ export function OptionsPane({
   kind,
   srcExts,
   sourceExt,
+  sampleName,
   runCount,
   videoOutputs,
   resizeOutputs,
@@ -36,6 +38,8 @@ export function OptionsPane({
   kind: FileKind
   srcExts: string[]
   sourceExt: string | null
+  /** The first file in scope, for the Rename example. */
+  sampleName: string | null
   runCount: number
   videoOutputs: SizeRow[]
   resizeOutputs: SizeRow[]
@@ -80,10 +84,42 @@ export function OptionsPane({
         return null
     }
   }
+  // Output options (Location, Replace, Rename, Metadata) for the one-in,
+  // one-file-out verbs. Archive routes on Convert keep their own outputs.
+  const fileOut =
+    (tab === 'convert' && tool !== 'archive') ||
+    tool === 'compress' ||
+    tool === 'resize' ||
+    tool === 'upscale' ||
+    tool === 'removebg'
+  const canStrip =
+    (kind === 'image' || kind === 'video') &&
+    (tool === 'convert' || tool === 'compress' || tool === 'resize')
+  const stem = (sampleName ?? 'photo.png').replace(/\.[^.]+$/, '')
+  const outExt = exampleExt(tool, kind, options, sourceExt ?? '.png')
   return (
     <div className="vs">
       {body()}
+      {fileOut && (
+        <OutputSettings
+          options={options}
+          set={set}
+          canStrip={canStrip}
+          example={{ name: stem, ext: outExt }}
+        />
+      )}
       {estimate && <EstimateCard from={estimate.from} to={estimate.to} files={estimate.files} />}
     </div>
   )
+}
+
+/** The extension a run would most likely produce, for the Rename example only. */
+function exampleExt(tool: ToolId, kind: FileKind, o: JobOptions, src: string): string {
+  if (tool === 'convert') return String(o.format ?? src)
+  if (tool === 'upscale' || tool === 'removebg') return '.png'
+  if (tool === 'compress') {
+    if (kind === 'video') return '.mp4'
+    if (kind === 'image' && o.imageFormat && o.imageFormat !== 'keep') return `.${o.imageFormat}`
+  }
+  return src
 }

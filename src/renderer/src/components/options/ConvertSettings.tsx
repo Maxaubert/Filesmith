@@ -6,7 +6,6 @@ import { Select } from '../ui/Select'
 import type { SelectOption } from '../ui/selectNav'
 import { Segmented } from '../ui/Segmented'
 import { Setting, SettingGroup } from '../ui/Setting'
-import { OutputSettings } from './OutputSettings'
 import { PageRenderSettings } from './PageRenderSettings'
 import type { SetOption } from './types'
 
@@ -88,7 +87,6 @@ export function ConvertSettings({
         )}
       </SettingGroup>
       {verb === 'from-pdf' && <PageRenderSettings options={options} set={set} />}
-      {!verb && <OutputSettings options={options} set={set} />}
     </>
   )
 }

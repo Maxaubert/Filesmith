@@ -33,6 +33,8 @@ strict monochrome. Rules and feedback trail: `docs/design/redesign-direction.md`
 
 **View sizes (2026-10-05):** `docs/mockups/view-zoom/04-explorer-style.html`; spec `docs/superpowers/specs/2026-10-05-view-sizes-design.md`.
 
+**Output options (2026-10-26):** `docs/mockups/output-options/01-output-options.html`.
+
 **Console (2026-10-06):** `docs/mockups/console/01-bottom-panel.html`; spec `docs/superpowers/specs/2026-10-06-console-design.md`.
 
 **The look is designed collaboratively with the owner. Make NO visual assumptions.**
@@ -103,7 +105,9 @@ e2e/           Playwright specs      test/  Vitest      scripts/  fetch, verify,
 - Tool modules own their own format catalog + argument builder and are independently testable.
 - Never overwrite a user's source or an existing output file. Always resolve a collision-free
   name (`name.ext`, then `name (converted).ext`, `name (converted 2).ext`; folders get ` (2)`).
-  This is a hard rule ported from RCMM.
+  This is a hard rule ported from RCMM. One owner-approved exception (2026-10-26): opt-in
+  **Replace originals** sends the source to the Recycle Bin (never a permanent delete) only after
+  the new file is fully written (`src/main/finishOutput.ts`).
 - No secrets in the repo; unsigned build is expected.
 
 ## Working with the owner

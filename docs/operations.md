@@ -5,7 +5,11 @@ Options tab, their defaults, and what it writes. Labels below match the UI.
 
 ## Output naming (all verbs)
 
-Filesmith never overwrites a source or an existing file.
+Filesmith never overwrites a source or an existing file. The one exception is opt-in: with
+**Replace originals** ticked (Convert, Compress, Resize, Upscale, Remove BG) the new file takes the
+original's place and the original goes to the Recycle Bin. The same verbs offer Location, Rename,
+Keep original dates and, for images and video on Convert/Compress/Resize, Remove photo metadata;
+see [getting-started](getting-started.md#outputs-never-overwrite).
 
 - A file is written next to its source as `name.<new ext>` when that name is free.
 - If it is taken, a tag is added: `name (converted).ext`, then `name (converted 2).ext`, and so on.

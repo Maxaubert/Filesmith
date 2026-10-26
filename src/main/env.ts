@@ -18,6 +18,9 @@ export interface EngineEnv {
    * fetch in the CLI (the shims add --use-system-ca and NODE_USE_ENV_PROXY=1). */
   fetch: (url: string, init?: RequestInit) => Promise<Response>
   host: 'app' | 'cli'
+  /** Send a path to the Recycle Bin (Replace originals). The app passes
+   * shell.trashItem; absent, the engine uses recycle.ts's PowerShell route. */
+  trash?: (path: string) => Promise<void>
 }
 
 let current: EngineEnv | null = null

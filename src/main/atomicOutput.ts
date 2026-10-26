@@ -107,7 +107,7 @@ function partFileFor(final: string): string {
 
 /** Windows can briefly refuse a rename while an antivirus scanner or the
  * search indexer holds the just-closed file. */
-function renameRetrying(from: string, to: string): void {
+export function renameRetrying(from: string, to: string): void {
   for (let attempt = 0; ; attempt++) {
     try {
       renameSync(from, to)

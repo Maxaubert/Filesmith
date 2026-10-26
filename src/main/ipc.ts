@@ -200,6 +200,12 @@ export function registerGlobalIpc(): JobQueue {
     })
     return r.canceled || !r.filePaths.length ? null : r.filePaths[0]
   })
+  // The fixed choices in the output Location dropdown.
+  ipcMain.handle('files:known-folders', () => ({
+    downloads: app.getPath('downloads'),
+    desktop: app.getPath('desktop'),
+    pictures: app.getPath('pictures')
+  }))
   // Video DISPLAY dimensions (rotation-aware) for the compress scale preview.
   ipcMain.handle('video:dimensions', (_e, p: string) => probeDimensions(p))
   // Images go through ImageMagick instead: ffprobe rejects very large ones and

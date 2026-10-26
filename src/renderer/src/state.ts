@@ -91,7 +91,7 @@ export interface AppState {
 }
 
 export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
-  convert: { format: '.webp', quality: 'balanced' },
+  convert: { format: '.webp', quality: 'balanced', keepDates: true },
   compress: {
     quality: 80,
     imageFormat: 'keep',
@@ -100,11 +100,12 @@ export const DEFAULT_OPTIONS: Record<ToolId, JobOptions> = {
     audioCodec: 'keep',
     audioBitrate: 192,
     pdfLevel: 'balanced',
-    pdfGray: false
+    pdfGray: false,
+    keepDates: true
   },
-  resize: { mode: 'percent', percent: 50, fit: 'contain' },
-  upscale: { upscaleFactor: 4, upscaleModel: 'photo' },
-  removebg: { ...BG_DEFAULTS },
+  resize: { mode: 'percent', percent: 50, fit: 'contain', keepDates: true },
+  upscale: { upscaleFactor: 4, upscaleModel: 'photo', keepDates: true },
+  removebg: { ...BG_DEFAULTS, keepDates: true },
   pdf: { op: 'extract-text', dpi: 150, range: '' },
   archive: {
     op: 'repack',

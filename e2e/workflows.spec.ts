@@ -8,6 +8,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync
 } from 'fs'
 import { tmpdir } from 'os'
@@ -623,4 +624,37 @@ test('archive collision safety: the same conversion twice yields two files', asy
   const b = await runJob(page, 'archive', join(dir, 'comic.cbz'), { op: 'repack', format: '.cb7' })
   expect(a.outputPath).not.toBe(b.outputPath)
   expect(existsSync(a.outputPath!) && existsSync(b.outputPath!)).toBe(true)
+})
+
+test('output options: rename, keep dates and strip metadata on a real convert', async () => {
+  const src = join(dir, 'tagged.jpg')
+  magick(['-size', '64x48', 'xc:gray', '-set', 'comment', 'secret-gps', src])
+  const old = new Date(2020, 0, 2)
+  utimesSync(src, old, old)
+  const r = await runJob(page, 'convert', src, {
+    format: '.png',
+    rename: true,
+    renamePattern: '{name}-clean',
+    keepDates: true,
+    stripMetadata: true
+  })
+  expect(r.status).toBe('done')
+  expect(basename(r.outputPath!)).toBe('tagged-clean.png')
+  expect(Math.abs(statSync(r.outputPath!).mtimeMs - old.getTime())).toBeLessThan(2000)
+  expect(identify('%c', r.outputPath!)).toBe('')
+})
+
+test('output options: replace sends the original to the Recycle Bin', async () => {
+  const src = join(dir, 'replace-me.png')
+  magick(['-size', '64x48', 'xc:gray', src])
+  const r = await runJob(page, 'resize', src, {
+    mode: 'percent',
+    percent: 50,
+    replaceOriginals: true
+  })
+  expect(r.status).toBe('done')
+  // The new file took the original's name; the original is gone from the folder.
+  expect(r.outputPath).toBe(src)
+  expect(identify('%wx%h', src)).toBe('32x24')
+  expect(readdirSync(dir).filter((n) => n.startsWith('replace-me'))).toEqual(['replace-me.png'])
 })

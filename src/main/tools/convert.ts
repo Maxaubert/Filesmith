@@ -33,6 +33,18 @@ export function magickFrame(path: string, frame = 0): string {
   return `${path.replace(/%/g, '%%')}[${frame}]`
 }
 
+/** Flags that drop photo/video metadata (GPS, camera, device) when the user
+ * ticks Remove photo metadata. Images via ImageMagick, video via ffmpeg; audio
+ * keeps its tags (artist and title are not what this option is for). */
+export function stripArgs(kind: FileKind, strip: unknown): string[] {
+  if (strip !== true) return []
+  // -strip also drops the EXIF Orientation tag, so turn the pixels upright
+  // first or a portrait phone photo comes out sideways.
+  if (kind === 'image') return ['-auto-orient', '-strip']
+  if (kind === 'video') return ['-map_metadata', '-1']
+  return []
+}
+
 /** ffmpeg args: `ffmpeg -y -i <input> [extra...] <output>`. */
 export function buildFfmpegArgs(input: string, output: string, extra: string[] = []): string[] {
   return ['-y', '-i', input, ...extra, output]
