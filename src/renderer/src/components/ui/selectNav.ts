@@ -7,6 +7,8 @@ export interface SelectOption<T extends string> {
   reason?: string
   /** Option-group heading (Generate's architectures). */
   group?: string
+  /** Draw a divider line above this option. */
+  sep?: boolean
 }
 
 /** Keyboard movement inside the select popup: arrows skip disabled items and

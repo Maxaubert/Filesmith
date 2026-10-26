@@ -17,6 +17,15 @@
 | `--json`             | NDJSON events on stdout                                    |
 | `-h`, `--help`       | help                                                       |
 
+## Finished files (convert, compress, resize, upscale, removebg)
+
+| Flag | Meaning |
+| ---- | ------- |
+| `--replace` | the new file takes the original's place; the original goes to the Recycle Bin after the new file is written. Not with `--out` or `--rename`. On a drive without a Recycle Bin (USB, SD card, network share) the original is kept. Use only when the user asked to replace the originals |
+| `--rename <pattern>` | new names from a pattern: `{name}` original name, `{n}` 1, 2, 3..., `{date}` today. A taken name gets ` (2)` |
+| `--dates keep\|today` | `keep` (default): new files get the source's modified date |
+| `--strip-metadata` | remove GPS, camera and EXIF data (images and video; convert, compress, resize only) |
+
 ## Commands
 
 ### convert `--to <format>` (required)

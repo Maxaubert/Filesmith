@@ -62,22 +62,26 @@ export function CheckSetting({
   checked,
   onChange,
   label,
-  sub
+  sub,
+  disabled
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   label: string
   sub?: string
+  /** Greyed out and inert; `sub` says why. */
+  disabled?: boolean
 }): JSX.Element {
+  const toggle = (): void => {
+    if (!disabled) onChange(!checked)
+  }
   return (
-    <div className="vs-chk" onClick={() => onChange(!checked)}>
-      <Checkbox
-        checked={checked}
-        onChange={() => onChange(!checked)}
-        label={label}
-        size="md"
-        focusable
-      />
+    <div
+      className={`vs-chk${disabled ? ' dis' : ''}`}
+      aria-disabled={disabled || undefined}
+      onClick={toggle}
+    >
+      <Checkbox checked={checked} onChange={toggle} label={label} size="md" focusable />
       <span className="lt">
         {label}
         {sub && <span>{sub}</span>}

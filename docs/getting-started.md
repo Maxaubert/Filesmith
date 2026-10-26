@@ -121,9 +121,18 @@ row's Cancel action.
 
 ## Outputs never overwrite
 
-Filesmith never overwrites your source or any existing file.
+Filesmith never overwrites your source or any existing file, unless you tick **Replace originals**.
 
-- Results go next to the source by default, or to the folder set under Options, Output location.
+- Results go next to the source by default. **Location** (Options, OUTPUT) also offers Downloads,
+  Desktop, Pictures, your recent folders and **choose folder…**; the line under it shows where the
+  files will land.
+- **Replace originals** puts the new file where the original was and sends the original to the
+  Recycle Bin, only after the new file is written OK. You can restore it from there. On a drive
+  without a Recycle Bin (USB stick, SD card, network share) the original is kept and the row says so.
+- **Rename** names the results by a pattern: `{name}` the original name, `{n}` 1, 2, 3…, `{date}`
+  today. `{name}-web` turns `photo.png` into `photo-web.jpg`. A taken name gets ` (2)`.
+- **Keep original dates** (on by default) gives results the source's modified date. **Remove photo
+  metadata** strips GPS location and camera data from images and video.
 - If the plain name is free and differs from the source, it is used: `photo.png` converts to `photo.jpg`.
 - Otherwise a tag is added: `photo (converted).jpg`, then `photo (converted 2).jpg`, and so on. Other
   operations use their own tag: `(compressed)`, `(resized)`, `(upscaled)`, `(no-bg)`.

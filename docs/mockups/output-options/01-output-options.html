@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Output options</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0a0a0a;--bg-1:#0f0f0f;--hover:#1a1a1a;--selected:#202020;--field:#141414;--track:#2a2a2a;
+  --line:#262626;--line-strong:#3a3a3a;--fg1:#ededed;--fg2:#b4b4b4;--fg3:#8c8c8c;--fg-disabled:#5c5c5c;
+  --inv-bg:#2a2a2a;--inv-fg:#ededed;--focus:#ededed;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',Consolas,monospace;color-scheme:dark
+}
+*{box-sizing:border-box;margin:0}
+body{background:#050505;color:var(--fg1);font:13px/1.4 var(--sans);padding:24px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+h1{font:600 15px var(--sans);margin-bottom:4px}
+.lede{color:var(--fg3);font-size:12px;margin-bottom:20px;max-width:900px}
+.cols{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.col{width:360px}
+.label{font:12px var(--mono);color:var(--fg3);margin-bottom:8px}
+.label b{color:var(--fg1);font-weight:600}
+.panel{background:var(--bg-0);border:1px solid var(--line)}
+.ihead{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.ihead b{font-weight:600;font-size:14px}.ihead span{font:12px var(--mono);color:var(--fg3)}
+.body{padding:4px 16px 16px}
+.grp{display:flex;align-items:center;gap:12px;margin:18px 0 10px;font:600 11px var(--mono);letter-spacing:.12em;color:var(--fg3)}
+.grp::after{content:"";flex:1;height:1px;background:var(--line)}
+.set{margin-bottom:14px}
+.set .t{font-weight:600;font-size:13px}
+.set .d{color:var(--fg3);font-size:12px;margin:2px 0 8px}
+.seg{display:flex;height:28px;border:1px solid var(--line-strong)}
+.seg button{flex:1;font:13px var(--mono);color:var(--fg2);border-left:1px solid var(--line-strong)}
+.seg button:first-child{border-left:0}.seg button.on{background:var(--inv-bg);color:var(--fg1);font-weight:600}
+/* dropdown */
+.dd{position:relative}
+.dv{display:flex;align-items:center;width:100%;height:28px;padding-left:8px;font:13px var(--mono);border:1px solid var(--line-strong);text-align:left}
+.dv:hover{background:var(--hover);border-color:var(--fg3)}
+.dv .val{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dv .cv{width:27px;align-self:stretch;display:grid;place-items:center;border-left:1px solid var(--line-strong);color:var(--fg2)}
+.menu{display:none;position:absolute;left:0;right:0;top:29px;z-index:5;background:var(--bg-1);border:1px solid var(--line-strong);padding:4px 0;box-shadow:0 8px 24px #000}
+.dd.open .menu{display:block}
+.mi{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 10px;font:13px var(--mono);color:var(--fg2);text-align:left}
+.mi:hover{background:var(--hover);color:var(--fg1)}
+.mi.on{color:var(--fg1);font-weight:600}
+.mi .tick{width:12px;color:var(--fg1)}
+.mi .hint{margin-left:auto;font-size:11px;color:var(--fg3);font-weight:400}
+.msep{height:1px;background:var(--line);margin:4px 0}
+.mhead{padding:6px 10px 2px;font:11px var(--mono);color:var(--fg3);letter-spacing:.08em}
+/* where-it-goes line */
+.dest{display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px dashed var(--line-strong);font:12px var(--mono);color:var(--fg2)}
+.dest .p{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dest a{color:var(--fg1);cursor:pointer;font:12px/18px var(--sans);padding:0 8px;border:1px solid var(--line-strong)}
+/* checkbox */
+.chk{display:flex;align-items:flex-start;gap:10px;padding:5px 0;cursor:pointer}
+.box{flex:none;width:14px;height:14px;margin-top:2px;border:1px solid var(--line-strong);display:grid;place-items:center}
+.chk.on .box{background:var(--inv-bg);border-color:var(--fg2)}
+.chk.on .box::after{content:"";width:6px;height:3px;border:solid var(--fg1);border-width:0 0 2px 2px;transform:rotate(-45deg) translateY(-1px)}
+.chk .ct{font-size:13px}.chk .cd{display:block;font-size:12px;color:var(--fg3)}
+.inp{height:28px;width:100%;padding:0 8px;background:var(--field);border:1px solid var(--line-strong);color:var(--fg1);font:13px var(--mono)}
+.indent{margin:4px 0 6px 24px}
+.warn{margin-top:6px;padding:6px 8px;border:1px solid var(--line-strong);font-size:12px;color:var(--fg2)}
+.warn b{color:var(--fg1)}
+/* radio list (B) */
+.rl{border:1px solid var(--line-strong)}
+.rr{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-top:1px solid var(--line);text-align:left}
+.rr:first-child{border-top:0}
+.rr:hover{background:var(--hover)}
+.rr .dot{flex:none;width:12px;height:12px;border-radius:50%;border:1px solid var(--line-strong)}
+.rr.on{background:var(--selected)}
+.rr.on .dot{border-color:var(--fg1);box-shadow:inset 0 0 0 3px var(--selected),inset 0 0 0 6px var(--fg1)}
+.rr .rt{font:13px var(--mono)}.rr .rp{display:block;font:11px var(--mono);color:var(--fg3)}
+/* preview (C) */
+.prev{border:1px solid var(--line-strong);font:12px var(--mono)}
+.prev div{display:flex;gap:8px;padding:5px 8px;border-top:1px solid var(--line);color:var(--fg2)}
+.prev div:first-child{border-top:0}
+.prev .a{color:var(--fg3)}
+.more{display:flex;align-items:center;gap:8px;width:100%;height:28px;font:12px var(--mono);color:var(--fg2);border-top:1px solid var(--line);margin-top:6px}
+.more:hover{color:var(--fg1)}
+.est{margin-top:14px;border:1px solid var(--line-strong);padding:10px 12px;font:12px var(--mono);color:var(--fg2)}
+.est b{color:var(--fg1);font-size:16px}
+.notes{margin-top:28px;max-width:1128px;border-top:1px solid var(--line);padding-top:14px;color:var(--fg2);font-size:12px}
+.notes li{margin:3px 0 3px 18px}
+</style>
+</head>
+<body>
+<h1>Output options – A, final</h1>
+<p class="lede">Clickable: open Location (the folder picker is "Choose folder…" inside it), tick Replace originals and Rename to see what appears.</p>
+<div class="cols"><!-- ============ A ============ -->
+<div class="col" style="width:380px">
+  <div class="label"><b>A</b> · final, with your picks</div>
+  <div class="panel">
+    <div class="ihead"><b>Convert</b><span>6 selected</span></div>
+    <div class="body">
+      <div class="grp">OUTPUT</div>
+      <div class="set">
+        <div class="t">Location</div>
+        <div class="d">Where the converted files go.</div>
+        <div class="dd" data-dd="a">
+          <button class="dv"><span class="val">Downloads</span><span class="cv">▾</span></button>
+          <div class="menu">
+            <button class="mi" data-v="Next to source" data-p="same folder as each file"><span class="tick"></span>Next to source</button>
+            <button class="mi" data-v="Subfolder next to source" data-p="…\photos\converted\"><span class="tick"></span>Subfolder next to source</button>
+            <div class="msep"></div>
+            <button class="mi on" data-v="Downloads" data-p="C:\Users\Admin\Downloads"><span class="tick">✓</span>Downloads</button>
+            <button class="mi" data-v="Desktop" data-p="C:\Users\Admin\Desktop"><span class="tick"></span>Desktop</button>
+            <button class="mi" data-v="Pictures" data-p="C:\Users\Admin\Pictures"><span class="tick"></span>Pictures</button>
+            <div class="mhead">RECENT</div>
+            <button class="mi" data-v="Exports" data-p="D:\Work\Exports"><span class="tick"></span>Exports<span class="hint">D:\Work</span></button>
+            <button class="mi" data-v="web-ready" data-p="D:\Site\img\web-ready"><span class="tick"></span>web-ready<span class="hint">D:\Site\img</span></button>
+            <div class="msep"></div>
+            <button class="mi pick"><span class="tick"></span>Choose folder…</button>
+          </div>
+        </div>
+        <div class="dest"><span>→</span><span class="p" data-dest="a">C:\Users\Admin\Downloads</span><a>Open</a></div>
+      </div>
+      <div class="grp">ORIGINALS</div>
+      <label class="chk" data-warn="wa"><span class="box"></span><span><span class="ct">Replace originals</span><span class="cd">The new file takes the original's place. The original goes to the Recycle Bin, only after the new file is written OK.</span></span></label>
+      <div class="warn" id="wa" hidden><b>Location is ignored</b> while this is on: each new file lands where its original was.</div>
+      <div class="grp">NAMING</div>
+      <label class="chk" data-warn="wr"><span class="box"></span><span><span class="ct">Rename</span><span class="cd">Pattern for the new names.</span></span></label>
+      <div class="indent" id="wr" hidden>
+        <input class="inp" value="{name}-web" id="pat">
+        <div class="cd" style="font-size:12px;color:var(--fg3);margin-top:4px">{name} original name · {n} 1, 2, 3… · {date} 2026-10-26</div>
+        <div class="dest" style="margin-top:6px"><span>e.g.</span><span class="p" id="ex">beach.png → beach-web.jxl</span></div>
+      </div>
+      <div class="grp">METADATA</div>
+      <label class="chk on"><span class="box"></span><span><span class="ct">Keep original dates</span><span class="cd">New files keep the source's modified date.</span></span></label>
+      <label class="chk"><span class="box"></span><span><span class="ct">Remove photo metadata</span><span class="cd">Strips GPS location, camera and other EXIF data. Images and video only.</span></span></label>
+      <div class="est">estimate&nbsp;&nbsp; 8.5 MB → <b>~384 KB</b> &nbsp;-96%</div>
+    </div>
+  </div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('[data-dd]').forEach(dd=>{
+  const key=dd.dataset.dd, val=dd.querySelector('.val');
+  dd.querySelector('.dv').onclick=e=>{e.stopPropagation();document.querySelectorAll('.dd.open').forEach(o=>o!==dd&&o.classList.remove('open'));dd.classList.toggle('open')};
+  dd.querySelectorAll('.mi').forEach(mi=>mi.onclick=e=>{
+    e.stopPropagation();
+    let v=mi.dataset.v, p=mi.dataset.p;
+    if(mi.classList.contains('pick')){v='Holiday';p='E:\\Photos\\Holiday'}
+    dd.querySelectorAll('.mi').forEach(m=>{m.classList.remove('on');m.querySelector('.tick').textContent=''});
+    if(!mi.classList.contains('pick')){mi.classList.add('on');mi.querySelector('.tick').textContent='✓'}
+    val.textContent=v; const d=document.querySelector('[data-dest="'+key+'"]'); if(d&&p)d.textContent=p;
+    dd.classList.remove('open');
+  });
+});
+document.addEventListener('click',()=>document.querySelectorAll('.dd.open').forEach(o=>o.classList.remove('open')));
+document.querySelectorAll('.chk').forEach(c=>c.onclick=e=>{e.preventDefault();c.classList.toggle('on');if(c.dataset.warn)document.getElementById(c.dataset.warn).hidden=!c.classList.contains('on')});
+document.querySelectorAll('[data-rl] .rr').forEach(r=>r.onclick=()=>{r.parentElement.querySelectorAll('.rr').forEach(x=>x.classList.remove('on'));r.classList.add('on');if(r.classList.contains('pickrow'))r.querySelector('.rp').textContent='E:\\Photos\\Holiday'});
+document.querySelectorAll('.seg').forEach(s=>s.querySelectorAll('button').forEach(b=>b.onclick=()=>{s.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on')}));
+document.querySelectorAll('[data-more]').forEach(m=>m.onclick=()=>{const b=m.nextElementSibling;b.hidden=!b.hidden;m.textContent=(b.hidden?'▸':'▾')+' More options'});
+const pat=document.getElementById('pat');pat.oninput=()=>{document.getElementById('ex').textContent='beach.png → '+pat.value.replace('{name}','beach').replace('{n}','1').replace('{date}','2026-10-26')+'.jxl'};
+</script>
+</body>
+</html>

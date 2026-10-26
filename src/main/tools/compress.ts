@@ -30,13 +30,25 @@ export function buildCompressArgs(input: string, outDir: string, quality: number
  * the target format (webp/avif/…); `-quality` drives lossy encoding. A
  * single-frame target reads only `input[0]` (so a multi-frame source doesn't
  * split); a multi-frame target keeps every frame (animated GIF -> animated WebP). */
-export function buildMagickCompressArgs(input: string, output: string, quality: number): string[] {
+export function buildMagickCompressArgs(
+  input: string,
+  output: string,
+  quality: number,
+  strip = false
+): string[] {
   const e = normalizeExt(extname(output))
   const src = MULTIFRAME_TARGETS.includes(e) ? input : magickFrame(input)
   // TIFF: without an explicit -compress, re-encoding DROPPED the source's Zip
   // compression entirely (measured +59% on a Zip TIFF at every quality).
   const extra = e === '.tiff' ? ['-compress', 'Zip'] : []
-  return [src, '-quality', String(quality), ...extra, output]
+  return [
+    src,
+    ...(strip ? ['-auto-orient', '-strip'] : []),
+    '-quality',
+    String(quality),
+    ...extra,
+    output
+  ]
 }
 
 // --- Video ---------------------------------------------------------------------
@@ -62,6 +74,8 @@ export interface VideoOpts {
   quality: number
   /** Output size as a percentage of the source (100 = original). */
   scale: number
+  /** Drop container metadata (GPS, device, dates). */
+  strip?: boolean
 }
 
 /**
@@ -88,6 +102,7 @@ export function buildVideoCompressArgs(input: string, output: string, o: VideoOp
   args.push('-crf', String(crfForCodec(o.codec, o.quality)))
   if (o.codec === 'h265') args.push('-tag:v', 'hvc1') // Apple/QuickTime compatibility
   args.push('-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart')
+  if (o.strip) args.push('-map_metadata', '-1')
   args.push(output)
   return args
 }

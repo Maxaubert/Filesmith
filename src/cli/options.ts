@@ -277,6 +277,20 @@ export function buildOptions(cmd: CommandSpec, given: RawFlags, ctx: BuildContex
     default:
       throw new Error(`buildOptions does not handle ${cmd.id}`)
   }
+  if (get('replace') === true) {
+    if (outDir) usage('--replace puts each new file where its original was; leave out --out.')
+    if (get('rename') !== undefined)
+      usage('--replace keeps the original names; leave out --rename.')
+    options.replaceOriginals = true
+  }
+  const rename = get('rename')
+  if (typeof rename === 'string') {
+    if (!rename.trim()) usage('--rename needs a pattern, e.g. --rename "{name}-web".')
+    options.rename = true
+    options.renamePattern = rename
+  }
+  if (cmd.flags.some((f) => f.name === 'dates')) options.keepDates = val('dates') !== 'today'
+  if (get('strip-metadata') === true) options.stripMetadata = true
   return { options, warnings, outDir, explicit, codecFor }
 }
 

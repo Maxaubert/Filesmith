@@ -181,3 +181,18 @@ describe('generate', () => {
     expect(() => buildGenerateFlags(gen, { cfg: '7.3' }, ['x'], ctx)).toThrow(/in steps of 0.5/)
   })
 })
+
+describe('finished files', () => {
+  it('--replace, --rename, --dates and --strip-metadata reach the app keys', () => {
+    expect(build('compress', { replace: true }).options.replaceOriginals).toBe(true)
+    const r = build('convert', { to: 'webp', rename: '{name}-web' }).options
+    expect([r.rename, r.renamePattern]).toEqual([true, '{name}-web'])
+    expect(build('resize', {}).options.keepDates).toBe(true)
+    expect(build('resize', { dates: 'today' }).options.keepDates).toBe(false)
+    expect(build('resize', { 'strip-metadata': true }).options.stripMetadata).toBe(true)
+  })
+  it('--replace refuses --out and --rename', () => {
+    fails('compress', { replace: true, out: 'x' }, /leave out --out/)
+    fails('compress', { replace: true, rename: 'x' }, /leave out --rename/)
+  })
+})

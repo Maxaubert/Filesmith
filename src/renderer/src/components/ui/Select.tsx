@@ -127,6 +127,8 @@ export function Select<T extends string>({
                 {o.value === value && <Icon name="check" />}
               </li>
             )
+            if (o.sep && !head)
+              return [<li key={`s-${o.value}`} role="separator" className="vs-pop-sep" />, opt]
             return head
               ? [
                   <li key={`g-${head}`} role="presentation" className="vs-pop-gh">

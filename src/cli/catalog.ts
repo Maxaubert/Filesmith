@@ -118,6 +118,39 @@ const JSON_FLAG: FlagSpec = {
 }
 const FILE_COMMON = [OUT, RECURSIVE, DRY, JSON_FLAG]
 
+// What happens to each finished file (the app's ORIGINALS / NAMING / METADATA).
+const REPLACE: FlagSpec = {
+  name: 'replace',
+  type: 'bool',
+  key: 'replaceOriginals',
+  help: 'Replace each original: the new file takes its place, the original goes to the Recycle Bin'
+}
+const RENAME: FlagSpec = {
+  name: 'rename',
+  type: 'text',
+  key: 'renamePattern',
+  valueName: '<pattern>',
+  help: 'Name the new files by a pattern: {name} original name, {n} 1, 2, 3..., {date} today'
+}
+// An enum, not a bool: dates are kept by default, as in the app, and a bool
+// flag cannot be switched off.
+const DATES: FlagSpec = {
+  name: 'dates',
+  type: 'enum',
+  values: ['keep', 'today'],
+  def: 'keep',
+  key: 'keepDates',
+  help: "keep: new files get the source's modified date; today: they get the time they were made"
+}
+const STRIP_METADATA: FlagSpec = {
+  name: 'strip-metadata',
+  type: 'bool',
+  key: 'stripMetadata',
+  help: 'Remove photo metadata (GPS, camera, EXIF) from images and video'
+}
+const FINISH = [REPLACE, RENAME, DATES]
+const FINISH_STRIP = [...FINISH, STRIP_METADATA]
+
 const tabDesc = (id: string): string => TABS.find((t) => t.id === id)?.desc ?? ''
 const cardDesc = (op: string): string => TOOL_CARDS.find((c) => c.opKey === op)?.desc ?? ''
 
@@ -211,6 +244,7 @@ export const COMMANDS: CommandSpec[] = [
         group: 'PAGES',
         help: 'PDF to comic: jpg page quality'
       },
+      ...FINISH_STRIP,
       ...FILE_COMMON
     ],
     examples: [
@@ -298,6 +332,7 @@ export const COMMANDS: CommandSpec[] = [
       },
       LEVEL,
       GREYSCALE,
+      ...FINISH_STRIP,
       ...FILE_COMMON
     ],
     examples: [
@@ -362,6 +397,7 @@ export const COMMANDS: CommandSpec[] = [
         group: 'SIZE',
         help: 'Inferred from --percent or --width/--height; rarely needed'
       },
+      ...FINISH_STRIP,
       ...FILE_COMMON
     ],
     examples: ['filesmith resize *.png --percent 25', 'filesmith resize hero.jpg --width 1920']
@@ -404,6 +440,7 @@ export const COMMANDS: CommandSpec[] = [
         group: 'PERFORMANCE',
         help: 'GPU mode: full, or balanced to leave room for other apps'
       },
+      ...FINISH,
       ...FILE_COMMON
     ],
     examples: [
@@ -445,6 +482,7 @@ export const COMMANDS: CommandSpec[] = [
         valueName: '<image>',
         help: 'Background image, cover fit; implies --fill image'
       },
+      ...FINISH,
       ...FILE_COMMON
     ],
     examples: [

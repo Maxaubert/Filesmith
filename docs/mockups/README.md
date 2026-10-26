@@ -18,6 +18,7 @@ against. Open the `.html` files directly in a browser. The design rules and feed
 | `console/shots/01-bottom-panel-*.png`     | Screenshots of that mockup, one per state.                                                                                          |
 | `console/shots/impl-*.png`                | The built console. Written by `e2e/visual.spec.ts`.                                                                                 |
 | `generate-empty/*.png`                    | The Generate screen with no model, before and after, plus Settings. `after.png` and `settings.png` are written by `e2e/generate-empty.spec.ts`. |
+| `output-options/01-output-options.html`   | The chosen output options (2026-10-26): Location dropdown with the folder picker inside, Replace originals, Rename, Metadata. Interactive. |
 | `cli-settings-skill.png`                  | Settings with the CLI and Claude skill section. Written by `e2e/skill.spec.ts`.                                                     |
 
 The `impl-*` and spec-written shots are refreshed with `FILESMITH_SHOTS=1 npm run test:e2e` after

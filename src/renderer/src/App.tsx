@@ -884,10 +884,13 @@ export default function App(): JSX.Element {
     }
     if (newSources.length) dispatch({ type: 'addSources', items: newSources, key: qKey })
     if (!targets.length) return
-    dispatch({ type: 'markQueued', ids: targets.map((t) => t.id), options: opts })
-    for (const t of targets) {
-      void window.filesmith.runJob({ id: t.id, tool, input: t.path, options: opts })
-    }
+    // `seq` is the Rename pattern's {n}: the file's position in this run. It
+    // is stored in runOptions too, so Retry keeps the same number.
+    targets.forEach((t, i) => {
+      const o = { ...opts, seq: i + 1 }
+      dispatch({ type: 'markQueued', ids: [t.id], options: o })
+      void window.filesmith.runJob({ id: t.id, tool, input: t.path, options: o })
+    })
   }
 
   // Merge needs 2+ PDFs before it can run; every other op runs per selected file.
@@ -1348,6 +1351,7 @@ export default function App(): JSX.Element {
                   }
                   srcExts={srcExts}
                   sourceExt={sourceExt}
+                  sampleName={selEff[0]?.name ?? null}
                   runCount={runCount}
                   videoOutputs={videoOutputs}
                   resizeOutputs={resizeOutputs}

@@ -948,6 +948,63 @@
   outline: 1px solid var(--focus);
   outline-offset: 2px;
 }
+.vs-chk.dis {
+  cursor: default;
+}
+.vs-chk.dis .lt,
+.vs-chk.dis .lt span {
+  color: var(--fg-disabled);
+}
+.vs-chk.dis .box,
+.vs-chk.dis:hover .box {
+  border-color: var(--line);
+}
+/* where the files go: a quiet line under the Location select */
+.vs-dest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border: 1px dashed var(--line-strong);
+  font: 12px var(--mono);
+  color: var(--fg2);
+}
+.vs-dest .p {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* an outlined mini button: plain underlined words did not read as buttons */
+.vs-dest button {
+  flex: none;
+  height: 20px;
+  padding: 0 8px;
+  font: 12px/1 var(--sans);
+  color: var(--fg1);
+  border: 1px solid var(--line-strong);
+}
+.vs-dest button:hover {
+  background: var(--hover);
+  border-color: var(--fg3);
+}
+.vs-dest button:active {
+  background: var(--inv-bg);
+}
+.vs-dest button:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+.vs-sub {
+  margin: 6px 0 2px 26px;
+  display: grid;
+  gap: 4px;
+}
+.vs-sub .vs-d {
+  margin: 0;
+}
 /* estimate: quiet summary block */
 .vs-est {
   margin: 14px 16px 0;

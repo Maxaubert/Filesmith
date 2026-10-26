@@ -4,6 +4,7 @@ import { needsRar } from '@shared/archive'
 import { tabById } from '@shared/tabs'
 import { baseName } from '@shared/fileKind'
 import { planOutput, type PlannedOutput } from '../main/tools/plan'
+import { canReplace, finishOptionsFor, planFinish } from '../main/finishOutput'
 import type { Readiness } from '../main/tools/readiness'
 import { CliError, type ErrorCode } from './exit'
 import type { CommandId } from './catalog'
@@ -90,14 +91,22 @@ function planOne(
     message
   })
   const ready = (t: ToolId, op: string, options: JobOptions): PlannedJob => {
-    const full: JobOptions = env.outDir ? { ...options, outDir: env.outDir } : options
+    const full: JobOptions = {
+      ...options,
+      ...(env.outDir ? { outDir: env.outDir } : {}),
+      // The Rename pattern's {n}: this file's position in the run.
+      seq: index + 1
+    }
     try {
+      const fo = finishOptionsFor(t, full)
+      const replace = fo.replace && canReplace(t, full)
+      const planned = planOutput(t, f, full, replace ? undefined : env.outDir, claimed)
       return {
         ...base,
         tool: t,
         op,
         options: full,
-        output: planOutput(t, f, full, env.outDir, claimed),
+        output: { ...planned, path: planFinish(f.path, planned, fo, replace, claimed) },
         state: 'ready'
       }
     } catch (e) {

@@ -28,7 +28,8 @@ setEngineEnv({
   resourcesDir: app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources'),
   downloadsDir: app.getPath('downloads'),
   fetch: (url, init) => net.fetch(url, init),
-  host: 'app'
+  host: 'app',
+  trash: (p) => shell.trashItem(p)
 })
 
 // A private scheme the renderer uses to load local media (generated-image

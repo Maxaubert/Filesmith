@@ -57,8 +57,14 @@ export function buildResizeArgs(
   input: string,
   output: string,
   spec: string,
-  animated = false
+  animated = false,
+  strip = false
 ): string[] {
-  if (animated) return [input, '-coalesce', '-resize', spec, '-layers', 'optimize', output]
-  return [input, '-resize', spec, output]
+  // Upright before resizing (a WxH box is meant for the image as seen), then
+  // drop the metadata, Orientation tag included.
+  const o = strip ? ['-auto-orient'] : []
+  const s = strip ? ['-strip'] : []
+  if (animated)
+    return [input, '-coalesce', ...o, '-resize', spec, ...s, '-layers', 'optimize', output]
+  return [input, ...o, '-resize', spec, ...s, output]
 }

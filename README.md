@@ -10,7 +10,7 @@
 
 Filesmith is a Windows desktop toolkit for everyday file jobs: convert, compress, resize, upscale,
 remove backgrounds, generate images, and work with PDFs and archives. Drop in a batch of files, pick
-the options and run it. Outputs go next to the sources by default and never overwrite anything. The same
+the options and run it. Outputs go next to the sources by default and never overwrite anything (unless you tick Replace originals, which sends the original to the Recycle Bin). The same
 engine is available as the `filesmith` command line, from a built-in console or any terminal.
 
 ![Filesmith converting a batch of images, with one job running](docs/screenshots/convert.png)

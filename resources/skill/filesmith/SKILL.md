@@ -1,6 +1,6 @@
 ---
 name: filesmith
-description: Use when the user wants to do something to files on this PC, even phrased casually ("compress this image", "shrink this video", "make this a webp", "convert to jpg/pdf/mp4", "resize to 1920", "upscale this", "remove the background", "make me an image of...", "merge/split these PDFs", "pull the text out of this PDF"). Runs the local Filesmith CLI; never overwrites originals.
+description: Use when the user wants to do something to files on this PC, even phrased casually ("compress this image", "shrink this video", "make this a webp", "convert to jpg/pdf/mp4", "resize to 1920", "upscale this", "remove the background", "make me an image of...", "merge/split these PDFs", "pull the text out of this PDF"). Runs the local Filesmith CLI; never overwrites originals unless the user asks to replace them (--replace, to the Recycle Bin).
 metadata:
   filesmith-version: {{VERSION}}
 ---
