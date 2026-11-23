@@ -23,6 +23,16 @@ describe('third-party notices', () => {
     expect(notices).toContain(version!.replace(/^v/, ''))
   })
 
+  it('does not pin npm package versions that lockfile updates would make stale', () => {
+    const start = notices.indexOf('## Parts of the app itself')
+    const end = notices.indexOf('## Source code offer')
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const section = notices.slice(start, end)
+    expect(section).not.toMatch(/Version:/)
+    expect(section).not.toMatch(/\b\d+\.\d+\.\d+\b/)
+  })
+
   it('has a licence text for every texts/ file it names', () => {
     const named = [...notices.matchAll(/`texts\/([^`]+)`/g)].map((m) => m[1])
     expect(named.length).toBeGreaterThan(0)

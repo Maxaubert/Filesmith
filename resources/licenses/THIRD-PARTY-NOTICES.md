@@ -129,9 +129,12 @@ The versions below are the ones the release build downloads and checks by SHA-25
 
 ## Parts of the app itself
 
+These npm packages are built into the app. Their exact versions change with dependency
+updates, so they are not listed here: `package-lock.json` in the source tree of each release
+records them.
+
 ### Electron
 
-- Version: 43.1.1
 - Licence: MIT, text in `texts/MIT-Electron.txt`. The install folder also holds
   `LICENSE.electron.txt` and `LICENSES.chromium.html`, the notices for Chromium and the other
   components inside Electron.
@@ -139,19 +142,16 @@ The versions below are the ones the release build downloads and checks by SHA-25
 
 ### React, React DOM and scheduler
 
-- Version: 19.2.7 (scheduler 0.27.0)
 - Licence: MIT, text in `texts/MIT-React.txt`
 - Project: https://react.dev/
 
 ### Tailwind CSS
 
-- Version: 4.3.2 (generated CSS only)
-- Licence: MIT, text in `texts/MIT-Tailwind-CSS.txt`
+- Licence: MIT, text in `texts/MIT-Tailwind-CSS.txt` (only the generated CSS ships)
 - Project: https://tailwindcss.com/
 
 ### IBM Plex Sans and IBM Plex Mono fonts (via Fontsource)
 
-- Version: @fontsource/ibm-plex-sans 5.3.0, @fontsource/ibm-plex-mono 5.3.0
 - Licence: OFL-1.1, texts in `texts/OFL-1.1-IBM-Plex-Sans.txt` and
   `texts/OFL-1.1-IBM-Plex-Mono.txt`
 - Project: https://github.com/IBM/plex and https://fontsource.org/
