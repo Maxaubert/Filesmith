@@ -32,6 +32,10 @@ extraResources:
   - from: resources/realesrgan
     to: realesrgan
     filter: ['**/*']
+  # Licence notices and texts for the bundled third-party tools above.
+  - from: resources/licenses
+    to: licenses
+    filter: ['**/*']
   # PiD (NVIDIA) upscaler sidecar script. The heavy torch env + weights are
   # downloaded on first use to userData; only this launcher ships in the app.
   - from: resources/pid
