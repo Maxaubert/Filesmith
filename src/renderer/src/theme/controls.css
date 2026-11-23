@@ -49,6 +49,14 @@
   border: 1px solid var(--line-strong);
   border-top: 0;
 }
+/* Flipped above the button when there is no room below (Select.tsx):
+   the open side moves to the bottom. */
+.vs-pop.up {
+  top: auto;
+  bottom: 100%;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 0;
+}
 .vs-pop li[role='option'] {
   height: 28px;
   display: flex;
