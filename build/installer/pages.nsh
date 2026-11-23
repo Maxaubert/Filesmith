@@ -66,12 +66,65 @@ FunctionEnd
 
 ; Filesmith gets a folder of its own wherever it is put: nobody means "empty your
 ; Documents folder into this" when they pick Documents.
+;
+; Uninstall and update empty the install folder, so a folder is only taken as it
+; is when it is safe to empty later:
+;   (a) it already holds a Filesmith install (an update stays where it was), or
+;   (b) its last segment is exactly APP_FILENAME and it is missing or empty.
+; Anything else, such as D:\Work\Filesmith full of the user's own files or
+; D:\MyFilesmith, gets a Filesmith folder inside it.
+;
+; It saves $0 and $1 for its callers. PRODUCT_FILENAME rather than
+; APP_EXECUTABLE_FILENAME and UNINSTALL_FILENAME, which are declared after this
+; file parses (see filesmithDoneLeave).
 Function filesmithOwnFolder
-  StrLen $0 "${APP_FILENAME}"
-  StrCpy $1 "$INSTDIR" "" -$0
-  ${If} $1 != "${APP_FILENAME}"
-    StrCpy $INSTDIR "$INSTDIR\${APP_FILENAME}"
+  Push $0
+  Push $1
+
+  StrCpy $0 "$INSTDIR" "" -1
+  ${If} $0 == "\"
+    StrCpy $INSTDIR "$INSTDIR" -1
   ${EndIf}
+
+  ; (a) an install of ours is already here
+  ${If} ${FileExists} "$INSTDIR\${PRODUCT_FILENAME}.exe"
+  ${OrIf} ${FileExists} "$INSTDIR\Uninstall ${PRODUCT_FILENAME}.exe"
+    Goto ownFolderDone
+  ${EndIf}
+
+  ; (b) named for us, with a backslash before the name; == ignores case
+  StrLen $0 "\${APP_FILENAME}"
+  StrCpy $1 "$INSTDIR" "" -$0
+  ${If} $1 == "\${APP_FILENAME}"
+    ClearErrors
+    FindFirst $0 $1 "$INSTDIR\*.*"
+    ${If} ${Errors}
+      ; nothing to list: keep it if it does not exist at all, but not if it is
+      ; a file or a folder we cannot read
+      ${IfNot} ${FileExists} "$INSTDIR"
+        Goto ownFolderDone
+      ${EndIf}
+    ${Else}
+      ; empty means nothing but "." and ".."
+      ${DoWhile} $1 != ""
+        ${If} $1 != "."
+        ${AndIf} $1 != ".."
+          ${ExitDo}
+        ${EndIf}
+        FindNext $0 $1
+      ${Loop}
+      FindClose $0
+      ${If} $1 == ""
+        Goto ownFolderDone
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+
+  StrCpy $INSTDIR "$INSTDIR\${APP_FILENAME}"
+
+ownFolderDone:
+  Pop $1
+  Pop $0
 FunctionEnd
 
 ; called from FilesmithClick, which is parsed before this file
