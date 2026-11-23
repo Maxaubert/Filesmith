@@ -383,7 +383,7 @@ export function registerGlobalIpc(): JobQueue {
     try {
       await generateImages(
         opts,
-        (index, path) => sendTo(e.sender, 'generate:image', { id, index, path }),
+        (index, path, meta) => sendTo(e.sender, 'generate:image', { id, index, path, ...meta }),
         (index, pct) => sendTo(e.sender, 'generate:progress', { id, index, pct }),
         (message) => sendTo(e.sender, 'generate:progress', { id, index: -1, message }),
         ctrl.signal

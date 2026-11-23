@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { FileInfo, FileKind, JobEvent, JobRequest } from '@shared/types'
 import type { ComfyModel } from '@shared/comfy'
 import type { ComfyStatus, PidStatus, SkillInstallResult, SkillStatus } from '@shared/ipc'
-import type { GenerateOptions } from '@shared/generate'
+import type { GenImageMeta, GenerateOptions } from '@shared/generate'
 import type { GenModelScan } from '@shared/genArch'
 import type {
   ConsoleCatalog,
@@ -46,20 +46,12 @@ const api = {
   reveal: (path: string): void => ipcRenderer.send('reveal', path),
   /** Open a file in its OS-default app. */
   openFile: (path: string): void => ipcRenderer.send('file:open', path),
-  /** Raw file bytes — audio plays from a same-origin blob so Web Audio can read it. */
-  /** A text file's contents (capped at 1 MB) for the text preview. */
   /** Video pixel dimensions (via ffprobe) for the resolution-preview list. */
   videoDimensions: (path: string): Promise<{ width: number; height: number } | null> =>
     ipcRenderer.invoke('video:dimensions', path),
   /** Image pixel dimensions (via ImageMagick) for the upscale output preview. */
   imageDimensions: (path: string): Promise<{ width: number; height: number } | null> =>
     ipcRenderer.invoke('image:dimensions', path),
-  /** Open (or reuse + refocus) the standalone preview window. */
-  /** The preview window fetches its file list on load. */
-  /** The preview window listens for a new file list when reused. */
-  /** The preview window was closed — stop pushing list updates to it. */
-  /** Push a fresh file list to an open preview window (keeps its position). */
-  /** The preview window listens for live list changes. */
   /** Move a file to the recycle bin (reversible). */
   trashFile: (path: string): Promise<boolean> => ipcRenderer.invoke('file:trash', path),
 
@@ -168,9 +160,15 @@ const api = {
     ipcRenderer.on('generate:progress', listener)
     return () => ipcRenderer.removeListener('generate:progress', listener)
   },
-  /** An image in the batch finished (index + saved path). */
-  onGenerateImage: (cb: (p: { id: string; index: number; path: string }) => void): (() => void) => {
-    const listener = (_: unknown, p: { id: string; index: number; path: string }): void => cb(p)
+  /** An image in the batch finished (index + saved path, plus the seed and
+   * clamped size it was really made with). */
+  onGenerateImage: (
+    cb: (p: { id: string; index: number; path: string } & Partial<GenImageMeta>) => void
+  ): (() => void) => {
+    const listener = (
+      _: unknown,
+      p: { id: string; index: number; path: string } & Partial<GenImageMeta>
+    ): void => cb(p)
     ipcRenderer.on('generate:image', listener)
     return () => ipcRenderer.removeListener('generate:image', listener)
   },

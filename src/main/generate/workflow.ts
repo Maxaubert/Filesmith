@@ -1,4 +1,4 @@
-import type { GenerateOptions } from '@shared/generate'
+import type { GenImageMeta, GenerateOptions } from '@shared/generate'
 import type { DimCaps } from '@shared/generate'
 import { GEN_MAX_COUNT, GEN_STYLES, clampDim } from '@shared/generate'
 import type { DiffusionWiring, GenModel } from '@shared/genArch'
@@ -14,6 +14,29 @@ import { registryEntry } from '../registry/load'
 // shipping a new build. The graphs are now data; this file only substitutes
 // values into them.
 
+/** A random seed, for a run whose seed is -1. */
+export function randomSeed(): number {
+  return Math.floor(Math.random() * 1_000_000_000)
+}
+
+/** The dimension limits of an architecture, from its registry entry. */
+export function archDimCaps(arch: string): DimCaps | undefined {
+  return registryEntry(arch)?.capabilities
+}
+
+/**
+ * The concrete seed and size image `index` of a batch is made with: a fixed
+ * seed steps by one per image so they differ, a negative seed becomes a random
+ * one, and the size is clamped exactly as the workflow gets it.
+ */
+export function imageMeta(o: GenerateOptions, index: number, caps?: DimCaps): GenImageMeta {
+  return {
+    seed: o.seed < 0 ? randomSeed() : o.seed + index,
+    width: clampDim(o.width, caps),
+    height: clampDim(o.height, caps)
+  }
+}
+
 /** Shared prompt/seed/dimension prep, identical across arches. */
 function prep(
   o: GenerateOptions,
@@ -23,13 +46,14 @@ function prep(
   const style = GEN_STYLES.find((s) => s.id === o.style)
   const positive = [o.prompt.trim(), style?.positive].filter(Boolean).join(', ')
   const negative = [o.negative.trim(), style?.negative].filter(Boolean).join(', ')
+  const meta = imageMeta(o, 0, caps)
   return {
     prompt: positive,
     negative,
-    seed: o.seed < 0 ? Math.floor(Math.random() * 1_000_000_000) : o.seed,
+    seed: meta.seed,
     batch: Math.max(1, Math.min(GEN_MAX_COUNT, Math.round(o.count || 1))),
-    width: clampDim(o.width, caps),
-    height: clampDim(o.height, caps),
+    width: meta.width,
+    height: meta.height,
     steps: o.steps > 0 ? o.steps : defaultSteps,
     cfg: o.cfg,
     prefix: 'Filesmith'
@@ -46,7 +70,7 @@ function templateVars(
   wiring?: DiffusionWiring
 ): Record<string, string | number> {
   const info = archInfoFor(arch)
-  const caps = registryEntry(arch)?.capabilities
+  const caps = archDimCaps(arch)
   return {
     ...prep(o, info.steps, caps),
     sampler: info.sampler,

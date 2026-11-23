@@ -27,6 +27,14 @@ export interface GenerateOptions {
   outDir?: string
 }
 
+/** The concrete seed and size one generated image was made with (a random
+ * seed resolved, the size clamped to the model's limits). */
+export interface GenImageMeta {
+  seed: number
+  width: number
+  height: number
+}
+
 export const GEN_DEFAULTS: Omit<GenerateOptions, 'model' | 'prompt'> = {
   negative: 'blurry, low quality, watermark, text',
   style: 'none',
