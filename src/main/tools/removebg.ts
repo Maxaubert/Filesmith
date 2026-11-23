@@ -8,6 +8,7 @@ import {
   type BgModel
 } from '@shared/removebg'
 import { registryEntries } from '../registry/load'
+import { magickFrame } from './convert'
 
 // rembg argument building. Pure, no Electron.
 //
@@ -95,7 +96,7 @@ export function buildCompositeArgs(
 ): string[] {
   const size = `${width}x${height}`
   return [
-    `${background}[0]`,
+    magickFrame(background),
     '-resize',
     `${size}^`,
     '-gravity',

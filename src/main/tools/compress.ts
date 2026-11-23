@@ -82,16 +82,19 @@ export interface VideoOpts {
  * ffmpeg video compress. Output is always MP4 (H.264/H.265/AV1 all mux there);
  * the chosen codec drives the encoder and CRF. Scaling is a percentage of the
  * source, computed by ffmpeg itself (`iw*S`), with even dimensions
- * (`force_divisible_by=2`) — aspect ratio is preserved for any shape and no
- * probe is needed. Audio -> AAC 128k.
+ * (`trunc(x/2)*2`) - aspect ratio is preserved for any shape and no
+ * probe is needed. The filter is always added (factor 1 at 100%) so odd-size
+ * sources work with `yuv420p`. Audio -> AAC 128k.
  */
 export function buildVideoCompressArgs(input: string, output: string, o: VideoOpts): string[] {
   // Keep EVERY audio track (the default selection takes only the "best" one);
   // subtitles are left behind - image subs (PGS) cannot become mov_text and
   // mapping them would fail the whole compress.
   const args = ['-y', '-i', input, '-map', '0:v:0', '-map', '0:a?']
-  if (o.scale < 100) {
-    const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, o.scale)) / 100
+  {
+    // At 100% the factor is 1: the filter still runs, because yuv420p needs
+    // even dimensions and an odd-size source (1001x561) would abort the encode.
+    const s = o.scale < 100 ? Math.max(SCALE_MIN, Math.min(SCALE_MAX, o.scale)) / 100 : 1
     // Even dimensions via trunc(x/2)*2 IN the expression: ffmpeg honours
     // `force_divisible_by` only inside the force_original_aspect_ratio branch,
     // so 3 of the 15 scale positions aborted with "width not divisible by 2".

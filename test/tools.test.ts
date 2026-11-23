@@ -228,6 +228,8 @@ describe('compress', () => {
       '0:v:0',
       '-map',
       '0:a?',
+      '-vf',
+      'scale=w=trunc(iw*1/2)*2:h=trunc(ih*1/2)*2',
       '-c:v',
       'libx264',
       '-preset',
@@ -268,13 +270,13 @@ describe('compress', () => {
     // inside the force_original_aspect_ratio branch, so odd results (854 x
     // 0.25 = 213) aborted the encode with "width not divisible by 2".
     expect(a[a.indexOf('-vf') + 1]).toBe('scale=w=trunc(iw*0.5/2)*2:h=trunc(ih*0.5/2)*2')
-    // 100% (original) adds no filter at all
+    // 100% (original) still adds an even-size filter (odd sources break yuv420p)
     const b = buildVideoCompressArgs('in.mp4', 'out.mp4', {
       codec: 'h264',
       quality: 80,
       scale: 100
     })
-    expect(b).not.toContain('-vf')
+    expect(b[b.indexOf('-vf') + 1]).toBe('scale=w=trunc(iw*1/2)*2:h=trunc(ih*1/2)*2')
   })
 
   it('builds audio args for a target codec + bitrate, keep uses source codec', () => {

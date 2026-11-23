@@ -11,7 +11,7 @@ export interface InfoRow {
 
 type Dims = { width: number; height: number } | null
 
-const extOf = (p: string): string => {
+export const extOf = (p: string): string => {
   const b = p.split(/[\\/]/).pop() ?? p
   const i = b.lastIndexOf('.')
   return i > 0 ? b.slice(i + 1).toLowerCase() : ''

@@ -2,10 +2,8 @@ import { useEffect, useState, type JSX } from 'react'
 import type { FileKind } from '@shared/types'
 import { formatBytes } from '@shared/compress'
 import type { QueueItem } from '../../state'
-import { previewRows } from './infoModel'
+import { extOf, previewRows } from './infoModel'
 import { Wipe } from './Wipe'
-
-const ext = (p: string): string => (p.split('.').pop() ?? '').toLowerCase()
 
 /** Keyed by item id in the parent, so its fetched images never leak between rows. */
 export function PreviewPane({
@@ -36,9 +34,11 @@ export function PreviewPane({
       <Wipe
         left={srcImg}
         right={out ? outImg : null}
-        leftTag={`${ext(item.file.name)} ${formatBytes(item.file.size)}`}
+        leftTag={`${extOf(item.file.name)} ${formatBytes(item.file.size)}`}
         rightTag={
-          out && item.outputSize != null ? `${ext(out)} ${formatBytes(item.outputSize)}` : undefined
+          out && item.outputSize != null
+            ? `${extOf(out)} ${formatBytes(item.outputSize)}`
+            : undefined
         }
       />
       <dl className="dgrid">
