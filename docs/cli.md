@@ -20,6 +20,10 @@ queue or Completed view.
   (`ELECTRON_RUN_AS_NODE=1`) with `--use-system-ca` and `NODE_USE_ENV_PROXY=1`.
 - cmd expands `%NAME%` inside arguments, even quoted. For file names that contain `%`, use PowerShell or
   Git Bash.
+- File names with `&`, `|`, `<`, `>`, `^`, `(`, `)` or `%` need care, because cmd.exe splits the command line
+  on them before the shim runs. In cmd, wrap the name in double quotes: `filesmith convert "R&D.png" --to jpg`.
+  In PowerShell, write the argument as `'"R&D.png"'` (double quotes inside single quotes), or use the
+  stop-parsing token: `filesmith --% convert "R&D.png" --to jpg`. Git Bash is not affected.
 - Ctrl+C cancels: see [Ctrl+C and unfinished outputs](#ctrlc-and-unfinished-outputs) for how it works
   in the installed command and its one limit (output redirected in cmd or PowerShell).
 - Windows PowerShell 5.1 decodes captured native output with the OEM code page, so non-ASCII paths in

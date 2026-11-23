@@ -140,9 +140,15 @@ function planOne(
         code: 'SAME_FORMAT',
         message: `already ${target.slice(1)}`
       }
+    // The output-finishing flags apply to both routes (the rest of built.options is narrowed).
+    const finish: JobOptions = {}
+    for (const k of ['replaceOriginals', 'rename', 'renamePattern', 'keepDates', 'stripMetadata']) {
+      if (o[k] !== undefined) finish[k] = o[k]
+    }
     const route = routeConvert(f.kind, f.ext, target)
     if (route.tool === 'archive')
       return ready('archive', `archive/${route.op}`, {
+        ...finish,
         op: route.op ?? 'repack',
         format: target,
         store: o.store,
@@ -150,7 +156,7 @@ function planOne(
         pageFormat: o.pageFormat,
         pageQuality: o.pageQuality
       })
-    return ready('convert', 'convert', { format: target, quality: o.quality })
+    return ready('convert', 'convert', { ...finish, format: target, quality: o.quality })
   }
   return ready(tool, tool === 'pdf' ? `pdf/${String(built.options.op)}` : tool, {
     ...built.options

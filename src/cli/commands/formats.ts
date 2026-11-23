@@ -45,6 +45,13 @@ export async function buildFormats(
   deps: FormatsDeps
 ): Promise<Record<string, Record<string, unknown>>> {
   const cuda = await deps.cudaOk()
+  const comfyModels = deps.comfyModels()
+  // A file name used by more than one model is listed by full path, so each entry is unambiguous.
+  const counts = new Map<string, number>()
+  for (const m of comfyModels) {
+    const k = basename(m.path).toLowerCase()
+    counts.set(k, (counts.get(k) ?? 0) + 1)
+  }
   return {
     convert: {
       groups: [
@@ -88,8 +95,8 @@ export async function buildFormats(
           ...(m.user ? { user: true } : {})
         })),
         { value: 'pid', label: 'PiD, 4x only', engine: 'pid', ready: cuda && deps.pidInstalled() },
-        ...deps.comfyModels().map((m) => ({
-          value: `comfy:${basename(m.path)}`,
+        ...comfyModels.map((m) => ({
+          value: `comfy:${(counts.get(basename(m.path).toLowerCase()) ?? 0) > 1 ? m.path : basename(m.path)}`,
           label: m.name,
           engine: 'comfy',
           ready: cuda && deps.comfyReady(),
@@ -160,7 +167,7 @@ export async function runFormats(
   const all = await buildFormats(deps)
   const word = args.positionals[0]?.toLowerCase()
   const key = word === 'remove-bg' ? 'removebg' : word
-  if (key && !(key in all))
+  if (key && !Object.hasOwn(all, key))
     throw new UsageError(
       `Unknown verb for formats: ${word}. One of: ${Object.keys(all).join(', ')}.`,
       ['formats']
