@@ -15,6 +15,22 @@ export function sofficeFilter(targetExt: string): string {
   return e
 }
 
+/** Targets that only the Writer module can export. */
+const WRITER_TARGETS = ['docx', 'doc', 'odt', 'rtf', 'html']
+
+/**
+ * A PDF opens in Draw by default, which has no docx/odt/rtf/html export ("no
+ * export filter", nothing written). Forcing the Writer PDF import makes those
+ * targets work.
+ */
+function sofficeInfilter(input: string, targetExt: string): string[] {
+  const e = targetExt.replace(/^\./, '').toLowerCase()
+  if (extname(input).toLowerCase() === '.pdf' && WRITER_TARGETS.includes(e)) {
+    return ['--infilter=writer_pdf_import']
+  }
+  return []
+}
+
 /**
  * `soffice --headless --norestore -env:UserInstallation=<profile> --convert-to
  * <filter> --outdir <dir> <input>`. The isolated profile lets conversions run
@@ -40,6 +56,7 @@ export function buildSofficeArgs(
     '--norestore',
     '--nofirststartwizard',
     `-env:UserInstallation=${profileUrl}`,
+    ...sofficeInfilter(input, targetExt),
     '--convert-to',
     sofficeFilter(targetExt),
     '--outdir',
