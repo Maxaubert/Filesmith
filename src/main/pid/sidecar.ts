@@ -66,7 +66,14 @@ export function classifySidecarLine(line: string): SidecarLine {
   return { kind: 'ignore' }
 }
 
-class PidSidecar {
+/** How long the process may take to print {"ready"} before it is treated as
+ * hung. Generous: the first load from a cold disk plus kernel setup is slow. */
+export const PID_STARTUP_TIMEOUT_MS = 5 * 60 * 1000
+
+export const PID_STARTUP_TIMEOUT_MESSAGE =
+  'PiD did not start in time. Try again, or reinstall the upscaler from Settings.'
+
+export class PidSidecar {
   private proc: ChildProcessWithoutNullStreams | null = null
   private ready: Promise<void> | null = null
   private pending = new Map<number, Pending>()
@@ -77,7 +84,23 @@ class PidSidecar {
   /** Start the process (idempotent) and resolve once the model reports ready. */
   private ensure(onProgress?: PidProgress): Promise<void> {
     if (this.ready) return this.ready
-    this.ready = new Promise<void>((resolve, reject) => {
+    this.ready = new Promise<void>((resolveReady, rejectReady) => {
+      // Settle once: ready, startup timeout, spawn error and close can race.
+      // resolve/reject read `timer` (declared below); they only run from the
+      // handlers attached after it is set.
+      let done = false
+      const resolve = (): void => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        resolveReady()
+      }
+      const reject = (e: Error): void => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        rejectReady(e)
+      }
       onProgress?.('starting')
       const proc = spawn(
         pidVenvPython(),
@@ -101,6 +124,16 @@ class PidSidecar {
         }
       )
       this.proc = proc
+
+      // A process that never prints {"ready"} would block every upscale forever.
+      // Kill it and clear state now, so the next call spawns a fresh process.
+      const timer = setTimeout(() => {
+        if (done) return
+        const err = new Error(PID_STARTUP_TIMEOUT_MESSAGE)
+        if (this.proc === proc) this.reset(err)
+        proc.kill()
+        reject(err)
+      }, PID_STARTUP_TIMEOUT_MS)
 
       // stdin EPIPE on a dying process would otherwise throw an unhandled stream
       // error and crash the main process; the 'close' handler does the rejecting.
@@ -135,19 +168,48 @@ class PidSidecar {
         stderrTail = (stderrTail + t).slice(-800)
       })
 
+      // Only reset when this is still the current process: a process killed by
+      // the startup timeout may close after a fresh one has already spawned.
       proc.on('error', (e) => {
-        this.reset(e)
+        if (this.proc === proc) this.reset(e)
         reject(e)
       })
       proc.on('close', (code) => {
         const tail = stderrTail.trim().split('\n').filter(Boolean).pop()
         const err = new Error(tail ? `PiD failed: ${tail}` : `PiD process exited (${code})`)
-        this.reset(err)
+        if (this.proc === proc) this.reset(err)
         // If it died before ready, surface it.
         reject(err)
       })
     })
+    // A caller that was cancelled during the load no longer awaits this promise;
+    // a later startup failure must not become an unhandled rejection.
+    this.ready.catch(() => {})
     return this.ready
+  }
+
+  /** Wait for ensure(), but give up at once if the signal aborts. The load keeps
+   * going in the background, so the model is warm for the next image. */
+  private ensureOrAbort(onProgress?: PidProgress, signal?: AbortSignal): Promise<void> {
+    const ready = this.ensure(onProgress)
+    if (!signal) return ready
+    return new Promise<void>((resolve, reject) => {
+      const onAbort = (): void => {
+        signal.removeEventListener('abort', onAbort)
+        reject(new Error('Upscale cancelled'))
+      }
+      signal.addEventListener('abort', onAbort)
+      ready.then(
+        () => {
+          signal.removeEventListener('abort', onAbort)
+          resolve()
+        },
+        (e) => {
+          signal.removeEventListener('abort', onAbort)
+          reject(e)
+        }
+      )
+    })
   }
 
   private reset(err: Error): void {
@@ -171,7 +233,8 @@ class PidSidecar {
     signal?: AbortSignal
   ): Promise<{ output: string; ms: number }> {
     if (signal?.aborted) throw new Error('Upscale cancelled')
-    await this.ensure(onProgress)
+    await this.ensureOrAbort(onProgress, signal)
+    if (signal?.aborted) throw new Error('Upscale cancelled')
     const proc = this.proc
     if (!proc) throw new Error('PiD process is not running')
     // The first generate of a session also pays the one-time kernel compile.
