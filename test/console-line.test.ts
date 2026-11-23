@@ -6,6 +6,7 @@ import {
   MAX_LINE,
   refusalText,
   splitAtCaret,
+  stripPrefix,
   tokenize
 } from '../src/shared/consoleLine'
 import type { ConsoleCatalog } from '../src/shared/console'
@@ -49,9 +50,13 @@ describe('tokenize', () => {
 
 describe('splitAtCaret', () => {
   it('returns the finished words and the word being typed', () => {
-    expect(splitAtCaret('convert *.heic --')).toEqual({ done: ['convert', '*.heic'], cur: '--' })
-    expect(splitAtCaret('convert ')).toEqual({ done: ['convert'], cur: '' })
-    expect(splitAtCaret('convert "My Ph')).toEqual({ done: ['convert'], cur: 'My Ph' })
+    expect(splitAtCaret('convert *.heic --')).toEqual({
+      done: ['convert', '*.heic'],
+      cur: '--',
+      curStart: 15
+    })
+    expect(splitAtCaret('convert ')).toEqual({ done: ['convert'], cur: '', curStart: 8 })
+    expect(splitAtCaret('convert "My Ph')).toEqual({ done: ['convert'], cur: 'My Ph', curStart: 8 })
   })
 })
 
@@ -143,5 +148,20 @@ describe('codeSegments', () => {
     expect(codeSegments('plain')).toEqual([{ text: 'plain', code: false }])
     expect(codeSegments('a ` b')).toEqual([{ text: 'a ` b', code: false }])
     expect(codeSegments('')).toEqual([])
+  })
+})
+
+describe('curStart and stripPrefix', () => {
+  it('splitAtCaret returns the raw start of the current word', () => {
+    expect(splitAtCaret('convert "My Ph').curStart).toBe(8)
+    expect(splitAtCaret('convert My" "Ph')).toMatchObject({ cur: 'My Ph', curStart: 8 })
+    expect(splitAtCaret('convert ').curStart).toBe(8)
+    expect(splitAtCaret('').curStart).toBe(0)
+  })
+  it('stripPrefix drops the prefix and global flags', () => {
+    expect(stripPrefix(['filesmith.exe', '--json', 'convert'])).toEqual(['convert'])
+    expect(stripPrefix(['FILESMITH.CMD'])).toEqual([])
+    expect(stripPrefix(['--dry-run', 'pdf', 'merge'])).toEqual(['pdf', 'merge'])
+    expect(stripPrefix(['convert', '--json'])).toEqual(['convert', '--json'])
   })
 })

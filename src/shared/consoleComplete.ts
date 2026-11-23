@@ -1,5 +1,5 @@
 import type { ConsoleCatalog, ConsoleCommand, ConsoleEntry, ConsoleFlag } from './console'
-import { splitAtCaret } from './consoleLine'
+import { splitAtCaret, stripPrefix } from './consoleLine'
 
 // Tab completion (spec 8). Pure: the renderer fetches folder entries itself
 // when the context asks for files.
@@ -10,16 +10,21 @@ export interface CompletionItem {
 }
 
 export type CompletionCtx =
-  | { kind: 'list'; title: string; prefix: string; items: CompletionItem[] }
-  | { kind: 'files'; prefix: string; dir: string; name: string }
+  | { kind: 'list'; title: string; prefix: string; start: number; items: CompletionItem[] }
+  | { kind: 'files'; prefix: string; start: number; dir: string; name: string }
   | null
 
 const GROUP_TITLE: Record<string, string> = { pdf: 'PDF TOOLS', skill: 'SKILL' }
 const starts = (v: string, p: string): boolean => v.toLowerCase().startsWith(p.toLowerCase())
 
-function list(title: string, prefix: string, items: CompletionItem[]): CompletionCtx {
+function list(
+  title: string,
+  prefix: string,
+  start: number,
+  items: CompletionItem[]
+): CompletionCtx {
   const hit = items.filter((i) => starts(i.value, prefix))
-  return hit.length ? { kind: 'list', title, prefix, items: hit } : null
+  return hit.length ? { kind: 'list', title, prefix, start, items: hit } : null
 }
 
 function firstWords(cat: ConsoleCatalog, builtins: readonly CompletionItem[]): CompletionItem[] {
@@ -46,9 +51,9 @@ export function completionContext(
   cat: ConsoleCatalog,
   builtins: readonly CompletionItem[]
 ): CompletionCtx {
-  const { done: raw, cur } = splitAtCaret(before)
-  const done = raw.length && raw[0].toLowerCase() === 'filesmith' ? raw.slice(1) : raw
-  if (!done.length) return list('COMMANDS', cur, firstWords(cat, builtins))
+  const { done: raw, cur, curStart: start } = splitAtCaret(before)
+  const done = stripPrefix(raw)
+  if (!done.length) return list('COMMANDS', cur, start, firstWords(cat, builtins))
   const w0 = done[0].toLowerCase()
   const verb = cat.aliases[w0] ?? w0
   const group = cat.commands.filter((c) => c.path[0] === verb && c.path.length > 1)
@@ -56,6 +61,7 @@ export function completionContext(
     return list(
       GROUP_TITLE[verb] ?? verb.toUpperCase(),
       cur,
+      start,
       group.map((c) => ({ value: c.path[1], detail: c.summary }))
     )
   const path = group.length ? [verb, (done[1] ?? '').toLowerCase()] : [verb]
@@ -68,6 +74,7 @@ export function completionContext(
       return list(
         pf.name.toUpperCase(),
         cur,
+        start,
         pf.values.map((v) => ({ value: v, detail: '' }))
       )
     if (pf.type !== 'path') return null
@@ -89,12 +96,13 @@ export function completionContext(
           kind: 'list',
           title: `${cmd.path.join(' ').toUpperCase()} OPTIONS`,
           prefix: cur,
+          start,
           items: flags.map((f) => ({ value: `--${f.name}`, detail: f.help }))
         }
       : null
   } else if (cmd.inputs !== 'files') return null
   const cut = Math.max(cur.lastIndexOf('\\'), cur.lastIndexOf('/')) + 1
-  return { kind: 'files', prefix: cur, dir: cur.slice(0, cut), name: cur.slice(cut) }
+  return { kind: 'files', prefix: cur, start, dir: cur.slice(0, cut), name: cur.slice(cut) }
 }
 
 export function fileItems(
@@ -109,17 +117,16 @@ export function fileItems(
   ]
 }
 
-/** Replace the typed word (`prefix`, ending at the caret) with `value`. */
+/** Replace the typed word (raw text from `start` to the caret) with `value`. */
 export function applyCompletion(
   input: string,
   caret: number,
-  prefix: string,
+  start: number,
   value: string
 ): { text: string; caret: number } {
-  const start = Math.max(0, caret - prefix.length)
+  const from = Math.min(Math.max(0, start), caret)
   // A quoted word in progress ("My Ph) keeps its opening quote.
-  const quoted = input[start - 1] === '"'
-  const from = quoted ? start - 1 : start
+  const quoted = (input.slice(from, caret).match(/"/g) ?? []).length % 2 === 1
   const word = /\s/.test(value) || quoted ? `"${value}` : value
   const isDir = value.endsWith('\\')
   const closed = isDir ? word : word.startsWith('"') ? `${word}"` : word
