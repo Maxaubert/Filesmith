@@ -219,12 +219,6 @@ async function ensureRepo(onProgress: InstallProgress): Promise<void> {
   // anything can decide the weights are missing.
   restoreKept(pidRepoDir(), pidKeepDir(), false)
   if (markerSays(join(pidRepoDir(), REPO_MARKER), PID_REPO_REF)) return
-  // The kept venv was installed (`uv pip install -e .`) against the OLD source,
-  // so its deps must be re-resolved. Drop its ready marker BEFORE anything else,
-  // so a failed download or swap never leaves a venv that reads as installed
-  // beside a repo with no source. ensureEnv then runs its install steps again on
-  // the kept venv; torch is already there, so it is quick.
-  rmSync(pidEnvMarker(), { force: true })
   onProgress('Downloading PiD source', null)
   const tmpDir = mkdtempSync(join(pidRoot(), 'src-'))
   const tmpZip = join(tmpDir, 'pid-src.zip')
@@ -242,6 +236,14 @@ async function ensureRepo(onProgress: InstallProgress): Promise<void> {
 
   const inner = join(extractTo, `PiD-${PID_REPO_REF}`)
   if (!existsSync(inner)) throw new Error('PiD source extract produced no PiD-* folder')
+  // The kept venv was installed (`uv pip install -e .`) against the OLD source,
+  // so its deps must be re-resolved. Drop its ready marker only now, after the
+  // download and extract succeeded: a failed or cancelled download leaves the old
+  // repo, venv and marker in place, so the engine keeps working. Dropping it
+  // before the swap means a failed swap never leaves a venv that reads as
+  // installed beside a repo with no source. ensureEnv then runs its install steps
+  // again on the kept venv; torch is already there, so it is quick.
+  rmSync(pidEnvMarker(), { force: true })
   replaceRepoKeeping(pidRepoDir(), inner, pidKeepDir())
   rmSync(extractTo, { recursive: true, force: true })
   rmSync(tmpZip, { force: true })
