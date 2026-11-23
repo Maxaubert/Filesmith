@@ -42,8 +42,12 @@ export const COMFY_DIR_NAMES = [
  *   guess never hides a ComfyUI the user chose.
  * - The result is cached and refreshed at most every DRIVE_REFRESH_MS; during a
  *   refresh the previous list is returned.
- * - A letter that timed out is treated as absent for the rest of the session and
- *   never probed again, since each hung stat holds a libuv pool thread.
+ * - A letter that timed out is skipped while its stat is still pending, since each
+ *   hung stat holds a libuv pool thread. When that late stat settles the letter
+ *   is probed again on the next refresh (a disk that spun up, a share that
+ *   reconnected), and a late success makes the cached list stale at once.
+ * - Async entry points (the CLI, the status IPC handlers) await
+ *   ensureDriveRoots() first, so their first scan already sees every drive.
  */
 const DRIVE_PROBE_TIMEOUT_MS = 1500
 const DRIVE_REFRESH_MS = 5 * 60_000
@@ -82,9 +86,16 @@ function probeDrive(d: string): Promise<boolean> {
       finish(false)
     }, DRIVE_PROBE_TIMEOUT_MS)
     timer.unref?.()
+    // A stat that settles after the timeout frees its pool thread, so the
+    // letter may be probed again. A late success also marks the cache stale,
+    // so the next driveRoots() call starts a refresh that picks the drive up.
+    const late = (ok: boolean): void => {
+      if (!hungDrives.delete(d)) return
+      if (ok) driveProbedAt = 0
+    }
     fs.promises.stat(d).then(
-      (st) => finish(st.isDirectory()),
-      () => finish(false)
+      (st) => (settled ? late(st.isDirectory()) : finish(st.isDirectory())),
+      () => (settled ? late(false) : finish(false))
     )
   })
 }
@@ -111,6 +122,17 @@ export function probeDriveRoots(): Promise<string[]> {
   })
   driveProbe = probe
   return probe
+}
+
+/**
+ * For callers that can wait: on the first call, wait for the drive probe
+ * (bounded by DRIVE_PROBE_TIMEOUT_MS), so the first scan is not limited to the
+ * system drive. Later calls return at once; a stale list refreshes in the
+ * background as before.
+ */
+export async function ensureDriveRoots(): Promise<void> {
+  if (process.platform !== 'win32' || driveCache !== null) return
+  await probeDriveRoots()
 }
 
 function driveRoots(): string[] {

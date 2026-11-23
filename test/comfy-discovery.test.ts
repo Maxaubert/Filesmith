@@ -21,7 +21,12 @@ import {
 } from '../src/main/comfy/discover'
 import { listCompanionPools } from '../src/main/generate/archRegistry'
 import { scanGenerationModels } from '../src/main/generate/models'
-import { comfySearchRoots, probeDriveRoots, resetDriveRootsCache } from '../src/main/comfy/roots'
+import {
+  comfySearchRoots,
+  ensureDriveRoots,
+  probeDriveRoots,
+  resetDriveRootsCache
+} from '../src/main/comfy/roots'
 
 const root = mkdtempSync(join(tmpdir(), 'filesmith-discovery-'))
 afterAll(() => rmSync(root, { recursive: true, force: true }))
@@ -249,7 +254,7 @@ describe.runIf(process.platform === 'win32')('drive roots probe (never blocks ma
     expect(stat.mock.calls.length).toBe(probes)
   })
 
-  it('a drive that never answers does not block and is not probed again', async () => {
+  it('a drive that never answers does not block and is skipped while it hangs', async () => {
     vi.useFakeTimers()
     const stat = vi.spyOn(fs.promises, 'stat').mockImplementation(((p: fs.PathLike) =>
       p === 'Z:\\'
@@ -270,5 +275,43 @@ describe.runIf(process.platform === 'win32')('drive roots probe (never blocks ma
     await probeDriveRoots()
     expect(stat.mock.calls.length - before).toBe(23)
     expect(stat.mock.calls.slice(before).some(([p]) => p === 'Z:\\')).toBe(false)
+  })
+
+  it('ensureDriveRoots waits for the first probe, then returns at once', async () => {
+    const stat = vi.spyOn(fs.promises, 'stat').mockImplementation((async (p: fs.PathLike) => {
+      if (p === 'C:\\' || p === 'D:\\') return { isDirectory: () => true } as fs.Stats
+      throw new Error('ENOENT')
+    }) as typeof fs.promises.stat)
+
+    await ensureDriveRoots()
+    expect(drives(comfySearchRoots())).toEqual(['C:\\', 'D:\\'])
+    const probes = stat.mock.calls.length
+    await ensureDriveRoots()
+    expect(stat.mock.calls.length).toBe(probes)
+  })
+
+  it('a hung drive that answers late is probed again and found', async () => {
+    vi.useFakeTimers()
+    let wake: (st: fs.Stats) => void = () => {}
+    let late = true
+    vi.spyOn(fs.promises, 'stat').mockImplementation(((p: fs.PathLike) => {
+      if (p === 'E:\\' && late) return new Promise<fs.Stats>((r) => (wake = r))
+      if (p === 'E:\\') return Promise.resolve({ isDirectory: () => true } as fs.Stats)
+      return Promise.reject(new Error('ENOENT'))
+    }) as typeof fs.promises.stat)
+
+    const done = probeDriveRoots()
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(await done).toEqual([])
+
+    // The disk spins up: the pending stat settles after the timeout.
+    late = false
+    wake({ isDirectory: () => true } as fs.Stats)
+    await vi.advanceTimersByTimeAsync(0)
+
+    // The cache is stale now, so the next call starts a refresh that finds E:.
+    comfySearchRoots()
+    expect(await probeDriveRoots()).toEqual(['E:\\'])
+    expect(drives(comfySearchRoots())).toEqual(['E:\\'])
   })
 })

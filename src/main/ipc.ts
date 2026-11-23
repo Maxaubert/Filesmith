@@ -17,6 +17,7 @@ import { installPid, installComfyEngine, removePidInstall, installInProgress } f
 import { scanComfy, guessComfyFolder, findComfyPidWeights } from './comfy/discover'
 import { mergeComfyStore, readComfyStore, usableComfyModels } from './comfy/store'
 import { comfyPythonReady, clearComfyPythonCache } from './comfy/pythonEnv'
+import { ensureDriveRoots } from './comfy/roots'
 import { loadSession, saveSession, filesExist } from './session'
 import {
   generateImages,
@@ -256,6 +257,9 @@ export function registerGlobalIpc(): JobQueue {
     // Never reject: a rejected status leaves the renderer's comfy.status null,
     // which would hide the whole "ComfyUI models" option.
     try {
+      // First call after launch: wait for the bounded drive probe, so a ComfyUI
+      // on another drive is found on the first status, not the next one.
+      await ensureDriveRoots()
       const gpu = await detectNvidia()
       const support = cudaTierSupport(gpu)
       const store = readComfyStore()
@@ -343,6 +347,7 @@ export function registerGlobalIpc(): JobQueue {
     // Pick up hand-edited user registry files (registry:open-folder invites
     // exactly that) without an app restart.
     invalidateRegistryIfChanged()
+    await ensureDriveRoots()
     const scan = scanGenerationModels()
     return {
       available: await comfyGenerationAvailable(),
