@@ -218,18 +218,26 @@ export function mergeRegistryChecked(layers: { file: string; entries: RegistryEn
     for (const e of layer.entries ?? []) {
       if (!e?.id) continue
       const prev = byId.get(e.id)
-      const merged: RegistryEntry = prev
-        ? { ...prev, ...e, provenance: e.provenance ?? prev.provenance }
-        : e
-      const errs = validateEntry(merged)
-      if (errs.length) {
+      // One entry that still manages to throw (a shape validateEntry does not
+      // foresee) is skipped with a warning; the rest of the registry loads.
+      try {
+        const merged: RegistryEntry = prev
+          ? { ...prev, ...e, provenance: e.provenance ?? prev.provenance }
+          : e
+        const errs = validateEntry(merged)
+        if (errs.length) {
+          warnings.push(
+            `${layer.file}: ${errs.join('; ')}, ${prev ? 'override ignored' : 'entry skipped'}`
+          )
+          continue
+        }
+        if (!prev) order.push(e.id)
+        byId.set(e.id, merged)
+      } catch (err) {
         warnings.push(
-          `${layer.file}: ${errs.join('; ')} — ${prev ? 'override ignored' : 'entry skipped'}`
+          `${layer.file}: entry "${String(e.id)}" could not be read (${err instanceof Error ? err.message : String(err)}), ${prev ? 'override ignored' : 'entry skipped'}`
         )
-        continue
       }
-      if (!prev) order.push(e.id)
-      byId.set(e.id, merged)
     }
   }
   return { entries: order.map((id) => byId.get(id)!), warnings }
@@ -306,10 +314,15 @@ export function nameMatches(d: DetectSpec, basename: string): boolean {
 // --- companion selection ----------------------------------------------------
 
 /**
- * The companion list for a model, choosing between size-discriminated variants.
- * Byte size beats the filename by design (a 9B Flux 2 renamed without a "9b"
- * token still gets the 8B encoder), with the name as the fallback when the size
- * is unknown.
+ * The companion list for a model, choosing between name- or size-discriminated
+ * variants. The order is:
+ *   1. a non-default set whose `nameHint` matches the model name wins;
+ *   2. otherwise, when the byte size is known and the file is NOT a .gguf, the
+ *      `minBytes` rule decides (so a 9B Flux 2 fp8 file renamed without a "9b"
+ *      token still gets the 8B encoder by size);
+ *   3. otherwise the default set.
+ * A GGUF's size says nothing about the parameter count (a 9B Q4 file is smaller
+ * than a 4B fp8 one), so for GGUF files only the name is trusted.
  */
 export function selectCompanions(
   entry: RegistryEntry,
@@ -318,16 +331,20 @@ export function selectCompanions(
 ): CompanionSpec[] {
   const sets = entry.companionSets
   if (!sets?.length) return entry.companions ?? []
-  for (const s of sets) {
-    const w = s.when
-    if (!w || (w.minBytes == null && w.nameHint == null)) continue // the default
-    if (sizeBytes != null) {
-      if (w.minBytes != null && sizeBytes > w.minBytes) return s.companions
-    } else if (w.nameHint && (safeRegExp(w.nameHint)?.test(modelName) ?? false)) {
-      return s.companions
+  const isDefault = (s: CompanionSet): boolean =>
+    !s.when || (s.when.minBytes == null && s.when.nameHint == null)
+  const variants = sets.filter((s) => !isDefault(s))
+  for (const s of variants) {
+    const hint = s.when?.nameHint
+    if (hint && (safeRegExp(hint)?.test(modelName) ?? false)) return s.companions
+  }
+  if (sizeBytes != null && !/\.gguf$/i.test(modelName)) {
+    for (const s of variants) {
+      const min = s.when?.minBytes
+      if (min != null && sizeBytes > min) return s.companions
     }
   }
-  const fallback = sets.find((s) => !s.when || (s.when.minBytes == null && s.when.nameHint == null))
+  const fallback = sets.find(isDefault)
   return fallback?.companions ?? sets[sets.length - 1].companions
 }
 
@@ -409,6 +426,11 @@ export const KNOWN_PLACEHOLDERS = [
 
 const SAFE_FILENAME = /^[A-Za-z0-9._-]+$/
 
+/** A non-null, non-array object: what JSON gives for `{...}`. */
+export function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return v != null && typeof v === 'object' && !Array.isArray(v)
+}
+
 /**
  * Validate one entry. Returns the problems found; an empty array means usable.
  * These are not style checks — `subdir` and `filename` become
@@ -441,6 +463,20 @@ export function validateEntry(e: RegistryEntry): string[] {
   }
 
   const checkCompanion = (c: CompanionSpec): void => {
+    // Shape first: the entry may come from a hand-edited user file, and a null
+    // companion or a download without a urls array must be reported, not thrown.
+    if (!isPlainObject(c)) {
+      errs.push(`${e.id}: a companion is not an object`)
+      return
+    }
+    if (!isPlainObject(c.download)) {
+      errs.push(`${e.id}: companion "${c.label}" has no download`)
+      return
+    }
+    if (c.download.urls != null && !Array.isArray(c.download.urls)) {
+      errs.push(`${e.id}: companion "${c.label}" download urls is not a list`)
+      return
+    }
     if (!COMPANION_SUBDIRS.includes(c.subdir))
       errs.push(`${e.id}: companion subdir "${c.subdir}" is not allowed`)
     const f = c.download?.filename ?? ''
@@ -458,12 +494,30 @@ export function validateEntry(e: RegistryEntry): string[] {
     }
     if (!(c.download?.urls ?? []).length) errs.push(`${e.id}: companion "${c.label}" has no URL`)
   }
-  for (const c of e.companions ?? []) checkCompanion(c)
-  for (const s of e.companionSets ?? []) for (const c of s.companions ?? []) checkCompanion(c)
+  if (e.companions != null && !Array.isArray(e.companions))
+    errs.push(`${e.id}: companions is not a list`)
+  else for (const c of e.companions ?? []) checkCompanion(c)
+  if (e.companionSets != null && !Array.isArray(e.companionSets))
+    errs.push(`${e.id}: companionSets is not a list`)
+  else
+    for (const s of e.companionSets ?? []) {
+      if (!isPlainObject(s)) errs.push(`${e.id}: a companion set is not an object`)
+      else if (!Array.isArray(s.companions))
+        errs.push(`${e.id}: companion set "${s.id}" has no companions list`)
+      else for (const c of s.companions) checkCompanion(c)
+    }
 
   for (const wf of [e.workflow, e.checkpointWorkflow, e.ggufWorkflow]) {
-    if (!wf) continue
+    if (wf == null) continue
+    if (!isPlainObject(wf)) {
+      errs.push(`${e.id}: a workflow is not an object`)
+      continue
+    }
     if (wf.format !== 'comfy-api-v1') errs.push(`${e.id}: unknown workflow format "${wf.format}"`)
+    if (wf.template != null && !isPlainObject(wf.template)) {
+      errs.push(`${e.id}: workflow template is not an object`)
+      continue
+    }
     for (const [nid, node] of Object.entries(wf.template ?? {})) {
       if (!node || typeof node.class_type !== 'string' || typeof node.inputs !== 'object')
         errs.push(`${e.id}: workflow node "${nid}" is not {class_type, inputs}`)
