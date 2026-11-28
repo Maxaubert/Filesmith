@@ -26,3 +26,7 @@ engine is available as the `filesmith` command line, from a built-in console or 
 ## License
 
 [MIT](LICENSE)
+
+This covers Filesmith's own code. The installer also bundles third-party tools such as FFmpeg,
+ImageMagick, Ghostscript and LibreOffice, each under its own licence. See
+[THIRD-PARTY-NOTICES.md](resources/licenses/THIRD-PARTY-NOTICES.md).

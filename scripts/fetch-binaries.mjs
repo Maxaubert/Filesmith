@@ -220,7 +220,9 @@ function bundleMutool() {
  */
 function bundleLibreOffice() {
   const dest = join(ROOT, 'resources', 'libreoffice')
-  if (existsSync(join(dest, 'program', 'soffice.exe'))) {
+  // `--pinned` always rebuilds the tree from the pinned download, so a stale
+  // local tree cannot ride into a release build.
+  if (!PIN && existsSync(join(dest, 'program', 'soffice.exe'))) {
     log('  ✓ LibreOffice: already bundled')
     return
   }
@@ -254,7 +256,7 @@ function bundleLibreOffice() {
  */
 async function bundleGhostscript() {
   const dest = join(ROOT, 'resources', 'ghostscript')
-  if (existsSync(join(dest, 'bin', 'gswin64c.exe'))) {
+  if (!PIN && existsSync(join(dest, 'bin', 'gswin64c.exe'))) {
     log('  ✓ Ghostscript: already bundled')
     return
   }
@@ -335,7 +337,12 @@ const REALESRGAN_MODELS = ['realesrgan-x4plus', 'realesrgan-x4plus-anime']
 async function bundleRealesrgan() {
   const dest = join(ROOT, 'resources', 'realesrgan')
   const EXE = 'realesrgan-ncnn-vulkan.exe'
-  if (existsSync(join(dest, EXE))) {
+  // The release zip also carries vcomp140d.dll, the DEBUG OpenMP runtime. The
+  // exe imports only VCOMP140.DLL, and the debug runtime is not redistributable.
+  const NOT_SHIPPED = 'vcomp140d.dll'
+  if (!PIN && existsSync(join(dest, EXE))) {
+    // Clean trees bundled before the debug runtime was filtered out.
+    rmSync(join(dest, NOT_SHIPPED), { force: true })
     log('  ✓ Real-ESRGAN: already bundled')
     return
   }
@@ -345,7 +352,8 @@ async function bundleRealesrgan() {
     rmSync(dest, { recursive: true, force: true })
     mkdirSync(join(dest, 'models'), { recursive: true })
     for (const f of readdirSync(root))
-      if (f === EXE || f.endsWith('.dll')) cpSync(join(root, f), join(dest, f))
+      if (f === EXE || (f.toLowerCase().endsWith('.dll') && f.toLowerCase() !== NOT_SHIPPED))
+        cpSync(join(root, f), join(dest, f))
     const src = join(root, 'models')
     for (const m of REALESRGAN_MODELS)
       for (const ext of ['.bin', '.param'])

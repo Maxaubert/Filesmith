@@ -46,6 +46,7 @@ const REQUIRED = [
   ['bin/7z.exe', 'archive tools'],
   ['bin/7z.dll', 'archive tools'],
   ['bin/7-Zip-License.txt', '7-Zip licence (LGPL + unRAR terms must ship)'],
+  ['licenses/THIRD-PARTY-NOTICES.md', 'third-party licence notices must ship'],
   ['libreoffice/program/soffice.exe', 'document conversion'],
   ['libreoffice/program/soffice.com', 'document conversion (console launcher)'],
   ['ghostscript/bin/gswin64c.exe', 'PDF compress (non-lossless levels)'],
@@ -65,9 +66,16 @@ const REQUIRED = [
   ['skill/filesmith/reference.md', 'the Claude Code skill reference']
 ]
 
+/** [relative path, why it must not ship] */
+const FORBIDDEN = [
+  ['realesrgan/vcomp140d.dll', 'debug OpenMP runtime, not redistributable and unused']
+]
+
 const failures = []
 for (const [rel, what] of REQUIRED)
   if (!existsSync(join(root, rel))) failures.push(`missing ${rel} (breaks ${what})`)
+for (const [rel, why] of FORBIDDEN)
+  if (existsSync(join(root, rel))) failures.push(`${rel} must not ship (${why})`)
 
 // The essentials ffmpeg is ~100 MB; the "full" build (~227 MB) must not leak in.
 for (const f of ['bin/ffmpeg.exe', 'bin/ffprobe.exe']) {
