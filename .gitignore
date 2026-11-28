@@ -28,6 +28,9 @@ build/logo-mockups/
 channel-private.pem
 channel.json
 
+# Screenshots of the built app, rewritten by e2e/visual.spec.ts with FILESMITH_SHOTS=1.
+docs/mockups/**/shots/impl-*.png
+
 # Playwright artifacts
 test-results
 playwright-report

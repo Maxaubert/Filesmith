@@ -88,7 +88,7 @@ e2e/           Playwright specs      test/  Vitest      scripts/  fetch, verify,
 - `npm run package` - electron-vite build + electron-builder NSIS installer to `dist/`.
 - `npm run test:e2e` - Playwright end-to-end (launches the built app via `_electron`; run
   `npm run build` first). Covers the preload/IPC/engine chain unit tests can't reach.
-  `FILESMITH_SHOTS=1` also refreshes the tracked `impl-*` shots in `docs/mockups`.
+  `FILESMITH_SHOTS=1` also writes screenshots into `docs/mockups` (`impl-*` ones are gitignored).
 - `npm run cli -- <args>` runs the command line from `out/main/cli.js` (build first). Reference:
   `docs/cli.md`. The engine never imports `electron`; it reads paths from `src/main/env.ts`.
 - Releases: push to main runs `.github/workflows/release.yml` (gates, then requires a NEW

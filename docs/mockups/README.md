@@ -10,19 +10,20 @@ against. Open the `.html` files directly in a browser. The design rules and feed
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `terminal-v5/10-s2-vscode-grouped.html`   | The signed-off app design (2026-10-04): dark, monochrome, files table, right inspector.                                              |
 | `terminal-v5/shots/10-s2-vscode-grouped.png` | Screenshot of that mockup.                                                                                                       |
-| `terminal-v5/shots/impl-*.png`            | The built app next to the mockup. Written by `e2e/visual.spec.ts`.                                                                  |
+| `terminal-v5/shots/impl-*.png`            | The built app next to the mockup. Written by `e2e/visual.spec.ts`. Local only, not tracked.                                                                  |
 | `view-zoom/04-explorer-style.html`        | The chosen view sizes design (2026-10-05). Interactive: Ctrl+wheel, `#size=0..4`, `#menu`.                                          |
 | `view-zoom/shots/04-explorer-style-*.png` | Screenshots of that mockup, one per size plus the View menu.                                                                        |
-| `view-zoom/shots/impl-*.png`              | The built app at each size. Written by `e2e/visual.spec.ts`.                                                                        |
+| `view-zoom/shots/impl-*.png`              | The built app at each size. Written by `e2e/visual.spec.ts`. Local only, not tracked.                                                                        |
 | `console/01-bottom-panel.html`            | The chosen console design (2026-10-06). Interactive: `#state=closed`, `open-idle`, `running`, `error`, `rejected`, `completion`, `history`. |
 | `console/shots/01-bottom-panel-*.png`     | Screenshots of that mockup, one per state.                                                                                          |
-| `console/shots/impl-*.png`                | The built console. Written by `e2e/visual.spec.ts`.                                                                                 |
+| `console/shots/impl-*.png`                | The built console. Written by `e2e/visual.spec.ts`. Local only, not tracked.                                                                                 |
 | `generate-empty/*.png`                    | The Generate screen with no model, before and after, plus Settings. `after.png` and `settings.png` are written by `e2e/generate-empty.spec.ts`. |
 | `output-options/01-output-options.html`   | The chosen output options (2026-10-26): Location dropdown with the folder picker inside, Replace originals, Rename, Metadata. Interactive. |
 | `cli-settings-skill.png`                  | Settings with the CLI and Claude skill section. Written by `e2e/skill.spec.ts`.                                                     |
 
-The `impl-*` and spec-written shots are refreshed with `FILESMITH_SHOTS=1 npm run test:e2e` after
-`npm run build`.
+The `impl-*` and spec-written shots are written with `FILESMITH_SHOTS=1 npm run test:e2e` after
+`npm run build`. The `impl-*` shots are gitignored, because every run rewrites them. The other shots
+are tracked.
 
 ## Removed rounds
 
