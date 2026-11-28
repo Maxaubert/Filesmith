@@ -15,12 +15,12 @@ import { tmpdir } from 'os'
 import { basename, join } from 'path'
 import {
   FFMPEG,
-  FFPROBE,
   MAGICK,
   MAIN,
   MUTOOL,
   SEVENZIP,
   magickEnv,
+  mediaStreams,
   runJob,
   launchApp
 } from './helpers'
@@ -31,7 +31,7 @@ import {
 // synthesized into one temp dir (outputs land beside their sources, so the
 // teardown sweep removes everything the suite produced).
 
-const binariesPresent = [MAGICK, FFMPEG, FFPROBE, MUTOOL, SEVENZIP].every(existsSync)
+const binariesPresent = [MAGICK, FFMPEG, MUTOOL, SEVENZIP].every(existsSync)
 
 let app: ElectronApplication
 let page: Page
@@ -44,12 +44,6 @@ const magick = (args: string[]): string =>
 const ffmpeg = (args: string[]): void => {
   execFileSync(FFMPEG, ['-y', '-loglevel', 'error', ...args], { stdio: 'pipe' })
 }
-const ffprobeJson = (args: string[]): unknown =>
-  JSON.parse(
-    execFileSync(FFPROBE, ['-v', 'quiet', '-print_format', 'json', ...args], {
-      encoding: 'utf-8'
-    })
-  )
 const sevenZip = (args: string[], cwd?: string): string =>
   execFileSync(SEVENZIP, args, { cwd, encoding: 'utf-8' })
 /** Entry names inside an archive, via `7z l -slt` (the first Path is the
@@ -339,10 +333,7 @@ test('video convert: mp4 -> mkv and a palette GIF', async () => {
 
   const gif = await runJob(page, 'convert', join(dir, 'clip854.mp4'), { format: '.gif' })
   expect(gif.status).toBe('done')
-  const info = ffprobeJson(['-show_streams', gif.outputPath!]) as {
-    streams: { codec_name: string }[]
-  }
-  expect(info.streams[0].codec_name).toBe('gif')
+  expect(mediaStreams(gif.outputPath!)[0].codec_name).toBe('gif')
 })
 
 test('video compress: the 25% scale position that used to abort now encodes evenly', async () => {
@@ -353,10 +344,7 @@ test('video compress: the 25% scale position that used to abort now encodes even
     scale: 25
   })
   expect(e.status).toBe('done')
-  const info = ffprobeJson(['-show_streams', e.outputPath!]) as {
-    streams: { width?: number; height?: number }[]
-  }
-  const v = info.streams.find((s) => s.width)
+  const v = mediaStreams(e.outputPath!).find((s) => s.width)
   expect((v!.width! % 2) + (v!.height! % 2)).toBe(0)
   expect(v!.width).toBe(212)
 })
@@ -367,11 +355,8 @@ test('audio compress keep-format: cover art is stream-copied, not blown up', asy
   const src = join(dir, 'covered.mp3')
   const e = await runJob(page, 'compress', src, { audioCodec: 'keep', audioBitrate: 96 })
   expect(e.status).toBe('done')
-  const info = ffprobeJson(['-show_streams', e.outputPath!]) as {
-    streams: { codec_type: string; codec_name: string }[]
-  }
   // The attached picture is still there, still PNG (copied, not re-encoded).
-  const pic = info.streams.find((s) => s.codec_type === 'video')
+  const pic = mediaStreams(e.outputPath!).find((s) => s.codec_type === 'video')
   expect(pic?.codec_name).toBe('png')
   // And the "compressed" file did not balloon past its source.
   expect(statSync(e.outputPath!).size).toBeLessThan(statSync(src).size * 1.5)

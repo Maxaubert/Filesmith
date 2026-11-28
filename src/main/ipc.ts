@@ -209,7 +209,7 @@ export function registerGlobalIpc(): JobQueue {
   }))
   // Video DISPLAY dimensions (rotation-aware) for the compress scale preview.
   ipcMain.handle('video:dimensions', (_e, p: string) => probeDimensions(p))
-  // Images go through ImageMagick instead: ffprobe rejects very large ones and
+  // Images go through ImageMagick instead: ffmpeg's probe rejects very large ones and
   // can't read svg/jxl/heic at all.
   ipcMain.handle('image:dimensions', (_e, p: string) => probeImageDimensions(p))
 

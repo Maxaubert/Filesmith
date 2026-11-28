@@ -156,7 +156,7 @@ export default function App(): JSX.Element {
   const requested = useRef<Set<string>>(new Set())
   const outRequested = useRef<Set<string>>(new Set())
   const bigRequested = useRef<Set<string>>(new Set())
-  // Cached video dimensions (via ffprobe) for the compress resolution preview.
+  // Cached video dimensions (via ffmpeg) for the compress resolution preview.
   const [vDims, setVDims] = useState<Record<string, { width: number; height: number } | null>>({})
   const vDimsRequested = useRef<Set<string>>(new Set())
   // Oversize-upscale confirmation, and the flag that lets the confirmed run through.
@@ -989,7 +989,7 @@ export default function App(): JSX.Element {
     : activeKind
 
   // Live "input → output" resolution list for the video Compress options. Probe
-  // each selected video's dimensions once (via ffprobe) and recompute the output
+  // each selected video's dimensions once (via ffmpeg) and recompute the output
   // size for the chosen preset.
   // Upscale reuses the same probe cache to preview the (much larger) result size.
   const probePaths =
@@ -1029,7 +1029,7 @@ export default function App(): JSX.Element {
     for (const [p, kind] of Object.entries(probeKinds)) {
       if (p in vDims || vDimsRequested.current.has(p)) continue
       vDimsRequested.current.add(p)
-      // Images resolve via ImageMagick, video via ffprobe (rotation-aware).
+      // Images resolve via ImageMagick, video via ffmpeg (rotation-aware).
       const probe =
         kind === 'image' ? window.filesmith.imageDimensions(p) : window.filesmith.videoDimensions(p)
       void probe.then((d) => {
@@ -1080,7 +1080,7 @@ export default function App(): JSX.Element {
       ? probePaths.map((p) => {
           const d = vDims[p]
           const name = baseName(p)
-          // A null probe means ffprobe can't read it (heic, svg…). It still
+          // A null probe means ffmpeg can't read it (heic, svg…). It still
           // upscales (magick pre-converts), we just can't predict the size.
           if (!d) return { path: p, name, from: '…', to: '…' }
           const o = upscaledSize(d.width, d.height, upscaleFactor)

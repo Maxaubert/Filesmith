@@ -46,7 +46,7 @@ const api = {
   reveal: (path: string): void => ipcRenderer.send('reveal', path),
   /** Open a file in its OS-default app. */
   openFile: (path: string): void => ipcRenderer.send('file:open', path),
-  /** Video pixel dimensions (via ffprobe) for the resolution-preview list. */
+  /** Video pixel dimensions (via ffmpeg) for the resolution-preview list. */
   videoDimensions: (path: string): Promise<{ width: number; height: number } | null> =>
     ipcRenderer.invoke('video:dimensions', path),
   /** Image pixel dimensions (via ImageMagick) for the upscale output preview. */
