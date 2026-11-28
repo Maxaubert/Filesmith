@@ -4,8 +4,9 @@ Filesmith's own code is under the MIT License (see `LICENSE` in the source repos
 https://github.com/Maxaubert/Filesmith).
 
 The Windows installer also bundles the third-party programs listed below. Each one keeps its
-own licence. Filesmith runs these programs unmodified, as separate processes, and passes them
-command-line arguments. It does not link to them.
+own licence. Filesmith does not change their code (some unused LibreOffice files are left out, see
+its section). It runs them as separate processes and passes them command-line arguments. It does
+not link to them.
 
 The installed app keeps this file in `resources\licenses\`. The full licence texts are in
 `resources\licenses\texts\`, unless a section names another file.
@@ -15,7 +16,7 @@ The versions below are the ones the release build downloads and checks by SHA-25
 
 ## Bundled programs
 
-### FFmpeg (ffmpeg.exe, ffprobe.exe)
+### FFmpeg (ffmpeg.exe)
 
 - Version: 9.0.2, "essentials" build by Gyan Doshi (gyan.dev)
 - Licence: GPL-3.0-or-later. The build is configured with `--enable-gpl --enable-version3`
@@ -26,7 +27,7 @@ The versions below are the ones the release build downloads and checks by SHA-25
 - Build page: https://www.gyan.dev/ffmpeg/builds/
 - Binary we bundle: https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.7z
 - Source: see "Source code offer" below.
-- Installed at: `resources\bin\ffmpeg.exe`, `resources\bin\ffprobe.exe`
+- Installed at: `resources\bin\ffmpeg.exe`
 
 ### MuPDF (mutool.exe)
 
@@ -114,6 +115,13 @@ The versions below are the ones the release build downloads and checks by SHA-25
 - Binary we bundle: https://downloadarchive.documentfoundation.org/libreoffice/old/26.2.4.2/win/x86_64/LibreOffice_26.2.4.2_Win_x86-64.msi
 - Source: https://downloadarchive.documentfoundation.org/libreoffice/old/26.2.4.2/src/
 - Installed at: `resources\libreoffice\`
+- Parts removed: to make the installer smaller, Filesmith leaves out files that headless
+  conversion does not use: help, clip art, menu templates, wizards, sample macros, all icon
+  themes except Colibre, the Java classes and Java extensions, the embedded Python (with the
+  English grammar checker), the Explorer shell extensions, and the spelling and thesaurus data.
+  The remaining files are unchanged, except that the English dictionary extension's manifest no
+  longer lists the grammar checker. The licence and notice files of what remains are kept. The
+  exact list is in `scripts/fetch-binaries.mjs` (`trimLibreOffice`).
 
 ### Real-ESRGAN ncnn Vulkan (realesrgan-ncnn-vulkan.exe and two models)
 

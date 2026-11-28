@@ -211,7 +211,6 @@ export function resolveUv(): string | null {
 const MISSING_TOOL_HELP: Record<string, string> = {
   magick: 'The image engine (ImageMagick) is missing from this installation. Reinstall Filesmith.',
   ffmpeg: 'The media engine (ffmpeg) is missing from this installation. Reinstall Filesmith.',
-  ffprobe: 'The media engine (ffprobe) is missing from this installation. Reinstall Filesmith.',
   mutool: 'The PDF engine (mutool) is missing from this installation. Reinstall Filesmith.',
   caesiumclt:
     'The image compressor (CaesiumCLT) is missing from this installation. Reinstall Filesmith.',

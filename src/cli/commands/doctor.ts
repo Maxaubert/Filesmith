@@ -63,7 +63,6 @@ export interface DoctorDeps {
 const SETUP_COMFY = 'filesmith setup comfy --folder "<ComfyUI folder>"'
 const CORE: [string, string[], string][] = [
   ['ffmpeg', ['-version'], 'video and audio'],
-  ['ffprobe', ['-version'], 'video sizes and durations'],
   ['magick', ['-version'], 'every image job'],
   ['mutool', ['-v'], 'the PDF tools'],
   ['caesiumclt', ['--version'], 'image compress'],

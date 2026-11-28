@@ -85,6 +85,28 @@ describe('bundle hygiene in the build scripts', () => {
     expect(read('scripts/verify-bundle.mjs')).toContain("'realesrgan/vcomp140d.dll'")
   })
 
+  it('trims LibreOffice on every path and keeps what conversion and licences need', () => {
+    const list = /const LO_UNUSED = \[([\s\S]*?)\n\]/.exec(fetch)?.[1]
+    expect(list).toBeTruthy()
+    const paths = [...list!.matchAll(/^ {2}'([^']+)'/gm)].map((m) => m[1])
+    expect(paths).toContain('share/gallery')
+    expect(fetch).toContain('COPYING-ICONS')
+    // html.oth is loaded for every HTML source; licences must ship.
+    const keep = [
+      'share/template/common/internal/html.oth',
+      'share/template/common/styles/Default.ott',
+      'share/xpdfimport/poppler_data',
+      'LICENSE.html',
+      'license.txt',
+      'NOTICE'
+    ]
+    for (const k of keep)
+      for (const p of paths) expect(k === p || k.startsWith(p + '/')).toBe(false)
+    // Both the fresh copy and an already bundled tree are trimmed.
+    expect(fetch.match(/^ +trimLibreOffice\(dest\)/gm)?.length).toBe(2)
+    expect(read(NOTICES)).toContain('trimLibreOffice')
+  })
+
   it('--pinned rebuilds every tree instead of keeping an "already bundled" one', () => {
     // Each early return for an existing tree must be skipped when PIN is set.
     const guards = [

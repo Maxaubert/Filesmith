@@ -92,7 +92,7 @@ export const PINNED = {
  * @property {string} magickDir     folder holding magick.exe, its DLLs and modules/
  * @property {string} caesiumExe
  * @property {string} sevenZipDir   folder holding 7z.exe, 7z.dll, License.txt
- * @property {string} ffmpegBinDir  folder holding ffmpeg.exe + ffprobe.exe
+ * @property {string} ffmpegBinDir  folder holding ffmpeg.exe
  * @property {string} mutoolExe
  * @property {string} libreOfficeDir  install root (program/soffice.exe inside)
  * @property {string} ghostscriptDir  root with bin/ lib/ Resource/ iccprofiles/
@@ -175,7 +175,6 @@ export async function stagePinnedTools(stage, { allowInstall }) {
   const ffmpegDir = extract(await download('ffmpeg', join(dl, 'ffmpeg.7z')), join(stage, 'ffmpeg'))
   const ffmpegBinDir = join(onlySubdir(ffmpegDir), 'bin')
   mustExist(join(ffmpegBinDir, 'ffmpeg.exe'), 'ffmpeg')
-  mustExist(join(ffmpegBinDir, 'ffprobe.exe'), 'ffprobe')
 
   const mutoolDir = extract(await download('mutool', join(dl, 'mupdf.zip')), join(stage, 'mupdf'))
   const mutoolExe = mustExist(join(onlySubdir(mutoolDir), 'mutool.exe'), 'mutool')

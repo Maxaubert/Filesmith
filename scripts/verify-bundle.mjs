@@ -40,7 +40,6 @@ const REQUIRED = [
   ['bin/modules/coders/IM_MOD_RL_jpeg_.dll', 'magick JPEG decode/encode'],
   ['bin/modules/coders/IM_MOD_RL_webp_.dll', 'magick WebP decode/encode'],
   ['bin/ffmpeg.exe', 'video/audio convert and compress'],
-  ['bin/ffprobe.exe', 'video resolution preview'],
   ['bin/caesiumclt.exe', 'image compress'],
   ['bin/mutool.exe', 'PDF tools'],
   ['bin/7z.exe', 'archive tools'],
@@ -49,6 +48,12 @@ const REQUIRED = [
   ['licenses/THIRD-PARTY-NOTICES.md', 'third-party licence notices must ship'],
   ['libreoffice/program/soffice.exe', 'document conversion'],
   ['libreoffice/program/soffice.com', 'document conversion (console launcher)'],
+  ['libreoffice/share/template/common/internal/html.oth', 'HTML sources lose their layout'],
+  ['libreoffice/share/extensions/dict-en/hyph_en_US.dic', 'hyphenation moves line breaks'],
+  ['libreoffice/LICENSE.html', 'LibreOffice licence texts must ship'],
+  ['libreoffice/license.txt', 'LibreOffice licence texts must ship'],
+  ['libreoffice/NOTICE', 'LibreOffice notices must ship'],
+  ['libreoffice/help/media/icon-themes/COPYING-ICONS', 'the icon theme licence must ship'],
   ['ghostscript/bin/gswin64c.exe', 'PDF compress (non-lossless levels)'],
   ['ghostscript/Resource', 'Ghostscript fonts/init'],
   ['realesrgan/realesrgan-ncnn-vulkan.exe', 'AI upscale'],
@@ -68,6 +73,8 @@ const REQUIRED = [
 
 /** [relative path, why it must not ship] */
 const FORBIDDEN = [
+  ['bin/ffprobe.exe', 'not used, about 100 MB'],
+  ['libreoffice/help/index.html', 'the LibreOffice trim did not run'],
   ['realesrgan/vcomp140d.dll', 'debug OpenMP runtime, not redistributable and unused']
 ]
 
@@ -78,12 +85,10 @@ for (const [rel, why] of FORBIDDEN)
   if (existsSync(join(root, rel))) failures.push(`${rel} must not ship (${why})`)
 
 // The essentials ffmpeg is ~100 MB; the "full" build (~227 MB) must not leak in.
-for (const f of ['bin/ffmpeg.exe', 'bin/ffprobe.exe']) {
-  const p = join(root, f)
-  if (existsSync(p) && statSync(p).size > 120 * MB)
-    failures.push(
-      `${f} is ${(statSync(p).size / MB).toFixed(0)} MB: the "full" ffmpeg build leaked in`
-    )
+const ffmpeg = join(root, 'bin', 'ffmpeg.exe')
+if (existsSync(ffmpeg) && statSync(ffmpeg).size > 120 * MB) {
+  const size = (statSync(ffmpeg).size / MB).toFixed(0)
+  failures.push(`bin/ffmpeg.exe is ${size} MB: the "full" ffmpeg build leaked in`)
 }
 
 // Git Bash cannot run the sh shim with CRLF endings ("$'\r': command not found").
@@ -183,7 +188,6 @@ try {
     magickEnv
   )
   await smoke('ffmpeg', join(bin, 'ffmpeg.exe'), ['-hide_banner', '-version'])
-  await smoke('ffprobe', join(bin, 'ffprobe.exe'), ['-hide_banner', '-version'])
   await smoke('caesiumclt', join(bin, 'caesiumclt.exe'), ['--version'])
   await smoke('mutool', join(bin, 'mutool.exe'), ['-v'])
   await smoke('7z', join(bin, '7z.exe'), ['i'])
@@ -196,6 +200,23 @@ try {
     '--norestore',
     '--version'
   ])
+  // --version loads very little. A real conversion shows the trimmed tree works.
+  const html = join(tmp, 'doc.html')
+  writeFileSync(html, '<html><body><h1>Filesmith</h1><p>check</p></body></html>')
+  const so = join(root, 'libreoffice', 'program', 'soffice.com')
+  await smoke('libreoffice HTML to PDF', so, [
+    `-env:UserInstallation=${profile}`,
+    '--headless',
+    '--norestore',
+    '--convert-to',
+    'pdf',
+    '--outdir',
+    tmp,
+    html
+  ])
+  // soffice exits 0 even when it converts nothing.
+  if (existsSync(so) && !existsSync(join(tmp, 'doc.pdf')))
+    failures.push('libreoffice HTML to PDF: no PDF was written')
 } finally {
   rmSync(tmp, { recursive: true, force: true })
 }

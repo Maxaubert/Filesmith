@@ -21,7 +21,7 @@
  *    large to ship — so we fetch the leaner essentials build instead.
  *  - mutool (PDF ops): a single static exe, copied from the local install.
  *  - LibreOffice (document conversion): the whole install tree copied into
- *    resources/libreoffice (~350 MB) — bundled so doc conversion works offline.
+ *    resources/libreoffice, then trimmed (about 500 MB) so doc conversion works offline.
  *
  * Install the copy-sourced tools first if missing:
  *   winget install ImageMagick.ImageMagick SaeraSoft.CaesiumCLT ArtifexSoftware.mutool
@@ -39,6 +39,7 @@ import {
   writeFileSync,
   rmSync,
   readdirSync,
+  readFileSync,
   statSync
 } from 'node:fs'
 import { execFileSync } from 'node:child_process'
@@ -144,10 +145,12 @@ function bundleSevenZip() {
 
 /** ffmpeg: download the smaller "essentials" static build and extract ffmpeg.exe. */
 async function bundleFfmpeg() {
+  // Older trees also carried ffprobe.exe. electron-builder packs all of
+  // resources/bin, so a leftover copy would still ship.
+  rmSync(join(BIN, 'ffprobe.exe'), { force: true })
   if (PIN) {
-    for (const f of ['ffmpeg.exe', 'ffprobe.exe'])
-      copyFileSync(join(PIN.ffmpegBinDir, f), join(BIN, f))
-    log(`  ✓ ffmpeg: ffmpeg.exe + ffprobe.exe (${mb(join(BIN, 'ffmpeg.exe'))} MB, pinned)`)
+    copyFileSync(join(PIN.ffmpegBinDir, 'ffmpeg.exe'), join(BIN, 'ffmpeg.exe'))
+    log(`  ✓ ffmpeg: ffmpeg.exe (${mb(join(BIN, 'ffmpeg.exe'))} MB, pinned)`)
     return
   }
   const url = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
@@ -170,20 +173,15 @@ async function bundleFfmpeg() {
     )
     if (!top) throw new Error('extracted ffmpeg folder not found')
     copyFileSync(join(tmp, top, 'bin', 'ffmpeg.exe'), join(BIN, 'ffmpeg.exe'))
-    // ffprobe (from the same build) reads video dimensions for the compress
-    // resolution preview.
-    copyFileSync(join(tmp, top, 'bin', 'ffprobe.exe'), join(BIN, 'ffprobe.exe'))
-    log(`  ✓ ffmpeg: ffmpeg.exe + ffprobe.exe (${mb(join(BIN, 'ffmpeg.exe'))} MB)`)
+    log(`  ✓ ffmpeg: ffmpeg.exe (${mb(join(BIN, 'ffmpeg.exe'))} MB)`)
   } catch (e) {
     log(`  ! ffmpeg download failed (${e.message})`)
     // The local winget build is the ~227 MB "full" static one. Falling back to
     // it silently once produced a 553 MB installer, so the fallback is opt-in.
     if (process.argv.includes('--allow-local-ffmpeg')) {
       const local = which('ffmpeg')
-      const localProbe = which('ffprobe')
       if (local) {
         copyFileSync(local, join(BIN, 'ffmpeg.exe'))
-        if (localProbe) copyFileSync(localProbe, join(BIN, 'ffprobe.exe'))
         log(
           `  ✓ ffmpeg: copied local build (${mb(join(BIN, 'ffmpeg.exe'))} MB — larger than essentials)`
         )
@@ -211,9 +209,99 @@ function bundleMutool() {
 }
 
 /**
+ * Parts of the LibreOffice tree that headless `--convert-to` never loads,
+ * relative to the tree root. Anything doubtful stays, and so do every licence
+ * and notice file. After changing this list, or bumping LibreOffice, convert
+ * every document source to every target with the trimmed and the full tree and
+ * compare the results.
+ */
+const LO_UNUSED = [
+  'share/gallery', // clip art for the Insert > Gallery panel
+  // Templates a user picks in File > New. common/internal stays: html.oth is
+  // loaded for every HTML source. So do the default styles (styles, l10n).
+  'share/template/common/draw',
+  'share/template/common/officorr',
+  'share/template/common/offimisc',
+  'share/template/common/personal',
+  'share/template/common/presnt',
+  'share/template/common/wizard',
+  'share/template/wizard',
+  'share/wizards', // the letter, fax and agenda wizards
+  'share/extensions/nlpsolver', // a Java solver for Calc's Tools menu
+  'share/extensions/wiki-publisher', // a Java "send to MediaWiki" export
+  'share/Scripts', // sample macros
+  'program/classes', // Java classes; no Java runtime is bundled
+  'program/shlxthdl', // Explorer shell extensions; the tree is never registered
+  'program/__pycache__'
+]
+
+/** The embedded Python, which only macros, wizards and Python add-ons use. */
+const LO_PYTHON = /^(python-core-[\d.]+|python[\w.]*\.(exe|dll)|pythonloader.*|pyuno.*|.*\.py)$/i
+
+/** Delete what `LO_UNUSED` and the rules below name. Safe to run again. */
+function trimLibreOffice(dest) {
+  const drop = (...parts) => rmSync(join(dest, ...parts), { recursive: true, force: true })
+  const list = (...parts) => {
+    const dir = join(dest, ...parts)
+    return existsSync(dir) ? readdirSync(dir) : []
+  }
+  for (const rel of LO_UNUSED) drop(...rel.split('/'))
+  // The built-in help pages, all but the licence of the icon themes.
+  const dropAllBut = (keep, ...dir) => {
+    for (const f of list(...dir)) if (f !== keep) drop(...dir, f)
+  }
+  dropAllBut('media', 'help')
+  dropAllBut('icon-themes', 'help', 'media')
+  for (const f of list('help', 'media', 'icon-themes'))
+    if (!/^(COPYING-ICONS|README\.txt)$/.test(f)) drop('help', 'media', 'icon-themes', f)
+  for (const f of list('program')) if (LO_PYTHON.test(f)) drop('program', f)
+  // Toolbar and menu icons: keep the default theme (Colibre), drop the others.
+  for (const f of list('share', 'config'))
+    if (/^images_.*\.zip$/.test(f) && !f.startsWith('images_colibre')) drop('share', 'config', f)
+  for (const ext of list('share', 'extensions')) {
+    if (!ext.startsWith('dict-')) continue
+    // Hyphenation (hyph_*.dic) moves line breaks, so it stays. Spelling and
+    // thesaurus data never change a converted file. Licences and READMEs stay.
+    for (const f of list('share', 'extensions', ext)) {
+      const data = /\.(aff|dic|dat|idx)$/i.test(f) && !/^hyph/i.test(f)
+      if (data) drop('share', 'extensions', ext, f)
+    }
+  }
+  // The English grammar checker is a Python add-on; take it out of the
+  // extension's manifest too, so LibreOffice does not try to load it.
+  const en = join(dest, 'share', 'extensions', 'dict-en')
+  const manifest = join(en, 'META-INF', 'manifest.xml')
+  if (existsSync(manifest)) {
+    const kept = readFileSync(manifest, 'utf8').replace(
+      /[ \t]*<manifest:file-entry\b[^>]*(Lightproof|Linguistic\.xcu|dialog\/)[^>]*\/>\r?\n?/g,
+      ''
+    )
+    writeFileSync(manifest, kept)
+  }
+  for (const f of [
+    'Lightproof.py',
+    'Lightproof.components',
+    'Linguistic.xcu',
+    'pythonpath',
+    'dialog'
+  ])
+    drop('share', 'extensions', 'dict-en', f)
+}
+
+/** Total size of a folder in bytes. */
+function treeSize(dir) {
+  let total = 0
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name)
+    total += e.isDirectory() ? treeSize(p) : statSync(p).size
+  }
+  return total
+}
+
+/**
  * Bundle the whole LibreOffice tree into resources/libreoffice so document
- * conversion works offline with zero user setup (~360 MB — the "bundle it"
- * tradeoff). Copies from a local install (the reliable source, same pattern as
+ * conversion works offline with zero user setup (about 500 MB after the trim,
+ * the "bundle it" tradeoff). Copies from a local install (the reliable source, same pattern as
  * the other bundled tools). A downloaded MSI can't be used directly: its admin
  * image (`msiexec /a`) leaves a corrupt bootstrap.ini and won't run — a real
  * install (or LibreOffice Portable) is required to copy from.
@@ -223,7 +311,8 @@ function bundleLibreOffice() {
   // `--pinned` always rebuilds the tree from the pinned download, so a stale
   // local tree cannot ride into a release build.
   if (!PIN && existsSync(join(dest, 'program', 'soffice.exe'))) {
-    log('  ✓ LibreOffice: already bundled')
+    trimLibreOffice(dest) // trees bundled before the trim
+    log(`  ✓ LibreOffice: already bundled (${(treeSize(dest) / MB).toFixed(0)} MB)`)
     return
   }
   // A local install or a LibreOffice Portable "App/libreoffice" tree.
@@ -244,7 +333,8 @@ function bundleLibreOffice() {
   log('  … copying LibreOffice tree (~360 MB, this takes a moment)…')
   rmSync(dest, { recursive: true, force: true })
   cpSync(src, dest, { recursive: true })
-  log(`  ✓ LibreOffice: bundled from ${src}`)
+  trimLibreOffice(dest)
+  log(`  ✓ LibreOffice: bundled from ${src} (${(treeSize(dest) / MB).toFixed(0)} MB trimmed)`)
 }
 
 /**
@@ -465,15 +555,7 @@ function markSkipped(id) {
 function assertBundled() {
   const missing = []
 
-  const required = [
-    'magick.exe',
-    'ffmpeg.exe',
-    'ffprobe.exe',
-    'caesiumclt.exe',
-    'mutool.exe',
-    '7z.exe',
-    '7z.dll'
-  ]
+  const required = ['magick.exe', 'ffmpeg.exe', 'caesiumclt.exe', 'mutool.exe', '7z.exe', '7z.dll']
   for (const f of required)
     if (!existsSync(join(BIN, f)))
       missing.push({
@@ -486,15 +568,13 @@ function assertBundled() {
   // per exe. Existence alone once let a stale full build ride into a 553 MB
   // installer, so size is part of the contract.
   const FFMPEG_CEILING = 120 * MB
-  for (const f of ['ffmpeg.exe', 'ffprobe.exe']) {
-    const p = join(BIN, f)
-    if (existsSync(p) && statSync(p).size > FFMPEG_CEILING)
-      missing.push({
-        id: f,
-        what: `installer size (${mb(p)} MB — the "full" build leaked in)`,
-        how: 'delete resources/bin/ffmpeg.exe + ffprobe.exe and re-run to fetch essentials, or pass --allow-local-ffmpeg deliberately'
-      })
-  }
+  const ffmpeg = join(BIN, 'ffmpeg.exe')
+  if (existsSync(ffmpeg) && statSync(ffmpeg).size > FFMPEG_CEILING)
+    missing.push({
+      id: 'ffmpeg.exe',
+      what: `installer size (${mb(ffmpeg)} MB, the "full" build leaked in)`,
+      how: 'delete resources/bin/ffmpeg.exe and re-run to fetch essentials, or pass --allow-local-ffmpeg deliberately'
+    })
 
   // A small magick.exe is the modules build: it decodes nothing without its
   // coder DLLs. A static build (~30+ MB) compiles them in and needs no tree.
