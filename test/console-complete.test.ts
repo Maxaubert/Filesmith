@@ -48,6 +48,7 @@ describe('completionContext', () => {
     expect(completionContext('convert sub\\IMG', cat, B)).toEqual({
       kind: 'files',
       prefix: 'sub\\IMG',
+      start: 8,
       dir: 'sub\\',
       name: 'IMG'
     })
@@ -70,17 +71,62 @@ describe('fileItems and applyCompletion', () => {
     expect(items).toEqual([{ value: 'Album\\', detail: 'folder' }])
   })
   it('replaces the typed word, quotes spaces, adds a space unless a folder', () => {
-    expect(applyCompletion('convert *.heic --t', 18, '--t', '--to')).toEqual({
+    expect(applyCompletion('convert *.heic --t', 18, 15, '--to')).toEqual({
       text: 'convert *.heic --to ',
       caret: 20
     })
-    expect(applyCompletion('convert My', 10, 'My', 'My Photos\\')).toEqual({
+    expect(applyCompletion('convert My', 10, 8, 'My Photos\\')).toEqual({
       text: 'convert "My Photos\\',
       caret: 19
     })
-    expect(applyCompletion('conv rest', 4, 'conv', 'convert')).toEqual({
+    expect(applyCompletion('conv rest', 4, 0, 'convert')).toEqual({
       text: 'convert rest',
       caret: 8
     })
   })
+  it('replaces a whole quoted word, quotes included', () => {
+    const t = 'convert "My Photos"'
+    const ctx = completionContext(t, cat, B)
+    expect(ctx).toMatchObject({ kind: 'files', prefix: 'My Photos', start: 8 })
+    expect(applyCompletion(t, t.length, 8, 'My Photos\\')).toEqual({
+      text: 'convert "My Photos\\',
+      caret: 19
+    })
+    const t2 = 'convert My" "Photos'
+    const c2 = completionContext(t2, cat, B)
+    expect(c2).toMatchObject({ kind: 'files', prefix: 'My Photos', start: 8 })
+    expect(applyCompletion(t2, t2.length, 8, 'My Photos.png')).toEqual({
+      text: 'convert "My Photos.png" ',
+      caret: 24
+    })
+  })
+  it('keeps one opening quote for an unfinished quoted word', () => {
+    const t = 'convert "My Ph'
+    const ctx = completionContext(t, cat, B)
+    expect(ctx).toMatchObject({ kind: 'files', prefix: 'My Ph', start: 8 })
+    expect(applyCompletion(t, t.length, 8, 'My Photos.png')).toEqual({
+      text: 'convert "My Photos.png" ',
+      caret: 24
+    })
+  })
+  it('completes a word in the middle of the line', () => {
+    const t = 'convert a.png --t --json'
+    const before = t.slice(0, 17)
+    const ctx = completionContext(before, cat, B)
+    expect(ctx).toMatchObject({ kind: 'list', prefix: '--t', start: 14 })
+    expect(applyCompletion(t, 17, 14, '--to')).toEqual({
+      text: 'convert a.png --to --json',
+      caret: 19
+    })
+  })
+})
+
+describe('completionContext prefix and global flags', () => {
+  it.each(['filesmith ', 'filesmith.exe ', 'FILESMITH.CMD ', 'filesmith --json ', '--dry-run '])(
+    'completes the verb after %j',
+    (pre) => {
+      expect(values(`${pre}conv`)).toEqual(['convert'])
+      expect(values(`${pre}pdf `)).toContain('merge')
+    }
+  )
 })

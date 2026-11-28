@@ -45,6 +45,7 @@ export type ConsoleAction =
   | { type: 'refuse'; id: string; cwd: string; line: string; text: string }
   | { type: 'builtin'; id: string; cwd: string; line: string; lines: string[] }
   | { type: 'out'; id: string; text: string }
+  | { type: 'outMany'; id: string; lines: string[] }
   | { type: 'event'; id: string; ev: ConsoleCliEvent }
   | { type: 'exit'; id: string; code: number; at: number }
   | { type: 'stopping'; id: string }
@@ -157,8 +158,21 @@ function cap(blocks: Block[]): Block[] {
     total -= lineCount(out[i])
     out.splice(i, 1)
   }
+  // Still over: the growing running block is too big alone. Drop its oldest lines.
+  if (total > MAX_LINES) {
+    const j = out.findIndex((b) => b.kind === 'cmd' && b.lines.length + 2 > MAX_LINES)
+    const b = out[j]
+    if (b && b.kind === 'cmd') {
+      const others = total - lineCount(b)
+      const keep = Math.max(0, MAX_LINES - others - 2)
+      if (keep < b.lines.length) out[j] = { ...b, lines: b.lines.slice(b.lines.length - keep) }
+    }
+  }
   return out
 }
+
+const toLines = (texts: readonly string[]): OutLine[] =>
+  texts.map((text) => ({ text, style: styleOf(text) }))
 
 function update(s: ConsoleState, id: string, f: (b: Cmd) => Cmd): ConsoleState {
   return { blocks: s.blocks.map((b) => (b.kind === 'cmd' && b.id === id ? f(b) : b)) }
@@ -210,6 +224,13 @@ export function consoleReducer(s: ConsoleState, a: ConsoleAction): ConsoleState 
             ...b,
             lines: [...b.lines, { text: a.text, style: styleOf(a.text) }]
           })).blocks
+        )
+      }
+    case 'outMany':
+      if (!a.lines.length) return s
+      return {
+        blocks: cap(
+          update(s, a.id, (b) => ({ ...b, lines: b.lines.concat(toLines(a.lines)) })).blocks
         )
       }
     case 'event':

@@ -9,6 +9,8 @@ interface Scan {
   done: string[]
   cur: string
   inWord: boolean
+  /** Offset in the line where the current word starts (line length when none). */
+  curStart: number
 }
 
 function scan(line: string): Scan {
@@ -16,8 +18,13 @@ function scan(line: string): Scan {
   let cur = ''
   let inWord = false
   let quoted = false
+  let curStart = 0
+  let at = 0
   for (const ch of line) {
+    const here = at
+    at += ch.length
     if (ch === '"') {
+      if (!inWord) curStart = here
       quoted = !quoted
       inWord = true
       continue
@@ -28,10 +35,11 @@ function scan(line: string): Scan {
       inWord = false
       continue
     }
+    if (!inWord) curStart = here
     cur += ch
     inWord = true
   }
-  return { done, cur, inWord }
+  return { done, cur, inWord, curStart: inWord ? curStart : line.length }
 }
 
 /** Words of a line: whitespace splits, double quotes group, backslashes are literal. */
@@ -40,10 +48,11 @@ export function tokenize(line: string): string[] {
   return s.inWord ? [...s.done, s.cur] : s.done
 }
 
-/** The finished words before the caret and the word being typed ('' after a space). */
-export function splitAtCaret(before: string): { done: string[]; cur: string } {
+/** The finished words before the caret and the word being typed ('' after a
+ *  space). `curStart` is where that word starts in the raw text, quotes included. */
+export function splitAtCaret(before: string): { done: string[]; cur: string; curStart: number } {
   const s = scan(before)
-  return { done: s.done, cur: s.inWord ? s.cur : '' }
+  return { done: s.done, cur: s.inWord ? s.cur : '', curStart: s.curStart }
 }
 
 /** Words that start a CLI run: the catalog's first words and the aliases. */
@@ -52,9 +61,22 @@ export function cliVerbs(cat: ConsoleCatalog): Set<string> {
 }
 
 /** The CLI's global flags, allowed before the command (src/cli/parse.ts GLOBAL_BOOLS). */
-const GLOBAL_FLAGS = new Set(['--json', '--dry-run', '--version', '--help', '-h'])
+export const GLOBAL_FLAGS = new Set(['--json', '--dry-run', '--version', '--help', '-h'])
 /** A pasted prefix: `filesmith`, `filesmith.exe`, `filesmith.cmd`, any case. */
-const PREFIX = /^filesmith(\.exe|\.cmd)?$/i
+export const PREFIX = /^filesmith(\.exe|\.cmd)?$/i
+
+/** Index of the first word that is not a global flag. */
+export function skipGlobalFlags(words: readonly string[], from = 0): number {
+  let i = from
+  while (i < words.length && GLOBAL_FLAGS.has(words[i].toLowerCase())) i++
+  return i
+}
+
+/** Words after an optional `filesmith[.exe|.cmd]` prefix and any global flags. */
+export function stripPrefix(words: readonly string[]): string[] {
+  const from = words.length && PREFIX.test(words[0]) ? 1 : 0
+  return words.slice(skipGlobalFlags(words, from))
+}
 
 export type LineKind =
   | { kind: 'empty' }
@@ -91,8 +113,7 @@ export function classifyLine(line: string, verbs: ReadonlySet<string>): LineKind
     const builtin = BUILTIN[first]
     if (builtin) return { kind: 'builtin', name: builtin, args: words.slice(1) }
   } else if (first === 'help') return { kind: 'cli', argv: words } // `filesmith help [cmd]`
-  let i = 0
-  while (i < words.length && GLOBAL_FLAGS.has(words[i].toLowerCase())) i++
+  const i = skipGlobalFlags(words)
   if (i < words.length && !verbs.has(words[i].toLowerCase()))
     return { kind: 'refuse', word: words[i], reason: 'unknown' }
   if (words.includes('-')) return { kind: 'refuse', word: '-', reason: 'stdin' }

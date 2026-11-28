@@ -120,6 +120,29 @@ describe('consoleReducer', () => {
     for (let i = 0; i < 10; i++) s = consoleReducer(s, { type: 'out', id: 'r1', text: `line ${i}` })
     expect(s.blocks.map((b) => b.id)).toEqual(['r1'])
   })
+  it('trims the oldest lines of a running block over the limit', () => {
+    let s = run([{ type: 'start', id: 'r1', cwd: 'C:\\', line: 'convert *', at: 0 }])
+    const lines = Array.from({ length: MAX_LINES + 100 }, (_, i) => `line ${i}`)
+    s = consoleReducer(s, { type: 'outMany', id: 'r1', lines })
+    const b = cmd(s)
+    expect(b.status).toBe('running')
+    expect(b.lines.length + 2).toBe(MAX_LINES)
+    expect(b.lines[b.lines.length - 1].text).toBe(`line ${MAX_LINES + 99}`)
+    expect(b.lines[0].text).toBe(`line ${MAX_LINES + 100 - (MAX_LINES - 2)}`)
+    s = consoleReducer(s, { type: 'out', id: 'r1', text: 'newest' })
+    expect(cmd(s).lines.length + 2).toBe(MAX_LINES)
+    expect(cmd(s).lines.at(-1)?.text).toBe('newest')
+  })
+  it('outMany equals the same lines sent one by one', () => {
+    const start: ConsoleAction = { type: 'start', id: 'r1', cwd: 'C:\\', line: 'x', at: 0 }
+    const texts = ['ok      a.png -> b.png  1 MB', 'plain', '2 files: 2 ok']
+    const one = run([
+      start,
+      ...texts.map((text): ConsoleAction => ({ type: 'out', id: 'r1', text }))
+    ])
+    const many = run([start, { type: 'outMany', id: 'r1', lines: texts }])
+    expect(many).toEqual(one)
+  })
   it('maps an ok row to its full output path', () => {
     expect(
       outputForLine('ok      a.png -> a (resized).png  1 MB', ['D:\\P\\a (resized).png'])
