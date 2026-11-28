@@ -105,8 +105,3 @@ export async function detectNvidia(): Promise<NvidiaGpu | null> {
   cached = { gpu }
   return gpu
 }
-
-/** True when a usable NVIDIA GPU is present. */
-export async function hasNvidia(): Promise<boolean> {
-  return (await detectNvidia()) != null
-}

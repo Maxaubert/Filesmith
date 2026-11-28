@@ -8,7 +8,6 @@ export {
   canCompress,
   categoryFormats,
   convertTargets,
-  defaultTargetExt,
   isSameFormat,
   magickExtraFor,
   normalizeExt,

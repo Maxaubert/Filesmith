@@ -135,8 +135,3 @@ export function pickNcnnModel(all: NcnnModel[], value: string): NcnnModel | null
 export function resolveNcnnModel(value: string): NcnnModel | null {
   return pickNcnnModel(listNcnnModels(), value)
 }
-
-/** True when at least one usable model pair exists. */
-export function hasNcnnModels(): boolean {
-  return listNcnnModels().length > 0
-}
