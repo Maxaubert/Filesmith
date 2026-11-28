@@ -117,6 +117,80 @@ describe('PidSidecar cancel and startup timeout', () => {
     await expect(next).resolves.toEqual({ output: 'out.png', ms: 2 })
   })
 
+  it('a cancelled caller gets no more progress; a caller that joins the load does', async () => {
+    const s = new PidSidecar()
+    const first = vi.fn()
+    const ac = new AbortController()
+    const job = s.upscale('in.png', 'out.png', 2, first, ac.signal)
+    await flush()
+    ac.abort()
+    await expect(job).rejects.toThrow('Upscale cancelled')
+    const callsAtAbort = first.mock.calls.length
+
+    const second = vi.fn()
+    const next = s.upscale('b.png', 'b-out.png', 2, second)
+    procs[0].stderr.write('[pid] loading model (backbone=flux) ...\n')
+    await flush()
+    procs[0].send('{"ready": true}')
+    await flush()
+    expect(first).toHaveBeenCalledTimes(callsAtAbort)
+    expect(second.mock.calls.map((c) => c[0])).toEqual(['loading', 'ready', 'running'])
+    const [req] = procs[0].requests()
+    procs[0].send(JSON.stringify({ id: req.id, ok: true, output: 'b-out.png', ms: 1 }))
+    await next
+
+    // Once the load is over, later load-like lines reach nobody.
+    procs[0].stderr.write('Loading model from consolidated checkpoint x\n')
+    await flush()
+    expect(second).toHaveBeenCalledTimes(3)
+  })
+
+  it.each(['stderr', 'stdout'] as const)(
+    '%s output restarts the startup limit; silence after it still kills',
+    async (stream) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      const s = new PidSidecar()
+      const job = s.upscale('in.png', 'out.png', 2)
+      const settled = expect(job).rejects.toThrow(PID_STARTUP_TIMEOUT_MESSAGE)
+      // A slow download: far longer than the limit in total, never silent for
+      // it. A progress bar redraws without ever ending the line.
+      for (let i = 0; i < 5; i++) {
+        vi.advanceTimersByTime(PID_STARTUP_TIMEOUT_MS - 1)
+        procs[0][stream].write(`\rmodel.safetensors: ${i}%`)
+        await flush()
+      }
+      expect(procs[0].kill).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(PID_STARTUP_TIMEOUT_MS)
+      await settled
+      expect(procs[0].kill).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('makes huggingface_hub print download progress to the piped stderr', async () => {
+    const s = new PidSidecar()
+    const job = s.upscale('in.png', 'out.png', 2)
+    const settled = expect(job).rejects.toThrow()
+    const [, , opts] = spawnMock.mock.calls[0] as unknown as [
+      string,
+      string[],
+      { env: NodeJS.ProcessEnv }
+    ]
+    expect(opts.env.TQDM_POSITION).toBe('-1')
+    expect(opts.env.HF_HUB_DISABLE_PROGRESS_BARS).toBe('0')
+    procs[0].emit('close', 1)
+    await settled
+  })
+
+  it('a crash message skips progress bar redraws and cursor codes', async () => {
+    const s = new PidSidecar()
+    const job = s.upscale('in.png', 'out.png', 2)
+    const settled = expect(job).rejects.toThrow(/^PiD failed: OSError: disk full$/)
+    procs[0].stderr.write('\rw.bin:  29%|##  |\x1b[A\r\nOSError: disk full\r\n\x1b[A\r')
+    await flush()
+    procs[0].emit('close', 1)
+    await settled
+  })
+
   it('a start failure after the caller cancelled is not an unhandled rejection', async () => {
     const unhandled = vi.fn()
     process.on('unhandledRejection', unhandled)
