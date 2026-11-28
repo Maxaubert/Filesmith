@@ -39,7 +39,8 @@ function info(p: string): SeedFile {
 }
 
 test.beforeAll(async () => {
-  // Opt-in: the shots are tracked files, so a routine `npm run test:e2e` must not rewrite them.
+  // Opt-in: the shots are local review evidence (gitignored), so a routine
+  // `npm run test:e2e` does not spend time on them.
   test.skip(
     !process.env['FILESMITH_SHOTS'],
     'set FILESMITH_SHOTS=1 to capture the redesign screenshots'
