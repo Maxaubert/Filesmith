@@ -49,6 +49,7 @@ import { Sidebar } from './components/shell/Sidebar'
 import { crumbsFor } from './components/shell/crumbs'
 import { useSidebar } from './components/shell/useSidebar'
 import { useRailPrefs } from './components/shell/useRailPrefs'
+import { useDropHighlight } from './components/shell/dropHighlight'
 import { sidebarVerbs } from './components/shell/railPrefs'
 import { inConsole, isTextEntryTarget, shortcutFor } from './components/shell/shortcuts'
 import { ConsolePanel } from './components/console/ConsolePanel'
@@ -113,7 +114,19 @@ function effectiveFile(i: QueueItem): FileInfo {
 
 export default function App(): JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState)
-  const [dragging, setDragging] = useState(false)
+  const drop = useDropHighlight()
+  const dragging = drop.dragging
+  // A drag cancelled with Esc, or the window losing focus mid-drag, must not
+  // leave the drop highlight on.
+  const resetDrop = drop.reset
+  useEffect(() => {
+    window.addEventListener('blur', resetDrop)
+    document.addEventListener('dragend', resetDrop)
+    return () => {
+      window.removeEventListener('blur', resetDrop)
+      document.removeEventListener('dragend', resetDrop)
+    }
+  }, [resetDrop])
   // Text-to-image generation is not file-driven, so it lives outside the queue:
   // a persistent list of produced images, plus the in-flight run's per-image
   // slots (each with live progress, filled in as it finishes).
@@ -468,15 +481,19 @@ export default function App(): JSX.Element {
       evictProbe(out)
       dispatch({ type: 'dismissAny', ids: [id], column: 'output', deleted: true })
     }
-    if (failed.length)
-      setConfirm({
-        title:
-          failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
-        body: `${failed.join(', ')} could not be moved to the Recycle Bin, the file may be open in another app.`,
-        confirmLabel: 'OK',
-        hideCancel: true,
-        onConfirm: () => {}
-      })
+    if (failed.length) showTrashFailed(failed)
+  }
+
+  /** Name the files that could not be moved to the Recycle Bin. */
+  function showTrashFailed(failed: string[]): void {
+    setConfirm({
+      title:
+        failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
+      body: `${failed.join(', ')} could not be moved to the Recycle Bin, the file may be open in another app.`,
+      confirmLabel: 'OK',
+      hideCancel: true,
+      onConfirm: () => {}
+    })
   }
 
   /** Drop a path from the probe caches so a changed file gets re-probed. */
@@ -561,15 +578,7 @@ export default function App(): JSX.Element {
       for (const r of rows)
         if (r.file.path === path) dispatch({ type: 'dismiss', id: r.id, column: 'input' })
     }
-    if (failed.length)
-      setConfirm({
-        title:
-          failed.length === 1 ? 'Could not delete file' : `Could not delete ${failed.length} files`,
-        body: `${failed.join(', ')} could not be moved to the Recycle Bin, the file may be open in another app.`,
-        confirmLabel: 'OK',
-        hideCancel: true,
-        onConfirm: () => {}
-      })
+    if (failed.length) showTrashFailed(failed)
   }
 
   /** The files table's right-click menu. A selected row acts on the whole
@@ -678,7 +687,7 @@ export default function App(): JSX.Element {
 
   async function onDrop(e: DragEvent<HTMLElement>): Promise<void> {
     e.preventDefault()
-    setDragging(false)
+    drop.reset()
     // Generate has no queue on screen: a file accepted here would land in an
     // invisible list with no feedback at all.
     if (tool === 'generate' || onToolsGrid || onCompleted) return
@@ -748,9 +757,14 @@ export default function App(): JSX.Element {
           icon: 'trash',
           danger: true,
           onClick: () => {
-            void window.filesmith.trashFile(path)
-            setGenResults((prev) => prev.filter((p) => p !== path))
-            setGenFocus((f) => (f === path ? null : f))
+            void window.filesmith.trashFile(path).then((ok) => {
+              if (!ok) {
+                showTrashFailed([baseName(path)])
+                return
+              }
+              setGenResults((prev) => prev.filter((p) => p !== path))
+              setGenFocus((f) => (f === path ? null : f))
+            })
           }
         }
       ]
@@ -787,9 +801,11 @@ export default function App(): JSX.Element {
         ...m,
         [p.path]: {
           model: String(opts.model ?? ''),
-          width: Number(opts.width ?? 1024),
-          height: Number(opts.height ?? 1024),
-          seed: Number(opts.seed ?? -1)
+          // The values the image was really made with: a random seed resolved,
+          // the size clamped. The options are only a fallback.
+          width: p.width ?? Number(opts.width ?? 1024),
+          height: p.height ?? Number(opts.height ?? 1024),
+          seed: p.seed ?? Number(opts.seed ?? -1)
         }
       }))
       finished[p.index] = p.path
@@ -1180,14 +1196,12 @@ export default function App(): JSX.Element {
     <div
       className="app"
       data-sidebar={sidebar.collapsed ? 'collapsed' : 'expanded'}
+      onDragEnter={() => drop.enter()}
       onDragOver={(e) => {
         e.preventDefault()
-        if (tool !== 'generate' && !onToolsGrid && !onCompleted && state.tab !== 'settings')
-          setDragging(true)
+        drop.over(tool !== 'generate' && !onToolsGrid && !onCompleted && state.tab !== 'settings')
       }}
-      onDragLeave={(e) => {
-        if (e.currentTarget === e.target) setDragging(false)
-      }}
+      onDragLeave={(e) => drop.leave(e.relatedTarget)}
       onDrop={onDrop}
     >
       <TitleBar

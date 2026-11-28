@@ -1,9 +1,9 @@
 import { writeFileSync } from 'fs'
 import { reserveOutputInDir } from '../atomicOutput'
 import { engineEnv } from '../env'
-import type { GenerateOptions } from '@shared/generate'
+import type { GenImageMeta, GenerateOptions } from '@shared/generate'
 import { GEN_MAX_COUNT } from '@shared/generate'
-import { buildWorkflow } from './workflow'
+import { archDimCaps, buildWorkflow, imageMeta } from './workflow'
 import { findGenerationModel } from './models'
 import { resolveAgainstComfy } from './preflight'
 import {
@@ -17,12 +17,7 @@ import {
 
 export { comfyGenerationAvailable, stopComfyServer } from './comfy'
 export { downloadCompanions } from './companions'
-export {
-  findGenerationModels,
-  scanGenerationModels,
-  registryArchInfo,
-  registryDimCaps
-} from './models'
+export { scanGenerationModels, registryArchInfo, registryDimCaps } from './models'
 
 let clientCounter = 0
 
@@ -49,7 +44,7 @@ export function generatedOutputDir(opts: GenerateOptions): string {
  */
 export async function generateImages(
   opts: GenerateOptions,
-  onImage: (index: number, path: string) => void,
+  onImage: (index: number, path: string, meta?: GenImageMeta) => void,
   onProgress: (index: number, pct: number) => void,
   onStatus: (message: string) => void,
   signal?: AbortSignal
@@ -106,11 +101,14 @@ export async function generateImages(
       if (signal?.aborted) throw new Error('Generation cancelled')
       // batch_size 1 per prompt; vary a fixed seed per image so they differ. Use
       // the names ComfyUI actually reported (resolved), not the filesystem guess.
+      // The seed is resolved here (not in the workflow) so the concrete value
+      // the image was made with can travel with it to Info.
+      const meta = imageMeta(opts, i, archDimCaps(gm.arch))
       const perImage: GenerateOptions = {
         ...opts,
         model: resolved.model,
         count: 1,
-        seed: opts.seed < 0 ? -1 : opts.seed + i
+        seed: meta.seed
       }
       const wf = buildWorkflow(gm, perImage, resolved.wiring, attempting)
       sawProgress = false
@@ -136,7 +134,7 @@ export async function generateImages(
         throw e
       }
       onProgress(i, 100)
-      onImage(i, out)
+      onImage(i, out, meta)
     }
   } finally {
     sock.close()
