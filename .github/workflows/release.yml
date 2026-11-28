@@ -166,6 +166,31 @@ jobs:
           "- unsigned (no certificate configured)"      >> $env:GITHUB_STEP_SUMMARY
           "- event ``${{ github.event_name }}``"        >> $env:GITHUB_STEP_SUMMARY
 
+      # Releases carry two names for one installer: the versioned one and a
+      # stable-named copy, so
+      # https://github.com/<repo>/releases/latest/download/Filesmith-Setup-x64.exe
+      # always serves the newest release. The versioned name stays primary.
+      # SHA256SUMS lists both under their exact asset names, in sha256sum format
+      # (lowercase hash, two spaces, name, LF line ends, no BOM).
+      - name: Write SHA256SUMS
+        id: sums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = '${{ steps.exe.outputs.path }}'
+          $stable = 'dist/Filesmith-Setup-x64.exe'
+          Copy-Item $exe $stable -Force
+          $lines = foreach ($file in $exe, $stable) {
+            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $(Split-Path $file -Leaf)"
+          }
+          # Set-Content would write CRLF, which `sha256sum -c` reads as part of
+          # the file name outside Windows. .NET needs an absolute path.
+          $sums = 'dist/SHA256SUMS'
+          [IO.File]::WriteAllText((Join-Path $PWD.ProviderPath $sums), ($lines -join "`n") + "`n")
+          "stable=$stable" >> $env:GITHUB_OUTPUT
+          "path=$sums" >> $env:GITHUB_OUTPUT
+
       - name: Upload dry-run installer
         if: github.event_name != 'push'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -173,6 +198,7 @@ jobs:
           name: Filesmith-Setup-x64-${{ steps.ver.outputs.version }}-dryrun
           path: |
             ${{ steps.exe.outputs.path }}
+            ${{ steps.sums.outputs.path }}
             dist/resources-manifest.txt
             dist/packed-manifest.txt
           retention-days: 7
@@ -189,11 +215,9 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           $v = '${{ steps.ver.outputs.version }}'
           $exe = '${{ steps.exe.outputs.path }}'
-          # A stable-named copy of the same installer, so
-          # https://github.com/<repo>/releases/latest/download/Filesmith-Setup-x64.exe
-          # always serves the newest release. The versioned name stays primary.
-          $stable = 'dist/Filesmith-Setup-x64.exe'
-          Copy-Item $exe $stable -Force
-          gh release create "v$v" $exe $stable --title "Filesmith $v" --generate-notes --latest
+          # The same two files the SHA256SUMS step hashed.
+          $stable = '${{ steps.sums.outputs.stable }}'
+          $sums = '${{ steps.sums.outputs.path }}'
+          gh release create "v$v" $exe $stable $sums --title "Filesmith $v" --generate-notes --latest
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
           "- published ``v$v``" >> $env:GITHUB_STEP_SUMMARY
