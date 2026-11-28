@@ -345,6 +345,16 @@ export async function queuePrompt(
   return j.prompt_id
 }
 
+/** Short " Detail" suffix from ComfyUI's status.messages (execution_error), or an empty string. */
+function workflowErrorDetail(messages: unknown[] | undefined): string {
+  for (const m of messages ?? []) {
+    if (!Array.isArray(m) || m[0] !== 'execution_error') continue
+    const msg = (m[1] as { exception_message?: unknown } | undefined)?.exception_message
+    if (typeof msg === 'string' && msg.trim()) return ` ${msg.trim().slice(0, 300)}`
+  }
+  return ''
+}
+
 /** Poll /history until the prompt produces output images (or errors/times out). */
 export async function waitForImages(
   baseUrl: string,
@@ -364,27 +374,36 @@ export async function waitForImages(
         "This checkpoint didn't start generating — it may not be a text-to-image model. Try a different one, e.g. sd_xl_base_1.0."
       )
     }
+    let failed: string | undefined
     try {
       const r = await fetch(`${baseUrl}/history/${promptId}`, { signal: AbortSignal.timeout(5000) })
       if (r.ok) {
         const hist = (await r.json()) as Record<
           string,
-          { status?: { status_str?: string }; outputs?: Record<string, { images?: ComfyImage[] }> }
+          {
+            status?: { status_str?: string; messages?: unknown[] }
+            outputs?: Record<string, { images?: ComfyImage[] }>
+          }
         >
         const entry = hist[promptId]
         if (entry) {
-          if (entry.status?.status_str === 'error')
-            throw new Error('ComfyUI reported an error running the workflow.')
-          const imgs: ComfyImage[] = []
-          for (const node of Object.values(entry.outputs ?? {}))
-            for (const img of node.images ?? []) if (img.type === 'output') imgs.push(img)
-          if (imgs.length) return imgs
+          if (entry.status?.status_str === 'error') {
+            failed = workflowErrorDetail(entry.status.messages)
+          } else {
+            const imgs: ComfyImage[] = []
+            for (const node of Object.values(entry.outputs ?? {}))
+              for (const img of node.images ?? []) if (img.type === 'output') imgs.push(img)
+            if (imgs.length) return imgs
+          }
         }
       }
     } catch (e) {
       if (signal?.aborted) throw e
-      // transient poll error — keep waiting
+      // transient poll error, keep waiting
     }
+    // Thrown outside the try so a failed workflow is not mistaken for a transient poll error.
+    if (failed !== undefined)
+      throw new Error(`ComfyUI reported an error running the workflow.${failed}`)
     await new Promise((r) => setTimeout(r, 1000))
   }
   throw new Error('Generation timed out.')
@@ -400,22 +419,4 @@ export async function fetchImage(baseUrl: string, img: ComfyImage): Promise<Buff
   const r = await fetch(`${baseUrl}/view?${q.toString()}`)
   if (!r.ok) throw new Error(`Could not fetch the generated image (${r.status}).`)
   return Buffer.from(await r.arrayBuffer())
-}
-
-/** Checkpoints ComfyUI can see (for the model picker). */
-export async function listCheckpoints(baseUrl: string): Promise<string[]> {
-  try {
-    const r = await fetch(`${baseUrl}/object_info/CheckpointLoaderSimple`, {
-      signal: AbortSignal.timeout(5000)
-    })
-    if (!r.ok) return []
-    const j = (await r.json()) as Record<
-      string,
-      { input?: { required?: { ckpt_name?: unknown[][] } } }
-    >
-    const names = j.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0]
-    return Array.isArray(names) ? (names as string[]) : []
-  } catch {
-    return []
-  }
 }

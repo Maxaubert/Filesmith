@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useReducer,
   useRef,
@@ -25,12 +26,15 @@ import { clampConsoleHeight } from './consoleHeight'
 import { HIST_IDLE, histStep, type HistNav } from './consoleHistory'
 import { consoleReducer, fmtSize, INITIAL } from './consoleModel'
 
+const reveal = (x: string): void => window.filesmith.reveal(x)
+
 let seq = 0
 const nextId = (p: string): string => `${p}${Date.now().toString(36)}${(seq++).toString(36)}`
 
 interface Comp {
   title: string
   prefix: string
+  start: number
   items: CompletionItem[]
   active: number
 }
@@ -74,17 +78,44 @@ export function ConsolePanel(p: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Events of this panel's runs.
-  useEffect(
-    () =>
-      window.filesmith.onConsoleEvent((e) => {
-        if (e.kind === 'event') dispatch({ type: 'event', id: e.id, ev: e.ev })
-        else if (e.kind === 'exit')
-          dispatch({ type: 'exit', id: e.id, code: e.code, at: Date.now() })
-        else dispatch({ type: 'out', id: e.id, text: e.text })
-      }),
-    []
-  )
+  // Events of this panel's runs. Output lines are buffered per command and
+  // flushed once per frame (a timer too, as rAF pauses in a hidden window), so
+  // a run that prints a line per file does not dispatch once per line.
+  const pending = useRef(new Map<string, string[]>())
+  const flushAt = useRef<{ raf: number; timer: number } | null>(null)
+  const flushOut = useCallback((): void => {
+    const f = flushAt.current
+    if (f) {
+      cancelAnimationFrame(f.raf)
+      window.clearTimeout(f.timer)
+      flushAt.current = null
+    }
+    const all = [...pending.current]
+    pending.current.clear()
+    for (const [id, lines] of all) dispatch({ type: 'outMany', id, lines })
+  }, [])
+  useEffect(() => {
+    const off = window.filesmith.onConsoleEvent((e) => {
+      if (e.kind !== 'event' && e.kind !== 'exit') {
+        const q = pending.current.get(e.id)
+        if (q) q.push(e.text)
+        else pending.current.set(e.id, [e.text])
+        if (!flushAt.current)
+          flushAt.current = {
+            raf: requestAnimationFrame(flushOut),
+            timer: window.setTimeout(flushOut, 100)
+          }
+        return
+      }
+      flushOut()
+      if (e.kind === 'event') dispatch({ type: 'event', id: e.id, ev: e.ev })
+      else dispatch({ type: 'exit', id: e.id, code: e.code, at: Date.now() })
+    })
+    return () => {
+      off()
+      flushOut()
+    }
+  }, [flushOut])
 
   // Busy percentage for the toolbar button (spec 3).
   const running = runId ? state.blocks.find((b) => b.id === runId) : undefined
@@ -172,6 +203,7 @@ export function ConsolePanel(p: {
     body.current?.focus()
     const r = await window.filesmith.consoleRun(id, line, cwd)
     if (!r.ok) {
+      flushOut()
       dispatch({ type: 'out', id, text: `filesmith: ${r.error}` })
       dispatch({ type: 'exit', id, code: 2, at: Date.now() })
     }
@@ -200,8 +232,15 @@ export function ConsolePanel(p: {
         ...i,
         value: ctx.dir + i.value
       }))
-      next = { title: `FILES IN ${r.dir.toUpperCase()}`, prefix: ctx.prefix, items, active: 0 }
-    } else next = { title: ctx.title, prefix: ctx.prefix, items: ctx.items, active: 0 }
+      next = {
+        title: `FILES IN ${r.dir.toUpperCase()}`,
+        prefix: ctx.prefix,
+        start: ctx.start,
+        items,
+        active: 0
+      }
+    } else
+      next = { title: ctx.title, prefix: ctx.prefix, start: ctx.start, items: ctx.items, active: 0 }
     if (!next.items.length) return setComp(null)
     if (auto && next.items.length === 1) return insert(next, 0, text)
     setComp(next)
@@ -209,7 +248,7 @@ export function ConsolePanel(p: {
 
   function insert(c: Comp, i: number, text = input): void {
     const caret = pin.current?.selectionStart ?? text.length
-    const r = applyCompletion(text, caret, c.prefix, c.items[i].value)
+    const r = applyCompletion(text, caret, c.start, c.items[i].value)
     setInput(r.text)
     setComp(null)
     requestAnimationFrame(() => pin.current?.setSelectionRange(r.caret, r.caret))
@@ -302,6 +341,14 @@ export function ConsolePanel(p: {
     p.onHeight(clampConsoleHeight(p.height + (e.key === 'ArrowUp' ? 20 : -20), centerH()))
   }
 
+  // Stable identities so the memoised output blocks are not redrawn per line.
+  const rowMenuRef = useRef(rowMenu)
+  rowMenuRef.current = rowMenu
+  const stableRowMenu = useCallback(
+    (e: MouseEvent, path: string): void => rowMenuRef.current(e, path),
+    []
+  )
+
   function rowMenu(e: MouseEvent, path: string): void {
     e.preventDefault()
     p.onMenu({
@@ -389,11 +436,7 @@ export function ConsolePanel(p: {
           if (!window.getSelection()?.toString() && !runId) pin.current?.focus()
         }}
       >
-        <ConsoleOutput
-          blocks={state.blocks}
-          onReveal={(x) => window.filesmith.reveal(x)}
-          onRowMenu={rowMenu}
-        />
+        <ConsoleOutput blocks={state.blocks} onReveal={reveal} onRowMenu={stableRowMenu} />
         <div className="pline">
           {runId ? (
             <span className="waitmsg">

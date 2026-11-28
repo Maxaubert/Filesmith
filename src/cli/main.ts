@@ -23,6 +23,8 @@ export interface CliDeps {
   formats: FormatsDeps
   doctor: DoctorDeps
   skill: SkillDeps
+  /** Runs once before a command (not for --help / --version). */
+  prepare?: () => Promise<void>
 }
 
 async function dispatch(
@@ -117,6 +119,7 @@ export async function main(io: CliIO, deps: CliDeps): Promise<number> {
       )
       return EXIT.OK
     }
+    await deps.prepare?.()
     return await dispatch(args, io, reporter, deps)
   } catch (e) {
     return failure(e, io, reporter, json)

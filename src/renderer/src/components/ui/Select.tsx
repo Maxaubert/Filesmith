@@ -1,6 +1,30 @@
-import { useEffect, useId, useRef, useState, type JSX, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type JSX,
+  type KeyboardEvent
+} from 'react'
 import { Icon } from '../icons/Icon'
-import { nextEnabled, type SelectOption } from './selectNav'
+import { nextEnabled, popupPlacement, scrollTopFor, type SelectOption } from './selectNav'
+
+/** The visible top and bottom of the nearest scrolling ancestor, clipped to
+ * the window: the popup must fit inside it. */
+function visibleBounds(el: HTMLElement): { top: number; bottom: number } {
+  let top = 0
+  let bottom = window.innerHeight
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (/(auto|scroll|hidden)/.test(getComputedStyle(p).overflowY)) {
+      const r = p.getBoundingClientRect()
+      top = Math.max(top, r.top)
+      bottom = Math.min(bottom, r.bottom)
+      break
+    }
+  }
+  return { top, bottom }
+}
 
 // A custom listbox (spec 2.7): Chromium draws a native <select> popup in light
 // OS chrome, which breaks the dark-only rule.
@@ -23,7 +47,12 @@ export function Select<T extends string>({
 }): JSX.Element {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
+  const [place, setPlace] = useState<{ up: boolean; maxHeight: number } | null>(null)
   const root = useRef<HTMLDivElement>(null)
+  const list = useRef<HTMLUListElement>(null)
+  // Keep the active row in view after opening and keyboard moves, but not
+  // after a hover, or the list would jump under the mouse.
+  const follow = useRef(false)
   const id = useId()
   const current = options.find((o) => o.value === value)
 
@@ -41,7 +70,28 @@ export function Select<T extends string>({
     }
   }, [open])
 
+  // Flip the popup above the button when it does not fit below.
+  useLayoutEffect(() => {
+    if (!open) return
+    const btn = root.current
+    const ul = list.current
+    if (!btn || !ul) return
+    const r = btn.getBoundingClientRect()
+    const b = visibleBounds(btn)
+    setPlace(popupPlacement(r, b.top, b.bottom, ul.scrollHeight + 1))
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !follow.current) return
+    const ul = list.current
+    const li = document.getElementById(`${id}-${active}`)
+    if (!ul || !li) return
+    ul.scrollTop = scrollTopFor(li.offsetTop, li.offsetHeight, ul.scrollTop, ul.clientHeight)
+  }, [open, active, place, id])
+
   function show(): void {
+    follow.current = true
+    setPlace(null)
     setActive(
       Math.max(
         0,
@@ -81,6 +131,7 @@ export function Select<T extends string>({
     const n = nextEnabled(options, active, e.key)
     if (n != null) {
       e.preventDefault()
+      follow.current = true
       setActive(n)
     }
   }
@@ -105,7 +156,14 @@ export function Select<T extends string>({
         <Icon name="chev-d" />
       </button>
       {open && (
-        <ul id={`${id}-list`} role="listbox" aria-label={label} className="vs-pop scroll-thin">
+        <ul
+          ref={list}
+          id={`${id}-list`}
+          role="listbox"
+          aria-label={label}
+          className={`vs-pop scroll-thin${place?.up ? ' up' : ''}`}
+          style={place ? { maxHeight: place.maxHeight } : undefined}
+        >
           {options.flatMap((o, i) => {
             const head = o.group && o.group !== options[i - 1]?.group ? o.group : null
             const opt = (
@@ -117,7 +175,11 @@ export function Select<T extends string>({
                 aria-disabled={o.disabled || undefined}
                 className={`${i === active ? 'act' : ''}${o.value === value ? ' cur' : ''}${o.disabled ? ' dis' : ''}`}
                 onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => !o.disabled && setActive(i)}
+                onMouseEnter={() => {
+                  if (o.disabled) return
+                  follow.current = false
+                  setActive(i)
+                }}
                 onClick={() => commit(i)}
               >
                 <span className="val">

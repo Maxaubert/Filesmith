@@ -4,9 +4,11 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync
 } from 'fs'
 import { basename, dirname, join } from 'path'
@@ -15,7 +17,14 @@ import { cudaTierSupport, detectNvidia } from './gpu'
 import { downloadFile } from '../net/download'
 import { expectedHash, recordHash } from '../net/integrity'
 import { findComfyPidWeights } from '../comfy/discover'
-import { PID_BACKBONES, pidEnvMarker, pidRepoDir, pidRoot, spandrelMarker } from './paths'
+import {
+  PID_BACKBONES,
+  pidEnvMarker,
+  pidRepoDir,
+  pidRoot,
+  pidVenvPython,
+  spandrelMarker
+} from './paths'
 import { registryEntry } from '../registry/load'
 import { ensureUv, winTar, type InstallOpts, type InstallProgress } from '../uvInstall'
 import { withFileLock } from '../locks'
@@ -23,7 +32,7 @@ import { withFileLock } from '../locks'
 export type { InstallOpts, InstallProgress } from '../uvInstall'
 
 /** The running install's cancel signal and byte reporter. Module scope is safe:
- * withInstallLock admits one install per process. */
+ * runExclusive admits one install per process. */
 let active: InstallOpts = {}
 
 function runI(cmd: string, args: string[], opts: { cwd?: string } = {}): ReturnType<typeof run> {
@@ -109,8 +118,106 @@ function markerSays(path: string, want: string): boolean {
   }
 }
 
+/**
+ * What a re-vendor must carry over from the old repo dir: the weights (~3 GB,
+ * which installComfyEngine never downloads again) and the venv (~3 GB torch).
+ * Both live INSIDE the repo dir (see paths.ts), so a plain rm of the old source
+ * used to delete them.
+ */
+const KEPT_ENTRIES = ['checkpoints', '.venv'] as const
+
+/** Where the kept entries wait during a re-vendor. Inside pidRoot(), so it is on
+ * the same volume and every move is a cheap rename. */
+function pidKeepDir(): string {
+  return join(pidRoot(), 'keep')
+}
+
+function isNonEmptyDir(path: string): boolean {
+  try {
+    return statSync(path).isDirectory() && readdirSync(path).length > 0
+  } catch {
+    return false
+  }
+}
+
+/** Move `src` into `dest` entry by entry, then drop `src`. On a name clash
+ * `dest` wins: the copy already in place is the newer one, and the held file of
+ * the same name is the older duplicate. Files only the held copy has are kept. */
+function mergeInto(src: string, dest: string): void {
+  for (const name of readdirSync(src)) {
+    const from = join(src, name)
+    const to = join(dest, name)
+    if (!existsSync(to)) renameSync(from, to)
+    else if (statSync(from).isDirectory() && statSync(to).isDirectory()) mergeInto(from, to)
+  }
+  rmSync(src, { recursive: true, force: true })
+}
+
+/** Move the kept entries (when present) out of `repoDir` into `holdDir`. */
+export function stashKept(repoDir: string, holdDir: string): void {
+  mkdirSync(holdDir, { recursive: true })
+  for (const name of KEPT_ENTRIES) {
+    const from = join(repoDir, name)
+    if (!existsSync(from)) continue
+    // Never let the rm that follows take a kept entry: refuse instead.
+    if (existsSync(join(holdDir, name)))
+      throw new Error(`Cannot keep ${name}: ${join(holdDir, name)} is still in the way`)
+    renameSync(from, join(holdDir, name))
+  }
+}
+
+/**
+ * Move held entries back into `repoDir` (created when missing) and drop
+ * `holdDir` once it is empty. A no-op when there is no `holdDir`.
+ *
+ * `fresh` = `repoDir` was just replaced by newly extracted source: any
+ * `checkpoints` or `.venv` there came from the source archive, so it is removed
+ * and the user's copy wins. Otherwise (a hold left by a crashed run) the copy
+ * already in the repo is preferred: a non-empty one is merged into rather than
+ * replaced, so an older held copy never overwrites newer weights.
+ */
+export function restoreKept(repoDir: string, holdDir: string, fresh: boolean): void {
+  if (!existsSync(holdDir)) return
+  mkdirSync(repoDir, { recursive: true })
+  for (const name of KEPT_ENTRIES) {
+    const from = join(holdDir, name)
+    if (!existsSync(from)) continue
+    const to = join(repoDir, name)
+    if (existsSync(to) && (fresh || !isNonEmptyDir(to)))
+      rmSync(to, { recursive: true, force: true })
+    if (!existsSync(to)) renameSync(from, to)
+    else if (name === 'checkpoints') mergeInto(from, to)
+    // A stale held .venv beside a non-empty one in the repo holds no weights;
+    // the repo's venv is the newer one.
+    else rmSync(from, { recursive: true, force: true })
+  }
+  if (readdirSync(holdDir).length === 0) rmSync(holdDir, { recursive: true, force: true })
+}
+
+/**
+ * Replace `repoDir` with the extracted source at `newSrc`, keeping the weights
+ * and venv. The restore runs in `finally`, so a failure anywhere after the stash
+ * (the rm, the rename) still puts them back; a crash leaves them in `holdDir`,
+ * where the next ensureRepo finds and restores them.
+ */
+export function replaceRepoKeeping(repoDir: string, newSrc: string, holdDir: string): void {
+  restoreKept(repoDir, holdDir, false)
+  let replaced = false
+  try {
+    stashKept(repoDir, holdDir)
+    rmSync(repoDir, { recursive: true, force: true })
+    renameSync(newSrc, repoDir)
+    replaced = true
+  } finally {
+    restoreKept(repoDir, holdDir, replaced)
+  }
+}
+
 async function ensureRepo(onProgress: InstallProgress): Promise<void> {
   active.signal?.throwIfAborted()
+  // A hold left by a run that crashed mid re-vendor goes back first, before
+  // anything can decide the weights are missing.
+  restoreKept(pidRepoDir(), pidKeepDir(), false)
   if (markerSays(join(pidRepoDir(), REPO_MARKER), PID_REPO_REF)) return
   onProgress('Downloading PiD source', null)
   const tmpDir = mkdtempSync(join(pidRoot(), 'src-'))
@@ -129,8 +236,15 @@ async function ensureRepo(onProgress: InstallProgress): Promise<void> {
 
   const inner = join(extractTo, `PiD-${PID_REPO_REF}`)
   if (!existsSync(inner)) throw new Error('PiD source extract produced no PiD-* folder')
-  rmSync(pidRepoDir(), { recursive: true, force: true })
-  renameSync(inner, pidRepoDir())
+  // The kept venv was installed (`uv pip install -e .`) against the OLD source,
+  // so its deps must be re-resolved. Drop its ready marker only now, after the
+  // download and extract succeeded: a failed or cancelled download leaves the old
+  // repo, venv and marker in place, so the engine keeps working. Dropping it
+  // before the swap means a failed swap never leaves a venv that reads as
+  // installed beside a repo with no source. ensureEnv then runs its install steps
+  // again on the kept venv; torch is already there, so it is quick.
+  rmSync(pidEnvMarker(), { force: true })
+  replaceRepoKeeping(pidRepoDir(), inner, pidKeepDir())
   rmSync(extractTo, { recursive: true, force: true })
   rmSync(tmpZip, { force: true })
 
@@ -160,11 +274,16 @@ async function ensureEnv(onProgress: InstallProgress): Promise<void> {
   const marker = pidEnvMarker()
   if (existsSync(marker)) return
   const uv = await ensureUv(onProgress, active)
-  const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')
+  const python = pidVenvPython()
 
-  onProgress('Creating Python environment', null)
-  const venvRes = await runI(uv, ['venv', '--python', '3.12'], { cwd: pidRepoDir() })
-  if (venvRes.code !== 0) throw new Error(`venv creation failed: ${venvRes.stderr.slice(-400)}`)
+  // A venv kept across a re-vendor (see ensureRepo) is reused as is: `uv venv`
+  // on an existing dir can replace it, which would throw away the ~3 GB torch
+  // install. The pip steps below are no-ops for what is already satisfied.
+  if (!existsSync(python)) {
+    onProgress('Creating Python environment', null)
+    const venvRes = await runI(uv, ['venv', '--python', '3.12'], { cwd: pidRepoDir() })
+    if (venvRes.code !== 0) throw new Error(`venv creation failed: ${venvRes.stderr.slice(-400)}`)
+  }
 
   // torch first, from the CUDA 12.8 index (Blackwell-compatible), then the rest.
   onProgress('Installing PyTorch (CUDA), ~3 GB', null)
@@ -260,21 +379,110 @@ export function pidWeightFiles(backbone: string): { path: string; url: string }[
  * temp paths and rmSync the same repo dir — so two concurrent runs destroyed
  * each other. The only guards were renderer-local React flags, and the card is
  * conditionally mounted, so navigating away and back mid-install reset the flag
- * and re-enabled the button. A second caller now JOINS the running install
- * rather than starting a rival one.
+ * and re-enabled the button. A second caller of the SAME kind joins the running
+ * install rather than starting a rival one. A caller of the OTHER kind used to
+ * join too, and so got back a promise that never ran its own steps (comfy:install
+ * reported ok with no spandrel, pid:install with no weights). It now waits for
+ * the running install to settle, then runs its own steps, which are idempotent
+ * through the markers.
  */
-let inFlight: Promise<void> | null = null
+export type InstallKind = 'pid' | 'comfy'
 
-export function installInProgress(): boolean {
-  return inFlight != null
+export class InstallLock {
+  /** The running or queued install of each kind. */
+  private pending = new Map<InstallKind, Promise<void>>()
+  /** Settles once every install started so far has settled. Never rejects. */
+  private tail: Promise<void> = Promise.resolve()
+
+  /** True while any install is running or queued. */
+  get busy(): boolean {
+    return this.pending.size > 0
+  }
+
+  run(
+    kind: InstallKind,
+    inner: () => Promise<void>,
+    opts: { signal?: AbortSignal; onWait?: () => void } = {}
+  ): Promise<void> {
+    const existing = this.pending.get(kind)
+    if (existing) return existing
+    const prev = this.tail
+    const mustWait = this.pending.size > 0
+    const work = (async (): Promise<void> => {
+      if (mustWait) {
+        opts.onWait?.()
+        await settledOrAborted(prev, opts.signal)
+      }
+      opts.signal?.throwIfAborted()
+      await inner()
+    })()
+    const entry = work.finally(() => {
+      if (this.pending.get(kind) === entry) this.pending.delete(kind)
+    })
+    this.pending.set(kind, entry)
+    // Wait on prev as well: a caller aborted while queued settles early, and the
+    // next one must still not start before the install it was waiting for ends.
+    this.tail = Promise.allSettled([prev, entry]).then(() => undefined)
+    return entry
+  }
 }
 
-function withInstallLock(fn: () => Promise<void>): Promise<void> {
-  if (inFlight) return inFlight
-  inFlight = fn().finally(() => {
-    inFlight = null
+/** Resolve when `p` settles, or reject as soon as `signal` aborts. */
+function settledOrAborted(p: Promise<void>, signal?: AbortSignal): Promise<void> {
+  if (!signal) return p
+  signal.throwIfAborted()
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = (): void => reject(signal.reason ?? new Error('Aborted'))
+    signal.addEventListener('abort', onAbort, { once: true })
+    void p.then(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    })
   })
-  return inFlight
+}
+
+const installLock = new InstallLock()
+
+export function installInProgress(): boolean {
+  return installLock.busy
+}
+
+/**
+ * Run one install exclusively: the in-process lock above, the cross-process
+ * 'pid-env' file lock (the CLI shares the same dirs), and the module-scope
+ * `active` opts, reset when the install ends.
+ */
+function runExclusive(
+  kind: InstallKind,
+  opts: InstallOpts,
+  onProgress: InstallProgress,
+  inner: () => Promise<void>
+): Promise<void> {
+  return installLock.run(
+    kind,
+    () =>
+      withFileLock(
+        'pid-env',
+        'the AI upscaler engine',
+        async () => {
+          active = opts
+          try {
+            await inner()
+          } finally {
+            active = {}
+          }
+        },
+        {
+          signal: opts.signal,
+          onWait: (h) =>
+            onProgress(`Waiting for another Filesmith (${h?.host ?? 'process'}) to finish`, null)
+        }
+      ),
+    {
+      signal: opts.signal,
+      onWait: () => onProgress('Waiting for the other install to finish', null)
+    }
+  )
 }
 
 /**
@@ -312,7 +520,8 @@ export function checkDiskSpace(needBytes: number, dir?: string): { ok: boolean; 
  * its body) was permanently unrecoverable from the UI.
  */
 export function removePidInstall(): { ok: boolean; error?: string } {
-  if (inFlight) return { ok: false, error: 'An install is running. Wait for it to finish first.' }
+  if (installLock.busy)
+    return { ok: false, error: 'An install is running. Wait for it to finish first.' }
   try {
     rmSync(pidRoot(), { recursive: true, force: true })
     return { ok: true }
@@ -327,25 +536,7 @@ export async function installPid(
   onProgress: InstallProgress,
   opts: InstallOpts = {}
 ): Promise<void> {
-  return withInstallLock(() =>
-    withFileLock(
-      'pid-env',
-      'the AI upscaler engine',
-      async () => {
-        active = opts
-        try {
-          await installPidInner(backbone, onProgress)
-        } finally {
-          active = {}
-        }
-      },
-      {
-        signal: opts.signal,
-        onWait: (h) =>
-          onProgress(`Waiting for another Filesmith (${h?.host ?? 'process'}) to finish`, null)
-      }
-    )
-  )
+  return runExclusive('pid', opts, onProgress, () => installPidInner(backbone, onProgress))
 }
 
 /** Refuse the multi-GB download when this GPU can't run the result. The
@@ -385,7 +576,7 @@ async function ensureSpandrel(onProgress: InstallProgress): Promise<void> {
     (entry && entry.provenance.source !== 'user' && entry.engineSpec) || 'spandrel>=0.4.1'
   if (markerSays(spandrelMarker(), spec)) return
   const uv = await ensureUv(onProgress, active)
-  const python = join(pidRepoDir(), '.venv', 'Scripts', 'python.exe')
+  const python = pidVenvPython()
 
   onProgress('Installing spandrel', null)
   // spandrel is the loader; Pillow/numpy the image IO. All are small and are
@@ -408,31 +599,15 @@ export async function installComfyEngine(
   opts: InstallOpts = {}
 ): Promise<void> {
   // Shares both locks with installPid: both run ensureRepo/ensureEnv, write the
-  // same temp paths and rmSync the same repo dir.
-  return withInstallLock(() =>
-    withFileLock(
-      'pid-env',
-      'the AI upscaler engine',
-      async () => {
-        active = opts
-        try {
-          await assertCudaCapable()
-          mkdirSync(pidRoot(), { recursive: true })
-          const space = checkDiskSpace(ENV_APPROX_BYTES)
-          if (!space.ok) throw new Error(space.reason)
-          await ensureRepo(onProgress)
-          await ensureEnv(onProgress)
-          await ensureSpandrel(onProgress)
-          onProgress('Ready', 100)
-        } finally {
-          active = {}
-        }
-      },
-      {
-        signal: opts.signal,
-        onWait: (h) =>
-          onProgress(`Waiting for another Filesmith (${h?.host ?? 'process'}) to finish`, null)
-      }
-    )
-  )
+  // same temp paths and replace the same repo dir.
+  return runExclusive('comfy', opts, onProgress, async () => {
+    await assertCudaCapable()
+    mkdirSync(pidRoot(), { recursive: true })
+    const space = checkDiskSpace(ENV_APPROX_BYTES)
+    if (!space.ok) throw new Error(space.reason)
+    await ensureRepo(onProgress)
+    await ensureEnv(onProgress)
+    await ensureSpandrel(onProgress)
+    onProgress('Ready', 100)
+  })
 }

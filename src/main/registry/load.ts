@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { engineEnv } from '../env'
 import type { RegistryEntry, RegistryFile } from '@shared/registry'
-import { REGISTRY_SCHEMA_VERSION, mergeRegistryChecked } from '@shared/registry'
+import { REGISTRY_SCHEMA_VERSION, isPlainObject, mergeRegistryChecked } from '@shared/registry'
 
 /**
  * The three-layer model registry.
@@ -89,7 +89,13 @@ function readLayer(layer: Layer, warnings: string[]): { file: string; entries: R
       continue
     }
     const entries: RegistryEntry[] = []
-    for (const e of parsed.entries) {
+    for (const [i, e] of parsed.entries.entries()) {
+      // A hand-edited file can hold null, a number, a string or an array where
+      // an entry belongs. Skip it with a warning instead of throwing below.
+      if (!isPlainObject(e) || typeof e.id !== 'string' || !e.id) {
+        warnings.push(`${layer}/${f}: entry #${i} is not a valid entry, skipped`)
+        continue
+      }
       if ((e?.schemaVersion ?? 1) > REGISTRY_SCHEMA_VERSION) {
         warnings.push(`${layer}/${f}: entry "${e?.id}" needs a newer Filesmith — skipped`)
         continue
@@ -97,7 +103,8 @@ function readLayer(layer: Layer, warnings: string[]): { file: string; entries: R
       // Validation happens on the MERGED entry (mergeRegistryChecked), not the
       // fragment: a companions-only override has no kind/label of its own.
       // Provenance is still assigned by the LAYER, never trusted from the file.
-      entries.push({ ...e, provenance: { ...(e.provenance ?? {}), source: layer } })
+      const prov = isPlainObject(e.provenance) ? e.provenance : {}
+      entries.push({ ...e, provenance: { ...prov, source: layer } })
     }
     out.push({ file: `${layer}/${f}`, entries })
   }

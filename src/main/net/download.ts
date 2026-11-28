@@ -33,7 +33,10 @@ function httpFetch(url: string, init: RequestInit): Promise<Response> {
  * message is literally "fetch failed" with the real code buried in `.cause`, so
  * every user whose wifi was off saw only "fetch failed".
  */
-function describeNetworkError(e: unknown, url: string): Error {
+function describeNetworkError(e: unknown, url: string, signal?: AbortSignal): Error {
+  // Our own abort (cancel or stall watchdog) carries the message we chose;
+  // node/undici would otherwise surface a bare "The operation was aborted".
+  if (signal?.aborted && signal.reason instanceof Error) return signal.reason
   const code = (e as { cause?: { code?: string } })?.cause?.code ?? (e as { code?: string })?.code
   let host = url
   try {
@@ -87,18 +90,13 @@ export interface DownloadResult {
  * Download `url` to `dest`. Accepts a single URL or a list of mirrors tried in
  * order — pin a commit sha first and a moving branch last, so a repo reorg
  * degrades to the fallback instead of 404ing the model out of existence.
+ * Progress, size floor, checksum and cancel signal all go through `opts`.
  */
 export async function downloadFile(
   url: string | string[],
   dest: string,
-  onPctOrOpts?: ((pct: number) => void) | DownloadOptions,
-  minBytesLegacy?: number
+  opts: DownloadOptions = {}
 ): Promise<DownloadResult> {
-  const opts: DownloadOptions =
-    typeof onPctOrOpts === 'function'
-      ? { onPct: onPctOrOpts, minBytes: minBytesLegacy }
-      : { ...onPctOrOpts, minBytes: onPctOrOpts?.minBytes ?? minBytesLegacy }
-
   const urls = (Array.isArray(url) ? url : [url]).filter(Boolean)
   if (!urls.length) throw new Error('No download URL was given.')
   let lastErr: unknown
@@ -163,7 +161,7 @@ async function downloadOne(
         ...(resumeAt ? { headers: { Range: `bytes=${resumeAt}-` } } : {})
       })
     } catch (e) {
-      throw describeNetworkError(e, url)
+      throw describeNetworkError(e, url, ac.signal)
     }
     // 206 means the server honoured the range; anything else means start over.
     const resuming = resumeAt > 0 && res.status === 206
@@ -219,7 +217,7 @@ async function downloadOne(
       } catch {
         /* best effort */
       }
-      throw describeNetworkError(e, url)
+      throw describeNetworkError(e, url, ac.signal)
     }
     // A resumed transfer only hashed the tail, so the digest is meaningless —
     // report it as empty rather than as a wrong-but-confident value.

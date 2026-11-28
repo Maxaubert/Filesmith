@@ -4,6 +4,9 @@ import { BG_MODEL_VALUES, fillRgba, normalizeAlpha } from '../src/shared/removeb
 
 const base = { bgModel: 'birefnet-general' }
 
+const PCT = 'C:\\pics\\100%off.png'
+const PCT_OUT = 'C:\\pics\\100%%off.png[0]'
+
 describe('buildRembgArgs', () => {
   it('turns every quality option on by default', () => {
     // The UI exposes only the background choice, so the default invocation is
@@ -141,6 +144,10 @@ describe('custom image backdrop', () => {
 
   it('reads only the first frame of a multi-frame backdrop', () => {
     expect(buildCompositeArgs('bg.gif', 'cut.png', 'out.png', 10, 10)[0]).toBe('bg.gif[0]')
+  })
+
+  it('escapes percent signs in the backdrop path', () => {
+    expect(buildCompositeArgs(PCT, 'cut.png', 'out.png', 10, 10)[0]).toBe(PCT_OUT)
   })
 
   it('puts the cutout on top of the backdrop', () => {

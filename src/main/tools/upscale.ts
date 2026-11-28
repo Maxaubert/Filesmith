@@ -1,4 +1,5 @@
 import { normalizeExt } from '@shared/convert'
+import { magickFrame } from './convert'
 
 // Real-ESRGAN (ncnn/Vulkan) argument building. No Electron.
 //
@@ -9,15 +10,30 @@ import { normalizeExt } from '@shared/convert'
 // visually against a 4x reference before choosing it.
 
 /**
- * Formats the bundled binary reads reliably. Anything else (heic, jxl, svg,
- * exotic tiff…) is converted to PNG by the caller first, so the tool can accept
- * "any image format" without depending on what ncnn's loader happens to support.
+ * Formats Remove BG hands to rembg directly. Anything else (heic, jxl, svg,
+ * exotic tiff…) is converted to PNG first, so that tool accepts any image.
+ * The upscalers do not use this list: they always read a PNG that the bundled
+ * ImageMagick wrote (see buildPreConvertArgs).
  */
 export const REALESRGAN_INPUT_EXTS = ['.png', '.jpg', '.webp']
 
-/** True when the source must be converted to PNG before upscaling. */
+/** True when Remove BG must convert the source to PNG before running rembg. */
 export function needsPreConvert(ext: string): boolean {
   return !REALESRGAN_INPUT_EXTS.includes(normalizeExt(ext))
+}
+
+/**
+ * `magick <input>[0] [-auto-orient] <output>`: normalise a source to a
+ * single-frame PNG through the bundled ImageMagick. Frame 0 keeps multi-frame
+ * sources (.gif, .ico) to one image. `orient` applies the EXIF orientation to
+ * the pixels, so a portrait phone photo is not processed sideways.
+ */
+export function buildPreConvertArgs(
+  input: string,
+  output: string,
+  opts: { orient?: boolean } = {}
+): string[] {
+  return [magickFrame(input), ...(opts.orient ? ['-auto-orient'] : []), output]
 }
 
 export interface UpscaleOpts {

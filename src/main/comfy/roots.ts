@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'fs'
+import * as fs from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { readComfyStore } from './store'
@@ -26,27 +26,127 @@ export const COMFY_DIR_NAMES = [
   'StabilityMatrix'
 ]
 
-function isDir(d: string): boolean {
-  try {
-    return existsSync(d) && statSync(d).isDirectory()
-  } catch {
-    return false
-  }
-}
-
 /**
  * Drive roots that actually exist, rather than the hardcoded C:/D:/E:. A ComfyUI
  * on F: or a NAS letter was previously unreachable by discovery, and the folder
  * picker was gated behind a 3 GB download, so those users had no way in at all.
+ *
+ * Probing is NOT synchronous. The status IPC handlers call this on the Electron
+ * main thread, and a sync stat of a mapped drive whose NAS is offline blocks for
+ * many seconds, so the old C: to Z: loop froze the app on every Generate refresh.
+ * Instead:
+ * - The first call starts one async probe (fs.promises.stat per letter, each
+ *   raced against DRIVE_PROBE_TIMEOUT_MS) and returns at once. A stat that has
+ *   finished but is not delivered yet (blocked main thread) does not time out.
+ * - Until that probe finishes, the answer is the system drive only (no fs call).
+ *   The user's picked folder always comes first in comfyCandidateDirs, so this
+ *   guess never hides a ComfyUI the user chose.
+ * - The result is cached and refreshed at most every DRIVE_REFRESH_MS; during a
+ *   refresh the previous list is returned.
+ * - A letter that timed out is skipped while its stat is still pending, since each
+ *   hung stat holds a libuv pool thread. When that late stat settles the letter
+ *   is probed again on the next refresh (a disk that spun up, a share that
+ *   reconnected), and a late success makes the cached list stale at once.
+ * - Async entry points (the CLI, the status IPC handlers) await
+ *   ensureDriveRoots() first, so their first scan already sees every drive.
  */
-function driveRoots(): string[] {
-  if (process.platform !== 'win32') return ['/']
-  const out: string[] = []
+const DRIVE_PROBE_TIMEOUT_MS = 1500
+const DRIVE_REFRESH_MS = 5 * 60_000
+
+let driveCache: string[] | null = null
+let driveProbedAt = 0
+let driveProbe: Promise<string[]> | null = null
+const hungDrives = new Set<string>()
+
+/** Forget the cached drive list (for tests). */
+export function resetDriveRootsCache(): void {
+  driveCache = null
+  driveProbedAt = 0
+  driveProbe = null
+  hungDrives.clear()
+}
+
+/** The system drive as `X:\`, without touching the filesystem. */
+function systemDriveRoot(): string {
+  const from = [process.env.SystemDrive ?? '', homedir()].find((p) => /^[A-Za-z]:/.test(p))
+  return (from ? from[0] : 'C').toUpperCase() + ':\\'
+}
+
+/** One drive letter: true if it is a directory, false if absent, unreadable or slow. */
+function probeDrive(d: string): Promise<boolean> {
+  return new Promise((done) => {
+    let settled = false
+    const finish = (ok: boolean): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      done(ok)
+    }
+    // After a blocked main thread, an expired timer runs before the loop has
+    // delivered stat results that are already complete. So give I/O one turn
+    // (setImmediate runs after the poll phase) before calling the drive hung.
+    const timer = setTimeout(() => {
+      setImmediate(() => {
+        if (settled) return
+        hungDrives.add(d)
+        finish(false)
+      })
+    }, DRIVE_PROBE_TIMEOUT_MS)
+    timer.unref?.()
+    // A stat that settles after the timeout frees its pool thread, so the
+    // letter may be probed again. A late success also marks the cache stale,
+    // so the next driveRoots() call starts a refresh that picks the drive up.
+    const late = (ok: boolean): void => {
+      if (!hungDrives.delete(d)) return
+      if (ok) driveProbedAt = 0
+    }
+    fs.promises.stat(d).then(
+      (st) => (settled ? late(st.isDirectory()) : finish(st.isDirectory())),
+      () => (settled ? late(false) : finish(false))
+    )
+  })
+}
+
+/**
+ * Start (or join) the async drive probe. Resolves with the fresh list, which is
+ * also cached for driveRoots(). Exported so tests and callers that can wait may.
+ */
+export function probeDriveRoots(): Promise<string[]> {
+  if (driveProbe) return driveProbe
+  const letters: string[] = []
   for (let c = 'C'.charCodeAt(0); c <= 'Z'.charCodeAt(0); c++) {
     const d = String.fromCharCode(c) + ':\\'
-    if (isDir(d)) out.push(d)
+    if (!hungDrives.has(d)) letters.push(d)
   }
-  return out
+  const probe = Promise.all(letters.map(probeDrive)).then((ok) => {
+    const found = letters.filter((_, i) => ok[i])
+    if (driveProbe === probe) {
+      driveCache = found
+      driveProbedAt = Date.now()
+      driveProbe = null
+    }
+    return found
+  })
+  driveProbe = probe
+  return probe
+}
+
+/**
+ * For callers that can wait: on the first call, wait for the drive probe
+ * (bounded by DRIVE_PROBE_TIMEOUT_MS), so the first scan is not limited to the
+ * system drive. Later calls return at once; a stale list refreshes in the
+ * background as before.
+ */
+export async function ensureDriveRoots(): Promise<void> {
+  if (process.platform !== 'win32' || driveCache !== null) return
+  await probeDriveRoots()
+}
+
+function driveRoots(): string[] {
+  if (process.platform !== 'win32') return ['/']
+  const stale = driveCache === null || Date.now() - driveProbedAt > DRIVE_REFRESH_MS
+  if (stale && !driveProbe) void probeDriveRoots()
+  return driveCache ?? [systemDriveRoot()]
 }
 
 /**

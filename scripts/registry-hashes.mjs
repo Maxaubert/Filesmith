@@ -102,7 +102,11 @@ for (const c of companions) {
     const pinned = `https://huggingface.co/${parsed.repo}/resolve/${commit}/${parsed.path}`
     const branch = `https://huggingface.co/${parsed.repo}/resolve/main/${parsed.path}`
 
-    const isCurrent = d.sha256 === sha256 && d.urls[0] === pinned
+    // --check compares the file hash only. The pinned URL follows the repo's
+    // head commit, which moves on any unrelated commit (a README edit), so
+    // comparing it would report every entry as stale. Update mode still
+    // refreshes the pinned URL to the new head.
+    const isCurrent = d.sha256 === sha256 && (CHECK || d.urls[0] === pinned)
     if (isCurrent) {
       log(`  = ${label}`)
       continue

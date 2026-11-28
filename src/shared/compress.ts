@@ -78,9 +78,6 @@ export const UPSCALE_MODELS: Choice<UpscaleModel>[] = [
   { value: 'photo', label: 'Photo' },
   { value: 'anime', label: 'Anime' }
 ]
-/** The NVIDIA-only diffusion flagship. Retained for the engine; not currently
- * offered in the picker (superseded by imported ComfyUI models). */
-export const UPSCALE_PID: Choice<UpscaleModel> = { value: 'pid', label: 'PiD (NVIDIA, best)' }
 /** The "AI models" category entry, shown only when a GPU is detected. It reveals
  * a second picker of every AI upscaler — imported ComfyUI models plus PiD. */
 export const UPSCALE_COMFY: Choice<UpscaleModel> = { value: 'comfy', label: 'AI models' }

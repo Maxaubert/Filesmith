@@ -25,6 +25,7 @@ import { comfyEngineReady, pidInstalled, pidRoot } from '../main/pid/paths'
 import { installComfyEngine, installPid, pidWeightFiles } from '../main/pid/install'
 import { clearComfyPythonCache, comfyPythonReady } from '../main/comfy/pythonEnv'
 import { scanComfy } from '../main/comfy/discover'
+import { ensureDriveRoots } from '../main/comfy/roots'
 import { downloadCompanions } from '../main/generate/companions'
 import { listNcnnModels, userNcnnDir } from '../main/tools/ncnnModels'
 import {
@@ -60,19 +61,36 @@ import type { CliDeps } from './main'
 import { statOutput } from './runner'
 import { VERSION } from './version'
 
+/** Pick one model by exact path, else by file name or stem. More than one name match is ambiguous. */
+export function pickComfyModel(
+  models: { path: string }[],
+  want: string
+): { path: string } | undefined {
+  const lower = want.toLowerCase()
+  const exact = models.find((m) => m.path.toLowerCase() === resolve(want).toLowerCase())
+  if (exact) return exact
+  const hits = models.filter(
+    (m) =>
+      basename(m.path).toLowerCase() === lower ||
+      basename(m.path, extname(m.path)).toLowerCase() === lower
+  )
+  if (hits.length > 1)
+    throw new UsageError(
+      `The upscaler name "${want}" is ambiguous. Use the full path as comfy:<path>: ${hits
+        .map((m) => m.path)
+        .join(' | ')}`,
+      ['upscale'],
+      'filesmith formats upscale'
+    )
+  return hits[0]
+}
+
 /** comfy:<model file name, stem or path> -> comfy:<absolute path> (spec 3.4). */
 export function resolveUpscaleModel(value: string): string {
   if (!value.startsWith('comfy:')) return value
   const want = value.slice('comfy:'.length)
   const models = usableComfyModels()
-  const lower = want.toLowerCase()
-  const hit =
-    models.find((m) => m.path.toLowerCase() === resolve(want).toLowerCase()) ??
-    models.find(
-      (m) =>
-        basename(m.path).toLowerCase() === lower ||
-        basename(m.path, extname(m.path)).toLowerCase() === lower
-    )
+  const hit = pickComfyModel(models, want)
   if (!hit)
     throw new UsageError(
       `No scanned ComfyUI upscaler matches "${want}". See: filesmith formats upscale`,
@@ -379,6 +397,9 @@ export function defaultDeps(): CliDeps {
     setup: defaultSetupDeps(),
     formats: defaultFormatsDeps(),
     doctor: defaultDoctorDeps(),
-    skill: defaultSkillDeps()
+    skill: defaultSkillDeps(),
+    // ComfyUI discovery reads the drive list synchronously; a one-shot run must
+    // wait for the bounded async probe once, or it only sees the system drive.
+    prepare: ensureDriveRoots
   }
 }

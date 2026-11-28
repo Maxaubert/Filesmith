@@ -46,3 +46,37 @@ export function nextEnabled(
   }
   return null
 }
+
+/** The select popup's tallest size (controls.css `.vs-pop`). */
+export const POPUP_MAX = 280
+
+/** Where the select popup opens. It drops below the button unless the room
+ * below is too small and there is more room above; either way its height is
+ * capped to the room on that side (never above POPUP_MAX), so no row is cut
+ * off by a scrolling panel or the window edge. */
+export function popupPlacement(
+  anchor: { top: number; bottom: number },
+  boundsTop: number,
+  boundsBottom: number,
+  wantHeight: number
+): { up: boolean; maxHeight: number } {
+  const want = Math.min(wantHeight, POPUP_MAX)
+  const below = Math.max(0, Math.floor(boundsBottom - anchor.bottom))
+  const above = Math.max(0, Math.floor(anchor.top - boundsTop))
+  const up = below < want && above > below
+  return { up, maxHeight: Math.min(POPUP_MAX, up ? above : below) }
+}
+
+/** The scrollTop that brings a row fully into a scrolling list's view, moving
+ * as little as possible (like scrollIntoView with block 'nearest', but only
+ * the list scrolls, never the panel behind it). */
+export function scrollTopFor(
+  itemTop: number,
+  itemHeight: number,
+  scrollTop: number,
+  viewHeight: number
+): number {
+  if (itemTop < scrollTop) return itemTop
+  if (itemTop + itemHeight > scrollTop + viewHeight) return itemTop + itemHeight - viewHeight
+  return scrollTop
+}
