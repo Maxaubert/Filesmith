@@ -1,8 +1,9 @@
 // A PDF opens in LibreOffice's Draw by default, which cannot export docx/odt/
 // rtf. buildSofficeArgs must force the Writer PDF import for those targets
 // (and only for a PDF source). HTML must stay on Draw: through Writer the text
-// turns into images in side files that never reach the user. The live half spawns the bundled soffice and is
-// skipped when resources/libreoffice has not been staged.
+// turns into images in side files that never reach the user. The live half
+// spawns the bundled soffice and is skipped when resources/libreoffice has not
+// been staged.
 import { execFileSync } from 'child_process'
 import {
   copyFileSync,
