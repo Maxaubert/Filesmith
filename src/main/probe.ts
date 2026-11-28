@@ -18,7 +18,14 @@ export interface Dimensions {
  * included), and a tag may well contain "Duration:" or "Stream #0:0: Video:".
  */
 function inputReport(stderr: string): string | null {
-  const text = stderr.replace(/\r\n?/g, '\n')
+  // A multiline regex also starts a line at U+2028 and U+2029, and ffmpeg prints
+  // tag values raw: flatten both so a tag cannot fake a report line.
+  const text = stderr
+    .replace(/\r\n?/g, '\n')
+    .split(String.fromCharCode(0x2028))
+    .join(' ')
+    .split(String.fromCharCode(0x2029))
+    .join(' ')
   const start = text.search(/^Input #0, /m)
   return start < 0 ? null : text.slice(start)
 }
@@ -40,7 +47,7 @@ export function parseDuration(stderr: string): number | null {
 export function parseDimensions(stderr: string): Dimensions | null {
   const report = inputReport(stderr)
   if (!report) return null
-  const stream = /^ {2,4}Stream #0:\d+[^\n]*?: Video: ([^\n]*)$/m.exec(report)
+  const stream = /^ {2}Stream #0:\d+[^\n]*?: Video: ([^\n]*)$/m.exec(report)
   if (!stream) return null
   // ", 1920x1080" followed by a space, comma or the end. The codec tag
   // (`avc1 / 0x31637661`) also looks like NxN but never follows ", ".
@@ -51,7 +58,7 @@ export function parseDimensions(stderr: string): Dimensions | null {
   if (!width || !height) return null
   // This stream's own block ends at the next stream.
   const after = report.slice(stream.index + stream[0].length)
-  const next = after.search(/^ {2,4}Stream #/m)
+  const next = after.search(/^ {2}Stream #/m)
   const block = next < 0 ? after : after.slice(0, next)
   const rot = /^ +(?:Display Matrix|displaymatrix): rotation of (-?[\d.]+) degrees/m.exec(block)
   if (rot && Math.abs(Math.round(Number(rot[1])) % 180) === 90) [width, height] = [height, width]
