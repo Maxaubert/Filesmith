@@ -36,7 +36,8 @@ export const COMFY_DIR_NAMES = [
  * many seconds, so the old C: to Z: loop froze the app on every Generate refresh.
  * Instead:
  * - The first call starts one async probe (fs.promises.stat per letter, each
- *   raced against DRIVE_PROBE_TIMEOUT_MS) and returns at once.
+ *   raced against DRIVE_PROBE_TIMEOUT_MS) and returns at once. A stat that has
+ *   finished but is not delivered yet (blocked main thread) does not time out.
  * - Until that probe finishes, the answer is the system drive only (no fs call).
  *   The user's picked folder always comes first in comfyCandidateDirs, so this
  *   guess never hides a ComfyUI the user chose.
@@ -81,9 +82,15 @@ function probeDrive(d: string): Promise<boolean> {
       clearTimeout(timer)
       done(ok)
     }
+    // After a blocked main thread, an expired timer runs before the loop has
+    // delivered stat results that are already complete. So give I/O one turn
+    // (setImmediate runs after the poll phase) before calling the drive hung.
     const timer = setTimeout(() => {
-      hungDrives.add(d)
-      finish(false)
+      setImmediate(() => {
+        if (settled) return
+        hungDrives.add(d)
+        finish(false)
+      })
     }, DRIVE_PROBE_TIMEOUT_MS)
     timer.unref?.()
     // A stat that settles after the timeout frees its pool thread, so the

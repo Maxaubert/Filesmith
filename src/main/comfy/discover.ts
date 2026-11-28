@@ -87,9 +87,11 @@ export function resolveExtraPaths(cfgPath: string): string[] {
   const lines = text.split(/\r?\n/)
   const indentOf = (s: string): number => s.length - s.trimStart().length
   const isSkip = (t: string): boolean => !t || t.startsWith('#')
+  // A `#` starts a comment at the start of a value or after whitespace. The
+  // start case is real: the key regex already ate the space after the colon.
   const clean = (s: string): string =>
     s
-      .replace(/\s+#.*$/, '')
+      .replace(/(^|\s+)#.*$/, '')
       .trim()
       .replace(/^["']|["']$/g, '')
   const out: string[] = []

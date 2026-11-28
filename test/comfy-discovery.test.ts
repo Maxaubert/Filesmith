@@ -190,6 +190,34 @@ describe('extra_model_paths.yaml', () => {
     expect(out).toEqual([resolve(join(comfy, 'base', 'up1')), resolve(join(comfy, 'base', 'up2'))])
   })
 
+  it('a comment right after the key does not hide the list or block below it', () => {
+    const { comfy, out } = setup(
+      [
+        'one:',
+        '  base_path: base # where',
+        '  upscale_models:   # my upscalers',
+        '    - up1',
+        '    -   # nothing here',
+        '    - up2',
+        'two:',
+        '  base_path:   # none',
+        '  upscale_models: # same indent list',
+        '  - up3',
+        'three:',
+        '  upscale_models:\t# indented lines',
+        '    up4',
+        '    up5',
+        ''
+      ].join('\n'),
+      []
+    )
+    expect(out).toEqual([
+      resolve(join(comfy, 'base', 'up1')),
+      resolve(join(comfy, 'base', 'up2')),
+      ...['up3', 'up4', 'up5'].map((m) => resolve(join(comfy, m)))
+    ])
+  })
+
   it('resolves a relative base_path against the yaml folder, not the cwd', () => {
     const { comfy, out } = setup('x:\r\n  base_path: rel\r\n  upscale_models: up\r\n', [])
     expect(out).toEqual([resolve(join(comfy, 'rel', 'up'))])
@@ -228,6 +256,8 @@ describe('extra_model_paths.yaml', () => {
 
 describe.runIf(process.platform === 'win32')('drive roots probe (never blocks main)', () => {
   const drives = (r: string[]): string[] => r.filter((x) => /^[A-Z]:\\$/.test(x))
+  // The 1500 ms timeout plus the faked setImmediate that gives I/O one turn.
+  const PAST_TIMEOUT_MS = 1501
 
   beforeEach(() => resetDriveRootsCache())
   afterEach(() => {
@@ -267,7 +297,7 @@ describe.runIf(process.platform === 'win32')('drive roots probe (never blocks ma
     expect(drives(roots)).toHaveLength(1)
 
     const done = probeDriveRoots()
-    await vi.advanceTimersByTimeAsync(1500)
+    await vi.advanceTimersByTimeAsync(PAST_TIMEOUT_MS)
     expect(await done).toEqual([])
 
     // A later refresh skips the letter that hung.
@@ -290,6 +320,37 @@ describe.runIf(process.platform === 'win32')('drive roots probe (never blocks ma
     expect(stat.mock.calls.length).toBe(probes)
   })
 
+  it('a blocked main thread does not make drives that already answered count as hung', async () => {
+    // Real timers and real thread pool results: only the ordering of the event
+    // loop phases shows this. The mock stats a temp path, never a real drive.
+    const realStat = fs.promises.stat
+    const stat = vi
+      .spyOn(fs.promises, 'stat')
+      .mockImplementation(((p: fs.PathLike) =>
+        realStat(
+          p === 'C:\\' || p === 'D:\\' ? root : join(root, 'no-such-drive')
+        )) as typeof fs.promises.stat)
+
+    // Start the probe inside an I/O callback and block past the probe timeout,
+    // as a large synchronous model scan does: the stats finish on the thread
+    // pool, but the expired timers run before their results are delivered.
+    const { probe } = await new Promise<{ probe: Promise<string[]> }>((started) => {
+      fs.stat(root, () => {
+        const probe = probeDriveRoots()
+        const until = Date.now() + 1700
+        while (Date.now() < until);
+        started({ probe })
+      })
+    })
+    expect(await probe).toEqual(['C:\\', 'D:\\'])
+    expect(drives(comfySearchRoots())).toEqual(['C:\\', 'D:\\'])
+
+    // No letter was marked hung, so the next probe asks all of them again.
+    const before = stat.mock.calls.length
+    await probeDriveRoots()
+    expect(stat.mock.calls.length - before).toBe(24)
+  })
+
   it('a hung drive that answers late is probed again and found', async () => {
     vi.useFakeTimers()
     let wake: (st: fs.Stats) => void = () => {}
@@ -301,7 +362,7 @@ describe.runIf(process.platform === 'win32')('drive roots probe (never blocks ma
     }) as typeof fs.promises.stat)
 
     const done = probeDriveRoots()
-    await vi.advanceTimersByTimeAsync(1500)
+    await vi.advanceTimersByTimeAsync(PAST_TIMEOUT_MS)
     expect(await done).toEqual([])
 
     // The disk spins up: the pending stat settles after the timeout.
