@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initialWindowSize, MIN_WINDOW } from '../src/main/windowSize'
+import { initialWindowSize, MIN_WINDOW, windowBounds } from '../src/main/windowSize'
 
 describe('initialWindowSize', () => {
   it('uses 1440x900 when the work area is larger', () => {
@@ -10,7 +10,27 @@ describe('initialWindowSize', () => {
     expect(initialWindowSize({ width: 1366, height: 728 })).toEqual({ width: 1366, height: 728 })
   })
 
-  it('never goes below the minimum, even on a tiny display', () => {
-    expect(initialWindowSize({ width: 1024, height: 600 })).toEqual(MIN_WINDOW)
+  it('never starts larger than a tiny display', () => {
+    expect(initialWindowSize({ width: 1024, height: 600 })).toEqual({ width: 1024, height: 600 })
+  })
+})
+
+describe('windowBounds', () => {
+  it('keeps the normal minimum on a normal display', () => {
+    expect(windowBounds({ width: 1920, height: 1040 })).toEqual({
+      width: 1440,
+      height: 900,
+      minWidth: MIN_WINDOW.width,
+      minHeight: MIN_WINDOW.height
+    })
+  })
+
+  it('lowers the minimum to the work area on a tiny display', () => {
+    expect(windowBounds({ width: 1024, height: 600 })).toEqual({
+      width: 1024,
+      height: 600,
+      minWidth: 1024,
+      minHeight: 600
+    })
   })
 })

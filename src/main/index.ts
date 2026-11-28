@@ -8,7 +8,7 @@ import { pidSidecar } from './pid/sidecar'
 import { spandrelSidecar } from './comfy/sidecar'
 import { stopComfyServer } from './generate'
 import { scheduleChannelRefresh } from './registry/channel'
-import { initialWindowSize, MIN_WINDOW } from './windowSize'
+import { windowBounds } from './windowSize'
 import { setEngineEnv } from './env'
 import { bootEngine } from './boot'
 
@@ -133,12 +133,12 @@ function serveMedia(request: Request): Response {
 function createWindow(): void {
   // Dark only: native scrollbars, dialogs and the pre-paint fill follow the app.
   nativeTheme.themeSource = 'dark'
-  const size = initialWindowSize(screen.getPrimaryDisplay().workAreaSize)
+  const size = windowBounds(screen.getPrimaryDisplay().workAreaSize)
   const mainWindow = new BrowserWindow({
     width: size.width,
     height: size.height,
-    minWidth: MIN_WINDOW.width,
-    minHeight: MIN_WINDOW.height,
+    minWidth: size.minWidth,
+    minHeight: size.minHeight,
     show: false,
     // Frameless: the renderer draws the 32px title bar and window controls.
     frame: false,

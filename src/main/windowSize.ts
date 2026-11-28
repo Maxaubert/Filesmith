@@ -9,7 +9,23 @@ export function initialWindowSize(work: { width: number; height: number }): {
   height: number
 } {
   return {
-    width: Math.max(MIN_WINDOW.width, Math.min(DEFAULT_WINDOW.width, work.width)),
-    height: Math.max(MIN_WINDOW.height, Math.min(DEFAULT_WINDOW.height, work.height))
+    width: Math.min(DEFAULT_WINDOW.width, work.width),
+    height: Math.min(DEFAULT_WINDOW.height, work.height)
+  }
+}
+
+/** Start size and minimum size for a work area. On a display smaller than
+ * MIN_WINDOW the minimum shrinks too, so the window never starts larger than
+ * the screen and can still be resized to fit it. */
+export function windowBounds(work: { width: number; height: number }): {
+  width: number
+  height: number
+  minWidth: number
+  minHeight: number
+} {
+  return {
+    ...initialWindowSize(work),
+    minWidth: Math.min(MIN_WINDOW.width, work.width),
+    minHeight: Math.min(MIN_WINDOW.height, work.height)
   }
 }
