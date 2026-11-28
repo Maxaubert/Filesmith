@@ -153,6 +153,18 @@ describe('selectCompanions: name first, size only for non-GGUF files', () => {
   it('a 9B GGUF of 5e9 bytes with "9b" in its name gets the 9B set', () => {
     expect(pick('flux-2-klein-9b-Q4_K_M.gguf', 5e9)).toBe('big.safetensors')
   })
+  // models.ts passes the path under diffusion_models or unet, folders included.
+  it('"9b" in a folder name does not count, only the base file name', () => {
+    expect(pick('klein-4b-and-9b/flux-2-klein-4b-fp8.safetensors', 3.8e9)).toBe('small.safetensors')
+    expect(pick('klein-4b-and-9b\\flux-2-klein-4b-fp8.safetensors', 3.8e9)).toBe(
+      'small.safetensors'
+    )
+    expect(pick('9b/flux-2-klein-4b-Q4_K_M.gguf', 3e9)).toBe('small.safetensors')
+    expect(pick('9b/sub/flux-2-klein-4b.safetensors')).toBe('small.safetensors')
+  })
+  it('a "9b" base file name still counts inside a folder', () => {
+    expect(pick('flux/flux-2-klein-9b-Q4_K_M.gguf', 5e9)).toBe('big.safetensors')
+  })
   it('an unnamed 7e9-byte safetensors gets the 9B set by size', () => {
     expect(pick('my-model.safetensors', 7e9)).toBe('big.safetensors')
   })

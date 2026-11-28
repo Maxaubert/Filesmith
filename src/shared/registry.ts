@@ -316,7 +316,9 @@ export function nameMatches(d: DetectSpec, basename: string): boolean {
 /**
  * The companion list for a model, choosing between name- or size-discriminated
  * variants. The order is:
- *   1. a non-default set whose `nameHint` matches the model name wins;
+ *   1. a non-default set whose `nameHint` matches the model's base file name
+ *      wins (`modelName` may carry folders, and a folder called "4b-and-9b"
+ *      says nothing about the file inside it);
  *   2. otherwise, when the byte size is known and the file is NOT a .gguf, the
  *      `minBytes` rule decides (so a 9B Flux 2 fp8 file renamed without a "9b"
  *      token still gets the 8B encoder by size);
@@ -334,9 +336,11 @@ export function selectCompanions(
   const isDefault = (s: CompanionSet): boolean =>
     !s.when || (s.when.minBytes == null && s.when.nameHint == null)
   const variants = sets.filter((s) => !isDefault(s))
+  // No `path` import: this module is shared with the renderer.
+  const fileName = modelName.split(/[\\/]/).pop() ?? modelName
   for (const s of variants) {
     const hint = s.when?.nameHint
-    if (hint && (safeRegExp(hint)?.test(modelName) ?? false)) return s.companions
+    if (hint && (safeRegExp(hint)?.test(fileName) ?? false)) return s.companions
   }
   if (sizeBytes != null && !/\.gguf$/i.test(modelName)) {
     for (const s of variants) {
