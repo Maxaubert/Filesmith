@@ -83,11 +83,24 @@ The versions below are the ones the release build downloads and checks by SHA-25
 ### CaesiumCLT (caesiumclt.exe)
 
 - Version: 1.4.0
-- Licence: Apache-2.0 (from `LICENSE.md` at tag v1.4.0)
-- Licence text: `texts/Apache-2.0.txt`
+- Licences:
+  - CaesiumCLT's own code: Apache-2.0 (from `LICENSE.md` at tag v1.4.0), as is its
+    compression library libcaesium 0.20.3
+  - imagequant 4.4.1, built into the program: GPL-3.0-or-later
+  - gifski 1.34.0, built into the program: AGPL-3.0-or-later
+  - colored 3.1.1, built into the program: MPL-2.0
+  - The other Rust crates and the C libraries built into the program keep their own
+    licences. `Cargo.lock` at tag v1.4.0 lists the crates and their versions:
+    https://github.com/Lymphatus/caesium-clt/blob/v1.4.0/Cargo.lock
+- Licence of the binary as a whole: because it contains GPL and AGPL code, the Apache-2.0
+  licence alone does not cover it. Filesmith distributes it under the terms of the GNU GPL
+  version 3, and the GNU AGPL version 3 applies to the gifski part (section 13 of both
+  licences permits this combination).
+- Licence texts: `texts/Apache-2.0.txt`, `texts/GPL-3.0.txt`, `texts/AGPL-3.0.txt` and
+  `texts/MPL-2.0.txt`
 - Project: https://github.com/Lymphatus/caesium-clt
 - Binary we bundle: https://github.com/Lymphatus/caesium-clt/releases/download/v1.4.0/caesiumclt-v1.4.0-x86_64-pc-windows-msvc.zip
-- Source: https://github.com/Lymphatus/caesium-clt/archive/refs/tags/v1.4.0.tar.gz
+- Source: see "Source code offer" below.
 - Installed at: `resources\bin\caesiumclt.exe`
 
 ### LibreOffice
@@ -158,9 +171,10 @@ records them.
 
 ## Source code offer
 
-FFmpeg, MuPDF and Ghostscript are under the GNU GPL or the GNU AGPL. Filesmith ships them
-unmodified, as separate programs that it starts with command-line arguments. The source code
-for the exact versions it ships is available here:
+FFmpeg, MuPDF and Ghostscript are under the GNU GPL or the GNU AGPL, and the CaesiumCLT
+binary contains GPL and AGPL code. Filesmith ships them unmodified, as separate programs
+that it starts with command-line arguments. The source code for the exact versions it ships
+is available here:
 
 - FFmpeg 9.0.2: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz . The external libraries in
   the gyan.dev "essentials" build, with their versions, are listed on
@@ -170,6 +184,14 @@ for the exact versions it ships is available here:
 - Ghostscript 10.07.1: https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10071/ghostscript-10.07.1.tar.gz
   (the full ghostpdl tree is at
   https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10071/ghostpdl-10.07.1.tar.gz)
+- CaesiumCLT 1.4.0: https://github.com/Lymphatus/caesium-clt/archive/refs/tags/v1.4.0.tar.gz
+  Its `Cargo.lock` gives the exact version of every crate built into the program. Each one
+  is published on https://crates.io/ . Direct source downloads for the GPL, AGPL and MPL
+  crates and for libcaesium:
+  - imagequant 4.4.1: https://static.crates.io/crates/imagequant/imagequant-4.4.1.crate
+  - gifski 1.34.0: https://static.crates.io/crates/gifski/gifski-1.34.0.crate
+  - colored 3.1.1: https://static.crates.io/crates/colored/colored-3.1.1.crate
+  - libcaesium 0.20.3: https://static.crates.io/crates/libcaesium/libcaesium-0.20.3.crate
 
 If a link above stops working, or you want the source of any bundled component for the
 version in your installer, open an issue at https://github.com/Maxaubert/Filesmith/issues and

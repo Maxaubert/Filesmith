@@ -33,6 +33,37 @@ describe('third-party notices', () => {
     expect(section).not.toMatch(/\b\d+\.\d+\.\d+\b/)
   })
 
+  // caesiumclt.exe is Apache-2.0 source, but its release binary also compiles in
+  // GPL and AGPL crates (Cargo.lock at the pinned tag), so both parts must say so.
+  const between = (from: string, to: string): string => {
+    const start = notices.indexOf(from)
+    expect(start).toBeGreaterThan(-1)
+    const end = notices.indexOf(to, start + from.length)
+    expect(end).toBeGreaterThan(start)
+    return notices.slice(start, end)
+  }
+
+  it('states the GPL and AGPL code compiled into caesiumclt.exe', () => {
+    const section = between('### CaesiumCLT', '\n### ')
+    for (const needle of [
+      /imagequant\s+4\.4\.1/,
+      /GPL-3\.0-or-later/,
+      /gifski\s+1\.34\.0/,
+      /AGPL-3\.0-or-later/,
+      /`texts\/GPL-3\.0\.txt`/,
+      /`texts\/AGPL-3\.0\.txt`/
+    ])
+      expect(section).toMatch(needle)
+  })
+
+  it('offers the source of caesiumclt.exe and its GPL and AGPL parts', () => {
+    const offer = between('## Source code offer', '## Downloaded on request')
+    expect(offer).toContain('CaesiumCLT')
+    expect(offer).toContain('caesium-clt/archive/refs/tags/v1.4.0.tar.gz')
+    expect(offer).toContain('imagequant-4.4.1.crate')
+    expect(offer).toContain('gifski-1.34.0.crate')
+  })
+
   it('has a licence text for every texts/ file it names', () => {
     const named = [...notices.matchAll(/`texts\/([^`]+)`/g)].map((m) => m[1])
     expect(named.length).toBeGreaterThan(0)
