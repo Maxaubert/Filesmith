@@ -16,12 +16,13 @@ export function sofficeFilter(targetExt: string): string {
 }
 
 /** Targets that only the Writer module can export. */
-const WRITER_TARGETS = ['docx', 'doc', 'odt', 'rtf', 'html']
+const WRITER_TARGETS = ['docx', 'doc', 'odt', 'rtf']
 
 /**
- * A PDF opens in Draw by default, which has no docx/odt/rtf/html export ("no
- * export filter", nothing written). Forcing the Writer PDF import makes those
- * targets work.
+ * A PDF opens in Draw by default, which has no docx/odt/rtf export ("no export
+ * filter", nothing written). Forcing the Writer PDF import makes those targets
+ * work. HTML is deliberately not listed: Draw exports it with real text, while
+ * Writer turns the text into images in side files that are never copied out.
  */
 function sofficeInfilter(input: string, targetExt: string): string[] {
   const e = targetExt.replace(/^\./, '').toLowerCase()

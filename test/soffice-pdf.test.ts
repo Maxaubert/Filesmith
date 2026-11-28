@@ -1,9 +1,18 @@
 // A PDF opens in LibreOffice's Draw by default, which cannot export docx/odt/
-// rtf/html. buildSofficeArgs must force the Writer PDF import for those targets
-// (and only for a PDF source). The live half spawns the bundled soffice and is
+// rtf. buildSofficeArgs must force the Writer PDF import for those targets
+// (and only for a PDF source). HTML must stay on Draw: through Writer the text
+// turns into images in side files that never reach the user. The live half spawns the bundled soffice and is
 // skipped when resources/libreoffice has not been staged.
 import { execFileSync } from 'child_process'
-import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'fs'
 import { tmpdir } from 'os'
 import { basename, join, resolve } from 'path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -19,7 +28,7 @@ describe('buildSofficeArgs infilter', () => {
     buildSofficeArgs(input, 'C:/out', 'C:/prof', ext)
 
   it('adds the Writer PDF import for a PDF source and a Writer target', () => {
-    for (const ext of ['.docx', '.odt', '.rtf', '.html', '.DOCX']) {
+    for (const ext of ['.docx', '.odt', '.rtf', '.DOCX']) {
       const a = args('C:/tmp/in.pdf', ext)
       expect(a).toContain(INFILTER)
       expect(a.indexOf(INFILTER)).toBeLessThan(a.indexOf('--convert-to'))
@@ -38,6 +47,8 @@ describe('buildSofficeArgs infilter', () => {
 
   it('does not add it for a non-Writer target from a PDF', () => {
     expect(args('C:/tmp/in.pdf', 'txt')).not.toContain(INFILTER)
+    expect(args('C:/tmp/in.pdf', '.html')).not.toContain(INFILTER)
+    expect(args('C:/tmp/in.pdf', '.HTML')).not.toContain(INFILTER)
   })
 })
 
@@ -83,6 +94,11 @@ describe.skipIf(!haveSoffice)('PDF to Word-family convert (live)', () => {
       expect(out).toBeTruthy()
       expect(existsSync(out)).toBe(true)
       expect(statSync(out).size).toBeGreaterThan(0)
+      if (ext === '.html') {
+        const html = readFileSync(out, 'utf8')
+        expect(html).toContain('Hello PDF world.')
+        expect(html).toContain('Second line of text.')
+      }
     },
     90_000
   )
