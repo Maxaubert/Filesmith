@@ -188,6 +188,23 @@ describe('main', () => {
     expect(h.events()[0]).toMatchObject({ v: 1, command: 'convert', dryRun: false, inputs: 1 })
   })
 
+  it('--replace on an archive-routed convert: exit 2 USAGE, dry run and real run', async () => {
+    writeFileSync(join(dir, 'a.zip'), 'x')
+    for (const extra of [['--dry-run'], []]) {
+      const h = harness(['convert', 'a.zip', '--to', '7z', '--replace', '--json', ...extra], {
+        queue: () => {
+          throw new Error('no job may start')
+        }
+      })
+      expect(await h.run()).toBe(2)
+      expect(h.events().map((e) => [e.event, e.code ?? e.exitCode])).toEqual([
+        ['run', undefined],
+        ['error', 'USAGE'],
+        ['summary', 2]
+      ])
+    }
+  })
+
   it('a dry run plans and writes nothing', async () => {
     writeFileSync(join(dir, 'a.png'), 'x')
     const h = harness(['convert', 'a.png', '--to', 'webp', '--dry-run', '--json'], {

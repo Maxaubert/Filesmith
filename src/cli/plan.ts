@@ -6,7 +6,7 @@ import { baseName } from '@shared/fileKind'
 import { planOutput, type PlannedOutput } from '../main/tools/plan'
 import { canReplace, finishOptionsFor, planFinish } from '../main/finishOutput'
 import type { Readiness } from '../main/tools/readiness'
-import { CliError, type ErrorCode } from './exit'
+import { CliError, UsageError, type ErrorCode } from './exit'
 import type { CommandId } from './catalog'
 import type { BuiltOptions, Warning } from './options'
 
@@ -140,7 +140,9 @@ function planOne(
         code: 'SAME_FORMAT',
         message: `already ${target.slice(1)}`
       }
-    // The output-finishing flags apply to both routes (the rest of built.options is narrowed).
+    // The output-finishing options travel on both routes (the rest of built.options is
+    // narrowed). The archive tool ignores replace, rename and dates, so
+    // rejectArchiveFinishFlags refuses them when typed.
     const finish: JobOptions = {}
     for (const k of ['replaceOriginals', 'rename', 'renamePattern', 'keepDates', 'stripMetadata']) {
       if (o[k] !== undefined) finish[k] = o[k]
@@ -197,6 +199,25 @@ function nothingToRun(
   return `Nothing to convert: ${parts.join(', ')}.${tail}`
 }
 
+/** The archive tool offers no Replace, Rename or Dates (FINISH_TOOLS), so a typed
+ * flag would be dropped without a word. One such file refuses the whole run.
+ * --dates has a default, so only a typed one counts. */
+function rejectArchiveFinishFlags(jobs: PlannedJob[], built: BuiltOptions): void {
+  const archive = jobs.filter((j) => j.tool === 'archive')
+  if (!archive.length) return
+  const flags = [
+    ...(built.options.replaceOriginals === true ? ['--replace'] : []),
+    ...(built.options.rename === true ? ['--rename'] : []),
+    ...(built.explicit.has('dates') ? ['--dates'] : [])
+  ]
+  if (!flags.length) return
+  const list = flags.join(', ')
+  throw new UsageError(
+    `${list} cannot be used with archive conversions (${names(archive)}). Nothing was converted. Leave out ${list}, or run these files separately without ${flags.length > 1 ? 'them' : 'it'}.`,
+    ['convert']
+  )
+}
+
 /** Spec 2.7 and 4.4: decide everything before any file is touched. */
 export function planJobs(
   id: CommandId,
@@ -216,6 +237,7 @@ export function planJobs(
 
   const claimed = new Set<string>()
   const jobs = files.map((f, i) => planOne(id, f, i, built, env, claimed))
+  rejectArchiveFinishFlags(jobs, built)
 
   const warnings: Warning[] = []
   if (built.codecFor === 'video' && files.some((f) => f.kind === 'audio'))

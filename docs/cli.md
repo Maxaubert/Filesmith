@@ -64,6 +64,10 @@ filesmith <helper> [args] [options]
   new file is written; on a drive without a Recycle Bin the original is kept. `--rename "{name}-web"` names outputs by a pattern (`{name}`, `{n}`, `{date}`),
   `--dates today` gives new files the current time instead of the source's date, and
   `--strip-metadata` removes GPS and camera data from images and video.
+  **Archive conversions** (any archive to another archive format or to PDF, and PDF to a comic archive)
+  do not support `--replace`, `--rename` or `--dates` (`keep` or `today`). Typing one of them when any
+  input takes that route is a `USAGE` error (exit 2), also with `--dry-run`: nothing is converted,
+  not even the other files in the same run. Leave the flag out, or run those files separately.
   `--dry-run` validates everything, prints the planned outputs and writes and downloads nothing. Planned
   names are predictions; the real names are in the `done` events. `--out` creates the folder (with
   parents) when it is missing; `generate` writes to the current folder unless `--out` is given.

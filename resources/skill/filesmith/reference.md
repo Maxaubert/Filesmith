@@ -26,6 +26,8 @@
 | `--dates keep\|today` | `keep` (default): new files get the source's modified date |
 | `--strip-metadata` | remove GPS, camera and EXIF data (images and video; convert, compress, resize only) |
 
+`--replace`, `--rename` and `--dates` do not work with archive conversions (archive to archive or PDF, PDF to a comic archive). If any input takes that route, typing one is a `USAGE` error and nothing in the run is converted.
+
 ## Commands
 
 ### convert `--to <format>` (required)
