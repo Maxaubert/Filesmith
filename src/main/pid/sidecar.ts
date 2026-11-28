@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { createInterface } from 'readline'
+import { stripVTControlCharacters } from 'util'
 import {
   pidCheckpointsDir,
   pidKernelCache,
@@ -66,18 +67,51 @@ export function classifySidecarLine(line: string): SidecarLine {
   return { kind: 'ignore' }
 }
 
-class PidSidecar {
+/** How long the process may be SILENT before {"ready"} until it is treated as
+ * hung. Any stdout or stderr output restarts the clock, so this is not a cap on
+ * the whole load: the first one downloads the Gemma text encoder (about 5 GB).
+ * huggingface_hub reports that download once per 10 MiB (see the spawn env), so
+ * even a link well under 1 Mbit/s stays inside the limit. Torch imports and the
+ * model load can print nothing for a while on a cold disk, hence minutes. */
+export const PID_STARTUP_TIMEOUT_MS = 10 * 60 * 1000
+
+export const PID_STARTUP_TIMEOUT_MESSAGE =
+  'PiD did not start in time. Try again, or reinstall the upscaler from Settings.'
+
+export class PidSidecar {
   private proc: ChildProcessWithoutNullStreams | null = null
   private ready: Promise<void> | null = null
   private pending = new Map<number, Pending>()
   private reqId = 0
   private warmedUp = false
   private backbone = 'flux'
+  /** The callers still waiting for the load; load progress goes to these only. */
+  private loadListeners = new Set<PidProgress>()
 
-  /** Start the process (idempotent) and resolve once the model reports ready. */
+  private notifyLoad(phase: 'loading' | 'ready'): void {
+    for (const listener of this.loadListeners) listener(phase)
+  }
+
+  /** Start the process (idempotent) and resolve once the model reports ready.
+   * onProgress only hears 'starting'; later phases go through loadListeners. */
   private ensure(onProgress?: PidProgress): Promise<void> {
     if (this.ready) return this.ready
-    this.ready = new Promise<void>((resolve, reject) => {
+    this.ready = new Promise<void>((resolveReady, rejectReady) => {
+      // Settle once: ready, startup timeout, spawn error and close can race.
+      let done = false
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const resolve = (): void => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        resolveReady()
+      }
+      const reject = (e: Error): void => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        rejectReady(e)
+      }
       onProgress?.('starting')
       const proc = spawn(
         pidVenvPython(),
@@ -96,11 +130,36 @@ class PidSidecar {
             // Decode stdin (filesystem paths) as UTF-8 regardless of the machine's
             // locale codepage — non-ASCII usernames otherwise corrupt paths.
             PYTHONUTF8: '1',
-            PYTHONIOENCODING: 'utf-8'
+            PYTHONIOENCODING: 'utf-8',
+            // huggingface_hub hides its byte progress bars when stderr is a
+            // pipe, which makes a multi-GB model download silent.
+            // TQDM_POSITION=-1 is its switch to print them anyway; the second
+            // variable stops an inherited setting from turning them off. The
+            // startup limit relies on this output.
+            TQDM_POSITION: '-1',
+            HF_HUB_DISABLE_PROGRESS_BARS: '0'
           }
         }
       )
       this.proc = proc
+
+      // A process that never prints {"ready"} would block every upscale forever.
+      // Kill it and clear state now, so the next call spawns a fresh process.
+      const restartTimer = (): void => {
+        if (done) return
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          if (done) return
+          const err = new Error(PID_STARTUP_TIMEOUT_MESSAGE)
+          if (this.proc === proc) this.reset(err)
+          proc.kill()
+          reject(err)
+        }, PID_STARTUP_TIMEOUT_MS)
+      }
+      restartTimer()
+      // Raw chunks, not lines: a progress bar redraws without a newline.
+      proc.stdout.on('data', restartTimer)
+      proc.stderr.on('data', restartTimer)
 
       // stdin EPIPE on a dying process would otherwise throw an unhandled stream
       // error and crash the main process; the 'close' handler does the rejecting.
@@ -112,7 +171,7 @@ class PidSidecar {
         const ev = classifySidecarLine(line)
         if (ev.kind === 'ignore') return
         if (ev.kind === 'ready') {
-          onProgress?.('ready')
+          this.notifyLoad('ready')
           resolve()
           return
         }
@@ -131,23 +190,67 @@ class PidSidecar {
       let stderrTail = ''
       proc.stderr.on('data', (d: Buffer) => {
         const t = d.toString()
-        if (/loading model/i.test(t)) onProgress?.('loading')
+        if (/loading model/i.test(t)) this.notifyLoad('loading')
         stderrTail = (stderrTail + t).slice(-800)
       })
 
+      // Only reset when this is still the current process: a process killed by
+      // the startup timeout may close after a fresh one has already spawned.
       proc.on('error', (e) => {
-        this.reset(e)
+        if (this.proc === proc) this.reset(e)
         reject(e)
       })
       proc.on('close', (code) => {
-        const tail = stderrTail.trim().split('\n').filter(Boolean).pop()
+        // Progress bars redraw with a carriage return and move the cursor with
+        // ANSI codes; neither may end up as the error message.
+        const tail = stripVTControlCharacters(stderrTail)
+          .split(/[\r\n]+/)
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .pop()
         const err = new Error(tail ? `PiD failed: ${tail}` : `PiD process exited (${code})`)
-        this.reset(err)
+        if (this.proc === proc) this.reset(err)
         // If it died before ready, surface it.
         reject(err)
       })
     })
+    // A caller that was cancelled during the load no longer awaits this promise;
+    // a later startup failure must not become an unhandled rejection.
+    this.ready.catch(() => {})
     return this.ready
+  }
+
+  /** Wait for ensure(), but give up at once if the signal aborts. The load keeps
+   * going in the background, so the model is warm for the next image. This
+   * caller hears load progress only while it is still waiting: a cancelled job
+   * must never report progress again. */
+  private ensureOrAbort(onProgress?: PidProgress, signal?: AbortSignal): Promise<void> {
+    // Wrapped per call, so each waiter is removed on its own.
+    const listener: PidProgress | undefined =
+      onProgress && ((phase, detail) => onProgress(phase, detail))
+    if (listener) this.loadListeners.add(listener)
+    const ready = this.ensure(onProgress)
+    return new Promise<void>((resolve, reject) => {
+      const stopWaiting = (): void => {
+        if (listener) this.loadListeners.delete(listener)
+        signal?.removeEventListener('abort', onAbort)
+      }
+      const onAbort = (): void => {
+        stopWaiting()
+        reject(new Error('Upscale cancelled'))
+      }
+      signal?.addEventListener('abort', onAbort)
+      ready.then(
+        () => {
+          stopWaiting()
+          resolve()
+        },
+        (e) => {
+          stopWaiting()
+          reject(e)
+        }
+      )
+    })
   }
 
   private reset(err: Error): void {
@@ -171,7 +274,8 @@ class PidSidecar {
     signal?: AbortSignal
   ): Promise<{ output: string; ms: number }> {
     if (signal?.aborted) throw new Error('Upscale cancelled')
-    await this.ensure(onProgress)
+    await this.ensureOrAbort(onProgress, signal)
+    if (signal?.aborted) throw new Error('Upscale cancelled')
     const proc = this.proc
     if (!proc) throw new Error('PiD process is not running')
     // The first generate of a session also pays the one-time kernel compile.
