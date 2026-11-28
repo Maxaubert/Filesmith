@@ -113,7 +113,7 @@ describe('deleting a result clears the stale path on its source', () => {
         }
       }
     }
-    const s = reducer(s0, { type: 'dismissAny', ids: ['r1'], column: 'output' })
+    const s = reducer(s0, { type: 'dismissAny', ids: ['r1'], column: 'output', deleted: true })
     const a = s.queues.convert!.items.find((i) => i.id === 'a')!
     expect(a.outputPath).toBeUndefined()
     expect(a.outputSize).toBeUndefined()
@@ -135,8 +135,30 @@ describe('deleting a result clears the stale path on its source', () => {
         }
       }
     }
-    const s = reducer(s0, { type: 'dismissAny', ids: ['r1'], column: 'output' })
+    const s = reducer(s0, { type: 'dismissAny', ids: ['r1'], column: 'output', deleted: true })
     expect(s.queues.convert!.items.find((i) => i.id === 'a')!.outputPath).toBe('C:/o.webp')
+  })
+})
+
+describe('Clear list only hides results', () => {
+  it('leaves the source rows untouched, since the files stay on disk', () => {
+    const a = src('a', { status: 'done', outputPath: 'C:/a.webp', outputSize: 5 })
+    const b = src('b', { status: 'done', outputPath: 'C:/b.webp', outputSize: 6 })
+    const s0: AppState = {
+      ...initialState,
+      queues: {
+        convert: {
+          items: [a, b, result('r1', 'C:/a.webp'), result('r2', 'C:/b.webp')],
+          selected: [],
+          anchor: null
+        }
+      }
+    }
+    // What CompletedView's onClear dispatches.
+    const s = reducer(s0, { type: 'dismissAny', ids: ['r1', 'r2'], column: 'output' })
+    expect(s.queues.convert!.items).toEqual([a, b])
+    expect(s.queues.convert!.items[0]).toBe(a)
+    expect(s.queues.convert!.items[1]).toBe(b)
   })
 })
 

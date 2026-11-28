@@ -173,7 +173,9 @@ export type Action =
   | { type: 'addSources'; items: QueueItem[]; key: QueueKey }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'dismiss'; id: string; column: 'input' | 'output' }
-  | { type: 'dismissAny'; ids: string[]; column: 'input' | 'output' }
+  /** `deleted` means the output files were really moved to the Recycle Bin.
+   * Without it the cards are only hidden and the files stay on disk. */
+  | { type: 'dismissAny'; ids: string[]; column: 'input' | 'output'; deleted?: boolean }
   | { type: 'markQueued'; ids: string[]; options?: JobOptions }
   | { type: 'jobEvent'; event: JobEvent }
   | { type: 'select'; id: string; mode: SelectMode; order?: string[] }
@@ -437,7 +439,12 @@ function pruneQueue(q: QueueState, mapItem: (i: QueueItem) => QueueItem): QueueS
  * Output cards are two views of one item; an item is dropped entirely once
  * neither view remains. Ids are unique across queues (newId), so this works
  * for actions dispatched after an await, when the user may be on another tab. */
-function dismissIds(state: AppState, idList: string[], column: 'input' | 'output'): AppState {
+function dismissIds(
+  state: AppState,
+  idList: string[],
+  column: 'input' | 'output',
+  deleted = false
+): AppState {
   const ids = new Set(idList)
   const queues = { ...state.queues }
   for (const [k, q] of Object.entries(queues) as [QueueKey, QueueState][]) {
@@ -449,10 +456,10 @@ function dismissIds(state: AppState, idList: string[], column: 'input' | 'output
           : { ...i, hiddenOutput: true }
         : i
     )
-    if (column === 'output') {
+    if (deleted && column === 'output') {
       // jobEvent 'done' also copies outputPath/outputSize onto the SOURCE row
-      // (source -> result on one row). Once the last visible result with that
-      // path is gone, the source must stop pointing at it.
+      // (source -> result on one row). Once the file is deleted and no visible
+      // result has that path any more, the source must stop pointing at it.
       const gone = new Set(
         q.items.filter((i) => ids.has(i.id) && i.isResult && i.outputPath).map((i) => i.outputPath)
       )
@@ -668,7 +675,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return dismissIds(state, [action.id], action.column)
     case 'dismissAny':
       // The Completed view acts on results that live in other tabs' queues.
-      return dismissIds(state, action.ids, action.column)
+      return dismissIds(state, action.ids, action.column, action.deleted)
     case 'markQueued': {
       // Located by id like 'dismiss': run() dispatches this after an await.
       const ids = new Set(action.ids)

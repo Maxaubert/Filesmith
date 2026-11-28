@@ -152,7 +152,8 @@ export function rowView(item: QueueItem, estimateBytes?: number | null): RowView
     size: formatBytes(item.file.size),
     result: resultFor(item, estimateBytes),
     status: statusFor(item),
-    action: actionFor(item.status)
+    // A done row whose output was deleted has nothing to show in a folder.
+    action: actionFor(item.status === 'done' && !item.outputPath ? 'ready' : item.status)
   }
 }
 
