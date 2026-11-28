@@ -28,7 +28,7 @@ import { run, ToolMissingError, type RunResult } from '../run'
 import { estimateProgress, estimateSecForBytes } from './estimate'
 import { reserveOutput, reserveOutputDir, type DirOutput, type FileOutput } from '../atomicOutput'
 import { ffmpegProgress, probeDuration, probeImageDimensions } from '../probe'
-import { buildUpscaleArgs, needsPreConvert, upscaleProgress } from './upscale'
+import { buildPreConvertArgs, buildUpscaleArgs, needsPreConvert, upscaleProgress } from './upscale'
 import { resolveNcnnModel } from './ncnnModels'
 import { bgModelOf, buildCompositeArgs, buildRembgArgs, rembgPhase } from './removebg'
 import { notReadyMessage } from './readiness'
@@ -673,6 +673,8 @@ const compressTool: ToolModule = {
  *
  * `src` is the ORIGINAL file, not the pre-converted PNG: converting an .ico to
  * PNG clears the alpha flag, so an icon checked at that stage looks opaque.
+ * The mask is auto-oriented like the pre-converted input, so a source with an
+ * EXIF orientation gets a mask that matches the upscaled geometry.
  */
 async function restoreAlpha(
   src: string,
@@ -703,6 +705,7 @@ async function restoreAlpha(
       output,
       '(',
       frame,
+      '-auto-orient',
       '-alpha',
       'extract',
       '-resize',
@@ -725,8 +728,29 @@ async function restoreAlpha(
 }
 
 /**
- * Upscale via the PiD diffusion sidecar (NVIDIA only). Pre-converts exotic
- * inputs to PNG, then hands the warm sidecar the image. The first run of a
+ * Convert `file` to a single-frame PNG at `<tmp>/src.png` with the bundled
+ * ImageMagick and return that path. The upscalers always call this (with
+ * `orient`), so they only ever read a PNG that our own magick wrote.
+ */
+async function preConvertToPng(
+  file: FileInfo,
+  tmp: string,
+  signal: AbortSignal,
+  opts: { orient?: boolean } = {}
+): Promise<string> {
+  const src = join(tmp, 'src.png')
+  const { code, stderr } = await run(
+    resolveTool('magick'),
+    buildPreConvertArgs(file.path, src, opts),
+    { signal }
+  )
+  if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
+  return src
+}
+
+/**
+ * Upscale via the PiD diffusion sidecar (NVIDIA only). Normalises the input to
+ * an oriented PNG, then hands the warm sidecar the image. The first run of a
  * session is slow (model load + one-time kernel compile); every one after is
  * warm. A missing install throws a clear error here as a backstop; the UI's own
  * pid:status check (not this error) is what drives the one-click download prompt.
@@ -754,14 +778,7 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
   }
   const stopEst = (): void => est?.stop()
   try {
-    let src = file.path
-    if (needsPreConvert(file.ext)) {
-      src = join(tmp, 'src.png')
-      const { code, stderr } = await run(resolveTool('magick'), [magickFrame(file.path), src], {
-        signal: ctx.signal
-      })
-      if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
-    }
+    const src = await preConvertToPng(file, tmp, ctx.signal, { orient: true })
     output = reserveOutput(file.path, '.png', 'upscaled', ctx.outDir)
     ctx.onProgress(undefined, 'Starting PiD…')
     // The sidecar writes to a temp target, copied onto the reserved name only
@@ -812,7 +829,7 @@ async function upscaleWithPid(file: FileInfo, factor: number, ctx: ToolContext):
 
 /**
  * Upscale with a user-imported ComfyUI model via the spandrel sidecar (NVIDIA).
- * Pre-converts exotic inputs to PNG, runs a tiled upscale at the model's native
+ * Normalises the input to an oriented PNG, runs a tiled upscale at the model's native
  * scale (resampling to the requested factor if different), restores alpha, and
  * reports MEASURED per-tile progress.
  */
@@ -829,14 +846,7 @@ async function upscaleWithComfy(
   const tmp = mkdtempSync(join(tmpdir(), 'filesmith-comfy-'))
   let output: FileOutput | undefined
   try {
-    let src = file.path
-    if (needsPreConvert(file.ext)) {
-      src = join(tmp, 'src.png')
-      const { code, stderr } = await run(resolveTool('magick'), [magickFrame(file.path), src], {
-        signal: ctx.signal
-      })
-      if (code !== 0 || !existsSync(src)) throw new Error(describeToolError(stderr, 'magick', code))
-    }
+    const src = await preConvertToPng(file, tmp, ctx.signal, { orient: true })
     output = reserveOutput(file.path, '.png', 'upscaled', ctx.outDir)
     const label = background
       ? `Upscaling with ${model.name} (background)…`
@@ -875,8 +885,9 @@ async function upscaleWithComfy(
 /**
  * AI image upscaling via Real-ESRGAN. Deliberately separate from Resize: it
  * reconstructs detail rather than interpolating, needs a Vulkan GPU, and costs
- * seconds per image. Formats the binary can't read are converted to PNG in a
- * temp dir first, so the tool accepts any image Filesmith recognises.
+ * seconds per image. Every input is first converted to an oriented PNG in a
+ * temp dir by the bundled ImageMagick, so the tool accepts any image Filesmith
+ * recognises and the binary only ever reads a PNG we wrote.
  */
 const upscaleTool: ToolModule = {
   async run(file, options, ctx) {
@@ -901,16 +912,9 @@ const upscaleTool: ToolModule = {
     const tmp = mkdtempSync(join(tmpdir(), 'filesmith-up-'))
     let output: FileOutput | undefined
     try {
-      // Real-ESRGAN reads png/jpg/webp; anything else goes through magick first.
-      let src = file.path
-      if (needsPreConvert(file.ext)) {
-        src = join(tmp, 'src.png')
-        const { code, stderr } = await run(resolveTool('magick'), [magickFrame(file.path), src], {
-          signal: ctx.signal
-        })
-        if (code !== 0 || !existsSync(src))
-          throw new Error(describeToolError(stderr, 'magick', code))
-      }
+      // Always normalise through the bundled magick: Real-ESRGAN then reads a
+      // PNG we wrote, with the EXIF orientation already applied to the pixels.
+      const src = await preConvertToPng(file, tmp, ctx.signal, { orient: true })
 
       // Which ncnn model to run, and which folder it lives in, both come from
       // disk: the bundled models/ dir OR the user's own overlay in userData. The
@@ -994,15 +998,9 @@ const removebgTool: ToolModule = {
     try {
       // rembg reads common raster formats but not svg/heic/jxl; normalise
       // anything exotic to PNG first so the tool accepts any image.
-      let src = file.path
-      if (needsPreConvert(file.ext)) {
-        src = join(tmp, 'src.png')
-        const { code, stderr } = await run(resolveTool('magick'), [magickFrame(file.path), src], {
-          signal: ctx.signal
-        })
-        if (code !== 0 || !existsSync(src))
-          throw new Error(describeToolError(stderr, 'magick', code))
-      }
+      const src = needsPreConvert(file.ext)
+        ? await preConvertToPng(file, tmp, ctx.signal)
+        : file.path
 
       output = reserveOutput(file.path, '.png', 'no-bg', ctx.outDir)
       // The first run of a model pays a download; every run pays a load. Say so,
