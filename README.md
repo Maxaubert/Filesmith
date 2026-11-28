@@ -23,6 +23,12 @@ engine is available as the `filesmith` command line, from a built-in console or 
 - [Command line](docs/cli.md): the `filesmith` CLI and the in-app console
 - [Architecture](docs/architecture.md): for developers, how the app is built, tested and shipped
 
+## Verify your download
+
+Releases after 0.9.1 include a `SHA256SUMS` file. In PowerShell, run `Get-FileHash .\Filesmith-Setup-x64.exe`
+(use the name of the file you downloaded) and compare the hash with that file's line in `SHA256SUMS`
+(letter case does not matter). With `sha256sum`, run `sha256sum -c SHA256SUMS --ignore-missing`.
+
 ## License
 
 [MIT](LICENSE)
