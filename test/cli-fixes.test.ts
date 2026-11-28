@@ -3,6 +3,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { planJobs, type PlanEnv } from '../src/cli/plan'
+import { buildOptions } from '../src/cli/options'
+import { findCommand } from '../src/cli/catalog'
+import { UsageError } from '../src/cli/exit'
 import { pickComfyModel } from '../src/cli/deps'
 import { buildFormats, runFormats, type FormatsDeps } from '../src/cli/commands/formats'
 import { parseArgv } from '../src/cli/parse'
@@ -38,9 +41,68 @@ describe('convert plan keeps the output flags', () => {
     expect(r.jobs[0].options).toMatchObject(FINISH)
   })
   it('archive-routed convert', () => {
-    const r = planJobs('convert', [file('a.zip')], built({ format: '.7z', ...FINISH }), env)
+    const o = { format: '.7z', keepDates: true, stripMetadata: true }
+    const r = planJobs('convert', [file('a.zip')], built(o), env)
     expect(r.jobs[0].tool).toBe('archive')
-    expect(r.jobs[0].options).toMatchObject(FINISH)
+    expect(r.jobs[0].options).toMatchObject(o)
+  })
+})
+
+describe('archive-routed convert refuses --replace, --rename and --dates', () => {
+  const plan = (inputs: string[], flags: Record<string, string | boolean>) => {
+    const cmd = findCommand(['convert'])!
+    const b = buildOptions(cmd, flags, { cwd: dir, pathState: () => 'missing' })
+    return planJobs('convert', inputs.map(file), b, env)
+  }
+  const cases: [string, Record<string, string | boolean>][] = [
+    ['--replace', { replace: true }],
+    ['--rename', { rename: '{name}-web' }],
+    ['--dates', { dates: 'today' }],
+    ['--dates', { dates: 'keep' }]
+  ]
+
+  it.each(cases)('%s throws a UsageError (%o)', (flag, flags) => {
+    for (const [input, to] of [
+      ['a.zip', '7z'],
+      ['b.cbz', 'pdf'],
+      ['c.pdf', 'cbz']
+    ]) {
+      const run = () => plan([input], { to, ...flags })
+      expect(run).toThrow(UsageError)
+      expect(run).toThrow(`${flag} cannot be used with archive conversions (${input})`)
+    }
+  })
+
+  it('names every typed flag', () => {
+    expect(() => plan(['a.zip'], { to: '7z', rename: 'x', dates: 'today' })).toThrow(
+      /^--rename, --dates cannot .* without them\.$/
+    )
+  })
+
+  it('the --dates default and --no-replace do not count as typed', () => {
+    const r = plan(['a.zip'], { to: '7z', replace: false })
+    expect(r.jobs[0]).toMatchObject({ tool: 'archive', state: 'ready' })
+  })
+
+  it('a mixed batch is refused as a whole and names only the archive files', () => {
+    expect(() => plan(['doc.docx', 'a.zip'], { to: 'pdf', replace: true })).toThrow(
+      /\(a\.zip\)\. Nothing was converted/
+    )
+  })
+
+  it('a mixed batch without the flags still plans both routes', () => {
+    const r = plan(['doc.docx', 'a.zip'], { to: 'pdf' })
+    expect(r.jobs.map((j) => [j.tool, j.state])).toEqual([
+      ['convert', 'ready'],
+      ['archive', 'ready']
+    ])
+  })
+
+  it('skipped and unsupported files do not count as archive-routed', () => {
+    const mixed = plan(['a.png', 'c.mp3'], { to: 'jpg', replace: true, dates: 'today' })
+    expect(mixed.jobs.map((j) => j.state)).toEqual(['ready', 'error'])
+    const same = plan(['x.cbz'], { to: 'cbz', replace: true })
+    expect(same.jobs[0].state).toBe('skip')
   })
 })
 
