@@ -1,11 +1,11 @@
-import { existsSync, readdirSync, statSync } from 'fs'
-import { basename, join, resolve } from 'path'
+import { existsSync, statSync } from 'fs'
+import { basename, join } from 'path'
 import type { ArchInfo, GenArch, GenModel, GenModelScan } from '@shared/genArch'
 import { archInfoFor } from '@shared/genArch'
 import type { ProbedFile } from '@shared/registry'
 import type { DimCaps } from '@shared/generate'
 import { scoreDetect } from '@shared/registry'
-import { comfyModelsBases } from '../comfy/discover'
+import { comfyModelsBases, walkModelFiles } from '../comfy/discover'
 import { registryEntries, registryEntry } from '../registry/load'
 import type { SafetensorsHeader } from './archScan'
 import {
@@ -90,49 +90,19 @@ function fileSize(p: string): number {
 }
 
 /** Recursively list model files (ComfyUI-relative name + abs path + models base)
- * under a given subdir across every ComfyUI base, de-duped by relative name. */
-// A recursive walk MUST guard against a symlink/junction cycle and bound its
-// depth. Junctioning a shared models folder is routine when two ComfyUI installs
-// share weights, and the previous `seen` set was keyed on the RELATIVE name — it
-// grew forever and never stopped the recursion, so that layout hung the app.
-const MAX_WALK_DEPTH = 4
-
+ * under a given subdir across every ComfyUI base, de-duped by relative name.
+ * The walk itself (cycle guard, depth cap) is the shared walkModelFiles. */
 function walkModels(subdirs: string[], exts: RegExp): { rel: string; abs: string; base: string }[] {
   const out: { rel: string; abs: string; base: string }[] = []
   const seen = new Set<string>()
-  const visited = new Set<string>()
-  const walk = (dir: string, rel: string, base: string, depth = 0): void => {
-    if (depth > MAX_WALK_DEPTH) return
-    const key = resolve(dir)
-    if (visited.has(key)) return
-    visited.add(key)
-    let entries: string[]
-    try {
-      entries = readdirSync(dir)
-    } catch {
-      return
-    }
-    for (const e of entries) {
-      const p = join(dir, e)
-      let st
-      try {
-        st = statSync(p)
-      } catch {
-        continue
-      }
-      const r = rel ? `${rel}/${e}` : e
-      if (st.isDirectory()) walk(p, r, base, depth + 1)
-      else if (exts.test(e) && !seen.has(r.toLowerCase())) {
-        seen.add(r.toLowerCase())
-        out.push({ rel: r, abs: p, base })
-      }
-    }
-  }
+  const accept = (name: string): boolean => exts.test(name)
   for (const base of comfyModelsBases())
-    for (const sub of subdirs) {
-      const dir = join(base, sub)
-      if (existsSync(dir)) walk(dir, '', base)
-    }
+    for (const sub of subdirs)
+      for (const { rel, abs } of walkModelFiles(join(base, sub), { accept })) {
+        if (seen.has(rel.toLowerCase())) continue
+        seen.add(rel.toLowerCase())
+        out.push({ rel, abs, base })
+      }
   return out
 }
 

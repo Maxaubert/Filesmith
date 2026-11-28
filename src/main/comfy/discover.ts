@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'path'
 import type { ComfyModel, ComfyProbe } from '@shared/comfy'
 import { classifyModel } from '@shared/comfy'
@@ -68,32 +68,74 @@ export function resolveUpscaleDirs(picked: string): string[] {
 
 /**
  * Minimal `extra_model_paths.yaml` reader (no YAML dependency): pairs each
- * `base_path:` with the following `upscale_models:` entry in the same block and
- * yields the resolved directory. Handles absolute or base-relative entries.
+ * section's `base_path:` with its `upscale_models:` entries and yields the
+ * resolved directories. Handles what ComfyUI's own example file uses:
+ * - a single-line value: `upscale_models: models/ESRGAN`
+ * - a block scalar, one path per indented line: `upscale_models: |` (or `>`)
+ * - a list: `upscale_models:` followed by `- path` lines
+ * A relative base_path is relative to the yaml's folder (as ComfyUI does), and a
+ * new top-level section starts without a base_path.
  */
-function resolveExtraPaths(cfgPath: string): string[] {
+export function resolveExtraPaths(cfgPath: string): string[] {
   let text: string
   try {
     text = readFileSync(cfgPath, 'utf-8')
   } catch {
     return []
   }
+  const cfgDir = dirname(cfgPath)
+  const lines = text.split(/\r?\n/)
+  const indentOf = (s: string): number => s.length - s.trimStart().length
+  const isSkip = (t: string): boolean => !t || t.startsWith('#')
+  // A `#` starts a comment at the start of a value or after whitespace. The
+  // start case is real: the key regex already ate the space after the colon.
+  const clean = (s: string): string =>
+    s
+      .replace(/(^|\s+)#.*$/, '')
+      .trim()
+      .replace(/^["']|["']$/g, '')
   const out: string[] = []
   let base = ''
-  for (const raw of text.split(/\r?\n/)) {
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]
     const line = raw.trim()
-    const bm = /^base_path:\s*(.+)$/.exec(line)
-    if (bm) {
-      base = bm[1].trim().replace(/^["']|["']$/g, '')
+    if (isSkip(line)) continue
+    const indent = indentOf(raw)
+    // A top-level line opens a new section: its base_path must not leak in.
+    if (indent === 0) base = ''
+    const m = /^([A-Za-z0-9_]+):\s*(.*)$/.exec(line)
+    if (!m) continue
+    const [, key, rest] = m
+    if (key === 'base_path') {
+      const b = clean(rest)
+      base = !b ? '' : isAbsolute(b) ? b : join(cfgDir, b)
       continue
     }
-    const um = /^upscale_models:\s*(.+)$/.exec(line)
-    if (um) {
-      const val = um[1].trim().replace(/^["']|["']$/g, '')
-      // A value may itself be a list item or a plain path.
-      const p = isAbsolute(val) ? val : base ? join(base, val) : join(dirname(cfgPath), val)
-      out.push(p)
+    if (key !== 'upscale_models') continue
+    const vals: string[] = []
+    const value = clean(rest)
+    if (value && !/^[|>]/.test(value)) {
+      vals.push(value)
+    } else {
+      // Block scalar or list: every following line indented deeper than the key
+      // is one path (a `- item` may also sit at the key's own indent).
+      while (i + 1 < lines.length) {
+        const next = lines[i + 1]
+        const t = next.trim()
+        if (isSkip(t)) {
+          i++
+          continue
+        }
+        const isItem = t === '-' || t.startsWith('- ')
+        const nextIndent = indentOf(next)
+        if (nextIndent < indent || (nextIndent === indent && (value || !isItem))) break
+        i++
+        const v = clean(isItem && !value ? t.slice(1) : t)
+        if (v) vals.push(v)
+      }
     }
+    for (const val of vals)
+      out.push(isAbsolute(val) ? val : base ? join(base, val) : join(cfgDir, val))
   }
   return out
 }
@@ -148,43 +190,6 @@ export function comfyDesktopBases(): string[] {
   return out
 }
 
-/** Checkpoint filenames ComfyUI can see (for the generation model picker).
- * Returned as ComfyUI names them: relative to models/checkpoints, forward slashes. */
-export function findComfyCheckpoints(): string[] {
-  const found = new Set<string>()
-  // Cycle + depth guard, matching scanModelFiles below. A junctioned shared
-  // models folder otherwise recursed until the app hung.
-  const visited = new Set<string>()
-  const walk = (dir: string, rel: string, depth = 0): void => {
-    if (depth > 4) return
-    const vk = resolve(dir)
-    if (visited.has(vk)) return
-    visited.add(vk)
-    let entries: string[]
-    try {
-      entries = readdirSync(dir)
-    } catch {
-      return
-    }
-    for (const e of entries) {
-      const p = join(dir, e)
-      let st
-      try {
-        st = statSync(p)
-      } catch {
-        continue
-      }
-      const r = rel ? `${rel}/${e}` : e
-      if (st.isDirectory()) walk(p, r, depth + 1)
-      // Show every checkpoint — name-based filtering was unreliable (it hid
-      // usable models). A checkpoint that can't generate is handled by Cancel.
-      else if (/\.(safetensors|ckpt)$/i.test(e)) found.add(r)
-    }
-  }
-  for (const base of comfyModelsBases()) walk(join(base, 'checkpoints'), '')
-  return [...found].sort()
-}
-
 export function findComfyPidWeights(
   checkpointDirName: string
 ): { checkpoint: string; vae: string } | null {
@@ -210,13 +215,47 @@ export function findComfyPidWeights(
   return null
 }
 
-/** Every model file under the given dirs (recursive, dedup by absolute path). */
-export function scanModelFiles(dirs: string[]): string[] {
-  const found = new Set<string>()
+/** How deep a model-folder walk goes below its root (the root is depth 0). */
+export const MODEL_WALK_MAX_DEPTH = 4
+
+/** The real path of `p` (junctions and symlinks followed), or resolve(p) when
+ * it cannot be read. Used as the identity of a folder or file during a walk. */
+function realKey(p: string): string {
+  try {
+    return realpathSync.native(p)
+  } catch {
+    return resolve(p)
+  }
+}
+
+/** Case-insensitive name order with a code-unit tiebreak, close to NTFS order. */
+function byName(a: string, b: string): number {
+  const la = a.toLowerCase()
+  const lb = b.toLowerCase()
+  if (la !== lb) return la < lb ? -1 : 1
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+/**
+ * The one recursive model-folder walker. Every file under `root` whose name
+ * `accept` takes, as `{ abs, rel }`: `abs` is resolve()d (not the real path) and
+ * `rel` is relative to `root` with forward slashes.
+ *
+ * Shared models folders are often junctioned between ComfyUI installs, so a
+ * folder is keyed on its REAL path: a junction that points back up the tree is
+ * entered once and the walk ends. Depth is capped too. Unreadable folders and
+ * entries are skipped. Entries are visited in name order, so results are stable.
+ */
+export function walkModelFiles(
+  root: string,
+  opts: { accept: (name: string) => boolean; maxDepth?: number }
+): { abs: string; rel: string }[] {
+  const maxDepth = opts.maxDepth ?? MODEL_WALK_MAX_DEPTH
+  const out: { abs: string; rel: string }[] = []
   const visited = new Set<string>()
-  const walk = (dir: string): void => {
-    // Guard against a symlink/junction cycle recursing forever.
-    const key = resolve(dir)
+  const walk = (dir: string, rel: string, depth: number): void => {
+    if (depth > maxDepth) return
+    const key = realKey(dir)
     if (visited.has(key)) return
     visited.add(key)
     let entries: string[]
@@ -225,7 +264,7 @@ export function scanModelFiles(dirs: string[]): string[] {
     } catch {
       return
     }
-    for (const e of entries) {
+    for (const e of entries.sort(byName)) {
       const p = join(dir, e)
       let st
       try {
@@ -233,12 +272,28 @@ export function scanModelFiles(dirs: string[]): string[] {
       } catch {
         continue
       }
-      if (st.isDirectory()) walk(p)
-      else if (MODEL_EXTS.some((x) => e.toLowerCase().endsWith(x))) found.add(resolve(p))
+      const r = rel ? `${rel}/${e}` : e
+      if (st.isDirectory()) walk(p, r, depth + 1)
+      else if (opts.accept(e)) out.push({ abs: resolve(p), rel: r })
     }
   }
-  dirs.forEach(walk)
-  return [...found]
+  walk(root, '', 0)
+  return out
+}
+
+/** Every model file under the given dirs (recursive, dedup by real path). */
+export function scanModelFiles(dirs: string[]): string[] {
+  const accept = (name: string): boolean => MODEL_EXTS.some((x) => name.toLowerCase().endsWith(x))
+  const seen = new Set<string>()
+  const found: string[] = []
+  for (const dir of dirs)
+    for (const { abs } of walkModelFiles(dir, { accept })) {
+      const key = realKey(abs)
+      if (seen.has(key)) continue
+      seen.add(key)
+      found.push(abs)
+    }
+  return found
 }
 
 /**

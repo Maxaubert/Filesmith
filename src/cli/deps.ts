@@ -25,6 +25,7 @@ import { comfyEngineReady, pidInstalled, pidRoot } from '../main/pid/paths'
 import { installComfyEngine, installPid, pidWeightFiles } from '../main/pid/install'
 import { clearComfyPythonCache, comfyPythonReady } from '../main/comfy/pythonEnv'
 import { scanComfy } from '../main/comfy/discover'
+import { ensureDriveRoots } from '../main/comfy/roots'
 import { downloadCompanions } from '../main/generate/companions'
 import { listNcnnModels, userNcnnDir } from '../main/tools/ncnnModels'
 import {
@@ -396,6 +397,9 @@ export function defaultDeps(): CliDeps {
     setup: defaultSetupDeps(),
     formats: defaultFormatsDeps(),
     doctor: defaultDoctorDeps(),
-    skill: defaultSkillDeps()
+    skill: defaultSkillDeps(),
+    // ComfyUI discovery reads the drive list synchronously; a one-shot run must
+    // wait for the bounded async probe once, or it only sees the system drive.
+    prepare: ensureDriveRoots
   }
 }
