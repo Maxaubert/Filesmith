@@ -171,3 +171,17 @@ describe('doneSamples', () => {
     expect(s).toEqual([{ source: 3_200_000, output: 800_000 }])
   })
 })
+
+describe('done row whose output was deleted', () => {
+  it('offers Remove, not a Show in folder button with nothing to show', () => {
+    const v = rowView({
+      id: 'x',
+      file: { path: 'C:/x/a.png', name: 'a.png', ext: '.png', kind: 'image', size: 10 },
+      thumb: null,
+      status: 'done',
+      percent: 100
+    })
+    expect(v.status.kind).toBe('done')
+    expect(v.action).toEqual({ kind: 'remove', icon: 'close', label: 'Remove', ghost: true })
+  })
+})

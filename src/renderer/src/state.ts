@@ -173,7 +173,9 @@ export type Action =
   | { type: 'addSources'; items: QueueItem[]; key: QueueKey }
   | { type: 'setThumb'; id: string; thumb: string | null }
   | { type: 'dismiss'; id: string; column: 'input' | 'output' }
-  | { type: 'dismissAny'; ids: string[]; column: 'input' | 'output' }
+  /** `deleted` means the output files were really moved to the Recycle Bin.
+   * Without it the cards are only hidden and the files stay on disk. */
+  | { type: 'dismissAny'; ids: string[]; column: 'input' | 'output'; deleted?: boolean }
   | { type: 'markQueued'; ids: string[]; options?: JobOptions }
   | { type: 'jobEvent'; event: JobEvent }
   | { type: 'select'; id: string; mode: SelectMode; order?: string[] }
@@ -420,6 +422,87 @@ function mapItemById(state: AppState, id: string, fn: (i: QueueItem) => QueueIte
   return { ...state, queues }
 }
 
+/** Map a queue's items, drop those with neither view left (Input or Output),
+ * and keep only selection/anchor ids that are still selectable inputs. */
+function pruneQueue(q: QueueState, mapItem: (i: QueueItem) => QueueItem): QueueState {
+  const kept = q.items.map(mapItem).filter((i) => inInput(i) || inOutput(i))
+  const selectable = new Set(kept.filter(inInput).map((i) => i.id))
+  return {
+    ...q,
+    items: kept,
+    selected: q.selected.filter((s) => selectable.has(s)),
+    anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
+  }
+}
+
+/** Hide one view of the given items in whichever queues hold them. Input and
+ * Output cards are two views of one item; an item is dropped entirely once
+ * neither view remains. Ids are unique across queues (newId), so this works
+ * for actions dispatched after an await, when the user may be on another tab. */
+function dismissIds(
+  state: AppState,
+  idList: string[],
+  column: 'input' | 'output',
+  deleted = false
+): AppState {
+  const ids = new Set(idList)
+  const queues = { ...state.queues }
+  for (const [k, q] of Object.entries(queues) as [QueueKey, QueueState][]) {
+    if (!q?.items.some((i) => ids.has(i.id))) continue
+    let next = pruneQueue(q, (i) =>
+      ids.has(i.id)
+        ? column === 'input'
+          ? { ...i, hiddenInput: true }
+          : { ...i, hiddenOutput: true }
+        : i
+    )
+    if (deleted && column === 'output') {
+      // jobEvent 'done' also copies outputPath/outputSize onto the SOURCE row
+      // (source -> result on one row). Once the file is deleted and no visible
+      // result has that path any more, the source must stop pointing at it.
+      const gone = new Set(
+        q.items.filter((i) => ids.has(i.id) && i.isResult && i.outputPath).map((i) => i.outputPath)
+      )
+      const still = new Set(next.items.filter(inOutput).map((i) => i.outputPath))
+      const stale = (i: QueueItem): boolean =>
+        !i.isResult && !!i.outputPath && gone.has(i.outputPath) && !still.has(i.outputPath)
+      if (next.items.some(stale)) {
+        next = {
+          ...next,
+          items: next.items.map((i) =>
+            stale(i) ? { ...i, outputPath: undefined, outputSize: undefined } : i
+          )
+        }
+      }
+    }
+    queues[k] = next
+  }
+  return { ...state, queues }
+}
+
+/** Live options that differ from what a fresh workspace would hold, so an
+ * option changed while the session restore was in flight wins over the
+ * restored value, but untouched defaults do not overwrite it. */
+function changedOptions(key: string, live: JobOptions): JobOptions {
+  const cut = key.lastIndexOf(':')
+  if (cut < 0) return live
+  const qk = key.slice(0, cut)
+  const tab = (qk.startsWith('tools:') ? 'tools' : qk) as TabId
+  const tool = qk.startsWith('tools:') ? qk.slice(6) : null
+  let base: JobOptions
+  try {
+    base = defaultOptionsFor(tab, tool, key.slice(cut + 1))
+  } catch {
+    return live
+  }
+  const b = base as Record<string, unknown>
+  return Object.fromEntries(
+    Object.entries(live as Record<string, unknown>).filter(
+      ([k, v]) => JSON.stringify(v) !== JSON.stringify(b[k])
+    )
+  ) as JobOptions
+}
+
 function selectInQueue(
   q: QueueState,
   id: string,
@@ -470,7 +553,22 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'hydrate': {
       // Merge, never replace: the window is interactive while the session
       // restore round-trips, so files dropped in that gap must survive it.
-      const merged = { ...action.state, queues: { ...action.state.queues } }
+      // The same goes for the tab, the open Tools card and any option the user
+      // changed in that gap: the live values win over the restored ones.
+      const options = { ...action.state.options }
+      for (const [k, live] of Object.entries(state.options)) {
+        options[k] = action.state.options[k]
+          ? { ...action.state.options[k], ...changedOptions(k, live) }
+          : live
+      }
+      const merged: AppState = {
+        ...action.state,
+        tab: state.tab,
+        activeTool: state.activeTool,
+        lastTool: state.lastTool ?? action.state.lastTool,
+        options,
+        queues: { ...action.state.queues }
+      }
       for (const [k, q] of Object.entries(state.queues) as [QueueKey, QueueState][]) {
         if (!q?.items.length) continue
         const restored = merged.queues[k]
@@ -483,6 +581,8 @@ export function reducer(state: AppState, action: Action): AppState {
         const extra = q.items.filter((i) => !have.has(key(i)))
         if (extra.length) merged.queues[k] = { ...restored, items: [...restored.items, ...extra] }
       }
+      const liveKey = queueKey(state.tab, state.activeTool)
+      if (!merged.queues[liveKey]) merged.queues[liveKey] = emptyQueue()
       return merged
     }
     case 'setTab': {
@@ -570,68 +670,40 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'setThumb':
       return mapItemById(state, action.id, (i) => ({ ...i, thumb: action.thumb }))
     case 'dismiss':
-      // Input and Output cards are two views of one item. Dismissing one hides
-      // only that view; the item is dropped entirely once neither view remains.
-      return mapQueue(state, (q) => {
-        const items = q.items.map((i) =>
-          i.id === action.id
-            ? action.column === 'input'
-              ? { ...i, hiddenInput: true }
-              : { ...i, hiddenOutput: true }
-            : i
-        )
-        const kept = items.filter((i) => inInput(i) || inOutput(i))
-        const selectable = new Set(kept.filter(inInput).map((i) => i.id))
-        return {
-          items: kept,
-          selected: q.selected.filter((s) => selectable.has(s)),
-          anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
-        }
-      })
-    case 'dismissAny': {
-      // Like 'dismiss', but across every queue: the Completed view acts on
-      // results that live in other tabs' queues.
+      // Located by id, not by the tab on screen: it is dispatched after awaits
+      // (trashSources), when the user may have switched tabs.
+      return dismissIds(state, [action.id], action.column)
+    case 'dismissAny':
+      // The Completed view acts on results that live in other tabs' queues.
+      return dismissIds(state, action.ids, action.column, action.deleted)
+    case 'markQueued': {
+      // Located by id like 'dismiss': run() dispatches this after an await.
       const ids = new Set(action.ids)
       const queues = { ...state.queues }
       for (const [k, q] of Object.entries(queues) as [QueueKey, QueueState][]) {
-        if (!q.items.some((i) => ids.has(i.id))) continue
-        const items = q.items.map((i) =>
-          ids.has(i.id)
-            ? action.column === 'input'
-              ? { ...i, hiddenInput: true }
-              : { ...i, hiddenOutput: true }
-            : i
-        )
-        const kept = items.filter((i) => inInput(i) || inOutput(i))
-        const selectable = new Set(kept.filter(inInput).map((i) => i.id))
+        if (!q?.items.some((i) => ids.has(i.id))) continue
         queues[k] = {
-          items: kept,
-          selected: q.selected.filter((s) => selectable.has(s)),
-          anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
+          ...q,
+          items: q.items.map((i) =>
+            ids.has(i.id)
+              ? {
+                  ...i,
+                  status: 'queued',
+                  percent: 0,
+                  hasProgress: false,
+                  runOptions: action.options ?? i.runOptions,
+                  error: undefined,
+                  outputPath: undefined,
+                  outputSize: undefined,
+                  etaSec: undefined,
+                  hiddenOutput: false
+                }
+              : i
+          )
         }
       }
       return { ...state, queues }
     }
-    case 'markQueued':
-      return mapQueue(state, (q) => ({
-        ...q,
-        items: q.items.map((i) =>
-          action.ids.includes(i.id)
-            ? {
-                ...i,
-                status: 'queued',
-                percent: 0,
-                hasProgress: false,
-                runOptions: action.options ?? i.runOptions,
-                error: undefined,
-                outputPath: undefined,
-                outputSize: undefined,
-                etaSec: undefined,
-                hiddenOutput: false
-              }
-            : i
-        )
-      }))
     case 'jobEvent': {
       const e = action.event
       // A finished job doesn't turn its source into an output — it appends a
@@ -704,34 +776,16 @@ export function reducer(state: AppState, action: Action): AppState {
         return { ...q, selected: ids, anchor: ids[0] ?? null }
       })
     case 'hideFinished':
-      return mapQueue(state, (q) => {
-        const items = q.items.map((i) =>
+      return mapQueue(state, (q) =>
+        pruneQueue(q, (i) =>
           !i.isResult && (i.status === 'done' || i.status === 'canceled')
             ? { ...i, hiddenInput: true }
             : i
         )
-        const kept = items.filter((i) => inInput(i) || inOutput(i))
-        const selectable = new Set(kept.filter(inInput).map((i) => i.id))
-        return {
-          items: kept,
-          selected: q.selected.filter((s) => selectable.has(s)),
-          anchor: q.anchor && selectable.has(q.anchor) ? q.anchor : null
-        }
-      })
+      )
     default:
       return state
   }
-}
-
-/** "45s left" / "12m left" / "1h 22m left" — what actually reassures a user
- * during a long encode that sits below 1% for minutes. */
-export function formatEta(sec: number): string {
-  if (!Number.isFinite(sec) || sec < 0) return ''
-  if (sec < 60) return `${Math.max(1, Math.round(sec))}s left`
-  const m = Math.round(sec / 60)
-  if (m < 60) return `${m}m left`
-  const h = Math.floor(m / 60)
-  return `${h}h ${m % 60}m left`
 }
 
 // One byte formatter for the whole app: this file used to carry its own copy

@@ -466,7 +466,7 @@ export default function App(): JSX.Element {
         return rest
       })
       evictProbe(out)
-      dispatch({ type: 'dismissAny', ids: [id], column: 'output' })
+      dispatch({ type: 'dismissAny', ids: [id], column: 'output', deleted: true })
     }
     if (failed.length)
       setConfirm({
